@@ -1,0 +1,182 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Deep Cyber-Blue Rounded Squircle Background -->
+    <path
+        android:fillColor="#0052CC"
+        android:pathData="M24,4 C12.95,4 4,12.95 4,24 L4,84 C4,95.05 12.95,104 24,104 L84,104 C95.05,104 104,95.05 104,84 L104,24 C104,12.95 95.05,4 84,4 Z" />
+
+    <!-- Gradient Sheen / Diagonal Lighting -->
+    <path
+        android:fillColor="#0066FF"
+        android:pathData="M4,24 C4,12.95 12.95,4 24,4 L104,84 L104,84 C104,95.05 95.05,104 84,104 L24,104 C12.95,104 4,95.05 4,84 Z" />
+    <path
+        android:fillColor="#0040A8"
+        android:pathData="M4,70 L4,84 C4,95.05 12.95,104 24,104 L55,104 Z" />
+
+    <!-- Sparkle Stars on Left -->
+    <path
+        android:fillColor="#BAE6FD"
+        android:pathData="M10,62 L12,56 L14,62 L20,64 L14,66 L12,72 L10,66 L4,64 Z" />
+
+    <!-- Tilted Background Manga Panel Card (Right) -->
+    <!-- White Card Border / Body -->
+    <group
+        android:rotation="12"
+        android:pivotX="74"
+        android:pivotY="42">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M56,12 H92 C95.3,12 98,14.7 98,18 V68 C98,71.3 95.3,74 92,74 H56 C52.7,74 50,71.3 50,68 V18 C50,14.7 52.7,12 56,12 Z" />
+        <!-- Sky & Clouds inside upper panel -->
+        <path
+            android:fillColor="#BAE6FD"
+            android:pathData="M54,16 H94 V40 H54 Z" />
+        <!-- White clouds -->
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M60,26 C62,24 66,24 68,26 C70,25 74,25 75,27 C78,27 80,29 79,32 H58 C57,29 59,27 60,26 Z" />
+        <!-- Torii Gate Silhouette in upper panel -->
+        <path
+            android:fillColor="#0284C7"
+            android:pathData="M68,27 H86 V29 H68 Z M70,29 H84 V31 H70 Z M72,31 V40 H74 V31 Z M80,31 V40 H82 V31 Z" />
+        <!-- Panel Border Line -->
+        <path
+            android:fillColor="#0369A1"
+            android:pathData="M54,40 H94 V42 H54 Z" />
+        <!-- Lower Panel: Manga frames & speech bubble & silhouette -->
+        <path
+            android:fillColor="#F0F9FF"
+            android:pathData="M54,42 H94 V70 H54 Z" />
+        <!-- Speech Bubble -->
+        <path
+            android:fillColor="#E0F2FE"
+            android:pathData="M57,46 C57,44 60,43 63,43 C66,43 69,44 69,46 C69,48 67,49 65,49 L63,52 L63,49 C60,49 57,48 57,46 Z" />
+        <!-- Manga Character Head Silhouette -->
+        <path
+            android:fillColor="#0284C7"
+            android:pathData="M78,54 C78,50 82,49 84,49 C86,49 90,50 90,54 C90,57 88,58 88,62 H74 C74,58 78,57 78,54 Z" />
+    </group>
+
+    <!-- Foreground Anime Book (Left / Center) -->
+    <!-- 3D Book Outer Shadow & Spine -->
+    <path
+        android:fillColor="#003580"
+        android:pathData="M16,22 C14,24 12,28 12,32 L12,82 C12,87 15,90 20,90 L64,84 C68,83.5 71,80 71,76 L71,18 C71,13.5 67,11 63,11.5 L24,17 C19,18 16,19.5 16,22 Z" />
+
+    <!-- 3D Book Spine Left Curve -->
+    <path
+        android:fillColor="#0072E5"
+        android:pathData="M13,28 C13,24 16,20 20,19 L25,18.5 L25,85 L20,86 C16,87 13,84 13,80 Z" />
+
+    <!-- Book Pages Bottom Edge (Paper Layers) -->
+    <path
+        android:fillColor="#E2E8F0"
+        android:pathData="M24,81 L65,75 C67,74.7 69,76 69,78 L66,82 C65,83 63,83.5 61,84 L25,88 Z" />
+    <path
+        android:fillColor="#CBD5E1"
+        android:pathData="M25,83 L63,77 L62,79 L25,85 Z" />
+
+    <!-- Cyan Ribbon Bookmark Hanging from Pages -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M32,82 L32,96 L36,92 L40,96 L40,81 Z" />
+
+    <!-- Front Book Cover (Vibrant Sky/Cyan Blue) -->
+    <path
+        android:fillColor="#4CA9FF"
+        android:pathData="M22,18 L64,12 C67.5,11.5 70.5,14 70.5,17.5 L70.5,74 C70.5,77 68,79.5 65,80 L23,85 C20,85.5 17.5,83 17.5,80 L17.5,23 C17.5,20 19.5,18.3 22,18 Z" />
+
+    <!-- Front Cover Inner White Border/Bevel -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,21 L62,15.5 C64,15.2 66,16.8 66,18.8 L66,71.5 C66,73.5 64.2,75.2 62.2,75.5 L24.5,79.5 C22.5,79.8 20.8,78.2 20.8,76.2 L20.8,24 C20.8,22 22.2,20.8 24,21 Z" />
+    <!-- Cover Inside Face (Light Pastel Sky Blue Canvas) -->
+    <path
+        android:fillColor="#F0F8FF"
+        android:pathData="M26,23 L60,18 C61.5,17.7 63,19 63,20.5 L63,69 C63,70.5 61.5,72 60,72.2 L26.5,75.5 C25,75.7 23.8,74.5 23.8,73 L23.8,25.5 C23.8,24 24.8,23.2 26,23 Z" />
+
+    <!-- Anime Hair Strands Framing the Eye (Dark Royal Blue) -->
+    <path
+        android:fillColor="#003580"
+        android:pathData="M24,24 C28,26 31,34 31,44 C27,37 25,31 24,24 Z" />
+    <path
+        android:fillColor="#003580"
+        android:pathData="M27,23 C33,26 38,34 40,48 C36,38 33,30 27,23 Z" />
+    <path
+        android:fillColor="#003580"
+        android:pathData="M38,21 C44,23 48,29 50,42 C46,33 43,26 38,21 Z" />
+    <path
+        android:fillColor="#003580"
+        android:pathData="M48,20 C53,23 57,32 58,45 C55,34 52,26 48,20 Z" />
+
+    <!-- Anime Girl Eye (Detailed Manga Style) -->
+    <!-- Upper Eyelid Double Crease -->
+    <path
+        android:fillColor="#003580"
+        android:pathData="M36,37 C42,35 48,36 53,39 L52.5,40 C48,37.2 42.5,36.2 36.5,38 Z" />
+
+    <!-- Thick Dramatic Eyelash / Upper Eyelid Curve -->
+    <path
+        android:fillColor="#071938"
+        android:pathData="M33,45 C38,40 45,39 56,43 C59,44.5 62,47 62,47 C62,47 57,44 54,43 C46,40.5 39,42 34.5,46.5 C33.5,47.5 32,47 33,45 Z" />
+    <!-- Additional Eyelash Flick on Right -->
+    <path
+        android:fillColor="#071938"
+        android:pathData="M56,43 C58,42 62,42.5 64,44 C62,44.5 59,44.5 56,43 Z" />
+
+    <!-- Iris (Rich Anime Blue Gradient & Shading) -->
+    <path
+        android:fillColor="#0284C7"
+        android:pathData="M39,44 C38,50 40,59 46,62 C52,64 56,58 57,51 C57.5,47 56.5,44 55,43 C49,42 43,42 39,44 Z" />
+    <!-- Lower Iris Lighter Glow -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M41,52 C41,57 44,61 47,61.5 C51,62 54,58 55,52 C52,54 45,54 41,52 Z" />
+
+    <!-- Dark Pupil -->
+    <path
+        android:fillColor="#071938"
+        android:pathData="M45,46 C43,49 43,54 46,56 C49,57 51,54 51,50 C51,47 48,45 45,46 Z" />
+
+    <!-- Bright White Circular Sparkle / Light Reflection -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M48,46 C48,44.5 49.5,43.5 51,44 C52.2,44.5 52.8,46 52.2,47.2 C51.5,48.2 49.8,48.5 48.8,47.8 C48.3,47.3 48,46.7 48,46 Z" />
+    <!-- Secondary Tiny Sparkle Reflection -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M43,54 C43,53 44,52 45,52.5 C46,53 46,54.5 45,55 C44,55.5 43,55 43,54 Z" />
+
+    <!-- Lower Eyelid Accent Line -->
+    <path
+        android:fillColor="#071938"
+        android:pathData="M42,63.5 C45,64.5 49,64 53,61.5 L53,62.5 C49,65 45,65.5 41.8,64.2 Z" />
+
+    <!-- Foreground Cloud Sync Badge (Bottom Right) -->
+    <!-- Cloud Drop Shadow -->
+    <path
+        android:fillColor="#002D6E"
+        android:pathData="M68,69 C65,69 62,71 60,74 C58,74 56,76 56,79 C56,83 59,86 63,86 L92,86 C96,86 100,83 100,78 C100,74 97,71 93,70.5 C92.5,65.5 88,61.5 83,61.5 C79,61.5 75.5,63.5 74,67 C72.5,66 70,66.5 68,69 Z" />
+
+    <!-- Crisp White Cloud Body -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M66,66 C63.5,66 61,68 59,71 C57,71 55,73 55,76 C55,80 58,83 62,83 L92,83 C96,83 99,80 99,75.5 C99,71.5 96,68.5 92,68 C91.5,63 87,59 82,59 C78,59 74.5,61 73,64.5 C71.5,63.5 68.5,63.5 66,66 Z" />
+
+    <!-- Sync / Refresh Loop Arrows in Dark Blue -->
+    <!-- Upper Curved Arrow (Clockwise pointing right/down) -->
+    <path
+        android:fillColor="#0052CC"
+        android:pathData="M76,67 C78.5,65.5 81.5,65.5 84,67 C86,68.5 87.2,70.5 87.5,72.5 L89,72.5 L86,77 L83,72.5 L84.8,72.5 C84.5,71.2 83.8,69.8 82.5,68.8 C80.8,67.8 78.5,67.8 76.8,68.8 L75.5,66.8 C75.7,66.7 75.8,66.6 76,66.5 Z" />
+
+    <!-- Lower Curved Arrow (Clockwise pointing left/up) -->
+    <path
+        android:fillColor="#0052CC"
+        android:pathData="M81,77.5 C78.5,79 75.5,79 73,77.5 C71,76 69.8,74 69.5,72 L68,72 L71,67.5 L74,72 L72.2,72 C72.5,73.3 73.2,74.7 74.5,75.7 C76.2,76.7 78.5,76.7 80.2,75.7 L81.5,77.7 C81.3,77.8 81.2,77.9 81,77.5 Z" />
+
+</vector>

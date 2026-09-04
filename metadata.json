@@ -1,0 +1,8 @@
+{
+  "name": "CA-NIM opt v2",
+  "description": "Imported from GitHub: Kh1zZ/CA-NIM",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

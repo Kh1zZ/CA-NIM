@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CA\'NIM</string>
+    <string name="app_tagline">Lacak Anime dan Manga</string>
+    <string name="nav_dashboard">Dashboard</string>
+    <string name="nav_library">Library</string>
+    <string name="nav_discover">Discover</string>
+    <string name="nav_search">Cari</string>
+    <string name="nav_settings">Pengaturan</string>
+    <string name="status_watching">Sedang Menonton</string>
+    <string name="status_reading">Sedang Membaca</string>
+    <string name="status_completed">Selesai</string>
+    <string name="status_on_hold">Ditunda</string>
+    <string name="status_dropped">Ditinggalkan</string>
+    <string name="status_plan_to_watch">Rencana Tonton</string>
+    <string name="status_plan_to_read">Rencana Baca</string>
+</resources>

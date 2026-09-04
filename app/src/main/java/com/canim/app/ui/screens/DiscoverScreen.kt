@@ -1,0 +1,826 @@
+package com.canim.app.ui.screens
+
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import kotlinx.coroutines.flow.distinctUntilChanged
+import com.canim.app.data.local.AnimeEntity
+import com.canim.app.data.local.MangaEntity
+import com.canim.app.data.model.*
+import com.canim.app.ui.theme.*
+import com.canim.app.ui.viewmodel.CanimUiState
+
+@Composable
+fun DiscoverScreen(
+    state: CanimUiState,
+    onSelectCategory: (DiscoverCategory, DiscoverFilter) -> Unit,
+    onAddMedia: (MediaItem, MediaStatus) -> Unit,
+    onSelectItem: (Any, MediaType) -> Unit,
+    onRandomize: (DiscoverFilter) -> Unit,
+    onLoadMore: () -> Unit = {},
+    onSaveAnime: (AnimeEntity) -> Unit = {},
+    onSaveManga: (MangaEntity) -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    var showFilterPanel by remember { mutableStateOf(false) }
+    var selectedItemForAdd by remember { mutableStateOf<MediaItem?>(null) }
+    var selectedItemForEdit by remember { mutableStateOf<MediaItem?>(null) }
+
+    val libraryAnimeMalIds = remember(state.animeList) { state.animeList.map { it.malId }.toSet() }
+    val libraryMangaMalIds = remember(state.mangaList) { state.mangaList.map { it.malId }.toSet() }
+
+    // Filter controls for Random by Filter
+    var filterGenre by remember { mutableStateOf(state.discoverFilter.genre) }
+    var filterFormat by remember { mutableStateOf(state.discoverFilter.format ?: "TV") }
+    var filterYear by remember { mutableStateOf(state.discoverFilter.year) }
+    var filterSeason by remember { mutableStateOf(state.discoverFilter.season) }
+    var filterMinScore by remember { mutableStateOf(state.discoverFilter.minScore) }
+
+    val categories = DiscoverCategory.entries
+
+    // Expanded AniList genres (Request 4)
+    val genres = listOf(
+        "Semua", "Action", "Adventure", "Comedy", "Drama", "Ecchi",
+        "Fantasy", "Horror", "Mahou Shoujo", "Mecha", "Music", "Mystery",
+        "Psychological", "Romance", "Sci-Fi", "Slice of Life", "Sports",
+        "Supernatural", "Thriller"
+    )
+
+    // Expanded formats with ONA, OVA, Special (Request 4)
+    val formats = listOf(
+        "TV" to "TV Series",
+        "MOVIE" to "Movie",
+        "ONA" to "ONA",
+        "OVA" to "OVA",
+        "SPECIAL" to "Special",
+        "MANGA" to "Manga"
+    )
+
+    // Expanded score options with 5+ and 6+ (Request 4)
+    val scores = listOf(
+        0 to "Semua Skor",
+        5 to "★ 5.0+",
+        6 to "★ 6.0+",
+        7 to "★ 7.0+",
+        8 to "★ 8.0+",
+        9 to "★ 9.0+"
+    )
+
+    val listState = rememberLazyListState()
+
+    // Smooth Pagination Trigger (Request 2)
+    LaunchedEffect(listState) {
+        snapshotFlow {
+            val total = listState.layoutInfo.totalItemsCount
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            total > 0 && lastVisible >= total - 3
+        }
+        .distinctUntilChanged()
+        .collect { nearBottom ->
+            if (nearBottom && state.canLoadMoreDiscover && !state.isDiscoverLoadingMore && !state.isDiscoverLoading) {
+                onLoadMore()
+            }
+        }
+    }
+
+    LazyColumn(
+        state = listState,
+        modifier = modifier
+            .fillMaxSize()
+            .background(BlackBg)
+            .padding(horizontal = 16.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        item {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                    Text(
+                        text = "Eksplorasi & Temukan",
+                        color = TextPrimary,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    Text(
+                        text = "Jelajahi rilisan musim ini & katalog lengkap dari AniList",
+                        color = TextSecondary,
+                        fontSize = 12.sp
+                    )
+                }
+
+                IconButton(
+                    onClick = { showFilterPanel = !showFilterPanel },
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(CardBg)
+                        .border(1.dp, CardBorder, RoundedCornerShape(10.dp))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Tune,
+                        contentDescription = "Filter Kustom",
+                        tint = AccentBlue
+                    )
+                }
+            }
+        }
+
+        // Prominent Randomizer Card (Task 2.3: Prominently Placed)
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, AccentBlue.copy(alpha = 0.4f), RoundedCornerShape(16.dp)),
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Casino,
+                                contentDescription = null,
+                                tint = AccentBlue,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = "Bingung Mau Nonton Apa?",
+                                color = TextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(CardElevated)
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "Lewati Selesai",
+                                color = AccentGreen,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "Dapatkan rekomendasi anime acak berdasarkan filter favoritmu. Judul yang sudah kamu tamatkan akan otomatis dilewati.",
+                        color = TextSecondary,
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp
+                    )
+
+                    Button(
+                        onClick = {
+                            val activeFilter = DiscoverFilter(
+                                genre = filterGenre,
+                                format = filterFormat,
+                                year = filterYear,
+                                season = filterSeason,
+                                minScore = filterMinScore
+                            )
+                            onRandomize(activeFilter)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("discover_randomize_btn"),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AccentBlue,
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.Shuffle, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Acak Anime Sekarang", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    }
+                }
+            }
+        }
+
+        // Horizontal Category Chips
+        item {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(vertical = 4.dp)
+            ) {
+                items(categories) { category ->
+                    val isSelected = state.selectedDiscoverCategory == category
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = {
+                            if (!isSelected) {
+                                val currentFilter = DiscoverFilter(
+                                    genre = filterGenre,
+                                    format = filterFormat,
+                                    year = filterYear,
+                                    season = filterSeason,
+                                    minScore = filterMinScore
+                                )
+                                onSelectCategory(category, currentFilter)
+                            }
+                        },
+                        label = {
+                            Text(
+                                text = category.label,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            )
+                        },
+                        shape = RoundedCornerShape(20.dp),
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = AccentBlue,
+                            selectedLabelColor = Color.White,
+                            containerColor = CardBg,
+                            labelColor = TextSecondary
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isSelected,
+                            borderColor = CardBorder,
+                            selectedBorderColor = AccentBlue
+                        )
+                    )
+                }
+            }
+        }
+
+        // Expandable Filter Section
+        item {
+            AnimatedVisibility(visible = showFilterPanel || state.selectedDiscoverCategory == DiscoverCategory.RANDOM_FILTER) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, CardBorder, RoundedCornerShape(12.dp)),
+                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "Kustomisasi Filter AniList",
+                            color = TextPrimary,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        // Format selector (Scrollable for compact & wide ratios)
+                        Text(text = "Tipe / Format:", color = TextSecondary, fontSize = 11.sp)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(formats) { (key, label) ->
+                                val isSelected = filterFormat == key
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSelected) AccentBlue else CardElevated)
+                                        .clickable { filterFormat = key }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = label,
+                                        color = if (isSelected) Color.White else TextPrimary,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                }
+                            }
+                        }
+
+                        // Genre selector
+                        Text(text = "Genre:", color = TextSecondary, fontSize = 11.sp)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(genres) { g ->
+                                val isSelected = (g == "Semua" && filterGenre == null) || filterGenre == g
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSelected) AccentBlue else CardElevated)
+                                        .clickable { filterGenre = if (g == "Semua") null else g }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = g,
+                                        color = if (isSelected) Color.White else TextPrimary,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
+
+                        // Score selector (Scrollable)
+                        Text(text = "Minimal Skor:", color = TextSecondary, fontSize = 11.sp)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(scores) { (sc, label) ->
+                                val isSelected = (sc == 0 && filterMinScore == null) || filterMinScore == sc
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSelected) StarGold else CardElevated)
+                                        .clickable { filterMinScore = if (sc == 0) null else sc }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = label,
+                                        color = if (isSelected) BlackBg else TextPrimary,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                    )
+                                }
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+                                val updatedFilter = DiscoverFilter(
+                                    genre = filterGenre,
+                                    format = filterFormat,
+                                    year = filterYear,
+                                    season = filterSeason,
+                                    minScore = filterMinScore
+                                )
+                                onSelectCategory(DiscoverCategory.RANDOM_FILTER, updatedFilter)
+                                showFilterPanel = false
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = AccentBlue,
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.FilterAlt, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Terapkan Filter", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
+        // Content List or Loading State
+        if (state.isDiscoverLoading) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        CircularProgressIndicator(color = AccentBlue)
+                        Text(
+                            text = "Mengambil data ${state.selectedDiscoverCategory.label} dari AniList...",
+                            color = TextSecondary,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+        } else if (state.discoverItems.isEmpty()) {
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Tidak ada judul yang ditemukan untuk kategori ini.",
+                        color = TextMuted,
+                        fontSize = 13.sp
+                    )
+                }
+            }
+        } else {
+            items(
+                state.discoverItems,
+                key = { "${it.type}_${it.malId}_${it.anilistId}" },
+                contentType = { "discover_item" }
+            ) { media ->
+                val isInLibrary = if (media.type == MediaType.MANGA) {
+                    libraryMangaMalIds.contains(media.malId)
+                } else {
+                    libraryAnimeMalIds.contains(media.malId)
+                }
+                DiscoverItemCard(
+                    item = media,
+                    isInLibrary = isInLibrary,
+                    onClick = { onSelectItem(media, media.type) },
+                    onAddClick = { selectedItemForAdd = media },
+                    onEditClick = { selectedItemForEdit = media }
+                )
+            }
+
+            // Pagination loading more indicator (Request 2)
+            if (state.isDiscoverLoadingMore) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = AccentBlue
+                            )
+                            Text(
+                                text = "Memuat halaman berikutnya...",
+                                color = TextSecondary,
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Add To Library Status Picker Dialog
+    if (selectedItemForAdd != null) {
+        val targetItem = selectedItemForAdd!!
+        val isAnime = targetItem.type == MediaType.ANIME
+
+        val statusOptions = if (isAnime) {
+            listOf(
+                MediaStatus.WATCHING,
+                MediaStatus.PLAN_TO_WATCH,
+                MediaStatus.COMPLETED,
+                MediaStatus.ON_HOLD,
+                MediaStatus.DROPPED
+            )
+        } else {
+            listOf(
+                MediaStatus.READING,
+                MediaStatus.PLAN_TO_READ,
+                MediaStatus.COMPLETED,
+                MediaStatus.ON_HOLD,
+                MediaStatus.DROPPED
+            )
+        }
+
+        AlertDialog(
+            onDismissRequest = { selectedItemForAdd = null },
+            containerColor = CardElevated,
+            title = {
+                Text(
+                    text = "Tambah ke Library",
+                    color = TextPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = targetItem.title,
+                        color = AccentBlue,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "Pilih status awal untuk item ini:",
+                        color = TextSecondary,
+                        fontSize = 12.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    statusOptions.forEach { statusOption ->
+                        Button(
+                            onClick = {
+                                onAddMedia(targetItem, statusOption)
+                                selectedItemForAdd = null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = CardBg,
+                                contentColor = TextPrimary
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text(text = statusOption.label, fontSize = 13.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { selectedItemForAdd = null }) {
+                    Text("Batal", color = TextMuted)
+                }
+            }
+        )
+    }
+
+    // Quick Status Editor Dialog for items already in library (Task A2)
+    if (selectedItemForEdit != null) {
+        val targetItem = selectedItemForEdit!!
+        val isAnime = targetItem.type == MediaType.ANIME
+        val currentStatus = if (isAnime) {
+            state.animeList.find { it.malId == targetItem.malId }?.status
+        } else {
+            state.mangaList.find { it.malId == targetItem.malId }?.status
+        }
+
+        val statusOptions = if (isAnime) {
+            listOf(
+                MediaStatus.WATCHING,
+                MediaStatus.PLAN_TO_WATCH,
+                MediaStatus.COMPLETED,
+                MediaStatus.ON_HOLD,
+                MediaStatus.DROPPED
+            )
+        } else {
+            listOf(
+                MediaStatus.READING,
+                MediaStatus.PLAN_TO_READ,
+                MediaStatus.COMPLETED,
+                MediaStatus.ON_HOLD,
+                MediaStatus.DROPPED
+            )
+        }
+
+        AlertDialog(
+            onDismissRequest = { selectedItemForEdit = null },
+            containerColor = CardElevated,
+            title = {
+                Text(
+                    text = "Ubah Status di Library",
+                    color = TextPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = targetItem.title,
+                        color = AccentBlue,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = "Item ini sudah ada di Library kamu. Pilih status baru:",
+                        color = TextSecondary,
+                        fontSize = 12.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    statusOptions.forEach { statusOption ->
+                        val isCurrent = currentStatus == statusOption.apiValue
+                        Button(
+                            onClick = {
+                                if (isAnime) {
+                                    state.animeList.find { it.malId == targetItem.malId }?.let { entity ->
+                                        onSaveAnime(entity.copy(status = statusOption.apiValue, updatedAt = System.currentTimeMillis()))
+                                    }
+                                } else {
+                                    state.mangaList.find { it.malId == targetItem.malId }?.let { entity ->
+                                        onSaveManga(entity.copy(status = statusOption.apiValue, updatedAt = System.currentTimeMillis()))
+                                    }
+                                }
+                                selectedItemForEdit = null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isCurrent) AccentBlue.copy(alpha = 0.25f) else CardBg,
+                                contentColor = if (isCurrent) AccentBlueLight else TextPrimary
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = statusOption.label,
+                                    fontSize = 13.sp,
+                                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal
+                                )
+                                if (isCurrent) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Status Aktif",
+                                        tint = AccentBlueLight,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val editItem = selectedItemForEdit
+                    selectedItemForEdit = null
+                    if (editItem != null) {
+                        onSelectItem(editItem, editItem.type)
+                    }
+                }) {
+                    Text("Detail Lengkap...", color = AccentBlue)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { selectedItemForEdit = null }) {
+                    Text("Batal", color = TextMuted)
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun DiscoverItemCard(
+    item: MediaItem,
+    isInLibrary: Boolean = false,
+    onClick: () -> Unit,
+    onAddClick: () -> Unit,
+    onEditClick: () -> Unit = {}
+) {
+    val context = LocalContext.current
+    val isManga = item.type == MediaType.MANGA
+    val itemBorder = if (isManga) MangaCardBorder else CardBorder
+    val themeAccent = if (isManga) MangaAccentDarkBlue else AccentBlue
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(1.dp, itemBorder, RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .testTag("discover_card_${item.malId}"),
+        colors = CardDefaults.cardColors(containerColor = CardBg),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AsyncImage(
+                model = remember(item.imageUrl) {
+                    ImageRequest.Builder(context)
+                        .data(item.imageUrl)
+                        .size(160, 220)
+                        .crossfade(false)
+                        .build()
+                },
+                contentDescription = item.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier
+                    .size(width = 64.dp, height = 88.dp)
+                    .clip(RoundedCornerShape(8.dp))
+            )
+
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // Title expanded to 2-3 lines (Request 3)
+                Text(
+                    text = item.title,
+                    color = TextPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                // Retain rating, type, and studio (Request 3)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (item.score != null && item.score > 0) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = null,
+                                tint = StarGold,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "%.1f".format(item.score),
+                                color = StarGold,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    if (item.format != null) {
+                        Text(
+                            text = item.format,
+                            color = themeAccent,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+
+                    if (item.studio != null) {
+                        Text(
+                            text = item.studio,
+                            color = TextMuted,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                // Retain genres (Request 3)
+                if (item.genres.isNotEmpty()) {
+                    Text(
+                        text = item.genres.take(3).joinToString(" • "),
+                        color = TextSecondary,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                // Short synopsis preview removed according to Request 3
+            }
+
+            IconButton(
+                onClick = if (isInLibrary) onEditClick else onAddClick,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (isInLibrary) AccentGreen.copy(alpha = 0.16f) else CardElevated)
+                    .size(36.dp)
+                    .testTag(if (isInLibrary) "discover_edit_btn_${item.malId}" else "discover_add_btn_${item.malId}")
+            ) {
+                Icon(
+                    imageVector = if (isInLibrary) Icons.Default.Edit else Icons.Default.Add,
+                    contentDescription = if (isInLibrary) "Ubah Status" else "Tambah ke Koleksi",
+                    tint = if (isInLibrary) AccentGreen else themeAccent,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
+}
