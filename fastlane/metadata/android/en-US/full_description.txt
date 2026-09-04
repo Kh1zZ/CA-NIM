@@ -1,0 +1,9 @@
+CA'NIM adalah aplikasi pelacak anime dan manga modern yang dirancang dengan arsitektur ringan, performa cepat, dan tampilan elegan menggunakan Jetpack Compose Material 3.
+
+Fitur Utama:
+• MyAnimeList sebagai Single Source of Truth: Status tontonan/bacaan, progres bab & episode, skor, dan tanggal dikelola langsung secara real-time.
+• Metadata Kaya via AniList GraphQL: Menyediakan poster berkualitas tinggi, sinopsis, genre, studio, dan jadwal tayang tanpa membebani server MAL.
+• Optimasi Scrolling Ultra-Mulus: Dirancang dengan 100% skippable recomposition, lambda hoisting, dan alokasi memori efisien.
+• Paginasi Tanpa Batas (Uncapped Library): Menampung ribuan judul koleksi dengan filter status, sorting instan, dan pencarian cepat.
+• Smart Randomizer: Rekomendasi acak cerdas dari daftar trending yang memfilter judul yang sudah selesai ditonton.
+• Privasi & Keamanan: Autentikasi OAuth 2.0 PKCE aman dengan token tersimpan terenkripsi hardware-backed Android Keystore. Tanpa iklan, tanpa pelacak, 100% Open Source.

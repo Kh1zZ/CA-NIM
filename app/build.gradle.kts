@@ -8,7 +8,7 @@ android {
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.aistudio.canim.ipgwbp"
+        applicationId = "com.canim.app"
         minSdk = 24
         targetSdk = 34
         versionCode = 3

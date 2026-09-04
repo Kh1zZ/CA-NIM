@@ -1,0 +1,5 @@
+• Identitas visual baru: Brand logo Cyber-Blue Radiant Manga.
+• Optimasi performa scrolling setara ArchiveTune (100% skippable recomposition).
+• Perbaikan autentikasi MyAnimeList PKCE (preservasi Generic Signature R8).
+• Pemangkasan ukuran file release hingga ~2.13 MB.
+• Paginasi daftar koleksi tanpa batasan 500 entri.
