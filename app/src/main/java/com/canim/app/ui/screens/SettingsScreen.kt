@@ -400,7 +400,7 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Image(
-                            painter = painterResource(id = R.drawable.ic_app_icon),
+                            painter = painterResource(id = R.drawable.ic_app_logo),
                             contentDescription = "Logo CA'NIM",
                             modifier = Modifier
                                 .size(44.dp)

@@ -18,25 +18,28 @@
 
 ---
 
-## 🎨 Analisis & Filosofi Ikon Aplikasi (`ic_app_icon`)
+## 🎨 Identitas Visual & Filosofi Logo Branding
 
-Ikon resmi **CA'NIM** (`ic_app_icon.xml` & `mipmap-xxxhdpi/ic_launcher.png`) dirancang dengan elemen visual yang merepresentasikan esensi aplikasi:
+Logo resmi **CA'NIM** (`art/logo.png`) merupakan identitas visual terpadu yang diterapkan di seluruh struktur aplikasi:
 
 ```text
                       ┌──────────────────────────────────────┐
-                      │            CA'NIM ICON               │
+                      │          CA'NIM BRAND LOGO           │
                       ├──────────────────────────────────────┤
-                      │  [ Buku Manga 3D + Mata Anime ]      │ ───► Katalog Anime & Manga
-                      │  [ Panel Komik + Gerbang Torii ]     │ ───► Kultur & Estetika Visual
+                      │  [ Buku Manga 3D + Mata Anime ]      │ ───► Katalog Anime & Manga Hidup
+                      │  [ Panel Komik + Gerbang Torii ]     │ ───► Kultur & Estetika Visual Jepang
                       │  [ Lencana Awan + Panah Sinkronisasi]│ ───► Cloud Sync MyAnimeList Real-Time
-                      │  [ Squircle Cyber & Deep Blue/Green ]│ ───► Modern Dark Theme & Native
+                      │  [ Radiant Cyber-Blue & Sparkles ]   │ ───► Performa Cepat & Tema Cyber Dark
                       └──────────────────────────────────────┘
 ```
 
-1. **Buku Manga 3D dengan Mata Anime**: Melambangkan buku komik dan katalog tontonan yang hidup. Goresan detail kelopak mata, iris bergradasi, dan pantulan cahaya (*sparkle*) mencerminkan ekspresi emosional media anime & manga.
-2. **Panel Manga Latar & Siluet Torii**: Menghadirkan atmosfer khas komik strip Jepang dengan balon dialog (*speech bubble*), awan langit, dan siluet gerbang Torii tradisional.
-3. **Lencana Sinkronisasi Awan (Cloud Sync Badge)**: Ikon awan putih dengan dua panah melingkar di sudut kanan bawah menandakan integrasi **Single Source of Truth** langsung ke cloud **MyAnimeList (MAL)** tanpa ketergantungan pada database offline pihak ketiga.
-4. **Bentuk Squircle & Palet Cyber**: Menggabungkan sudut melengkung dinamis dengan kontras aksen neon yang selaras dengan tema gelap (*Dark Mode Native*) antarmuka aplikasi.
+1. **Buku Manga 3D dengan Mata Anime Ekspresif**: Buku bersampul biru elektrik dengan detail halaman putih berlapis dan pita pembatas buku (*cyan bookmark ribbon*). Sampul depan dihiasi mata karakter anime yang digambar dengan presisi—iris biru safir bergradasi dengan pantulan cahaya ganda (*sparkle*) dan garis bulu mata dramatis, mencerminkan estetika otentik dunia anime.
+2. **Panel Manga Latar & Siluet Torii**: Kartu panel berbingkai putih di sudut kanan atas menampilkan awan langit, balon percakapan, dan siluet gerbang Torii tradisional, menegaskan keterikatan kuat dengan kultur manga Jepang.
+3. **Lencana Sinkronisasi Awan (Cloud Sync Badge)**: Awan putih kontras di sudut kanan bawah dengan dua panah melingkar melambangkan integrasi **Single Source of Truth** langsung ke cloud **MyAnimeList (MAL)** secara instan dan dua arah (*bidirectional*).
+4. **Radiant Cyber-Blue & Kilau Bintang**: Palet warna biru elektrik bergradasi diagonal dengan pancaran cahaya dinamis dan bintang kemilau (*star sparkles*) memberikan kesan futuristik, responsif, dan selaras dengan tema gelap (*Cyber Dark Native*) aplikasi.
+
+> **Penerapan Branding Menyeluruh**:
+> Master logo (`art/logo.png`) telah diadaptasi ke seluruh density Android Launcher Icons (`mipmap-mdpi` hingga `mipmap-xxxhdpi` untuk ikon standar & *circular round*), Adaptive Icon Foreground (`ic_launcher_foreground.xml`), serta aset in-app (`drawable-nodpi/ic_app_logo.png`) pada Top Bar Dasbor dan kartu informasi Pengaturan.
 
 ---
 
