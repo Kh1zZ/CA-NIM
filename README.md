@@ -9,12 +9,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases/latest"><img src="https://img.shields.io/badge/Download-APK%20(v3.0.0)-10B981.svg?style=for-the-badge&logo=android" alt="Download APK"></a>
   <a href="#-tech-stack--dependensi"><img src="https://img.shields.io/badge/Version-v3.0.0-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="#-fitur-utama"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-10B981.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#-arsitektur-dan-prinsip-desain"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
-  <a href="#-kinerja-dan-optimasi-standar-archivetune"><img src="https://img.shields.io/badge/APK%20Size-~2.13%20MB-F59E0B.svg?style=for-the-badge" alt="Size"></a>
-  <a href="#-panduan-unduh--kompilasi-aplikasi"><img src="https://img.shields.io/badge/Tests-14%20Passed-6366F1.svg?style=for-the-badge" alt="Tests"></a>
+  <a href="#-kinerja-dan-optimasi-standar-archivetune"><img src="https://img.shields.io/badge/APK%20Size-~2.08%20MB-F59E0B.svg?style=for-the-badge" alt="Size"></a>
+  <a href="#-panduan-kompilasi--menjalankan-aplikasi"><img src="https://img.shields.io/badge/Tests-14%20Passed-6366F1.svg?style=for-the-badge" alt="Tests"></a>
 </p>
 
 ---
@@ -38,9 +37,6 @@ Logo resmi **CA'NIM** (`art/logo.png`) merupakan identitas visual terpadu yang d
 2. **Panel Manga Latar & Siluet Torii**: Kartu panel berbingkai putih di sudut kanan atas menampilkan awan langit, balon percakapan, dan siluet gerbang Torii tradisional, menegaskan keterikatan kuat dengan kultur manga Jepang.
 3. **Lencana Sinkronisasi Awan (Cloud Sync Badge)**: Awan putih kontras di sudut kanan bawah dengan dua panah melingkar melambangkan integrasi **Single Source of Truth** langsung ke cloud **MyAnimeList (MAL)** secara instan dan dua arah (*bidirectional*).
 4. **Radiant Cyber-Blue & Kilau Bintang**: Palet warna biru elektrik bergradasi diagonal dengan pancaran cahaya dinamis dan bintang kemilau (*star sparkles*) memberikan kesan futuristik, responsif, dan selaras dengan tema gelap (*Cyber Dark Native*) aplikasi.
-
-> **Penerapan Branding Menyeluruh**:
-> Master logo (`art/logo.png`) telah diadaptasi ke seluruh density Android Launcher Icons (`mipmap-mdpi` hingga `mipmap-xxxhdpi` untuk ikon standar & *circular round*), Adaptive Icon Foreground (`ic_launcher_foreground.xml`), serta aset in-app (`drawable-nodpi/ic_app_logo.png`) pada Top Bar Dasbor dan kartu informasi Pengaturan.
 
 ---
 
@@ -171,31 +167,14 @@ ca-nim-opt-v2.1/
 
 ---
 
-## 🚀 Panduan Unduh & Kompilasi Aplikasi
+## 🚀 Panduan Kompilasi & Menjalankan Aplikasi
 
-Anda dapat langsung mengunduh paket APK siap pakai dari halaman rilis GitHub resmi atau melakukan kompilasi manual sendiri dari kode sumber.
-
-### 📥 1. Unduh Langsung via GitHub Releases (Direkomendasikan)
-Cara tercepat untuk langsung menginstal dan menggunakan CA'NIM di perangkat Android tanpa perlu alat pengembang:
-
-- **Halaman Rilis Resmi**: 👉 [GitHub Releases — CA-NIM](https://github.com/Kh1zZ/CA-NIM/releases)
-- **Unduh Rilis Terkini (v3.0.0)**: 👉 [Download app-release.apk (v3.0.0)](https://github.com/Kh1zZ/CA-NIM/releases/latest)
-  - **Ukuran File**: **~2.13 MB**
-  - **Arsitektur**: **Universal** (kompatibel penuh dengan `arm64-v8a`, `armeabi-v7a`, `x86_64`, dan `x86`)
-  - **Kebutuhan Sistem**: Android 7.0 Nougat (API 24) atau yang lebih baru
-
----
-
-### 🛠️ 2. Kompilasi Manual dari Kode Sumber (Manual Compile)
-
-Bagi pengembang yang ingin memodifikasi atau mengompilasi APK sendiri:
-
-#### Prasyarat Lingkungan:
+### Kebutuhan Lingkungan:
 - **Android Studio** (Hedgehog 2023.1.1 atau yang lebih baru).
 - **JDK 17** (Microsoft OpenJDK 17 atau Eclipse Temurin 17).
 - **Android SDK** API Level 34 (Android 14) dengan Min SDK 24 (Android 7.0).
 
-#### Langkah-langkah Kompilasi:
+### Langkah-langkah Kompilasi:
 
 1. **Clone Repositori**:
    ```bash
@@ -203,7 +182,7 @@ Bagi pengembang yang ingin memodifikasi atau mengompilasi APK sendiri:
    cd CA-NIM
    ```
 
-2. **Kompilasi APK Release (Minified & R8 Optimized)**:
+2. **Kompilasi APK Release (Direkomendasikan)**:
    ```bash
    ./gradlew assembleRelease
    ```
@@ -241,22 +220,6 @@ Bagi pengembang yang ingin memodifikasi atau mengompilasi APK sendiri:
 - **Arsitektur Tanpa Database Lokal**:
   - Mengeliminasi Room SQLite sepenuhnya. MAL menjadi satu-satunya sumber kebenaran data koleksi pengguna (*Single Source of Truth*).
   - Resolusi cerdas metadata via AniList GraphQL dengan fallback otomatis ke endpoint publik MAL.
-
----
-
-## 🙏 Kredit & Ucapan Terima Kasih
-
-- **AI Pair Programming & Architecture Optimization**: Dibangun, disempurnakan, dan dioptimalkan bersama **Gemini 3.8 Flash** (Google DeepMind) untuk penataan arsitektur, pemecahan bug Retrofit/R8 ProGuard, eliminasi recomposition overhead, serta standarisasi rilis FOSS F-Droid.
-- **Penyedia Data & API**: [MyAnimeList API v2](https://myanimelist.net/apiconfig/references/api/v2) (User Tracking & Auth) & [AniList GraphQL API](https://anilist.gitbook.io/anilist-apiv2-docs/) (Rich Metadata).
-- **Inspirasi Optimasi Kinerja**: Rekayasa performa rendering dan efisiensi memori terinspirasi dari standar aplikasi open-source [ArchiveTune](https://github.com/rukamori/ArchiveTune).
-
----
-
-## 📜 Lisensi
-
-Proyek ini dilisensikan di bawah lisensi **GNU General Public License v3.0 (GPL-3.0)**. Anda bebas menggunakan, memodifikasi, dan mendistribusikan perangkat lunak ini dengan ketentuan bahwa setiap kode turunan tetap bersifat *open source* di bawah lisensi yang sama.
-
-Silakan baca berkas [LICENSE](LICENSE) untuk ketentuan hukum selengkapnya.
 
 ---
 
