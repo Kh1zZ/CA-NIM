@@ -1,5 +1,6 @@
 package com.canim.app.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,19 +23,22 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import com.canim.app.data.local.AnimeEntity
-import com.canim.app.data.local.MangaEntity
 import com.canim.app.data.model.MediaType
+import com.canim.app.data.model.UserMediaItem
 import com.canim.app.ui.theme.*
 import com.canim.app.ui.viewmodel.CanimUiState
+
+private val ItemCardShape = RoundedCornerShape(12.dp)
+private val ItemImageShape = RoundedCornerShape(8.dp)
+private val ProgressClipShape = RoundedCornerShape(2.dp)
+private val PillShape = RoundedCornerShape(4.dp)
+private val ItemBorderStroke = BorderStroke(1.dp, CardBorder)
 
 @Composable
 fun LibraryScreen(
@@ -79,6 +83,13 @@ fun LibraryScreen(
             "progress" -> filtered.sortedByDescending { it.progressChapters }
             else -> filtered.sortedByDescending { it.updatedAt }
         }
+    }
+
+    val onSelectAnimeItem: (UserMediaItem) -> Unit = remember(onSelectItem) {
+        { anime -> onSelectItem(anime, MediaType.ANIME) }
+    }
+    val onSelectMangaItem: (UserMediaItem) -> Unit = remember(onSelectItem) {
+        { manga -> onSelectItem(manga, MediaType.MANGA) }
     }
 
     val statuses = if (isAnime) {
@@ -280,9 +291,9 @@ fun LibraryScreen(
                 items(filteredAnime, key = { it.id }, contentType = { "anime_card" }) { anime ->
                     AnimeLibraryCard(
                         anime = anime,
-                        onQuickAdd = { onQuickAddAnime(anime.id) },
-                        onQuickDecrement = { onQuickDecrementAnime(anime.id) },
-                        onClick = { onSelectItem(anime, MediaType.ANIME) }
+                        onQuickAdd = onQuickAddAnime,
+                        onQuickDecrement = onQuickDecrementAnime,
+                        onClick = onSelectAnimeItem
                     )
                 }
             }
@@ -295,9 +306,9 @@ fun LibraryScreen(
                 items(filteredManga, key = { it.id }, contentType = { "manga_card" }) { manga ->
                     MangaLibraryCard(
                         manga = manga,
-                        onQuickAdd = { onQuickAddManga(manga.id) },
-                        onQuickDecrement = { onQuickDecrementManga(manga.id) },
-                        onClick = { onSelectItem(manga, MediaType.MANGA) }
+                        onQuickAdd = onQuickAddManga,
+                        onQuickDecrement = onQuickDecrementManga,
+                        onClick = onSelectMangaItem
                     )
                 }
             }
@@ -331,20 +342,19 @@ fun TabButton(
 
 @Composable
 fun AnimeLibraryCard(
-    anime: AnimeEntity,
-    onQuickAdd: () -> Unit,
-    onQuickDecrement: () -> Unit = {},
-    onClick: () -> Unit
+    anime: UserMediaItem,
+    onQuickAdd: (String) -> Unit,
+    onQuickDecrement: (String) -> Unit = {},
+    onClick: (UserMediaItem) -> Unit
 ) {
-    val context = LocalContext.current
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
-            .clickable { onClick() }
+            .clickable { onClick(anime) }
             .testTag("anime_card_${anime.id}"),
         colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(12.dp)
+        shape = ItemCardShape,
+        border = ItemBorderStroke
     ) {
         Row(
             modifier = Modifier.padding(10.dp),
@@ -352,18 +362,12 @@ fun AnimeLibraryCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             AsyncImage(
-                model = remember(anime.imageUrl) {
-                    ImageRequest.Builder(context)
-                        .data(anime.imageUrl)
-                        .size(160, 220)
-                        .crossfade(false)
-                        .build()
-                },
+                model = anime.imageUrl,
                 contentDescription = anime.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .size(width = 64.dp, height = 88.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(ItemImageShape)
             )
 
             Column(
@@ -387,7 +391,7 @@ fun AnimeLibraryCard(
 
                     if (anime.score > 0) {
                         Text(
-                            text = "★ ${anime.score}",
+                            text = anime.scoreFormatted,
                             color = StarGold,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
@@ -398,19 +402,21 @@ fun AnimeLibraryCard(
 
                 StatusPill(status = anime.status)
 
-                val progressFrac = if (anime.totalEpisodes > 0) {
-                    (anime.progress.toFloat() / anime.totalEpisodes).coerceIn(0f, 1f)
-                } else 0.5f
-
-                LinearProgressIndicator(
-                    progress = { progressFrac },
+                // Ultra lightweight progress bar without Canvas animation overhead
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp)),
-                    color = AccentGreen,
-                    trackColor = CardElevated
-                )
+                        .clip(ProgressClipShape)
+                        .background(CardElevated)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(fraction = anime.progressFrac)
+                            .fillMaxHeight()
+                            .background(AccentGreen)
+                    )
+                }
 
                 Text(
                     text = "${anime.progress}/${if (anime.totalEpisodes > 0) anime.totalEpisodes else "?"} ep",
@@ -424,7 +430,7 @@ fun AnimeLibraryCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 FilledIconButton(
-                    onClick = onQuickDecrement,
+                    onClick = { onQuickDecrement(anime.id) },
                     enabled = anime.progress > 0,
                     modifier = Modifier
                         .size(32.dp)
@@ -444,7 +450,7 @@ fun AnimeLibraryCard(
                 }
 
                 FilledIconButton(
-                    onClick = onQuickAdd,
+                    onClick = { onQuickAdd(anime.id) },
                     modifier = Modifier
                         .size(32.dp)
                         .testTag("anime_increment_btn_${anime.id}"),
@@ -466,20 +472,19 @@ fun AnimeLibraryCard(
 
 @Composable
 fun MangaLibraryCard(
-    manga: MangaEntity,
-    onQuickAdd: () -> Unit,
-    onQuickDecrement: () -> Unit = {},
-    onClick: () -> Unit
+    manga: UserMediaItem,
+    onQuickAdd: (String) -> Unit,
+    onQuickDecrement: (String) -> Unit = {},
+    onClick: (UserMediaItem) -> Unit
 ) {
-    val context = LocalContext.current
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
-            .clickable { onClick() }
+            .clickable { onClick(manga) }
             .testTag("manga_card_${manga.id}"),
         colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(12.dp)
+        shape = ItemCardShape,
+        border = ItemBorderStroke
     ) {
         Row(
             modifier = Modifier.padding(10.dp),
@@ -487,18 +492,12 @@ fun MangaLibraryCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             AsyncImage(
-                model = remember(manga.imageUrl) {
-                    ImageRequest.Builder(context)
-                        .data(manga.imageUrl)
-                        .size(160, 220)
-                        .crossfade(false)
-                        .build()
-                },
+                model = manga.imageUrl,
                 contentDescription = manga.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .size(width = 64.dp, height = 88.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(ItemImageShape)
             )
 
             Column(
@@ -522,7 +521,7 @@ fun MangaLibraryCard(
 
                     if (manga.score > 0) {
                         Text(
-                            text = "★ ${manga.score}",
+                            text = manga.scoreFormatted,
                             color = StarGold,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
@@ -533,19 +532,21 @@ fun MangaLibraryCard(
 
                 StatusPill(status = manga.status)
 
-                val progressFrac = if (manga.totalChapters > 0) {
-                    (manga.progressChapters.toFloat() / manga.totalChapters).coerceIn(0f, 1f)
-                } else 0.5f
-
-                LinearProgressIndicator(
-                    progress = { progressFrac },
+                // Ultra lightweight progress bar without Canvas animation overhead
+                Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp)),
-                    color = Color(0xFF38BDF8),
-                    trackColor = CardElevated
-                )
+                        .clip(ProgressClipShape)
+                        .background(CardElevated)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(fraction = manga.progressChaptersFrac)
+                            .fillMaxHeight()
+                            .background(Color(0xFF38BDF8))
+                    )
+                }
 
                 Text(
                     text = "Ch. ${manga.progressChapters}${if (manga.totalChapters > 0) "/${manga.totalChapters}" else ""}",
@@ -559,7 +560,7 @@ fun MangaLibraryCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 FilledIconButton(
-                    onClick = onQuickDecrement,
+                    onClick = { onQuickDecrement(manga.id) },
                     enabled = manga.progressChapters > 0,
                     modifier = Modifier
                         .size(32.dp)
@@ -579,7 +580,7 @@ fun MangaLibraryCard(
                 }
 
                 FilledIconButton(
-                    onClick = onQuickAdd,
+                    onClick = { onQuickAdd(manga.id) },
                     modifier = Modifier
                         .size(32.dp)
                         .testTag("manga_increment_btn_${manga.id}"),
@@ -613,7 +614,7 @@ fun StatusPill(status: String) {
 
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
+            .clip(PillShape)
             .background(color.copy(alpha = 0.15f))
             .padding(horizontal = 6.dp, vertical = 2.dp)
     ) {

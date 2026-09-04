@@ -34,11 +34,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.canim.app.data.local.AnimeEntity
-import com.canim.app.data.local.MangaEntity
 import com.canim.app.data.model.MediaItem
 import com.canim.app.data.model.MediaStatus
 import com.canim.app.data.model.MediaType
+import com.canim.app.data.model.UserMediaItem
 import com.canim.app.ui.theme.*
 import com.canim.app.ui.viewmodel.CanimUiState
 import kotlinx.coroutines.delay
@@ -49,8 +48,8 @@ fun SearchScreen(
     onSearch: (String, MediaType) -> Unit,
     onAddMedia: (MediaItem, MediaStatus) -> Unit,
     onSelectItem: (Any, MediaType) -> Unit,
-    onSaveAnime: (AnimeEntity) -> Unit = {},
-    onSaveManga: (MangaEntity) -> Unit = {},
+    onSaveAnime: (UserMediaItem) -> Unit = {},
+    onSaveManga: (UserMediaItem) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var searchInput by remember { mutableStateOf(state.searchQuery) }
@@ -312,7 +311,11 @@ fun SearchScreen(
                 )
             }
 
-            items(state.searchResults, key = { "${it.type}_${it.malId}_${it.anilistId}" }) { item ->
+            items(
+                state.searchResults,
+                key = { "${it.type}_${it.malId}_${it.anilistId}" },
+                contentType = { "search_card" }
+            ) { item ->
                 val isInLibrary = if (item.type == MediaType.MANGA) {
                     libraryMangaMalIds.contains(item.malId)
                 } else {
@@ -471,11 +474,11 @@ fun SearchScreen(
                             onClick = {
                                 if (isAnime) {
                                     state.animeList.find { it.malId == target.malId }?.let { entity ->
-                                        onSaveAnime(entity.copy(status = statusOption.apiValue, updatedAt = System.currentTimeMillis()))
+                                        onSaveAnime(entity.withStatus(statusOption.apiValue))
                                     }
                                 } else {
                                     state.mangaList.find { it.malId == target.malId }?.let { entity ->
-                                        onSaveManga(entity.copy(status = statusOption.apiValue, updatedAt = System.currentTimeMillis()))
+                                        onSaveManga(entity.withStatus(statusOption.apiValue))
                                     }
                                 }
                                 itemToEdit = null
@@ -562,7 +565,6 @@ fun SearchResultCard(
     onAddClick: () -> Unit,
     onEditClick: () -> Unit = {}
 ) {
-    val context = LocalContext.current
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -578,13 +580,7 @@ fun SearchResultCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             AsyncImage(
-                model = remember(item.imageUrl) {
-                    ImageRequest.Builder(context)
-                        .data(item.imageUrl)
-                        .size(160, 220)
-                        .crossfade(false)
-                        .build()
-                },
+                model = item.imageUrl,
                 contentDescription = item.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
@@ -619,7 +615,7 @@ fun SearchResultCard(
                             )
                             Spacer(modifier = Modifier.width(3.dp))
                             Text(
-                                text = "%.1f".format(item.score),
+                                text = item.scoreFormatted,
                                 color = StarGold,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
@@ -647,7 +643,7 @@ fun SearchResultCard(
 
                 if (item.genres.isNotEmpty()) {
                     Text(
-                        text = item.genres.take(3).joinToString(" • "),
+                        text = item.genresFormatted,
                         color = TextSecondary,
                         fontSize = 11.sp,
                         maxLines = 1,

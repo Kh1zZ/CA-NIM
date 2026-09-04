@@ -28,12 +28,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.canim.app.data.local.AnimeEntity
-import com.canim.app.data.local.MangaEntity
-import com.canim.app.data.model.CharacterCastItem
-import com.canim.app.data.model.ExtendedMediaDetail
-import com.canim.app.data.model.MediaType
-import com.canim.app.data.model.StaffMemberItem
+import com.canim.app.data.model.*
 import com.canim.app.ui.theme.*
 
 @Composable
@@ -42,32 +37,32 @@ fun MediaDetailDialog(
     type: MediaType,
     extendedDetail: ExtendedMediaDetail?,
     isLoadingExtendedDetail: Boolean,
-    onSaveAnime: (AnimeEntity) -> Unit,
-    onSaveManga: (MangaEntity) -> Unit,
+    onSaveAnime: (UserMediaItem) -> Unit,
+    onSaveManga: (UserMediaItem) -> Unit,
     onDeleteAnime: (String) -> Unit,
     onDeleteManga: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    val context = LocalContext.current
     val isAnime = type == MediaType.ANIME
     val isManga = !isAnime
     val themeAccent = if (isManga) MangaAccentDarkBlue else AccentBlue
     val themeBorder = if (isManga) MangaCardBorder else CardBorder
 
-    val anime = item as? AnimeEntity
-    val manga = item as? MangaEntity
+    val userItem = item as? UserMediaItem
+    val mediaItem = item as? MediaItem
 
-    var status by remember { mutableStateOf(anime?.status ?: manga?.status ?: "watching") }
-    var score by remember { mutableIntStateOf(anime?.score ?: manga?.score ?: 0) }
-    var progress by remember { mutableIntStateOf(anime?.progress ?: manga?.progressChapters ?: 0) }
-    var notes by remember { mutableStateOf(anime?.notes ?: manga?.notes ?: "") }
+    var status by remember { mutableStateOf(userItem?.status ?: if (isAnime) "watching" else "reading") }
+    var score by remember { mutableIntStateOf(userItem?.score ?: 0) }
+    var progress by remember { mutableIntStateOf(userItem?.progress ?: 0) }
+    var notes by remember { mutableStateOf(userItem?.notes ?: "") }
     var activeSubTab by remember { mutableIntStateOf(0) } // 0: Tracking, 1: Karakter & VA, 2: Crew / Staff, 3: Detail
 
-    val total = if (isAnime) anime?.totalEpisodes ?: 0 else manga?.totalChapters ?: 0
-    val title = anime?.title ?: manga?.title ?: ""
-    val imageUrl = anime?.imageUrl ?: manga?.imageUrl ?: ""
-    val synopsis = anime?.synopsis ?: manga?.synopsis ?: ""
-    val genres = anime?.genres ?: manga?.genres ?: ""
+    val total = userItem?.let { if (isAnime) it.totalEpisodes else it.totalChapters }
+        ?: mediaItem?.let { if (isAnime) it.episodes ?: 0 else it.chapters ?: 0 } ?: 0
+    val title = userItem?.title ?: mediaItem?.title ?: ""
+    val imageUrl = userItem?.imageUrl ?: mediaItem?.imageUrl ?: ""
+    val synopsis = userItem?.synopsis ?: mediaItem?.synopsis ?: ""
+    val genres = userItem?.genres ?: mediaItem?.genres?.joinToString(", ") ?: ""
 
     val animeStatusOptions = listOf(
         "watching" to "Ditonton",
@@ -152,13 +147,7 @@ fun MediaDetailDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     AsyncImage(
-                        model = remember(imageUrl) {
-                            ImageRequest.Builder(context)
-                                .data(imageUrl)
-                                .size(160, 220)
-                                .crossfade(false)
-                                .build()
-                        },
+                        model = imageUrl,
                         contentDescription = title,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
@@ -498,7 +487,7 @@ fun MediaDetailDialog(
                                     verticalArrangement = Arrangement.spacedBy(8.dp),
                                     contentPadding = PaddingValues(bottom = 12.dp)
                                 ) {
-                                    items(extendedDetail!!.cast) { cast ->
+                                    items(extendedDetail!!.cast, contentType = { "cast_item" }) { cast ->
                                         CastItemRow(cast)
                                     }
                                 }
@@ -521,7 +510,7 @@ fun MediaDetailDialog(
                                     verticalArrangement = Arrangement.spacedBy(8.dp),
                                     contentPadding = PaddingValues(bottom = 12.dp)
                                 ) {
-                                    items(extendedDetail!!.crew) { staff ->
+                                    items(extendedDetail!!.crew, contentType = { "crew_item" }) { staff ->
                                         StaffItemRow(staff)
                                     }
                                 }
@@ -575,13 +564,15 @@ fun MediaDetailDialog(
                                             .padding(12.dp),
                                         verticalArrangement = Arrangement.spacedBy(10.dp)
                                     ) {
-                                        val studioVal = extendedDetail?.studio ?: anime?.studio ?: "-"
-                                        val publisherVal = extendedDetail?.publisher ?: manga?.author ?: "-"
+                                        val studioVal = extendedDetail?.studio ?: userItem?.studio ?: mediaItem?.studio ?: "-"
+                                        val publisherVal = extendedDetail?.publisher ?: "-"
                                         val licensorVal = extendedDetail?.licensor ?: "-"
                                         val sourceVal = extendedDetail?.source ?: "-"
-                                        val airingVal = extendedDetail?.airingStatus ?: anime?.airingStatus ?: manga?.publishingStatus ?: "-"
+                                        val airingVal = extendedDetail?.airingStatus ?: userItem?.airingStatus ?: mediaItem?.status ?: "-"
                                         val durVal = if (extendedDetail?.durationMinutes != null && extendedDetail.durationMinutes > 0) "${extendedDetail.durationMinutes} menit" else "-"
-                                        val seasonVal = if (anime?.season != null) "${anime.season} ${anime.year ?: ""}".trim() else if (anime?.year != null) "${anime.year}" else "-"
+                                        val season = userItem?.season ?: mediaItem?.season
+                                        val year = userItem?.year ?: mediaItem?.year
+                                        val seasonVal = if (season != null) "$season ${year ?: ""}".trim() else if (year != null) "$year" else "-"
                                         val nativeVal = extendedDetail?.nativeTitle ?: "-"
                                         val startVal = extendedDetail?.startDate ?: "-"
                                         val endVal = extendedDetail?.endDate ?: "-"
@@ -683,8 +674,11 @@ fun MediaDetailDialog(
                 ) {
                     OutlinedButton(
                         onClick = {
-                            if (isAnime && anime != null) onDeleteAnime(anime.id)
-                            else if (manga != null) onDeleteManga(manga.id)
+                            val id = userItem?.id ?: mediaItem?.malId?.let { "mal_$it" } ?: mediaItem?.anilistId?.let { "ani_$it" } ?: ""
+                            if (id.isNotBlank()) {
+                                if (isAnime) onDeleteAnime(id)
+                                else onDeleteManga(id)
+                            }
                         },
                         modifier = Modifier
                             .weight(0.9f)
@@ -711,24 +705,52 @@ fun MediaDetailDialog(
 
                     Button(
                         onClick = {
-                            if (isAnime && anime != null) {
-                                val updated = anime.copy(
+                            val updatedItem = if (userItem != null) {
+                                userItem.copy(
+                                    tracking = userItem.tracking.copy(
+                                        status = status,
+                                        score = score,
+                                        progress = progress,
+                                        comments = notes,
+                                        updatedAt = System.currentTimeMillis()
+                                    )
+                                )
+                            } else if (mediaItem != null) {
+                                val identity = MediaRef(
+                                    anilistId = mediaItem.anilistId,
+                                    malId = mediaItem.malId
+                                )
+                                val metadata = MediaMetadata(
+                                    title = mediaItem.title,
+                                    titleEnglish = mediaItem.titleEnglish,
+                                    titleNative = null,
+                                    imageUrl = mediaItem.imageUrl,
+                                    type = type,
+                                    score = mediaItem.score,
+                                    synopsis = mediaItem.synopsis,
+                                    totalEpisodes = mediaItem.episodes,
+                                    totalChapters = mediaItem.chapters,
+                                    totalVolumes = mediaItem.volumes,
+                                    status = mediaItem.status,
+                                    year = mediaItem.year,
+                                    season = mediaItem.season,
+                                    genres = mediaItem.genres,
+                                    format = mediaItem.format,
+                                    studio = mediaItem.studio
+                                )
+                                val tracking = MalTracking(
                                     status = status,
                                     score = score,
                                     progress = progress,
-                                    notes = notes,
+                                    comments = notes,
                                     updatedAt = System.currentTimeMillis()
                                 )
-                                onSaveAnime(updated)
-                            } else if (manga != null) {
-                                val updated = manga.copy(
-                                    status = status,
-                                    score = score,
-                                    progressChapters = progress,
-                                    notes = notes,
-                                    updatedAt = System.currentTimeMillis()
-                                )
-                                onSaveManga(updated)
+                                UserMediaItem(identity = identity, metadata = metadata, tracking = tracking)
+                            } else null
+
+                            if (updatedItem != null) {
+                                if (isAnime) onSaveAnime(updatedItem)
+                                else onSaveManga(updatedItem)
                             }
                         },
                         modifier = Modifier
@@ -788,7 +810,6 @@ fun DetailInfoRow(label: String, value: String) {
 
 @Composable
 fun CastItemRow(cast: CharacterCastItem) {
-    val context = LocalContext.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -805,13 +826,7 @@ fun CastItemRow(cast: CharacterCastItem) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             AsyncImage(
-                model = remember(cast.characterImage) {
-                    ImageRequest.Builder(context)
-                        .data(cast.characterImage)
-                        .size(100, 100)
-                        .crossfade(false)
-                        .build()
-                },
+                model = cast.characterImage,
                 contentDescription = cast.characterName,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
@@ -859,13 +874,7 @@ fun CastItemRow(cast: CharacterCastItem) {
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 AsyncImage(
-                    model = remember(cast.actorImage) {
-                        ImageRequest.Builder(context)
-                            .data(cast.actorImage)
-                            .size(100, 100)
-                            .crossfade(false)
-                            .build()
-                    },
+                    model = cast.actorImage,
                     contentDescription = cast.actorName,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
@@ -879,7 +888,6 @@ fun CastItemRow(cast: CharacterCastItem) {
 
 @Composable
 fun StaffItemRow(staff: StaffMemberItem) {
-    val context = LocalContext.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -890,13 +898,7 @@ fun StaffItemRow(staff: StaffMemberItem) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         AsyncImage(
-            model = remember(staff.image) {
-                ImageRequest.Builder(context)
-                    .data(staff.image)
-                    .size(100, 100)
-                    .crossfade(false)
-                    .build()
-            },
+            model = staff.image,
             contentDescription = staff.name,
             contentScale = ContentScale.Crop,
             modifier = Modifier

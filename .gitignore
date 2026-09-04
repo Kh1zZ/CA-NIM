@@ -1,21 +1,59 @@
+# Gradle
+.gradle/
+gradle-app.setting
+!gradle-wrapper.jar
+
+# Build output
+build/
+*/build/
+
+# Android Studio / IntelliJ
+.idea/
 *.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+*.ipr
+*.iws
+
+# APK / AAB
 *.apk
 *.aab
 *.ap_
-output-metadata.json
-node_modules/
-.env*
-!.env.example
+*.dex
+
+# Compiled Java/Kotlin
+*.class
+
+# Generated files
+gen/
+out/
+bin/
+
+# Local configuration
+local.properties
+
+# Android Studio caches
+.externalNativeBuild/
+.cxx/
+
+# Kotlin
+.kotlin/
+
+# Native build
+*.so
+
+# Signing / keystore
+*.jks
+*.keystore
+
+# Firebase / Google services
+google-services.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp

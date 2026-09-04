@@ -2,83 +2,135 @@ package com.canim.app.data.repository
 
 import android.content.Context
 import com.canim.app.data.cache.CacheManager
-import com.canim.app.data.local.AnimeDao
-import com.canim.app.data.local.AnimeEntity
-import com.canim.app.data.local.MangaDao
-import com.canim.app.data.local.MangaEntity
 import com.canim.app.data.model.*
 import com.canim.app.data.remote.AniListClient
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
 
+/**
+ * Single source of coordination for CA'NIM.
+ * Principle:
+ * - MAL is authoritative for user tracking data.
+ * - AniList is the primary provider for rich metadata.
+ * - CA'NIM acts as a client/UI layer.
+ */
 class CanimRepository(
-    private val animeDao: AnimeDao,
-    private val mangaDao: MangaDao,
-    val malAuthManager: MalAuthManager? = null
+    val malAuthManager: MalAuthManager
 ) {
-    val allAnime: Flow<List<AnimeEntity>> = animeDao.getAllAnime()
-    val allManga: Flow<List<MangaEntity>> = mangaDao.getAllManga()
-
-    fun buildMalAuthorizeUrl(): String? = malAuthManager?.buildAuthorizeUrl()
+    fun buildMalAuthorizeUrl(): String = malAuthManager.buildAuthorizeUrl()
 
     suspend fun handleMalOAuthCallback(code: String, state: String?): Result<MalUser> =
-        malAuthManager?.handleOAuthCallback(code, state)
-            ?: Result.failure(IllegalStateException("MalAuthManager tidak diinisialisasi"))
+        malAuthManager.handleOAuthCallback(code, state)
 
-    fun getMalUser(): MalUser = malAuthManager?.getCurrentUser() ?: MalUser()
+    fun getMalUser(): MalUser = malAuthManager.getCurrentUser()
 
     fun logoutMal() {
-        malAuthManager?.logout()
+        malAuthManager.logout()
     }
 
-    suspend fun syncWithMal(): MalSyncResult =
-        malAuthManager?.syncWithMal() ?: MalSyncResult(isSuccess = false, errorMessage = "MalAuthManager null")
+    suspend fun syncWithMal(): MalSyncResult = malAuthManager.syncWithMal()
 
-    suspend fun upsertAnime(anime: AnimeEntity) = withContext(Dispatchers.IO) {
-        animeDao.insert(anime)
-        CacheManager.invalidateMedia(anime.malId, anime.anilistId)
+    /**
+     * Loads the user's anime list from MAL as source of truth, enriched with AniList metadata.
+     * Batches metadata requests via AniList GraphQL (50 per batch) to avoid API request storms.
+     */
+    suspend fun getUserAnimeList(forceRefresh: Boolean = false): MalFetchResult<List<UserMediaItem>> = withContext(Dispatchers.IO) {
+        val result = malAuthManager.fetchUserAnimeList(forceRefresh = forceRefresh)
+        when (result) {
+            is MalFetchResult.Failure -> result
+            is MalFetchResult.Success -> {
+                val enriched = enrichWithAniListMetadata(result.data, MediaType.ANIME)
+                CacheManager.putTracking("ANIME", enriched)
+                MalFetchResult.Success(enriched, result.totalItems)
+            }
+            is MalFetchResult.Partial -> {
+                val enriched = enrichWithAniListMetadata(result.data, MediaType.ANIME)
+                CacheManager.putTracking("ANIME", enriched)
+                MalFetchResult.Partial(enriched, result.fetchedItems, result.error)
+            }
+        }
     }
 
-    suspend fun upsertManga(manga: MangaEntity) = withContext(Dispatchers.IO) {
-        mangaDao.insert(manga)
-        CacheManager.invalidateMedia(manga.malId, manga.anilistId)
+    /**
+     * Loads the user's manga list from MAL as source of truth, enriched with AniList metadata.
+     */
+    suspend fun getUserMangaList(forceRefresh: Boolean = false): MalFetchResult<List<UserMediaItem>> = withContext(Dispatchers.IO) {
+        val result = malAuthManager.fetchUserMangaList(forceRefresh = forceRefresh)
+        when (result) {
+            is MalFetchResult.Failure -> result
+            is MalFetchResult.Success -> {
+                val enriched = enrichWithAniListMetadata(result.data, MediaType.MANGA)
+                CacheManager.putTracking("MANGA", enriched)
+                MalFetchResult.Success(enriched, result.totalItems)
+            }
+            is MalFetchResult.Partial -> {
+                val enriched = enrichWithAniListMetadata(result.data, MediaType.MANGA)
+                CacheManager.putTracking("MANGA", enriched)
+                MalFetchResult.Partial(enriched, result.fetchedItems, result.error)
+            }
+        }
     }
 
-    suspend fun deleteAnime(id: String) = withContext(Dispatchers.IO) {
-        animeDao.deleteById(id)
+    private suspend fun enrichWithAniListMetadata(
+        items: List<UserMediaItem>,
+        type: MediaType
+    ): List<UserMediaItem> = withContext(Dispatchers.IO) {
+        val malIds = items.mapNotNull { it.malId }
+        val aniListMap = try {
+            AniListClient.getMediaBatchByMalIds(malIds, type)
+        } catch (_: Exception) {
+            emptyMap()
+        }
+
+        items.map { item ->
+            val mId = item.malId
+            val aniItem = mId?.let { aniListMap[it] }
+            if (aniItem != null) {
+                val updatedMetadata = item.metadata.copy(
+                    titleEnglish = aniItem.titleEnglish ?: item.metadata.titleEnglish,
+                    imageUrl = aniItem.imageUrl.ifBlank { item.metadata.imageUrl },
+                    totalEpisodes = aniItem.episodes ?: item.metadata.totalEpisodes,
+                    totalChapters = aniItem.chapters ?: item.metadata.totalChapters,
+                    totalVolumes = aniItem.volumes ?: item.metadata.totalVolumes,
+                    genres = if (aniItem.genres.isNotEmpty()) aniItem.genres else item.metadata.genres,
+                    studio = aniItem.studio ?: item.metadata.studio,
+                    format = aniItem.format ?: item.metadata.format,
+                    year = aniItem.year ?: item.metadata.year,
+                    season = aniItem.season ?: item.metadata.season
+                )
+                item.copy(
+                    identity = MediaRef(anilistId = aniItem.anilistId, malId = mId),
+                    metadata = updatedMetadata
+                )
+            } else {
+                item
+            }
+        }
     }
 
-    suspend fun deleteManga(id: String) = withContext(Dispatchers.IO) {
-        mangaDao.deleteById(id)
-    }
+    // --- Tracking Mutations (Bidirectional MAL Operations) ---
+    suspend fun updateAnimeTracking(malId: Int, tracking: MalTracking): Result<Unit> =
+        malAuthManager.updateAnimeTracking(malId, tracking)
 
-    suspend fun incrementAnime(id: String, amount: Int = 1) = withContext(Dispatchers.IO) {
-        animeDao.incrementProgress(id, amount, System.currentTimeMillis())
-    }
+    suspend fun updateMangaTracking(malId: Int, tracking: MalTracking): Result<Unit> =
+        malAuthManager.updateMangaTracking(malId, tracking)
 
-    suspend fun incrementManga(id: String, amount: Int = 1) = withContext(Dispatchers.IO) {
-        mangaDao.incrementProgress(id, amount, System.currentTimeMillis())
-    }
+    suspend fun deleteAnimeTracking(malId: Int): Result<Unit> =
+        malAuthManager.deleteAnimeTracking(malId)
 
-    suspend fun clearAll() = withContext(Dispatchers.IO) {
-        animeDao.clearAll()
-        mangaDao.clearAll()
-    }
+    suspend fun deleteMangaTracking(malId: Int): Result<Unit> =
+        malAuthManager.deleteMangaTracking(malId)
 
-    // --- Search with AniList as Primary, Cache-First & Offline Fallback ---
+    // --- Search with AniList as Primary & Offline Fallback ---
     suspend fun searchAnime(query: String): List<MediaItem> = withContext(Dispatchers.IO) {
         val trimmed = query.trim()
         if (trimmed.isEmpty()) return@withContext emptyList()
 
-        // 1. Check cache first
         val cached = CacheManager.getSearch(trimmed, "ANIME")
         if (cached != null) return@withContext cached
 
-        // 2. Query AniList
         var result = AniListClient.searchMedia(trimmed, MediaType.ANIME)
 
-        // 3. Fallback to offline catalog if device is offline or query failed
         if (result.isEmpty()) {
             val localMatches = fallbackAnime().filter {
                 it.title.contains(trimmed, ignoreCase = true) ||
@@ -99,14 +151,11 @@ class CanimRepository(
         val trimmed = query.trim()
         if (trimmed.isEmpty()) return@withContext emptyList()
 
-        // 1. Check cache first
         val cached = CacheManager.getSearch(trimmed, "MANGA")
         if (cached != null) return@withContext cached
 
-        // 2. Query AniList
         var result = AniListClient.searchMedia(trimmed, MediaType.MANGA)
 
-        // 3. Fallback to offline catalog if offline
         if (result.isEmpty()) {
             val localMatches = fallbackManga().filter {
                 it.title.contains(trimmed, ignoreCase = true) ||
@@ -123,7 +172,7 @@ class CanimRepository(
         result
     }
 
-    // --- Discover with On-Demand Loading & Server-Side Filtering ---
+    // --- Discover with On-Demand Loading & forceRefresh Propagation ---
     suspend fun getDiscoverMedia(
         category: DiscoverCategory,
         filter: DiscoverFilter = DiscoverFilter(),
@@ -131,13 +180,19 @@ class CanimRepository(
         forceRefresh: Boolean = false,
         randomSort: String? = null
     ): List<MediaItem> = withContext(Dispatchers.IO) {
-        val cacheKey = "discover_${category.key}_${filter.genre}_${filter.format}_${filter.year}_${filter.season}_${filter.minScore}_${randomSort}_p$page"
+        val cacheKey = "${category.key}_${filter.genre}_${filter.format}_${filter.year}_${filter.season}_${filter.minScore}_${randomSort}_p$page"
         if (!forceRefresh) {
             val cached = CacheManager.getDiscover(cacheKey)
             if (cached != null) return@withContext cached
         }
 
-        var results = AniListClient.getDiscoverMedia(category, filter, page = page, randomSort = randomSort)
+        var results = AniListClient.getDiscoverMedia(
+            category = category,
+            filter = filter,
+            page = page,
+            randomSort = randomSort,
+            forceRefresh = forceRefresh
+        )
 
         // Offline fallback if network fails
         if (results.isEmpty() && page == 1) {
@@ -147,17 +202,18 @@ class CanimRepository(
         results
     }
 
-    // --- Extended Details: Crew, Cast, Studio, Duration ---
+    // --- Extended Details: Primary AniList, Fallback to MAL ---
     suspend fun getExtendedDetails(
         aniListId: Int?,
         malId: Int?,
-        type: MediaType
+        type: MediaType,
+        forceRefresh: Boolean = false
     ): ExtendedMediaDetail? = withContext(Dispatchers.IO) {
         // 1. Primary: AniList
-        var detail = AniListClient.getExtendedDetails(aniListId, malId, type)
+        var detail = AniListClient.getExtendedDetails(aniListId, malId, type, forceRefresh)
 
-        // 2. If metadata is missing or incomplete, enrich from MyAnimeList Fallback Provider (Request 11)
-        if ((detail == null || detail.studio.isNullOrBlank() || detail.startDate.isNullOrBlank() || detail.genres.isEmpty()) && malId != null && malAuthManager != null) {
+        // 2. If metadata is missing or incomplete, enrich from MyAnimeList Fallback Provider
+        if ((detail == null || detail.studio.isNullOrBlank() || detail.startDate.isNullOrBlank() || detail.genres.isEmpty()) && malId != null) {
             val malExt = malAuthManager.getExtendedDetailFallback(malId, type)
             if (malExt != null) {
                 detail = if (detail != null) {
@@ -179,7 +235,7 @@ class CanimRepository(
         detail
     }
 
-    // --- Cache Management Actions (Safe: Preserves User Data) ---
+    // --- Cache Management Actions ---
     fun clearMetadataCache() {
         CacheManager.clearMetadataCache()
     }
@@ -192,131 +248,142 @@ class CanimRepository(
         CacheManager.clearAllCache(context)
     }
 
-    suspend fun loadDemoData() = withContext(Dispatchers.IO) {
-        val sampleAnime = listOf(
-            AnimeEntity(
-                id = "anime_52991",
-                malId = 52991,
-                anilistId = 154587,
+    // --- In-Memory Demo Dataset for Unauthenticated Mode ---
+    fun getDemoAnime(): List<UserMediaItem> = listOf(
+        UserMediaItem(
+            identity = MediaRef(anilistId = 154587, malId = 52991),
+            metadata = MediaMetadata(
                 title = "Sousou no Frieren",
                 titleEnglish = "Frieren: Beyond Journey's End",
                 imageUrl = "https://cdn.myanimelist.net/images/anime/1015/138075l.jpg",
-                status = "watching",
-                score = 10,
-                progress = 24,
+                type = MediaType.ANIME,
                 totalEpisodes = 28,
-                airingStatus = "Finished Airing",
-                genres = "Adventure, Drama, Fantasy",
+                status = "Finished Airing",
+                genres = listOf("Adventure", "Drama", "Fantasy"),
                 synopsis = "During their decade-long quest to defeat the Demon King, the members of the hero's party formed deep bonds...",
                 year = 2023,
                 season = "Fall",
-                notes = "Mahakarya sinematografi dan pacing emosional terbaik.",
                 studio = "Madhouse"
             ),
-            AnimeEntity(
-                id = "anime_16498",
-                malId = 16498,
-                anilistId = 16498,
+            tracking = MalTracking(
+                status = "watching",
+                score = 10,
+                progress = 24,
+                comments = "Mahakarya sinematografi dan pacing emosional terbaik."
+            )
+        ),
+        UserMediaItem(
+            identity = MediaRef(anilistId = 16498, malId = 16498),
+            metadata = MediaMetadata(
                 title = "Shingeki no Kyojin",
                 titleEnglish = "Attack on Titan",
                 imageUrl = "https://cdn.myanimelist.net/images/anime/10/47347l.jpg",
-                status = "completed",
-                score = 9,
-                progress = 25,
+                type = MediaType.ANIME,
                 totalEpisodes = 25,
-                airingStatus = "Finished Airing",
-                genres = "Action, Drama, Suspense",
+                status = "Finished Airing",
+                genres = listOf("Action", "Drama", "Suspense"),
                 synopsis = "Centuries ago, mankind was slaughtered to near extinction by monstrous humanoid creatures called Titans...",
                 year = 2013,
                 season = "Spring",
-                notes = "Soundtrack Hiroyuki Sawano luar biasa.",
                 studio = "Wit Studio"
             ),
-            AnimeEntity(
-                id = "anime_40748",
-                malId = 40748,
-                anilistId = 113415,
+            tracking = MalTracking(
+                status = "completed",
+                score = 9,
+                progress = 25,
+                comments = "Soundtrack Hiroyuki Sawano luar biasa."
+            )
+        ),
+        UserMediaItem(
+            identity = MediaRef(anilistId = 113415, malId = 40748),
+            metadata = MediaMetadata(
                 title = "Jujutsu Kaisen",
                 titleEnglish = "Jujutsu Kaisen",
                 imageUrl = "https://cdn.myanimelist.net/images/anime/1171/109222l.jpg",
-                status = "watching",
-                score = 8,
-                progress = 18,
+                type = MediaType.ANIME,
                 totalEpisodes = 24,
-                airingStatus = "Finished Airing",
-                genres = "Action, Fantasy",
+                status = "Finished Airing",
+                genres = listOf("Action", "Fantasy"),
                 synopsis = "Idly indulging in paranormal activities with the Occult Club, high schooler Yuuji Itadori spends his days...",
                 year = 2020,
                 season = "Fall",
-                notes = "Pertarungan MAPPA sangat mulus.",
                 studio = "MAPPA"
+            ),
+            tracking = MalTracking(
+                status = "watching",
+                score = 8,
+                progress = 18,
+                comments = "Pertarungan MAPPA sangat mulus."
             )
         )
+    )
 
-        val sampleManga = listOf(
-            MangaEntity(
-                id = "manga_13",
-                malId = 13,
-                anilistId = 30013,
+    fun getDemoManga(): List<UserMediaItem> = listOf(
+        UserMediaItem(
+            identity = MediaRef(anilistId = 30013, malId = 13),
+            metadata = MediaMetadata(
                 title = "One Piece",
                 titleEnglish = "One Piece",
                 imageUrl = "https://cdn.myanimelist.net/images/manga/2/253146l.jpg",
+                type = MediaType.MANGA,
+                totalChapters = 0,
+                status = "Publishing",
+                genres = listOf("Action", "Adventure", "Fantasy"),
+                synopsis = "Gol D. Roger, a man referred to as the 'King of the Pirates,' is poised for execution..."
+            ),
+            tracking = MalTracking(
                 status = "reading",
                 score = 10,
-                progressChapters = 1110,
-                totalChapters = 0,
-                publishingStatus = "Publishing",
-                genres = "Action, Adventure, Fantasy",
-                synopsis = "Gol D. Roger, a man referred to as the 'King of the Pirates,' is poised for execution...",
-                author = "Eiichiro Oda",
-                notes = "Arc Egghead penuh kejutan dunia lore."
-            ),
-            MangaEntity(
-                id = "manga_2",
-                malId = 2,
-                anilistId = 30002,
+                progress = 1110,
+                comments = "Arc Egghead penuh kejutan dunia lore."
+            )
+        ),
+        UserMediaItem(
+            identity = MediaRef(anilistId = 30002, malId = 2),
+            metadata = MediaMetadata(
                 title = "Berserk",
                 titleEnglish = "Berserk",
                 imageUrl = "https://cdn.myanimelist.net/images/manga/1/157897l.jpg",
+                type = MediaType.MANGA,
+                totalChapters = 0,
+                status = "Publishing",
+                genres = listOf("Action", "Adventure", "Drama", "Dark Fantasy"),
+                synopsis = "Guts, a former mercenary now known as the 'Black Swordsman,' is out for revenge..."
+            ),
+            tracking = MalTracking(
                 status = "reading",
                 score = 10,
-                progressChapters = 375,
-                totalChapters = 0,
-                publishingStatus = "Publishing",
-                genres = "Action, Adventure, Drama, Dark Fantasy",
-                synopsis = "Guts, a former mercenary now known as the 'Black Swordsman,' is out for revenge...",
-                author = "Kentaro Miura",
-                notes = "Karya seni visual terbaik sepanjang masa."
-            ),
-            MangaEntity(
-                id = "manga_121496",
-                malId = 121496,
-                anilistId = 105398,
+                progress = 375,
+                comments = "Karya seni visual terbaik sepanjang masa."
+            )
+        ),
+        UserMediaItem(
+            identity = MediaRef(anilistId = 105398, malId = 121496),
+            metadata = MediaMetadata(
                 title = "Solo Leveling",
                 titleEnglish = "Solo Leveling",
                 imageUrl = "https://cdn.myanimelist.net/images/manga/3/222295l.jpg",
+                type = MediaType.MANGA,
+                totalChapters = 179,
+                status = "Finished",
+                genres = listOf("Action", "Adventure", "Fantasy"),
+                synopsis = "Ten years ago, 'the Gate' appeared and connected the real world with the realm of magic and monsters..."
+            ),
+            tracking = MalTracking(
                 status = "completed",
                 score = 9,
-                progressChapters = 179,
-                totalChapters = 179,
-                publishingStatus = "Finished",
-                genres = "Action, Adventure, Fantasy",
-                synopsis = "Ten years ago, 'the Gate' appeared and connected the real world with the realm of magic and monsters...",
-                author = "Chugong & DUBU",
-                notes = "Sung Jin-woo sang Shadow Monarch!"
+                progress = 179,
+                comments = "Sung Jin-woo sang Shadow Monarch!"
             )
         )
-
-        animeDao.insertAll(sampleAnime)
-        mangaDao.insertAll(sampleManga)
-    }
+    )
 
     private fun fallbackAnime(): List<MediaItem> = listOf(
         MediaItem(52991, 154587, "Sousou no Frieren", "Frieren: Beyond Journey's End", "https://cdn.myanimelist.net/images/anime/1015/138075l.jpg", MediaType.ANIME, 9.35, "During their decade-long quest to defeat the Demon King...", 28, null, null, "Finished Airing", 2023, "Fall", listOf("Adventure", "Fantasy"), "TV", "Madhouse"),
         MediaItem(16498, 16498, "Shingeki no Kyojin", "Attack on Titan", "https://cdn.myanimelist.net/images/anime/10/47347l.jpg", MediaType.ANIME, 8.55, "Centuries ago, mankind was slaughtered...", 25, null, null, "Finished Airing", 2013, "Spring", listOf("Action", "Drama"), "TV", "Wit Studio"),
         MediaItem(5114, 5114, "Fullmetal Alchemist: Brotherhood", "Fullmetal Alchemist: Brotherhood", "https://cdn.myanimelist.net/images/anime/1223/96541l.jpg", MediaType.ANIME, 9.10, "After a horrific alchemy experiment goes wrong...", 64, null, null, "Finished Airing", 2009, "Spring", listOf("Action", "Adventure"), "TV", "Bones"),
         MediaItem(40748, 113415, "Jujutsu Kaisen", "Jujutsu Kaisen", "https://cdn.myanimelist.net/images/anime/1171/109222l.jpg", MediaType.ANIME, 8.61, "Idly indulging in paranormal activities with the Occult Club...", 24, null, null, "Finished Airing", 2020, "Fall", listOf("Action", "Fantasy"), "TV", "MAPPA"),
-        MediaItem(38000, 101922, "Kimetsu no Yaiba", "Demon Slayer", "https://cdn.myanimelist.net/images/anime/1286/99889l.jpg", MediaType.ANIME, 8.48, "Ever since the death of his father, the burden of supporting...", 26, null, null, "Finished Airing", 2019, "Spring", listOf("Action", "Fantasy"), "TV", "ufotable")
+        MediaItem(38000, 101922, "Kimetsu no Yaiba", "Demon Slayer", "https://cdn.myanimelist.net/images/anime/1286/99889l.jpg", MediaType.ANIME, 8.48, "Ever since the death of his father...", 26, null, null, "Finished Airing", 2019, "Spring", listOf("Action", "Fantasy"), "TV", "ufotable")
     )
 
     private fun fallbackManga(): List<MediaItem> = listOf(

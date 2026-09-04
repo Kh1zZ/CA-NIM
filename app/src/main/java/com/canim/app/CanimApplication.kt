@@ -20,8 +20,8 @@ class CanimApplication : Application(), ImageLoaderFactory {
         return ImageLoader.Builder(this)
             .memoryCache {
                 MemoryCache.Builder(this)
-                    // Allocate 35% of app memory for ultra-smooth 60+ FPS scrolling cache
-                    .maxSizePercent(0.35)
+                    // Allocate 25% of memory for smooth cover art scrolling without cache thrashing
+                    .maxSizePercent(0.25)
                     .strongReferencesEnabled(true)
                     .build()
             }
@@ -37,11 +37,9 @@ class CanimApplication : Application(), ImageLoaderFactory {
                     .readTimeout(20, TimeUnit.SECONDS)
                     .build()
             }
-            // Use RGB_565 for thumbnails to halve memory usage and eliminate GC pauses
-            .bitmapConfig(Bitmap.Config.RGB_565)
             .allowHardware(true)
             .crossfade(false) // Disable global crossfade to eliminate animation overhead during fast scrolling
-            .respectCacheHeaders(false) // Always prefer cached cover art
+            .respectCacheHeaders(false) // Prefer cached cover art
             .build()
     }
 }

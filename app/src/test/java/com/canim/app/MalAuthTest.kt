@@ -2,9 +2,7 @@ package com.canim.app
 
 import android.net.Uri
 import com.canim.app.data.repository.MalAuthManager
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertTrue
+import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -26,9 +24,22 @@ class MalAuthTest {
     }
 
     @Test
-    fun testAuthorizeUrlFormat() {
-        val verifier = "test_code_verifier_string_128_chars_long_enough_for_pkce_plain_method_specification_test"
-        val state = "random_state_value"
+    fun testPkceS256ChallengeCalculation() {
+        val verifier = "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+        val challenge = MalAuthManager.generateCodeChallenge(verifier)
+        val expected = "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"
+        assertEquals(expected, challenge)
+        assertEquals(43, challenge.length)
+        assertFalse(challenge.contains("="))
+        assertFalse(challenge.contains("+"))
+        assertFalse(challenge.contains("/"))
+    }
+
+    @Test
+    fun testAuthorizeUrlFormatForMyAnimeList() {
+        val verifier = "test_code_verifier_128_chars_long_enough_for_pkce_specification_testing_purpose_random_characters_abcd_12345_xyz_sample_test"
+        val state = "random_state_value_32_chars_long"
+
         val uri = Uri.parse(MalAuthManager.AUTH_BASE_URL).buildUpon()
             .appendQueryParameter("response_type", "code")
             .appendQueryParameter("client_id", MalAuthManager.CLIENT_ID)
@@ -45,5 +56,6 @@ class MalAuthTest {
         assertEquals("canim://oauth/callback", uri.getQueryParameter("redirect_uri"))
         assertEquals("plain", uri.getQueryParameter("code_challenge_method"))
         assertEquals(verifier, uri.getQueryParameter("code_challenge"))
+        assertEquals(state, uri.getQueryParameter("state"))
     }
 }

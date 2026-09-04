@@ -35,9 +35,8 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.canim.app.R
-import com.canim.app.data.local.AnimeEntity
-import com.canim.app.data.local.MangaEntity
 import com.canim.app.data.model.MediaType
+import com.canim.app.data.model.UserMediaItem
 import com.canim.app.ui.theme.*
 import com.canim.app.ui.viewmodel.CanimUiState
 
@@ -521,7 +520,7 @@ fun DashboardScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         contentPadding = PaddingValues(vertical = 4.dp)
                     ) {
-                        items(watchingAnime, key = { it.id }) { anime ->
+                        items(watchingAnime, key = { it.id }, contentType = { "watching_card" }) { anime ->
                             WatchingCard(
                                 anime = anime,
                                 onQuickAdd = { onQuickAddEpisode(anime.id) },
@@ -581,7 +580,7 @@ fun DashboardScreen(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         contentPadding = PaddingValues(vertical = 4.dp)
                     ) {
-                        items(readingManga, key = { it.id }) { manga ->
+                        items(readingManga, key = { it.id }, contentType = { "reading_card" }) { manga ->
                             ReadingCard(
                                 manga = manga,
                                 onQuickAdd = { onQuickAddChapter(manga.id) },
@@ -689,11 +688,10 @@ fun StatCard(
 
 @Composable
 fun WatchingCard(
-    anime: AnimeEntity,
+    anime: UserMediaItem,
     onQuickAdd: () -> Unit,
     onClick: () -> Unit
 ) {
-    val context = LocalContext.current
     Card(
         modifier = Modifier
             .width(160.dp)
@@ -710,13 +708,7 @@ fun WatchingCard(
                     .height(180.dp)
             ) {
                 AsyncImage(
-                    model = remember(anime.imageUrl) {
-                        ImageRequest.Builder(context)
-                            .data(anime.imageUrl)
-                            .size(240, 320)
-                            .crossfade(false)
-                            .build()
-                    },
+                    model = anime.imageUrl,
                     contentDescription = anime.title,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -731,7 +723,7 @@ fun WatchingCard(
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
-                            text = "★ ${anime.score}",
+                            text = anime.scoreFormatted,
                             color = StarGold,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
@@ -753,9 +745,7 @@ fun WatchingCard(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                val progressFrac = if (anime.totalEpisodes > 0) {
-                    (anime.progress.toFloat() / anime.totalEpisodes).coerceIn(0f, 1f)
-                } else 0.5f
+                val progressFrac = anime.progressFrac
 
                 LinearProgressIndicator(
                     progress = { progressFrac },
@@ -802,11 +792,10 @@ fun WatchingCard(
 
 @Composable
 fun ReadingCard(
-    manga: MangaEntity,
+    manga: UserMediaItem,
     onQuickAdd: () -> Unit,
     onClick: () -> Unit
 ) {
-    val context = LocalContext.current
     Card(
         modifier = Modifier
             .width(160.dp)
@@ -823,13 +812,7 @@ fun ReadingCard(
                     .height(180.dp)
             ) {
                 AsyncImage(
-                    model = remember(manga.imageUrl) {
-                        ImageRequest.Builder(context)
-                            .data(manga.imageUrl)
-                            .size(240, 320)
-                            .crossfade(false)
-                            .build()
-                    },
+                    model = manga.imageUrl,
                     contentDescription = manga.title,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize()
@@ -844,7 +827,7 @@ fun ReadingCard(
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     ) {
                         Text(
-                            text = "★ ${manga.score}",
+                            text = manga.scoreFormatted,
                             color = StarGold,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
@@ -866,9 +849,7 @@ fun ReadingCard(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                val progressFrac = if (manga.totalChapters > 0) {
-                    (manga.progressChapters.toFloat() / manga.totalChapters).coerceIn(0f, 1f)
-                } else 0.5f
+                val progressFrac = manga.progressChaptersFrac
 
                 LinearProgressIndicator(
                     progress = { progressFrac },

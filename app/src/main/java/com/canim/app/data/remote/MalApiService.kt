@@ -36,7 +36,7 @@ interface MalApiService {
         @Header("Authorization") authHeader: String,
         @Query("limit") limit: Int = 500,
         @Query("offset") offset: Int = 0,
-        @Query("fields") fields: String = "list_status,num_episodes,status,genres,main_picture,synopsis,start_date,end_date",
+        @Query("fields") fields: String = "list_status{status,score,num_episodes_watched,is_rewatching,num_times_rewatched,priority,comments,start_date,finish_date,updated_at},num_episodes,status,genres,main_picture,synopsis,start_date,end_date,studios,source",
         @Query("nsfw") nsfw: Boolean = true
     ): MalAnimeListResponse
 
@@ -45,7 +45,7 @@ interface MalApiService {
         @Header("Authorization") authHeader: String,
         @Query("limit") limit: Int = 500,
         @Query("offset") offset: Int = 0,
-        @Query("fields") fields: String = "list_status,num_chapters,num_volumes,status,genres,main_picture,synopsis,start_date,end_date",
+        @Query("fields") fields: String = "list_status{status,score,num_chapters_read,num_volumes_read,is_rereading,num_times_reread,priority,comments,start_date,finish_date,updated_at},num_chapters,num_volumes,status,genres,main_picture,synopsis,start_date,end_date,authors",
         @Query("nsfw") nsfw: Boolean = true
     ): MalMangaListResponse
 
@@ -54,9 +54,22 @@ interface MalApiService {
     suspend fun updateAnimeStatus(
         @Header("Authorization") authHeader: String,
         @Path("anime_id") animeId: Int,
-        @Field("status") status: String?,
-        @Field("score") score: Int?,
-        @Field("num_watched_episodes") numEpisodesWatched: Int?
+        @Field("status") status: String? = null,
+        @Field("score") score: Int? = null,
+        @Field("num_watched_episodes") numEpisodesWatched: Int? = null,
+        @Field("is_rewatching") isRewatching: Boolean? = null,
+        @Field("num_times_rewatched") numTimesRewatched: Int? = null,
+        @Field("priority") priority: Int? = null,
+        @Field("comments") comments: String? = null,
+        @Field("tags") tags: String? = null,
+        @Field("start_date") startDate: String? = null,
+        @Field("finish_date") finishDate: String? = null
+    ): Response<ResponseBody>
+
+    @DELETE("anime/{anime_id}/my_list_status")
+    suspend fun deleteAnimeFromList(
+        @Header("Authorization") authHeader: String,
+        @Path("anime_id") animeId: Int
     ): Response<ResponseBody>
 
     @FormUrlEncoded
@@ -64,10 +77,23 @@ interface MalApiService {
     suspend fun updateMangaStatus(
         @Header("Authorization") authHeader: String,
         @Path("manga_id") mangaId: Int,
-        @Field("status") status: String?,
-        @Field("score") score: Int?,
-        @Field("num_chapters_read") numChaptersRead: Int?,
-        @Field("num_volumes_read") numVolumesRead: Int?
+        @Field("status") status: String? = null,
+        @Field("score") score: Int? = null,
+        @Field("num_chapters_read") numChaptersRead: Int? = null,
+        @Field("num_volumes_read") numVolumesRead: Int? = null,
+        @Field("is_rereading") isRereading: Boolean? = null,
+        @Field("num_times_reread") numTimesReread: Int? = null,
+        @Field("priority") priority: Int? = null,
+        @Field("comments") comments: String? = null,
+        @Field("tags") tags: String? = null,
+        @Field("start_date") startDate: String? = null,
+        @Field("finish_date") finishDate: String? = null
+    ): Response<ResponseBody>
+
+    @DELETE("manga/{manga_id}/my_list_status")
+    suspend fun deleteMangaFromList(
+        @Header("Authorization") authHeader: String,
+        @Path("manga_id") mangaId: Int
     ): Response<ResponseBody>
 
     // Public Metadata Fallback Endpoints

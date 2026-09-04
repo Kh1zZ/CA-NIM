@@ -28,7 +28,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.canim.app.data.local.CanimDatabase
 import com.canim.app.data.local.MalSecureStorage
 import com.canim.app.data.repository.CanimRepository
 import com.canim.app.data.repository.MalAuthManager
@@ -47,18 +46,9 @@ data class NavItem(
 class MainActivity : ComponentActivity() {
 
     private val viewModel: CanimViewModel by viewModels {
-        val database = CanimDatabase.getDatabase(applicationContext)
         val secureStorage = MalSecureStorage(applicationContext)
-        val malAuthManager = MalAuthManager(
-            secureStorage = secureStorage,
-            animeDao = database.animeDao(),
-            mangaDao = database.mangaDao()
-        )
-        val repository = CanimRepository(
-            animeDao = database.animeDao(),
-            mangaDao = database.mangaDao(),
-            malAuthManager = malAuthManager
-        )
+        val malAuthManager = MalAuthManager(secureStorage = secureStorage)
+        val repository = CanimRepository(malAuthManager = malAuthManager)
         CanimViewModelFactory(repository)
     }
 
@@ -306,6 +296,14 @@ class MainActivity : ComponentActivity() {
 
     private fun handleDeepLink(uri: android.net.Uri) {
         if (uri.scheme == "canim" && uri.host == "oauth" && uri.path == "/callback") {
+            intent?.data = null // Clear to prevent double processing on recreation / orientation change
+            val error = uri.getQueryParameter("error")
+            val errorDescription = uri.getQueryParameter("error_description")
+            if (!error.isNullOrEmpty()) {
+                viewModel.showSnackbar("Login MAL dibatalkan: ${errorDescription ?: error}")
+                return
+            }
+
             val code = uri.getQueryParameter("code")
             val state = uri.getQueryParameter("state")
             if (!code.isNullOrEmpty()) {

@@ -64,7 +64,7 @@ fun SettingsScreen(
                 fontWeight = FontWeight.ExtraBold
             )
             Text(
-                text = "Kelola sinkronisasi MyAnimeList, cache, dan penyimpanan lokal",
+                text = "Kelola sinkronisasi MyAnimeList, cache, dan data aplikasi",
                 color = TextSecondary,
                 fontSize = 12.sp
             )
@@ -256,7 +256,7 @@ fun SettingsScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Membersihkan cache hanya menghapus file sementara gambar & query API. Data koleksi Room DB dan akun MAL kamu tidak akan terhapus.",
+                        text = "Membersihkan cache hanya menghapus file sementara gambar & query API. Data koleksi library dan akun MAL kamu tidak akan terhapus.",
                         color = TextMuted,
                         fontSize = 11.sp,
                         lineHeight = 16.sp
@@ -327,7 +327,7 @@ fun SettingsScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
-                        text = "Tindakan Database Lokal",
+                        text = "Tindakan Data Library",
                         color = TextPrimary,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold
@@ -374,7 +374,7 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Kosongkan Semua Data Room DB",
+                            text = "Kosongkan Semua Data Library",
                             fontWeight = FontWeight.SemiBold
                         )
                     }
@@ -414,7 +414,7 @@ fun SettingsScreen(
                                 fontWeight = FontWeight.ExtraBold
                             )
                             Text(
-                                text = "Versi: 2.1.0 (AniList Primary & Room Native)",
+                                text = "Versi: ${com.canim.app.BuildConfig.VERSION_NAME} (MAL Single Source of Truth & AniList GraphQL)",
                                 color = TextMuted,
                                 fontSize = 11.sp
                             )
@@ -424,7 +424,7 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
-                        text = "Aplikasi pelacak anime & manga offline-first modern dengan Kotlin, Jetpack Compose, Room Database, dan AniList GraphQL Client.",
+                        text = "Aplikasi client modern pelacak anime & manga dengan MyAnimeList sebagai Single Source of Truth dan AniList GraphQL rich metadata.",
                         color = TextSecondary,
                         fontSize = 12.sp,
                         lineHeight = 17.sp
@@ -505,7 +505,7 @@ fun SettingsScreen(
             },
             text = {
                 Text(
-                    text = "Apakah kamu yakin ingin mengosongkan semua data anime dan manga dari database lokal Room?",
+                    text = "Apakah kamu yakin ingin mengosongkan semua data anime dan manga dari library lokal?",
                     color = TextSecondary,
                     fontSize = 13.sp
                 )

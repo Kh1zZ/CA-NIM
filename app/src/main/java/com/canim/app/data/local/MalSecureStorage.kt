@@ -43,82 +43,124 @@ class MalSecureStorage(private val context: Context) {
 
     fun saveTokens(accessToken: String, refreshToken: String?, expiresInSeconds: Long) {
         val expiresAt = System.currentTimeMillis() + (expiresInSeconds * 1000)
-        prefs.edit().apply {
-            putString(KEY_ACCESS_TOKEN, accessToken)
-            if (refreshToken != null) {
-                putString(KEY_REFRESH_TOKEN, refreshToken)
-            }
-            putLong(KEY_EXPIRES_AT, expiresAt)
-            apply()
+        try {
+            prefs.edit().apply {
+                putString(KEY_ACCESS_TOKEN, accessToken)
+                if (refreshToken != null) {
+                    putString(KEY_REFRESH_TOKEN, refreshToken)
+                }
+                putLong(KEY_EXPIRES_AT, expiresAt)
+            }.commit()
+        } catch (e: Exception) {
+            Log.e("MalSecureStorage", "Failed to save tokens: ${e.message}", e)
         }
     }
 
-    fun getAccessToken(): String? {
-        return prefs.getString(KEY_ACCESS_TOKEN, null)
+    fun getAccessToken(): String? = try {
+        prefs.getString(KEY_ACCESS_TOKEN, null)
+    } catch (e: Exception) {
+        Log.e("MalSecureStorage", "Failed to read access token: ${e.message}", e)
+        null
     }
 
-    fun getRefreshToken(): String? {
-        return prefs.getString(KEY_REFRESH_TOKEN, null)
+    fun getRefreshToken(): String? = try {
+        prefs.getString(KEY_REFRESH_TOKEN, null)
+    } catch (e: Exception) {
+        Log.e("MalSecureStorage", "Failed to read refresh token: ${e.message}", e)
+        null
     }
 
-    fun isTokenExpired(): Boolean {
+    fun isTokenExpired(): Boolean = try {
         val expiresAt = prefs.getLong(KEY_EXPIRES_AT, 0L)
         // Refresh 60 seconds before actual expiration
-        return expiresAt <= 0 || System.currentTimeMillis() >= (expiresAt - 60_000)
+        expiresAt <= 0 || System.currentTimeMillis() >= (expiresAt - 60_000)
+    } catch (e: Exception) {
+        true
     }
 
     fun savePkce(verifier: String, state: String) {
-        prefs.edit().apply {
-            putString(KEY_PKCE_VERIFIER, verifier)
-            putString(KEY_PKCE_STATE, state)
-            apply()
+        try {
+            prefs.edit()
+                .putString(KEY_PKCE_VERIFIER, verifier)
+                .putString(KEY_PKCE_STATE, state)
+                .commit()
+        } catch (e: Exception) {
+            Log.e("MalSecureStorage", "Failed to save PKCE: ${e.message}", e)
         }
     }
 
-    fun getPkceVerifier(): String? = prefs.getString(KEY_PKCE_VERIFIER, null)
+    fun getPkceVerifier(): String? = try {
+        prefs.getString(KEY_PKCE_VERIFIER, null)
+    } catch (e: Exception) {
+        Log.e("MalSecureStorage", "Failed to read PKCE verifier: ${e.message}", e)
+        null
+    }
 
-    fun getPkceState(): String? = prefs.getString(KEY_PKCE_STATE, null)
+    fun getPkceState(): String? = try {
+        prefs.getString(KEY_PKCE_STATE, null)
+    } catch (e: Exception) {
+        Log.e("MalSecureStorage", "Failed to read PKCE state: ${e.message}", e)
+        null
+    }
 
     fun clearPkce() {
-        prefs.edit().apply {
-            remove(KEY_PKCE_VERIFIER)
-            remove(KEY_PKCE_STATE)
-            apply()
+        try {
+            prefs.edit()
+                .remove(KEY_PKCE_VERIFIER)
+                .remove(KEY_PKCE_STATE)
+                .commit()
+        } catch (e: Exception) {
+            Log.e("MalSecureStorage", "Failed to clear PKCE: ${e.message}", e)
         }
     }
 
     fun saveUserProfile(id: Long, username: String, pictureUrl: String?) {
-        prefs.edit().apply {
-            putLong(KEY_USER_ID, id)
-            putString(KEY_USERNAME, username)
-            putString(KEY_USER_PICTURE, pictureUrl)
-            apply()
+        try {
+            prefs.edit()
+                .putLong(KEY_USER_ID, id)
+                .putString(KEY_USERNAME, username)
+                .putString(KEY_USER_PICTURE, pictureUrl)
+                .commit()
+        } catch (e: Exception) {
+            Log.e("MalSecureStorage", "Failed to save user profile: ${e.message}", e)
         }
     }
 
-    fun getUser(): MalUser {
+    fun getUser(): MalUser = try {
         val token = getAccessToken()
         val username = prefs.getString(KEY_USERNAME, null)
         val picture = prefs.getString(KEY_USER_PICTURE, null)
         val id = prefs.getLong(KEY_USER_ID, 0L)
 
-        return MalUser(
+        MalUser(
             id = id,
             username = username ?: "",
             pictureUrl = picture,
             isLoggedIn = !token.isNullOrBlank() && !username.isNullOrBlank()
         )
+    } catch (e: Exception) {
+        MalUser()
     }
 
     fun setLastSynced(timestamp: Long = System.currentTimeMillis()) {
-        prefs.edit().putLong(KEY_LAST_SYNCED, timestamp).apply()
+        try {
+            prefs.edit().putLong(KEY_LAST_SYNCED, timestamp).commit()
+        } catch (e: Exception) {
+            Log.e("MalSecureStorage", "Failed to set last synced: ${e.message}", e)
+        }
     }
 
-    fun getLastSynced(): Long {
-        return prefs.getLong(KEY_LAST_SYNCED, 0L)
+    fun getLastSynced(): Long = try {
+        prefs.getLong(KEY_LAST_SYNCED, 0L)
+    } catch (e: Exception) {
+        0L
     }
 
     fun clearAuth() {
-        prefs.edit().clear().apply()
+        try {
+            prefs.edit().clear().commit()
+        } catch (e: Exception) {
+            Log.e("MalSecureStorage", "Failed to clear auth: ${e.message}", e)
+        }
     }
 }

@@ -1,25 +1,23 @@
 package com.canim.app.ui.viewmodel
 
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.canim.app.data.cache.CacheManager
-import com.canim.app.data.local.AnimeEntity
-import com.canim.app.data.local.MangaEntity
 import com.canim.app.data.model.*
 import com.canim.app.data.repository.CanimRepository
+import androidx.compose.runtime.Immutable
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
+@Immutable
 data class CanimUiState(
-    val animeList: List<AnimeEntity> = emptyList(),
-    val mangaList: List<MangaEntity> = emptyList(),
+    val animeList: List<UserMediaItem> = emptyList(),
+    val mangaList: List<UserMediaItem> = emptyList(),
     // Off-main-thread filtered lists for fast UI rendering
-    val watchingAnime: List<AnimeEntity> = emptyList(),
-    val readingManga: List<MangaEntity> = emptyList(),
+    val watchingAnime: List<UserMediaItem> = emptyList(),
+    val readingManga: List<UserMediaItem> = emptyList(),
     val completedAnimeMalIds: Set<Int> = emptySet(),
 
     val stats: TrackerStats = TrackerStats(),
@@ -29,7 +27,7 @@ data class CanimUiState(
     val librarySearchQuery: String = "",
     val librarySortBy: String = "updated",
 
-    // Discover state (On-demand per category)
+    // Discover state
     val selectedDiscoverCategory: DiscoverCategory = DiscoverCategory.CURRENT_SEASON,
     val discoverFilter: DiscoverFilter = DiscoverFilter(),
     val randomSort: String? = null,
@@ -54,10 +52,11 @@ data class CanimUiState(
 
     // App & Auth state
     val snackbarMessage: String? = null,
-    val appMode: String = "offline", // "offline" or "online_sync"
+    val appMode: String = "online_sync", // "offline" or "online_sync"
     val malUser: MalUser = MalUser(),
     val isSyncingMal: Boolean = false,
-    val isExchangingToken: Boolean = false
+    val isExchangingToken: Boolean = false,
+    val isLoadingLibrary: Boolean = false
 )
 
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
@@ -77,87 +76,17 @@ class CanimViewModel(
     private val _searchQueryFlow = MutableStateFlow(Pair("", MediaType.ANIME))
 
     private var discoverJob: Job? = null
+    private var discoverRequestToken = 0L
     private var detailJob: Job? = null
 
     init {
-        // Initial on-demand load of default discovery category
+        // Load discovery category
         loadDiscoverCategory(_uiState.value.selectedDiscoverCategory, _uiState.value.discoverFilter)
 
-        // Seed sample data if database is totally empty
-        viewModelScope.launch {
-            val existing = repository.allAnime.firstOrNull()
-            if (existing.isNullOrEmpty()) {
-                repository.loadDemoData()
-            }
-        }
+        // Load user library or demo data
+        loadUserLibrary()
 
-        // Off-Main-Thread Computation & State Management (Task 1.3)
-        viewModelScope.launch {
-            combine(repository.allAnime, repository.allManga) { anime, manga ->
-                Pair(anime, manga)
-            }
-            .flowOn(Dispatchers.Default)
-            .collect { (anime, manga) ->
-                // Filter background tasks without blocking main thread
-                val watching = anime.filter { it.status == "watching" }
-                val reading = manga.filter { it.status == "reading" }
-                val completedAnimeIds = anime.filter { it.status == "completed" }.map { it.malId }.toSet()
-
-                val totalEp = anime.sumOf { it.progress }
-                val totalCh = manga.sumOf { it.progressChapters }
-                val totalVol = manga.sumOf { it.progressVolumes }
-                val completedAnimeCount = anime.count { it.status == "completed" }
-                val completedMangaCount = manga.count { it.status == "completed" }
-                val totalRated = anime.count { it.score > 0 } + manga.count { it.score > 0 }
-                val totalScore = anime.sumOf { it.score } + manga.sumOf { it.score }
-                val mean = if (totalRated > 0) totalScore.toDouble() / totalRated else 0.0
-                val daysWatched = (totalEp * 24.0) / (60.0 * 24.0)
-
-                val animeWatching = anime.count { it.status == "watching" }
-                val animeOnHold = anime.count { it.status == "on_hold" }
-                val animeDropped = anime.count { it.status == "dropped" }
-                val animePlanToWatch = anime.count { it.status == "plan_to_watch" }
-
-                val mangaReading = manga.count { it.status == "reading" }
-                val mangaOnHold = manga.count { it.status == "on_hold" }
-                val mangaDropped = manga.count { it.status == "dropped" }
-                val mangaPlanToRead = manga.count { it.status == "plan_to_read" }
-
-                val stats = TrackerStats(
-                    totalAnime = anime.size,
-                    totalManga = manga.size,
-                    episodesWatched = totalEp,
-                    chaptersRead = totalCh,
-                    volumesRead = totalVol,
-                    completedCount = completedAnimeCount + completedMangaCount,
-                    meanScore = (mean * 10).toInt() / 10.0,
-                    daysWatched = (daysWatched * 10).toInt() / 10.0,
-                    animeWatching = animeWatching,
-                    animeCompleted = completedAnimeCount,
-                    animeOnHold = animeOnHold,
-                    animeDropped = animeDropped,
-                    animePlanToWatch = animePlanToWatch,
-                    mangaReading = mangaReading,
-                    mangaCompleted = completedMangaCount,
-                    mangaOnHold = mangaOnHold,
-                    mangaDropped = mangaDropped,
-                    mangaPlanToRead = mangaPlanToRead
-                )
-
-                _uiState.update { current ->
-                    current.copy(
-                        animeList = anime,
-                        mangaList = manga,
-                        watchingAnime = watching,
-                        readingManga = reading,
-                        completedAnimeMalIds = completedAnimeIds,
-                        stats = stats
-                    )
-                }
-            }
-        }
-
-        // Reactive Debounced Search (Task 1.5)
+        // Reactive Debounced Search (300ms)
         viewModelScope.launch {
             _searchQueryFlow
                 .debounce(300L)
@@ -184,15 +113,114 @@ class CanimViewModel(
                 }
         }
 
-        // Memory Cache Auto-Pruning every 15 minutes (Task 1.6)
+        // Memory Cache Auto-Pruning every 15 minutes
         viewModelScope.launch(Dispatchers.IO) {
             while (isActive) {
-                delay(15 * 60 * 1000L) // 15 minutes
+                delay(15 * 60 * 1000L)
                 CacheManager.pruneExpired()
             }
         }
     }
 
+    /**
+     * Loads the authoritative library from MAL (or demo dataset if not logged in).
+     */
+    fun loadUserLibrary(forceRefresh: Boolean = false) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoadingLibrary = true) }
+            val user = repository.getMalUser()
+            if (user.isLoggedIn) {
+                val animeResult = repository.getUserAnimeList(forceRefresh)
+                val mangaResult = repository.getUserMangaList(forceRefresh)
+
+                val animes = when (animeResult) {
+                    is MalFetchResult.Success -> animeResult.data
+                    is MalFetchResult.Partial -> {
+                        showSnackbar("Peringatan: Sebagian anime gagal dimuat (${animeResult.error.message})")
+                        animeResult.data
+                    }
+                    is MalFetchResult.Failure -> {
+                        showSnackbar("Gagal memuat anime MAL: ${animeResult.error.message}")
+                        _uiState.value.animeList
+                    }
+                }
+
+                val mangas = when (mangaResult) {
+                    is MalFetchResult.Success -> mangaResult.data
+                    is MalFetchResult.Partial -> {
+                        showSnackbar("Peringatan: Sebagian manga gagal dimuat (${mangaResult.error.message})")
+                        mangaResult.data
+                    }
+                    is MalFetchResult.Failure -> {
+                        showSnackbar("Gagal memuat manga MAL: ${mangaResult.error.message}")
+                        _uiState.value.mangaList
+                    }
+                }
+
+                updateLibraryData(animes, mangas)
+            } else {
+                // In-memory demo data for unauthenticated mode
+                if (_uiState.value.animeList.isEmpty() && _uiState.value.mangaList.isEmpty()) {
+                    updateLibraryData(repository.getDemoAnime(), repository.getDemoManga())
+                }
+            }
+            _uiState.update { it.copy(isLoadingLibrary = false) }
+        }
+    }
+
+    private fun updateLibraryData(animes: List<UserMediaItem>, mangas: List<UserMediaItem>) {
+        viewModelScope.launch(Dispatchers.Default) {
+            val watching = animes.filter { it.status == "watching" }
+            val reading = mangas.filter { it.status == "reading" }
+            val completedAnimeIds = animes.filter { it.status == "completed" }.mapNotNull { it.malId }.toSet()
+
+            val totalEp = animes.sumOf { it.progress }
+            val totalCh = mangas.sumOf { it.progressChapters }
+            val totalVol = mangas.sumOf { it.progressVolumes }
+            val completedAnimeCount = animes.count { it.status == "completed" }
+            val completedMangaCount = mangas.count { it.status == "completed" }
+            val totalRated = animes.count { it.score > 0 } + mangas.count { it.score > 0 }
+            val totalScore = animes.sumOf { it.score } + mangas.sumOf { it.score }
+            val mean = if (totalRated > 0) totalScore.toDouble() / totalRated else 0.0
+            val daysWatched = (totalEp * 24.0) / (60.0 * 24.0)
+
+            val stats = TrackerStats(
+                totalAnime = animes.size,
+                totalManga = mangas.size,
+                episodesWatched = totalEp,
+                chaptersRead = totalCh,
+                volumesRead = totalVol,
+                completedCount = completedAnimeCount + completedMangaCount,
+                meanScore = (mean * 10).toInt() / 10.0,
+                daysWatched = (daysWatched * 10).toInt() / 10.0,
+                animeWatching = animes.count { it.status == "watching" },
+                animeCompleted = completedAnimeCount,
+                animeOnHold = animes.count { it.status == "on_hold" },
+                animeDropped = animes.count { it.status == "dropped" },
+                animePlanToWatch = animes.count { it.status == "plan_to_watch" },
+                mangaReading = mangas.count { it.status == "reading" },
+                mangaCompleted = completedMangaCount,
+                mangaOnHold = mangas.count { it.status == "on_hold" },
+                mangaDropped = mangas.count { it.status == "dropped" },
+                mangaPlanToRead = mangas.count { it.status == "plan_to_read" }
+            )
+
+            withContext(Dispatchers.Main) {
+                _uiState.update { current ->
+                    current.copy(
+                        animeList = animes,
+                        mangaList = mangas,
+                        watchingAnime = watching,
+                        readingManga = reading,
+                        completedAnimeMalIds = completedAnimeIds,
+                        stats = stats
+                    )
+                }
+            }
+        }
+    }
+
+    // --- Navigation & Filter Controls ---
     fun setTab(tab: String) {
         _uiState.update { it.copy(activeTab = tab) }
     }
@@ -213,116 +241,248 @@ class CanimViewModel(
         _uiState.update { it.copy(librarySortBy = sort) }
     }
 
-    fun quickIncrementAnime(id: String) {
-        viewModelScope.launch {
-            repository.incrementAnime(id, 1)
-            showSnackbar("+1 Episode ditambahkan!")
+    // --- Bidirectional Optimistic Tracking Actions ---
+    fun quickIncrementAnime(identifier: Any) {
+        val currentList = _uiState.value.animeList
+        val item = findAnimeItem(identifier) ?: return
+        val updatedItem = item.copy(
+            tracking = item.tracking.copy(
+                progress = item.tracking.progress + 1,
+                updatedAt = System.currentTimeMillis()
+            )
+        )
+        // 1. Optimistic UI update
+        val optimisticList = currentList.map { if (it.id == item.id) updatedItem else it }
+        updateLibraryData(optimisticList, _uiState.value.mangaList)
+        showSnackbar("+1 Episode ditambahkan!")
+
+        // 2. Dispatch to MAL API if logged in
+        if (item.malId != null && _uiState.value.malUser.isLoggedIn) {
+            viewModelScope.launch {
+                val result = repository.updateAnimeTracking(item.malId!!, updatedItem.tracking)
+                if (result.isFailure) {
+                    // Revert optimistic update
+                    updateLibraryData(currentList, _uiState.value.mangaList)
+                    showSnackbar("Gagal update MAL: ${result.exceptionOrNull()?.message ?: "Kesalahan jaringan"}")
+                }
+            }
         }
     }
 
-    fun quickDecrementAnime(id: String) {
-        viewModelScope.launch {
-            repository.incrementAnime(id, -1)
-            showSnackbar("-1 Episode dikurangi.")
+    fun quickDecrementAnime(identifier: Any) {
+        val currentList = _uiState.value.animeList
+        val item = findAnimeItem(identifier) ?: return
+        if (item.tracking.progress <= 0) return
+        val updatedItem = item.copy(
+            tracking = item.tracking.copy(
+                progress = item.tracking.progress - 1,
+                updatedAt = System.currentTimeMillis()
+            )
+        )
+        val optimisticList = currentList.map { if (it.id == item.id) updatedItem else it }
+        updateLibraryData(optimisticList, _uiState.value.mangaList)
+        showSnackbar("-1 Episode dikurangkan!")
+
+        if (item.malId != null && _uiState.value.malUser.isLoggedIn) {
+            viewModelScope.launch {
+                val result = repository.updateAnimeTracking(item.malId!!, updatedItem.tracking)
+                if (result.isFailure) {
+                    updateLibraryData(currentList, _uiState.value.mangaList)
+                    showSnackbar("Gagal update MAL: ${result.exceptionOrNull()?.message}")
+                }
+            }
         }
     }
 
-    fun quickIncrementManga(id: String) {
-        viewModelScope.launch {
-            repository.incrementManga(id, 1)
-            showSnackbar("+1 Chapter ditambahkan!")
+    fun quickIncrementManga(identifier: Any) {
+        val currentList = _uiState.value.mangaList
+        val item = findMangaItem(identifier) ?: return
+        val updatedItem = item.copy(
+            tracking = item.tracking.copy(
+                progress = item.tracking.progress + 1,
+                updatedAt = System.currentTimeMillis()
+            )
+        )
+        val optimisticList = currentList.map { if (it.id == item.id) updatedItem else it }
+        updateLibraryData(_uiState.value.animeList, optimisticList)
+        showSnackbar("+1 Chapter ditambahkan!")
+
+        if (item.malId != null && _uiState.value.malUser.isLoggedIn) {
+            viewModelScope.launch {
+                val result = repository.updateMangaTracking(item.malId!!, updatedItem.tracking)
+                if (result.isFailure) {
+                    updateLibraryData(_uiState.value.animeList, currentList)
+                    showSnackbar("Gagal update MAL: ${result.exceptionOrNull()?.message}")
+                }
+            }
         }
     }
 
-    fun quickDecrementManga(id: String) {
-        viewModelScope.launch {
-            repository.incrementManga(id, -1)
-            showSnackbar("-1 Chapter dikurangi.")
+    fun quickDecrementManga(identifier: Any) {
+        val currentList = _uiState.value.mangaList
+        val item = findMangaItem(identifier) ?: return
+        if (item.tracking.progress <= 0) return
+        val updatedItem = item.copy(
+            tracking = item.tracking.copy(
+                progress = item.tracking.progress - 1,
+                updatedAt = System.currentTimeMillis()
+            )
+        )
+        val optimisticList = currentList.map { if (it.id == item.id) updatedItem else it }
+        updateLibraryData(_uiState.value.animeList, optimisticList)
+        showSnackbar("-1 Chapter dikurangkan!")
+
+        if (item.malId != null && _uiState.value.malUser.isLoggedIn) {
+            viewModelScope.launch {
+                val result = repository.updateMangaTracking(item.malId!!, updatedItem.tracking)
+                if (result.isFailure) {
+                    updateLibraryData(_uiState.value.animeList, currentList)
+                    showSnackbar("Gagal update MAL: ${result.exceptionOrNull()?.message}")
+                }
+            }
         }
     }
 
-    fun saveAnime(anime: AnimeEntity) {
-        viewModelScope.launch {
-            repository.upsertAnime(anime)
-            closeDetail()
-            showSnackbar("\"${anime.title}\" berhasil diperbarui!")
+    fun saveAnime(item: UserMediaItem) {
+        val currentList = _uiState.value.animeList
+        val exists = currentList.any { it.id == item.id }
+        val optimisticList = if (exists) {
+            currentList.map { if (it.id == item.id) item else it }
+        } else {
+            currentList + item
+        }
+        updateLibraryData(optimisticList, _uiState.value.mangaList)
+        closeDetail()
+        showSnackbar("Perubahan \"${item.title}\" disimpan!")
+
+        if (item.malId != null && _uiState.value.malUser.isLoggedIn) {
+            viewModelScope.launch {
+                val result = repository.updateAnimeTracking(item.malId!!, item.tracking)
+                if (result.isFailure) {
+                    updateLibraryData(currentList, _uiState.value.mangaList)
+                    showSnackbar("Gagal menyimpan ke MAL: ${result.exceptionOrNull()?.message}")
+                }
+            }
         }
     }
 
-    fun saveManga(manga: MangaEntity) {
-        viewModelScope.launch {
-            repository.upsertManga(manga)
-            closeDetail()
-            showSnackbar("\"${manga.title}\" berhasil diperbarui!")
+    fun saveManga(item: UserMediaItem) {
+        val currentList = _uiState.value.mangaList
+        val exists = currentList.any { it.id == item.id }
+        val optimisticList = if (exists) {
+            currentList.map { if (it.id == item.id) item else it }
+        } else {
+            currentList + item
+        }
+        updateLibraryData(_uiState.value.animeList, optimisticList)
+        closeDetail()
+        showSnackbar("Perubahan \"${item.title}\" disimpan!")
+
+        if (item.malId != null && _uiState.value.malUser.isLoggedIn) {
+            viewModelScope.launch {
+                val result = repository.updateMangaTracking(item.malId!!, item.tracking)
+                if (result.isFailure) {
+                    updateLibraryData(_uiState.value.animeList, currentList)
+                    showSnackbar("Gagal menyimpan ke MAL: ${result.exceptionOrNull()?.message}")
+                }
+            }
         }
     }
 
-    fun deleteAnime(id: String) {
-        viewModelScope.launch {
-            repository.deleteAnime(id)
-            closeDetail()
-            showSnackbar("Anime berhasil dihapus dari Library.")
+    fun deleteAnime(idOrItem: Any) {
+        val currentList = _uiState.value.animeList
+        val item = findAnimeItem(idOrItem) ?: return
+        val optimisticList = currentList.filter { it.id != item.id }
+        updateLibraryData(optimisticList, _uiState.value.mangaList)
+        closeDetail()
+        showSnackbar("\"${item.title}\" dihapus dari Library")
+
+        if (item.malId != null && _uiState.value.malUser.isLoggedIn) {
+            viewModelScope.launch {
+                val result = repository.deleteAnimeTracking(item.malId!!)
+                if (result.isFailure) {
+                    updateLibraryData(currentList, _uiState.value.mangaList)
+                    showSnackbar("Gagal menghapus dari MAL: ${result.exceptionOrNull()?.message}")
+                }
+            }
         }
     }
 
-    fun deleteManga(id: String) {
-        viewModelScope.launch {
-            repository.deleteManga(id)
-            closeDetail()
-            showSnackbar("Manga berhasil dihapus dari Library.")
+    fun deleteManga(idOrItem: Any) {
+        val currentList = _uiState.value.mangaList
+        val item = findMangaItem(idOrItem) ?: return
+        val optimisticList = currentList.filter { it.id != item.id }
+        updateLibraryData(_uiState.value.animeList, optimisticList)
+        closeDetail()
+        showSnackbar("\"${item.title}\" dihapus dari Library")
+
+        if (item.malId != null && _uiState.value.malUser.isLoggedIn) {
+            viewModelScope.launch {
+                val result = repository.deleteMangaTracking(item.malId!!)
+                if (result.isFailure) {
+                    updateLibraryData(_uiState.value.animeList, currentList)
+                    showSnackbar("Gagal menghapus dari MAL: ${result.exceptionOrNull()?.message}")
+                }
+            }
         }
     }
 
     fun addFromCatalog(item: MediaItem, status: MediaStatus) {
-        viewModelScope.launch {
-            if (item.type == MediaType.ANIME) {
-                val anime = AnimeEntity(
-                    id = "anime_${item.malId}",
-                    malId = item.malId,
-                    anilistId = item.anilistId,
-                    title = item.title,
-                    titleEnglish = item.titleEnglish,
-                    imageUrl = item.imageUrl,
-                    status = status.apiValue,
-                    score = 0,
-                    progress = if (status == MediaStatus.COMPLETED) (item.episodes ?: 0) else 0,
-                    totalEpisodes = item.episodes ?: 0,
-                    airingStatus = item.status ?: "Finished Airing",
-                    genres = item.genres.joinToString(", "),
-                    synopsis = item.synopsis ?: "",
-                    year = item.year,
-                    season = item.season,
-                    studio = item.studio,
-                    notes = ""
-                )
-                repository.upsertAnime(anime)
-            } else {
-                val manga = MangaEntity(
-                    id = "manga_${item.malId}",
-                    malId = item.malId,
-                    anilistId = item.anilistId,
-                    title = item.title,
-                    titleEnglish = item.titleEnglish,
-                    imageUrl = item.imageUrl,
-                    status = status.apiValue,
-                    score = 0,
-                    progressChapters = if (status == MediaStatus.COMPLETED) (item.chapters ?: 0) else 0,
-                    progressVolumes = 0,
-                    totalChapters = item.chapters ?: 0,
-                    totalVolumes = item.volumes ?: 0,
-                    publishingStatus = item.status ?: "Finished",
-                    genres = item.genres.joinToString(", "),
-                    synopsis = item.synopsis ?: "",
-                    year = item.year,
-                    notes = ""
-                )
-                repository.upsertManga(manga)
-            }
-            showSnackbar("\"${item.title}\" ditambahkan ke Library!")
+        val tracking = MalTracking(
+            status = status.apiValue,
+            score = 0,
+            progress = if (status == MediaStatus.COMPLETED) (item.episodes ?: item.chapters ?: 0) else 0
+        )
+        val metadata = MediaMetadata(
+            title = item.title,
+            titleEnglish = item.titleEnglish,
+            imageUrl = item.imageUrl,
+            type = item.type,
+            totalEpisodes = item.episodes,
+            totalChapters = item.chapters,
+            totalVolumes = item.volumes,
+            status = item.status,
+            genres = item.genres,
+            format = item.format,
+            studio = item.studio,
+            year = item.year,
+            season = item.season,
+            synopsis = item.synopsis
+        )
+        val userItem = UserMediaItem(
+            identity = item.identity,
+            metadata = metadata,
+            tracking = tracking
+        )
+
+        if (item.type == MediaType.ANIME) {
+            saveAnime(userItem)
+        } else {
+            saveManga(userItem)
         }
     }
 
-    // --- Reactive Search (Task 1.5) ---
+    private fun findAnimeItem(identifier: Any): UserMediaItem? {
+        val list = _uiState.value.animeList
+        return when (identifier) {
+            is UserMediaItem -> identifier
+            is String -> list.firstOrNull { it.id == identifier || it.malId?.toString() == identifier }
+            is Int -> list.firstOrNull { it.malId == identifier || it.anilistId == identifier }
+            else -> null
+        }
+    }
+
+    private fun findMangaItem(identifier: Any): UserMediaItem? {
+        val list = _uiState.value.mangaList
+        return when (identifier) {
+            is UserMediaItem -> identifier
+            is String -> list.firstOrNull { it.id == identifier || it.malId?.toString() == identifier }
+            is Int -> list.firstOrNull { it.malId == identifier || it.anilistId == identifier }
+            else -> null
+        }
+    }
+
+    // --- Search ---
     fun onSearchQueryChange(query: String, type: MediaType) {
         _uiState.update { it.copy(searchQuery = query, searchType = type) }
         _searchQueryFlow.value = Pair(query, type)
@@ -330,27 +490,17 @@ class CanimViewModel(
 
     fun search(query: String, type: MediaType) {
         onSearchQueryChange(query, type)
-        val trimmed = query.trim()
-        if (trimmed.isNotBlank()) {
-            _uiState.update { it.copy(isSearching = true) }
-            viewModelScope.launch(Dispatchers.IO) {
-                val results = if (type == MediaType.ANIME) {
-                    repository.searchAnime(trimmed)
-                } else {
-                    repository.searchManga(trimmed)
-                }
-                _uiState.update { it.copy(searchResults = results, isSearching = false) }
-            }
-        }
     }
 
-    // --- Discover & Randomizer (Task 2.4 & Task A1) ---
+    // --- Discover & Fixed Race-Safe Randomizer ---
     fun loadDiscoverCategory(
         category: DiscoverCategory,
         filter: DiscoverFilter = _uiState.value.discoverFilter,
         forceRefresh: Boolean = false
     ) {
         discoverJob?.cancel()
+        val token = ++discoverRequestToken
+
         _uiState.update {
             it.copy(
                 selectedDiscoverCategory = category,
@@ -362,28 +512,17 @@ class CanimViewModel(
             )
         }
 
-        discoverJob = viewModelScope.launch {
+        discoverJob = viewModelScope.launch(Dispatchers.IO) {
             val items = repository.getDiscoverMedia(category, filter, page = 1, forceRefresh = forceRefresh)
-            _uiState.update {
-                it.copy(
-                    discoverItems = items,
-                    isDiscoverLoading = false,
-                    canLoadMoreDiscover = items.size >= 20
-                )
+            if (token == discoverRequestToken) {
+                _uiState.update {
+                    it.copy(
+                        discoverItems = items,
+                        isDiscoverLoading = false,
+                        canLoadMoreDiscover = items.size >= 20
+                    )
+                }
             }
-        }
-    }
-
-    private fun filterAndDedupDiscoverItems(
-        newItems: List<MediaItem>,
-        existingItems: List<MediaItem>,
-        isRandom: Boolean
-    ): List<MediaItem> {
-        val existingMalIds = existingItems.map { it.malId }.toSet()
-        val completedIds = if (isRandom) _uiState.value.completedAnimeMalIds else emptySet()
-
-        return newItems.filter { item ->
-            !existingMalIds.contains(item.malId) && (!isRandom || !completedIds.contains(item.malId))
         }
     }
 
@@ -391,7 +530,7 @@ class CanimViewModel(
         val current = _uiState.value
         if (current.isDiscoverLoading || current.isDiscoverLoadingMore || !current.canLoadMoreDiscover) return
         val nextPage = current.discoverPage + 1
-        val isRandom = current.selectedDiscoverCategory == DiscoverCategory.RANDOM_FILTER
+        val token = discoverRequestToken
 
         _uiState.update { it.copy(isDiscoverLoadingMore = true) }
         viewModelScope.launch(Dispatchers.IO) {
@@ -399,130 +538,97 @@ class CanimViewModel(
                 current.selectedDiscoverCategory,
                 current.discoverFilter,
                 page = nextPage,
-                randomSort = if (isRandom) current.randomSort else null
+                randomSort = current.randomSort
             )
 
-            val newFiltered = filterAndDedupDiscoverItems(nextItems, current.discoverItems, isRandom = isRandom)
+            if (token == discoverRequestToken) {
+                val existingIds = current.discoverItems.map { it.malId ?: it.anilistId }.toSet()
+                val newFiltered = nextItems.filter { !existingIds.contains(it.malId ?: it.anilistId) }
 
-            _uiState.update {
-                it.copy(
-                    discoverItems = it.discoverItems + newFiltered,
-                    discoverPage = nextPage,
-                    canLoadMoreDiscover = nextItems.isNotEmpty(),
-                    isDiscoverLoadingMore = false
-                )
+                _uiState.update {
+                    it.copy(
+                        discoverItems = it.discoverItems + newFiltered,
+                        discoverPage = nextPage,
+                        canLoadMoreDiscover = nextItems.isNotEmpty(),
+                        isDiscoverLoadingMore = false
+                    )
+                }
             }
         }
     }
 
     /**
-     * Prominent Anime Randomizer with automatic exclusion of completed anime (Task 2.4 & A1).
-     * The sort method is chosen ONCE at page 1 and preserved across pagination until reshuffled.
+     * Fixed Randomizer:
+     * - Genuinely random selection.
+     * - Strictly excludes completed anime.
+     * - If page has insufficient eligible items, fetches more pages instead of reintroducing completed entries.
      */
     fun randomizeAnime(filter: DiscoverFilter = _uiState.value.discoverFilter) {
         discoverJob?.cancel()
-        val sortOptions = listOf("POPULARITY_DESC", "SCORE_DESC", "TRENDING_DESC", "ID_DESC")
-        val chosenSort = sortOptions.random()
+        val token = ++discoverRequestToken
 
         _uiState.update {
             it.copy(
                 selectedDiscoverCategory = DiscoverCategory.RANDOM_FILTER,
                 discoverFilter = filter,
-                randomSort = chosenSort,
+                randomSort = null,
                 isDiscoverLoading = true,
                 discoverPage = 1,
-                canLoadMoreDiscover = true
+                canLoadMoreDiscover = false
             )
         }
 
         discoverJob = viewModelScope.launch(Dispatchers.IO) {
-            val items = repository.getDiscoverMedia(
-                DiscoverCategory.RANDOM_FILTER,
-                filter,
-                page = 1,
-                forceRefresh = true,
-                randomSort = chosenSort
-            )
-            val filtered = filterAndDedupDiscoverItems(items, emptyList(), isRandom = true)
-            val finalResult = if (filtered.isNotEmpty()) filtered else items
+            val completedIds = _uiState.value.completedAnimeMalIds
+            val candidates = mutableListOf<MediaItem>()
+            var searchPage = 1
+            val maxPages = 3
 
-            _uiState.update {
-                it.copy(
-                    discoverItems = finalResult,
-                    isDiscoverLoading = false,
-                    canLoadMoreDiscover = items.size >= 20
+            while (candidates.size < 15 && searchPage <= maxPages) {
+                val pageItems = repository.getDiscoverMedia(
+                    category = DiscoverCategory.RANDOM_FILTER,
+                    filter = filter,
+                    page = searchPage,
+                    forceRefresh = true
                 )
+                if (pageItems.isEmpty()) break
+
+                val eligible = pageItems.filter { item ->
+                    val mId = item.malId
+                    mId == null || !completedIds.contains(mId)
+                }
+                candidates.addAll(eligible)
+                searchPage++
             }
-            showSnackbar("Rekomendasi anime acak siap! (${finalResult.size} judul belum ditonton)")
+
+            // Genuinely shuffle and pick distinct
+            val shuffled = candidates.distinctBy { it.malId ?: it.anilistId }.shuffled()
+
+            if (token == discoverRequestToken) {
+                _uiState.update {
+                    it.copy(
+                        discoverItems = shuffled,
+                        isDiscoverLoading = false,
+                        canLoadMoreDiscover = false
+                    )
+                }
+            }
         }
     }
 
-    // --- Extended Detail & Search Item Click (Task 2.5) ---
+    // --- Details ---
     fun openDetail(item: Any, type: MediaType) {
-        if (item is MediaItem) {
-            // Check if already in local database
-            val localAnime = if (type == MediaType.ANIME) _uiState.value.animeList.find { it.malId == item.malId } else null
-            val localManga = if (type == MediaType.MANGA) _uiState.value.mangaList.find { it.malId == item.malId } else null
-
-            val targetItem: Any = localAnime ?: localManga ?: if (type == MediaType.ANIME) {
-                AnimeEntity(
-                    id = "anime_${item.malId}",
-                    malId = item.malId,
-                    anilistId = item.anilistId,
-                    title = item.title,
-                    titleEnglish = item.titleEnglish,
-                    imageUrl = item.imageUrl,
-                    status = "plan_to_watch",
-                    score = 0,
-                    progress = 0,
-                    totalEpisodes = item.episodes ?: 0,
-                    airingStatus = item.status ?: "Finished Airing",
-                    genres = item.genres.joinToString(", "),
-                    synopsis = item.synopsis ?: "",
-                    year = item.year,
-                    season = item.season,
-                    studio = item.studio,
-                    notes = ""
-                )
-            } else {
-                MangaEntity(
-                    id = "manga_${item.malId}",
-                    malId = item.malId,
-                    anilistId = item.anilistId,
-                    title = item.title,
-                    titleEnglish = item.titleEnglish,
-                    imageUrl = item.imageUrl,
-                    status = "plan_to_read",
-                    score = 0,
-                    progressChapters = 0,
-                    progressVolumes = 0,
-                    totalChapters = item.chapters ?: 0,
-                    totalVolumes = item.volumes ?: 0,
-                    publishingStatus = item.status ?: "Finished",
-                    genres = item.genres.joinToString(", "),
-                    synopsis = item.synopsis ?: "",
-                    year = item.year,
-                    notes = ""
-                )
-            }
-
-            _uiState.update {
-                it.copy(
-                    selectedDetailItem = targetItem,
-                    detailMediaType = type,
-                    isDetailOpen = true,
-                    extendedDetail = null,
-                    isLoadingExtendedDetail = false
-                )
-            }
-            fetchExtendedDetails(item.anilistId, item.malId, type)
-            return
+        detailJob?.cancel()
+        val anilistId = when (item) {
+            is UserMediaItem -> item.anilistId
+            is MediaItem -> item.anilistId
+            else -> null
         }
-
-        val anime = item as? AnimeEntity
-        val manga = item as? MangaEntity
-        val aniListId = anime?.anilistId ?: manga?.anilistId
-        val malId = anime?.malId ?: manga?.malId
+        val malId = when (item) {
+            is UserMediaItem -> item.malId
+            is MediaItem -> item.malId
+            else -> null
+        }
 
         _uiState.update {
             it.copy(
@@ -530,19 +636,12 @@ class CanimViewModel(
                 detailMediaType = type,
                 isDetailOpen = true,
                 extendedDetail = null,
-                isLoadingExtendedDetail = false
+                isLoadingExtendedDetail = true
             )
         }
 
-        // Fetch extended details asynchronously in background without blocking dialog
-        fetchExtendedDetails(aniListId, malId, type)
-    }
-
-    fun fetchExtendedDetails(aniListId: Int?, malId: Int?, type: MediaType) {
-        detailJob?.cancel()
-        _uiState.update { it.copy(isLoadingExtendedDetail = true) }
-        detailJob = viewModelScope.launch {
-            val detail = repository.getExtendedDetails(aniListId, malId, type)
+        detailJob = viewModelScope.launch(Dispatchers.IO) {
+            val detail = repository.getExtendedDetails(anilistId, malId, type)
             _uiState.update {
                 it.copy(
                     extendedDetail = detail,
@@ -556,75 +655,33 @@ class CanimViewModel(
         detailJob?.cancel()
         _uiState.update {
             it.copy(
-                isDetailOpen = false,
                 selectedDetailItem = null,
+                isDetailOpen = false,
                 extendedDetail = null,
                 isLoadingExtendedDetail = false
             )
         }
     }
 
-    // --- Cache Management ---
-    fun clearImageCache(context: Context) {
-        viewModelScope.launch {
-            repository.clearImageCache(context)
-            showSnackbar("Cache gambar berhasil dibersihkan.")
-        }
-    }
-
-    fun clearMetadataCache() {
-        repository.clearMetadataCache()
-        showSnackbar("Cache metadata & pencarian berhasil dibersihkan.")
-    }
-
-    fun clearAllCache(context: Context) {
-        viewModelScope.launch {
-            repository.clearAllCache(context)
-            showSnackbar("Semua cache berhasil dibersihkan. Data Library & akun tetap aman.")
-        }
-    }
-
-    fun loadDemoData() {
-        viewModelScope.launch {
-            repository.loadDemoData()
-            showSnackbar("Dataset demo berhasil dimuat ke Room DB lokal!")
-        }
-    }
-
-    fun clearAllData() {
-        viewModelScope.launch {
-            repository.clearAll()
-            showSnackbar("Semua data lokal Room DB telah dibersihkan.")
-        }
-    }
-
-    fun setAppMode(mode: String) {
-        _uiState.update { it.copy(appMode = mode) }
-        showSnackbar(if (mode == "offline") "Beralih ke mode Offline Room DB." else "Beralih ke mode Online Sync MAL.")
-    }
-
+    // --- MAL OAuth & Sync ---
     fun loginWithMal(context: Context) {
-        val authUrl = repository.buildMalAuthorizeUrl()
-        if (authUrl == null) {
-            showSnackbar("Layanan otentikasi MyAnimeList belum siap.")
-        } else {
-            try {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(authUrl)).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                context.startActivity(intent)
-            } catch (e: Exception) {
-                showSnackbar("Tidak dapat membuka browser sistem: ${e.localizedMessage}")
+        try {
+            val url = repository.buildMalAuthorizeUrl()
+            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).apply {
+                flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
             }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            showSnackbar("Gagal membuka browser untuk login: ${e.message}")
         }
     }
 
     fun handleOAuthCallback(code: String, state: String?) {
         viewModelScope.launch {
             _uiState.update { it.copy(isExchangingToken = true) }
-            showSnackbar("Menghubungkan akun MyAnimeList...")
             val result = repository.handleMalOAuthCallback(code, state)
-            result.onSuccess { user ->
+            if (result.isSuccess) {
+                val user = result.getOrThrow()
                 _uiState.update {
                     it.copy(
                         malUser = user,
@@ -632,31 +689,12 @@ class CanimViewModel(
                         isExchangingToken = false
                     )
                 }
-                showSnackbar("Berhasil terhubung ke MyAnimeList sebagai ${user.username}!")
-                syncWithMal()
-            }.onFailure { error ->
-                _uiState.update { it.copy(isExchangingToken = false) }
-                showSnackbar("Gagal login MyAnimeList: ${error.localizedMessage ?: "Terjadi kesalahan"}")
-            }
-        }
-    }
-
-    fun syncWithMal() {
-        viewModelScope.launch {
-            val user = _uiState.value.malUser
-            if (!user.isLoggedIn) {
-                showSnackbar("Silakan hubungkan akun MyAnimeList terlebih dahulu.")
-                return@launch
-            }
-            _uiState.update { it.copy(isSyncingMal = true) }
-            showSnackbar("Menyinkronkan daftar anime & manga dari MyAnimeList...")
-            val result = repository.syncWithMal()
-            if (result.isSuccess) {
-                showSnackbar("Sinkronisasi sukses! ${result.animeSynced} anime & ${result.mangaSynced} manga tersinkron.")
+                showSnackbar("Login MAL berhasil! Memuat library...")
+                loadUserLibrary(forceRefresh = true)
             } else {
-                showSnackbar("Gagal sinkronisasi: ${result.errorMessage ?: "Koneksi terganggu"}")
+                _uiState.update { it.copy(isExchangingToken = false) }
+                showSnackbar("Gagal login MyAnimeList: ${result.exceptionOrNull()?.message}")
             }
-            _uiState.update { it.copy(isSyncingMal = false) }
         }
     }
 
@@ -668,7 +706,56 @@ class CanimViewModel(
                 appMode = "offline"
             )
         }
-        showSnackbar("Akun MyAnimeList telah diputuskan.")
+        showSnackbar("Akun MyAnimeList telah logout.")
+        // Revert to demo data
+        updateLibraryData(repository.getDemoAnime(), repository.getDemoManga())
+    }
+
+    fun syncWithMal() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isSyncingMal = true) }
+            val result = repository.syncWithMal()
+            _uiState.update { it.copy(isSyncingMal = false) }
+            if (result.isSuccess) {
+                showSnackbar("Sync MAL selesai: ${result.animeSynced} anime & ${result.mangaSynced} manga")
+                loadUserLibrary(forceRefresh = true)
+            } else {
+                showSnackbar("Sync gagal: ${result.errorMessage}")
+            }
+        }
+    }
+
+    fun setAppMode(mode: String) {
+        _uiState.update { it.copy(appMode = mode) }
+    }
+
+    fun loadDemoData() {
+        updateLibraryData(repository.getDemoAnime(), repository.getDemoManga())
+        showSnackbar("Dataset demo dimuat!")
+    }
+
+    fun clearAllData() {
+        updateLibraryData(emptyList(), emptyList())
+        showSnackbar("Daftar tampilan telah dibersihkan.")
+    }
+
+    fun clearImageCache(context: Context) {
+        viewModelScope.launch {
+            repository.clearImageCache(context)
+            showSnackbar("Cache gambar telah dibersihkan.")
+        }
+    }
+
+    fun clearMetadataCache() {
+        repository.clearMetadataCache()
+        showSnackbar("Cache query & metadata telah dibersihkan.")
+    }
+
+    fun clearAllCache(context: Context) {
+        viewModelScope.launch {
+            repository.clearAllCache(context)
+            showSnackbar("Semua cache berhasil dibersihkan.")
+        }
     }
 
     fun showSnackbar(message: String) {
@@ -683,11 +770,11 @@ class CanimViewModel(
 class CanimViewModelFactory(
     private val repository: CanimRepository
 ) : ViewModelProvider.Factory {
+    @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(CanimViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
             return CanimViewModel(repository) as T
         }
-        throw IllegalArgumentException("Unknown ViewModel class")
+        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
 }

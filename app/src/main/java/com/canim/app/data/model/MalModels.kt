@@ -87,24 +87,46 @@ data class MalGenre(
 
 data class MalAnimeListStatus(
     @SerializedName("status") val status: String,
-    @SerializedName("score") val score: Int,
-    @SerializedName("num_episodes_watched") val numEpisodesWatched: Int,
+    @SerializedName("score") val score: Int = 0,
+    @SerializedName("num_episodes_watched") val numEpisodesWatched: Int = 0,
     @SerializedName("is_rewatching") val isRewatching: Boolean = false,
+    @SerializedName("num_times_rewatched") val numTimesRewatched: Int = 0,
+    @SerializedName("rewatch_value") val rewatchValue: Int = 0,
+    @SerializedName("priority") val priority: Int = 0,
+    @SerializedName("tags") val tags: List<String>? = null,
+    @SerializedName("comments") val comments: String? = null,
+    @SerializedName("start_date") val startDate: String? = null,
+    @SerializedName("finish_date") val finishDate: String? = null,
     @SerializedName("updated_at") val updatedAt: String? = null
 )
 
 data class MalMangaListStatus(
     @SerializedName("status") val status: String,
-    @SerializedName("score") val score: Int,
-    @SerializedName("num_chapters_read") val numChaptersRead: Int,
+    @SerializedName("score") val score: Int = 0,
+    @SerializedName("num_chapters_read") val numChaptersRead: Int = 0,
     @SerializedName("num_volumes_read") val numVolumesRead: Int = 0,
     @SerializedName("is_rereading") val isRereading: Boolean = false,
+    @SerializedName("num_times_reread") val numTimesReread: Int = 0,
+    @SerializedName("reread_value") val rereadValue: Int = 0,
+    @SerializedName("priority") val priority: Int = 0,
+    @SerializedName("tags") val tags: List<String>? = null,
+    @SerializedName("comments") val comments: String? = null,
+    @SerializedName("start_date") val startDate: String? = null,
+    @SerializedName("finish_date") val finishDate: String? = null,
     @SerializedName("updated_at") val updatedAt: String? = null
 )
+
+sealed class MalFetchResult<out T> {
+    data class Success<T>(val data: T, val totalItems: Int) : MalFetchResult<T>()
+    data class Partial<T>(val data: T, val fetchedItems: Int, val error: Throwable) : MalFetchResult<T>()
+    data class Failure(val error: Throwable) : MalFetchResult<Nothing>()
+}
 
 data class MalSyncResult(
     val animeSynced: Int = 0,
     val mangaSynced: Int = 0,
     val isSuccess: Boolean = true,
+    val isPartial: Boolean = false,
     val errorMessage: String? = null
 )
+

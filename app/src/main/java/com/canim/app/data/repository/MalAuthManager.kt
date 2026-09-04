@@ -3,49 +3,69 @@ package com.canim.app.data.repository
 import android.net.Uri
 import android.util.Log
 import com.canim.app.data.cache.CacheManager
-import com.canim.app.data.local.AnimeDao
-import com.canim.app.data.local.AnimeEntity
 import com.canim.app.data.local.MalSecureStorage
-import com.canim.app.data.local.MangaDao
-import com.canim.app.data.local.MangaEntity
-import com.canim.app.data.model.ExtendedMediaDetail
-import com.canim.app.data.model.MalSyncResult
-import com.canim.app.data.model.MalUser
-import com.canim.app.data.model.MediaItem
-import com.canim.app.data.model.MediaType
+import com.canim.app.data.model.*
 import com.canim.app.data.remote.ApiClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import retrofit2.Response
+import java.security.MessageDigest
 import java.security.SecureRandom
+import java.util.Base64
 
 class MalAuthManager(
-    private val secureStorage: MalSecureStorage,
-    private val animeDao: AnimeDao,
-    private val mangaDao: MangaDao
+    private val secureStorage: MalSecureStorage
 ) {
     companion object {
         const val CLIENT_ID = "a4f3b20e6eb04e9daac4d2ea9fb2a45a"
         const val REDIRECT_URI = "canim://oauth/callback"
         const val AUTH_BASE_URL = "https://myanimelist.net/v1/oauth2/authorize"
         private const val PKCE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~"
-    }
+        private const val ALPHANUMERIC = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+        private val secureRandom = SecureRandom()
 
-    private val secureRandom = SecureRandom()
-
-    fun generateRandomString(length: Int): String {
-        val sb = StringBuilder(length)
-        for (i in 0 until length) {
-            sb.append(PKCE_CHARS[secureRandom.nextInt(PKCE_CHARS.length)])
+        fun generateRandomString(length: Int): String {
+            val sb = StringBuilder(length)
+            for (i in 0 until length) {
+                sb.append(PKCE_CHARS[secureRandom.nextInt(PKCE_CHARS.length)])
+            }
+            return sb.toString()
         }
-        return sb.toString()
+
+        fun generateAlphanumericString(length: Int): String {
+            val sb = StringBuilder(length)
+            for (i in 0 until length) {
+                sb.append(ALPHANUMERIC[secureRandom.nextInt(ALPHANUMERIC.length)])
+            }
+            return sb.toString()
+        }
+
+        /**
+         * Generates RFC 7636 PKCE S256 challenge.
+         * Kept for standard RFC 7636 cryptographic compliance and testing.
+         */
+        fun generateCodeChallenge(verifier: String): String {
+            val digest = MessageDigest.getInstance("SHA-256")
+            val hash = digest.digest(verifier.toByteArray(Charsets.US_ASCII))
+            return try {
+                Base64.getUrlEncoder().withoutPadding().encodeToString(hash)
+            } catch (_: Throwable) {
+                android.util.Base64.encodeToString(
+                    hash,
+                    android.util.Base64.URL_SAFE or android.util.Base64.NO_PADDING or android.util.Base64.NO_WRAP
+                ).trim()
+            }
+        }
     }
 
     /**
-     * Builds the MyAnimeList OAuth2 Authorization URL with PKCE (plain method).
+     * Builds the MyAnimeList OAuth2 Authorization URL.
+     * Note: MyAnimeList OAuth2 API explicitly mandates code_challenge_method=plain
+     * and code_challenge=codeVerifier. Passing S256 causes MAL token exchange to fail with HTTP 400.
      */
     fun buildAuthorizeUrl(): String {
         val codeVerifier = generateRandomString(128)
-        val state = generateRandomString(32)
+        val state = generateAlphanumericString(32)
 
         secureStorage.savePkce(codeVerifier, state)
 
@@ -63,13 +83,14 @@ class MalAuthManager(
 
     /**
      * Exchanges the authorization code for tokens and fetches user profile.
-     * Runs strictly in the background.
+     * Enforces strict OAuth state verification (aborts on mismatch).
      */
     suspend fun handleOAuthCallback(code: String, state: String?): Result<MalUser> = withContext(Dispatchers.IO) {
         try {
             val savedState = secureStorage.getPkceState()
-            if (savedState != null && state != null && savedState != state) {
-                Log.w("MalAuthManager", "OAuth state mismatch (possible CSRF), proceeding with caution")
+            if (!savedState.isNullOrEmpty() && !state.isNullOrEmpty() && savedState != state) {
+                secureStorage.clearPkce()
+                throw IllegalStateException("OAuth state mismatch (dikirim: $savedState, diterima: $state). Login dibatalkan.")
             }
 
             val verifier = secureStorage.getPkceVerifier()
@@ -109,10 +130,18 @@ class MalAuthManager(
                 isLoggedIn = true
             )
 
+            CacheManager.invalidateTracking()
+
             Result.success(malUser)
         } catch (e: Exception) {
-            Log.e("MalAuthManager", "Gagal menukar token MAL", e)
-            Result.failure(e)
+            val errorMsg = if (e is retrofit2.HttpException) {
+                val errorBody = try { e.response()?.errorBody()?.string() } catch (_: Exception) { null }
+                "HTTP ${e.code()}: ${errorBody ?: e.message()}"
+            } else {
+                e.message ?: e.toString()
+            }
+            Log.e("MalAuthManager", "Gagal menukar token MAL: $errorMsg", e)
+            Result.failure(Exception(errorMsg, e))
         }
     }
 
@@ -139,180 +168,368 @@ class MalAuthManager(
             )
             refreshResponse.accessToken
         } catch (e: Exception) {
-            Log.e("MalAuthManager", "Gagal refresh token MAL, menggunakan token saat ini", e)
+            Log.e("MalAuthManager", "Gagal refresh token MAL: ${e.message}")
             currentToken
         }
+    }
+
+    private suspend fun refreshTokenForce(): String? = withContext(Dispatchers.IO) {
+        val refreshToken = secureStorage.getRefreshToken() ?: return@withContext null
+        try {
+            val refreshResponse = ApiClient.malApi.refreshToken(
+                clientId = CLIENT_ID,
+                refreshToken = refreshToken,
+                grantType = "refresh_token"
+            )
+            secureStorage.saveTokens(
+                accessToken = refreshResponse.accessToken,
+                refreshToken = refreshResponse.refreshToken ?: refreshToken,
+                expiresInSeconds = refreshResponse.expiresIn
+            )
+            refreshResponse.accessToken
+        } catch (e: Exception) {
+            Log.e("MalAuthManager", "Force refresh token MAL gagal: ${e.message}")
+            null
+        }
+    }
+
+    private suspend fun <T> executeWithTokenRefresh(block: suspend (authHeader: String) -> Response<T>): Response<T> {
+        val token = getValidAccessToken() ?: throw IllegalStateException("Belum login ke MyAnimeList")
+        var response = block("Bearer $token")
+        if (response.code() == 401) {
+            val refreshed = refreshTokenForce()
+            if (refreshed != null) {
+                response = block("Bearer $refreshed")
+            }
+        }
+        return response
     }
 
     fun getCurrentUser(): MalUser = secureStorage.getUser()
 
     fun logout() {
         secureStorage.clearAuth()
+        CacheManager.invalidateTracking()
     }
 
     /**
-     * Synchronizes Anime and Manga list from MyAnimeList into local Room Database with FULL PAGINATION.
-     * No hard limit of 500 items! Supports 1000+, 3000+ items seamlessly.
+     * Fetches the user's anime list from MAL with full pagination (>500 items).
+     * Reports partial failure if pages fail after initial success.
+     */
+    suspend fun fetchUserAnimeList(forceRefresh: Boolean = false): MalFetchResult<List<UserMediaItem>> = withContext(Dispatchers.IO) {
+        if (!forceRefresh) {
+            val cached = CacheManager.getTracking("ANIME")
+            if (cached != null) {
+                return@withContext MalFetchResult.Success(cached, cached.size)
+            }
+        }
+
+        val token = getValidAccessToken()
+            ?: return@withContext MalFetchResult.Failure(IllegalStateException("Belum login ke MyAnimeList"))
+
+        val items = mutableListOf<UserMediaItem>()
+        var offset = 0
+        val pageSize = 500
+        var hasMore = true
+        var partialError: Throwable? = null
+
+        while (hasMore) {
+            try {
+                val response = ApiClient.malApi.getUserAnimeList(
+                    authHeader = "Bearer $token",
+                    limit = pageSize,
+                    offset = offset
+                )
+                val data = response.data
+                if (data.isEmpty()) {
+                    hasMore = false
+                } else {
+                    for (entry in data) {
+                        val node = entry.node
+                        val ls = entry.listStatus
+                        val tracking = MalTracking(
+                            status = ls.status,
+                            score = ls.score,
+                            progress = ls.numEpisodesWatched,
+                            isRepeating = ls.isRewatching,
+                            numTimesRewatched = ls.numTimesRewatched,
+                            priority = ls.priority,
+                            comments = ls.comments,
+                            startDate = ls.startDate,
+                            finishDate = ls.finishDate,
+                            updatedAt = System.currentTimeMillis()
+                        )
+                        val metadata = MediaMetadata(
+                            title = node.title,
+                            imageUrl = node.mainPicture?.large ?: node.mainPicture?.medium ?: "",
+                            type = MediaType.ANIME,
+                            synopsis = node.synopsis,
+                            totalEpisodes = node.numEpisodes,
+                            status = node.status,
+                            genres = node.genres?.map { it.name } ?: emptyList(),
+                            studio = node.studios?.firstOrNull()?.name
+                        )
+                        val userItem = UserMediaItem(
+                            identity = MediaRef(malId = node.id),
+                            metadata = metadata,
+                            tracking = tracking
+                        )
+                        items.add(userItem)
+                    }
+
+                    if (data.size < pageSize || response.paging?.next == null) {
+                        hasMore = false
+                    } else {
+                        offset += pageSize
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("MalAuthManager", "Error fetching anime list page at offset $offset: ${e.message}")
+                partialError = e
+                hasMore = false
+            }
+        }
+
+        if (items.isNotEmpty()) {
+            CacheManager.putTracking("ANIME", items)
+        }
+
+        when {
+            partialError != null && items.isEmpty() -> MalFetchResult.Failure(partialError)
+            partialError != null -> MalFetchResult.Partial(items, items.size, partialError)
+            else -> MalFetchResult.Success(items, items.size)
+        }
+    }
+
+    /**
+     * Fetches the user's manga list from MAL with full pagination (>500 items).
+     */
+    suspend fun fetchUserMangaList(forceRefresh: Boolean = false): MalFetchResult<List<UserMediaItem>> = withContext(Dispatchers.IO) {
+        if (!forceRefresh) {
+            val cached = CacheManager.getTracking("MANGA")
+            if (cached != null) {
+                return@withContext MalFetchResult.Success(cached, cached.size)
+            }
+        }
+
+        val token = getValidAccessToken()
+            ?: return@withContext MalFetchResult.Failure(IllegalStateException("Belum login ke MyAnimeList"))
+
+        val items = mutableListOf<UserMediaItem>()
+        var offset = 0
+        val pageSize = 500
+        var hasMore = true
+        var partialError: Throwable? = null
+
+        while (hasMore) {
+            try {
+                val response = ApiClient.malApi.getUserMangaList(
+                    authHeader = "Bearer $token",
+                    limit = pageSize,
+                    offset = offset
+                )
+                val data = response.data
+                if (data.isEmpty()) {
+                    hasMore = false
+                } else {
+                    for (entry in data) {
+                        val node = entry.node
+                        val ls = entry.listStatus
+                        val tracking = MalTracking(
+                            status = ls.status,
+                            score = ls.score,
+                            progress = ls.numChaptersRead,
+                            progressVolumes = ls.numVolumesRead,
+                            isRepeating = ls.isRereading,
+                            numTimesRewatched = ls.numTimesReread,
+                            priority = ls.priority,
+                            comments = ls.comments,
+                            startDate = ls.startDate,
+                            finishDate = ls.finishDate,
+                            updatedAt = System.currentTimeMillis()
+                        )
+                        val metadata = MediaMetadata(
+                            title = node.title,
+                            imageUrl = node.mainPicture?.large ?: node.mainPicture?.medium ?: "",
+                            type = MediaType.MANGA,
+                            synopsis = node.synopsis,
+                            totalChapters = node.numChapters,
+                            totalVolumes = node.numVolumes,
+                            status = node.status,
+                            genres = node.genres?.map { it.name } ?: emptyList()
+                        )
+                        val userItem = UserMediaItem(
+                            identity = MediaRef(malId = node.id),
+                            metadata = metadata,
+                            tracking = tracking
+                        )
+                        items.add(userItem)
+                    }
+
+                    if (data.size < pageSize || response.paging?.next == null) {
+                        hasMore = false
+                    } else {
+                        offset += pageSize
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("MalAuthManager", "Error fetching manga list page at offset $offset: ${e.message}")
+                partialError = e
+                hasMore = false
+            }
+        }
+
+        if (items.isNotEmpty()) {
+            CacheManager.putTracking("MANGA", items)
+        }
+
+        when {
+            partialError != null && items.isEmpty() -> MalFetchResult.Failure(partialError)
+            partialError != null -> MalFetchResult.Partial(items, items.size, partialError)
+            else -> MalFetchResult.Success(items, items.size)
+        }
+    }
+
+    /**
+     * Updates anime tracking data directly on MyAnimeList.
+     */
+    suspend fun updateAnimeTracking(malId: Int, tracking: MalTracking): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val response = executeWithTokenRefresh { authHeader ->
+                ApiClient.malApi.updateAnimeStatus(
+                    authHeader = authHeader,
+                    animeId = malId,
+                    status = tracking.status,
+                    score = tracking.score,
+                    numEpisodesWatched = tracking.progress,
+                    isRewatching = tracking.isRepeating,
+                    numTimesRewatched = tracking.numTimesRewatched,
+                    priority = tracking.priority,
+                    comments = tracking.comments,
+                    startDate = tracking.startDate,
+                    finishDate = tracking.finishDate
+                )
+            }
+            if (response.isSuccessful) {
+                CacheManager.invalidateMedia(null, malId)
+                Result.success(Unit)
+            } else {
+                val errorBody = response.errorBody()?.string()
+                Result.failure(Exception("HTTP ${response.code()}: $errorBody"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Updates manga tracking data directly on MyAnimeList.
+     */
+    suspend fun updateMangaTracking(malId: Int, tracking: MalTracking): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val response = executeWithTokenRefresh { authHeader ->
+                ApiClient.malApi.updateMangaStatus(
+                    authHeader = authHeader,
+                    mangaId = malId,
+                    status = tracking.status,
+                    score = tracking.score,
+                    numChaptersRead = tracking.progress,
+                    numVolumesRead = tracking.progressVolumes,
+                    isRereading = tracking.isRepeating,
+                    numTimesReread = tracking.numTimesRewatched,
+                    priority = tracking.priority,
+                    comments = tracking.comments,
+                    startDate = tracking.startDate,
+                    finishDate = tracking.finishDate
+                )
+            }
+            if (response.isSuccessful) {
+                CacheManager.invalidateMedia(null, malId)
+                Result.success(Unit)
+            } else {
+                val errorBody = response.errorBody()?.string()
+                Result.failure(Exception("HTTP ${response.code()}: $errorBody"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Deletes an anime from the user's MyAnimeList library.
+     */
+    suspend fun deleteAnimeTracking(malId: Int): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val response = executeWithTokenRefresh { authHeader ->
+                ApiClient.malApi.deleteAnimeFromList(authHeader, malId)
+            }
+            if (response.isSuccessful || response.code() == 404) {
+                CacheManager.invalidateMedia(null, malId)
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception("Gagal menghapus anime dari MAL (HTTP ${response.code()})"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Deletes a manga from the user's MyAnimeList library.
+     */
+    suspend fun deleteMangaTracking(malId: Int): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val response = executeWithTokenRefresh { authHeader ->
+                ApiClient.malApi.deleteMangaFromList(authHeader, malId)
+            }
+            if (response.isSuccessful || response.code() == 404) {
+                CacheManager.invalidateMedia(null, malId)
+                Result.success(Unit)
+            } else {
+                Result.failure(Exception("Gagal menghapus manga dari MAL (HTTP ${response.code()})"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Performs a full sync/refresh of user library from MyAnimeList.
      */
     suspend fun syncWithMal(): MalSyncResult = withContext(Dispatchers.IO) {
         try {
-            val token = getValidAccessToken()
-                ?: return@withContext MalSyncResult(
-                    isSuccess = false,
-                    errorMessage = "Belum login ke MyAnimeList"
-                )
+            val animeResult = fetchUserAnimeList(forceRefresh = true)
+            val mangaResult = fetchUserMangaList(forceRefresh = true)
 
-            val authHeader = "Bearer $token"
-            val pageSize = 500
-
-            // 1. Fetch Anime List with Full Pagination
-            var animeCount = 0
-            var animeOffset = 0
-            var hasMoreAnime = true
-
-            while (hasMoreAnime) {
-                try {
-                    val animeResponse = ApiClient.malApi.getUserAnimeList(
-                        authHeader = authHeader,
-                        limit = pageSize,
-                        offset = animeOffset
-                    )
-                    val data = animeResponse.data
-                    if (data.isEmpty()) {
-                        hasMoreAnime = false
-                    } else {
-                        val animeBatch = ArrayList<AnimeEntity>(data.size)
-                        for (item in data) {
-                            val node = item.node
-                            val listStatus = item.listStatus
-
-                            val mappedStatus = when (listStatus.status) {
-                                "watching" -> "watching"
-                                "completed" -> "completed"
-                                "on_hold" -> "on_hold"
-                                "dropped" -> "dropped"
-                                "plan_to_watch" -> "plan_to_watch"
-                                else -> "watching"
-                            }
-
-                            val resolvedAniListId = CacheManager.getAniListIdForMalId(node.id)
-
-                            val entity = AnimeEntity(
-                                id = "anime_${node.id}",
-                                malId = node.id,
-                                anilistId = resolvedAniListId,
-                                title = node.title,
-                                titleEnglish = null,
-                                imageUrl = node.mainPicture?.large ?: node.mainPicture?.medium ?: "",
-                                status = mappedStatus,
-                                score = listStatus.score,
-                                progress = listStatus.numEpisodesWatched,
-                                totalEpisodes = node.numEpisodes ?: 0,
-                                airingStatus = node.status ?: "Finished Airing",
-                                genres = node.genres?.joinToString(", ") { it.name } ?: "",
-                                synopsis = node.synopsis ?: "",
-                                year = null,
-                                season = null,
-                                notes = "",
-                                updatedAt = System.currentTimeMillis(),
-                                syncStatus = "synced"
-                            )
-                            animeBatch.add(entity)
-                        }
-                        animeDao.insertAll(animeBatch)
-                        animeCount += animeBatch.size
-
-                        if (data.size < pageSize || animeResponse.paging?.next == null) {
-                            hasMoreAnime = false
-                        } else {
-                            animeOffset += pageSize
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e("MalAuthManager", "Error syncing anime list page from MAL at offset $animeOffset", e)
-                    hasMoreAnime = false
-                }
+            val animeCount = when (animeResult) {
+                is MalFetchResult.Success -> animeResult.totalItems
+                is MalFetchResult.Partial -> animeResult.fetchedItems
+                is MalFetchResult.Failure -> 0
+            }
+            val mangaCount = when (mangaResult) {
+                is MalFetchResult.Success -> mangaResult.totalItems
+                is MalFetchResult.Partial -> mangaResult.fetchedItems
+                is MalFetchResult.Failure -> 0
             }
 
-            // 2. Fetch Manga List with Full Pagination
-            var mangaCount = 0
-            var mangaOffset = 0
-            var hasMoreManga = true
-
-            while (hasMoreManga) {
-                try {
-                    val mangaResponse = ApiClient.malApi.getUserMangaList(
-                        authHeader = authHeader,
-                        limit = pageSize,
-                        offset = mangaOffset
-                    )
-                    val data = mangaResponse.data
-                    if (data.isEmpty()) {
-                        hasMoreManga = false
-                    } else {
-                        val mangaBatch = ArrayList<MangaEntity>(data.size)
-                        for (item in data) {
-                            val node = item.node
-                            val listStatus = item.listStatus
-
-                            val mappedStatus = when (listStatus.status) {
-                                "reading" -> "reading"
-                                "completed" -> "completed"
-                                "on_hold" -> "on_hold"
-                                "dropped" -> "dropped"
-                                "plan_to_read" -> "plan_to_read"
-                                else -> "reading"
-                            }
-
-                            val resolvedAniListId = CacheManager.getAniListIdForMalId(node.id)
-
-                            val entity = MangaEntity(
-                                id = "manga_${node.id}",
-                                malId = node.id,
-                                anilistId = resolvedAniListId,
-                                title = node.title,
-                                titleEnglish = null,
-                                imageUrl = node.mainPicture?.large ?: node.mainPicture?.medium ?: "",
-                                status = mappedStatus,
-                                score = listStatus.score,
-                                progressChapters = listStatus.numChaptersRead,
-                                progressVolumes = listStatus.numVolumesRead,
-                                totalChapters = node.numChapters ?: 0,
-                                totalVolumes = node.numVolumes ?: 0,
-                                publishingStatus = node.status ?: "Finished",
-                                genres = node.genres?.joinToString(", ") { it.name } ?: "",
-                                synopsis = node.synopsis ?: "",
-                                year = null,
-                                notes = "",
-                                updatedAt = System.currentTimeMillis(),
-                                syncStatus = "synced"
-                            )
-                            mangaBatch.add(entity)
-                        }
-                        mangaDao.insertAll(mangaBatch)
-                        mangaCount += mangaBatch.size
-
-                        if (data.size < pageSize || mangaResponse.paging?.next == null) {
-                            hasMoreManga = false
-                        } else {
-                            mangaOffset += pageSize
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e("MalAuthManager", "Error syncing manga list page from MAL at offset $mangaOffset", e)
-                    hasMoreManga = false
-                }
-            }
+            val isPartial = animeResult is MalFetchResult.Partial || mangaResult is MalFetchResult.Partial
+            val isFailure = animeResult is MalFetchResult.Failure && mangaResult is MalFetchResult.Failure
+            val err = (animeResult as? MalFetchResult.Failure)?.error?.message
+                ?: (mangaResult as? MalFetchResult.Failure)?.error?.message
+                ?: (animeResult as? MalFetchResult.Partial)?.error?.message
+                ?: (mangaResult as? MalFetchResult.Partial)?.error?.message
 
             secureStorage.setLastSynced()
 
             MalSyncResult(
                 animeSynced = animeCount,
                 mangaSynced = mangaCount,
-                isSuccess = true
+                isSuccess = !isFailure,
+                isPartial = isPartial,
+                errorMessage = err
             )
         } catch (e: Exception) {
-            Log.e("MalAuthManager", "Sinkronisasi MAL gagal", e)
+            Log.e("MalAuthManager", "Sinkronisasi MAL gagal: ${e.message}")
             MalSyncResult(
                 isSuccess = false,
                 errorMessage = e.localizedMessage ?: "Gagal terhubung ke MyAnimeList"
@@ -324,7 +541,7 @@ class MalAuthManager(
      * Fallback public metadata retrieval from MyAnimeList if AniList lacks specific details.
      */
     suspend fun getMetadataFallback(malId: Int, type: MediaType): MediaItem? = withContext(Dispatchers.IO) {
-        val cacheKey = "mal_fallback_${malId}_${type.name}"
+        val cacheKey = CacheManager.malFallbackKey(malId, type.name)
         val cached = CacheManager.getMalFallback(cacheKey)
         if (cached != null) return@withContext cached
 
@@ -374,7 +591,7 @@ class MalAuthManager(
      * Fallback full metadata retrieval from MyAnimeList when AniList returns null or incomplete info.
      */
     suspend fun getExtendedDetailFallback(malId: Int, type: MediaType): ExtendedMediaDetail? = withContext(Dispatchers.IO) {
-        val cacheKey = "mal_ext_fallback_${malId}_${type.name}"
+        val cacheKey = CacheManager.detailKey(null, malId)
         val cached = CacheManager.getDetail(cacheKey)
         if (cached != null) return@withContext cached
 

@@ -181,10 +181,12 @@ object AniListClient {
         val studioName = m.studios?.nodes?.firstOrNull()?.name
 
         // Cache ID mapping
-        CacheManager.putIdMapping(m.idMal, m.id)
+        if (m.idMal != null) {
+            CacheManager.putIdMapping(m.idMal, m.id)
+        }
 
         return MediaItem(
-            malId = m.idMal ?: m.id,
+            malId = m.idMal,
             anilistId = m.id,
             title = primaryTitle,
             titleEnglish = englishTitle,
@@ -202,6 +204,115 @@ object AniListClient {
             format = m.format,
             studio = studioName
         )
+    }
+
+    suspend fun resolveIdMal(malId: Int, type: MediaType): Int? = withContext(Dispatchers.IO) {
+        val graphqlQuery = """
+            query (${'$'}idMal: Int, ${'$'}type: MediaType) {
+              Media(idMal: ${'$'}idMal, type: ${'$'}type) {
+                id
+                idMal
+              }
+            }
+        """.trimIndent()
+        val variables = JSONObject().apply {
+            put("idMal", malId)
+            put("type", if (type == MediaType.ANIME) "ANIME" else "MANGA")
+        }
+        val responseString = executeQuery(graphqlQuery, variables) ?: return@withContext null
+        val parsed = gson.fromJson(responseString, AniListResponse::class.java)
+        val m = parsed.data?.Media
+        if (m != null) {
+            CacheManager.putIdMapping(malId, m.id)
+            m.id
+        } else {
+            null
+        }
+    }
+
+    suspend fun resolveAniListId(aniListId: Int): Int? = withContext(Dispatchers.IO) {
+        val graphqlQuery = """
+            query (${'$'}id: Int) {
+              Media(id: ${'$'}id) {
+                id
+                idMal
+              }
+            }
+        """.trimIndent()
+        val variables = JSONObject().apply {
+            put("id", aniListId)
+        }
+        val responseString = executeQuery(graphqlQuery, variables) ?: return@withContext null
+        val parsed = gson.fromJson(responseString, AniListResponse::class.java)
+        val m = parsed.data?.Media
+        if (m?.idMal != null) {
+            CacheManager.putIdMapping(m.idMal, m.id)
+            m.idMal
+        } else {
+            null
+        }
+    }
+
+    suspend fun getMediaBatchByMalIds(malIds: List<Int>, type: MediaType): Map<Int, MediaItem> = withContext(Dispatchers.IO) {
+        if (malIds.isEmpty()) return@withContext emptyMap()
+        val resultMap = mutableMapOf<Int, MediaItem>()
+        val distinctIds = malIds.distinct().filter { it > 0 }
+
+        // Chunk by 50 to respect AniList max perPage
+        for (chunk in distinctIds.chunked(50)) {
+            val graphqlQuery = """
+                query (${'$'}idMal_in: [Int], ${'$'}type: MediaType) {
+                  Page(page: 1, perPage: 50) {
+                    media(idMal_in: ${'$'}idMal_in, type: ${'$'}type) {
+                      id
+                      idMal
+                      title {
+                        romaji
+                        english
+                      }
+                      coverImage {
+                        medium
+                        large
+                        extraLarge
+                      }
+                      averageScore
+                      description(asHtml: false)
+                      episodes
+                      chapters
+                      volumes
+                      status
+                      seasonYear
+                      season
+                      format
+                      genres
+                      studios(isMain: true) {
+                        nodes {
+                          name
+                        }
+                      }
+                    }
+                  }
+                }
+            """.trimIndent()
+
+            val variables = JSONObject().apply {
+                put("idMal_in", JSONArray(chunk))
+                put("type", if (type == MediaType.ANIME) "ANIME" else "MANGA")
+            }
+
+            val responseString = executeQuery(graphqlQuery, variables)
+            if (responseString != null) {
+                val parsed = gson.fromJson(responseString, AniListResponse::class.java)
+                val mediaList = parsed.data?.Page?.media ?: emptyList()
+                for (m in mediaList) {
+                    val item = mapAniListMediaToItem(m, type)
+                    m.idMal?.let { malId ->
+                        resultMap[malId] = item
+                    }
+                }
+            }
+        }
+        resultMap
     }
 
     /**
@@ -270,7 +381,8 @@ object AniListClient {
         filter: DiscoverFilter = DiscoverFilter(),
         page: Int = 1,
         perPage: Int = 25,
-        randomSort: String? = null
+        randomSort: String? = null,
+        forceRefresh: Boolean = false
     ): List<MediaItem> = withContext(Dispatchers.IO) {
         val calendar = Calendar.getInstance()
         val currentYear = calendar.get(Calendar.YEAR)
@@ -284,9 +396,11 @@ object AniListClient {
             else -> Triple("FALL", "WINTER", currentYear + 1) // Fall -> Winter next year
         }
 
-        val cacheKey = "discover_${category.key}_${filter.genre}_${filter.format}_${filter.year}_${filter.season}_${filter.minScore}_${randomSort}_p$page"
-        val cached = CacheManager.getDiscover(cacheKey)
-        if (cached != null) return@withContext cached
+        val cacheKey = "${category.key}_${filter.genre}_${filter.format}_${filter.year}_${filter.season}_${filter.minScore}_${randomSort}_p$page"
+        if (!forceRefresh) {
+            val cached = CacheManager.getDiscover(cacheKey)
+            if (cached != null) return@withContext cached
+        }
 
         val variables = JSONObject().apply {
             put("page", page)
@@ -399,12 +513,15 @@ object AniListClient {
     suspend fun getExtendedDetails(
         aniListId: Int?,
         malId: Int?,
-        type: MediaType
+        type: MediaType,
+        forceRefresh: Boolean = false
     ): ExtendedMediaDetail? = withContext(Dispatchers.IO) {
         val resolvedId = aniListId ?: (malId?.let { CacheManager.getAniListIdForMalId(it) })
-        val cacheKey = "detail_${resolvedId ?: "mal_$malId"}"
-        val cached = CacheManager.getDetail(cacheKey)
-        if (cached != null) return@withContext cached
+        val cacheKey = CacheManager.detailKey(resolvedId, malId)
+        if (!forceRefresh) {
+            val cached = CacheManager.getDetail(cacheKey)
+            if (cached != null) return@withContext cached
+        }
 
         val graphqlQuery = if (resolvedId != null) {
             """

@@ -1,6 +1,7 @@
 package com.canim.app.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -28,11 +29,14 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.flow.distinctUntilChanged
-import com.canim.app.data.local.AnimeEntity
-import com.canim.app.data.local.MangaEntity
 import com.canim.app.data.model.*
 import com.canim.app.ui.theme.*
 import com.canim.app.ui.viewmodel.CanimUiState
+
+private val ItemCardShape = RoundedCornerShape(12.dp)
+private val ItemImageShape = RoundedCornerShape(8.dp)
+private val AnimeBorderStroke = BorderStroke(1.dp, CardBorder)
+private val MangaBorderStroke = BorderStroke(1.dp, MangaCardBorder)
 
 @Composable
 fun DiscoverScreen(
@@ -42,13 +46,23 @@ fun DiscoverScreen(
     onSelectItem: (Any, MediaType) -> Unit,
     onRandomize: (DiscoverFilter) -> Unit,
     onLoadMore: () -> Unit = {},
-    onSaveAnime: (AnimeEntity) -> Unit = {},
-    onSaveManga: (MangaEntity) -> Unit = {},
+    onSaveAnime: (UserMediaItem) -> Unit = {},
+    onSaveManga: (UserMediaItem) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var showFilterPanel by remember { mutableStateOf(false) }
     var selectedItemForAdd by remember { mutableStateOf<MediaItem?>(null) }
     var selectedItemForEdit by remember { mutableStateOf<MediaItem?>(null) }
+
+    val onSelectDiscoverMedia: (MediaItem) -> Unit = remember(onSelectItem) {
+        { media -> onSelectItem(media, media.type) }
+    }
+    val onAddDiscoverMedia: (MediaItem) -> Unit = remember {
+        { media -> selectedItemForAdd = media }
+    }
+    val onEditDiscoverMedia: (MediaItem) -> Unit = remember {
+        { media -> selectedItemForEdit = media }
+    }
 
     val libraryAnimeMalIds = remember(state.animeList) { state.animeList.map { it.malId }.toSet() }
     val libraryMangaMalIds = remember(state.mangaList) { state.mangaList.map { it.malId }.toSet() }
@@ -406,7 +420,6 @@ fun DiscoverScreen(
             }
         }
 
-        // Content List or Loading State
         if (state.isDiscoverLoading) {
             item {
                 Box(
@@ -457,9 +470,9 @@ fun DiscoverScreen(
                 DiscoverItemCard(
                     item = media,
                     isInLibrary = isInLibrary,
-                    onClick = { onSelectItem(media, media.type) },
-                    onAddClick = { selectedItemForAdd = media },
-                    onEditClick = { selectedItemForEdit = media }
+                    onClick = onSelectDiscoverMedia,
+                    onAddClick = onAddDiscoverMedia,
+                    onEditClick = onEditDiscoverMedia
                 )
             }
 
@@ -635,11 +648,11 @@ fun DiscoverScreen(
                             onClick = {
                                 if (isAnime) {
                                     state.animeList.find { it.malId == targetItem.malId }?.let { entity ->
-                                        onSaveAnime(entity.copy(status = statusOption.apiValue, updatedAt = System.currentTimeMillis()))
+                                        onSaveAnime(entity.withStatus(statusOption.apiValue))
                                     }
                                 } else {
                                     state.mangaList.find { it.malId == targetItem.malId }?.let { entity ->
-                                        onSaveManga(entity.copy(status = statusOption.apiValue, updatedAt = System.currentTimeMillis()))
+                                        onSaveManga(entity.withStatus(statusOption.apiValue))
                                     }
                                 }
                                 selectedItemForEdit = null
@@ -698,23 +711,22 @@ fun DiscoverScreen(
 fun DiscoverItemCard(
     item: MediaItem,
     isInLibrary: Boolean = false,
-    onClick: () -> Unit,
-    onAddClick: () -> Unit,
-    onEditClick: () -> Unit = {}
+    onClick: (MediaItem) -> Unit,
+    onAddClick: (MediaItem) -> Unit,
+    onEditClick: (MediaItem) -> Unit = {}
 ) {
-    val context = LocalContext.current
     val isManga = item.type == MediaType.MANGA
-    val itemBorder = if (isManga) MangaCardBorder else CardBorder
+    val itemBorder = if (isManga) MangaBorderStroke else AnimeBorderStroke
     val themeAccent = if (isManga) MangaAccentDarkBlue else AccentBlue
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, itemBorder, RoundedCornerShape(12.dp))
-            .clickable { onClick() }
+            .clickable { onClick(item) }
             .testTag("discover_card_${item.malId}"),
         colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(12.dp)
+        shape = ItemCardShape,
+        border = itemBorder
     ) {
         Row(
             modifier = Modifier.padding(10.dp),
@@ -722,18 +734,12 @@ fun DiscoverItemCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             AsyncImage(
-                model = remember(item.imageUrl) {
-                    ImageRequest.Builder(context)
-                        .data(item.imageUrl)
-                        .size(160, 220)
-                        .crossfade(false)
-                        .build()
-                },
+                model = item.imageUrl,
                 contentDescription = item.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .size(width = 64.dp, height = 88.dp)
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(ItemImageShape)
             )
 
             Column(
@@ -765,7 +771,7 @@ fun DiscoverItemCard(
                             )
                             Spacer(modifier = Modifier.width(3.dp))
                             Text(
-                                text = "%.1f".format(item.score),
+                                text = item.scoreFormatted,
                                 color = StarGold,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
@@ -796,20 +802,19 @@ fun DiscoverItemCard(
                 // Retain genres (Request 3)
                 if (item.genres.isNotEmpty()) {
                     Text(
-                        text = item.genres.take(3).joinToString(" • "),
+                        text = item.genresFormatted,
                         color = TextSecondary,
                         fontSize = 11.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                // Short synopsis preview removed according to Request 3
             }
 
             IconButton(
-                onClick = if (isInLibrary) onEditClick else onAddClick,
+                onClick = { if (isInLibrary) onEditClick(item) else onAddClick(item) },
                 modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
+                    .clip(ItemImageShape)
                     .background(if (isInLibrary) AccentGreen.copy(alpha = 0.16f) else CardElevated)
                     .size(36.dp)
                     .testTag(if (isInLibrary) "discover_edit_btn_${item.malId}" else "discover_add_btn_${item.malId}")
