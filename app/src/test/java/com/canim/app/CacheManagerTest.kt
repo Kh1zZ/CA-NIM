@@ -62,4 +62,30 @@ class CacheManagerTest {
         val detail = CacheManager.getDetail(key)
         assertNull(detail)
     }
+
+    @Test
+    fun testCastCrewProfileCache() {
+        val profile = com.canim.app.data.model.CastCrewProfile(
+            id = 101,
+            isStaff = false,
+            name = "Frieren",
+            nativeName = "フリーレン",
+            biography = "Mage of the Hero Party",
+            filmography = listOf(
+                com.canim.app.data.model.FilmographyItem(
+                    id = 154587,
+                    title = "Sousou no Frieren",
+                    type = MediaType.ANIME,
+                    role = "Main"
+                )
+            )
+        )
+
+        CacheManager.putCastCrewProfile(101, isStaff = false, profile)
+        val cached = CacheManager.getCastCrewProfile(101, isStaff = false)
+        assertNotNull(cached)
+        assertEquals("Frieren", cached?.name)
+        assertEquals(1, cached?.filmography?.size)
+        assertEquals("Sousou no Frieren", cached?.filmography?.first()?.title)
+    }
 }

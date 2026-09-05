@@ -146,7 +146,9 @@ object CacheManager {
         malFallbackCache[key] = CacheEntry(item, ttlMillis = TTL_MAL_FALLBACK)
     }
 
-    // --- Short-lived Tracking Cache ---
+    // --- Short-lived Tracking Cache & Disk Persistence ---
+    private val gson = com.google.gson.Gson()
+
     fun getTracking(type: String): List<UserMediaItem>? {
         val entry = trackingCache[type] ?: return null
         return if (entry.isExpired) {
@@ -161,12 +163,58 @@ object CacheManager {
         trackingCache[type] = CacheEntry(items, ttlMillis = TTL_TRACKING)
     }
 
+    fun saveTrackingToDisk(context: Context, type: String, items: List<UserMediaItem>) {
+        try {
+            val file = File(context.filesDir, "cached_tracking_${type.lowercase()}.json")
+            file.writeText(gson.toJson(items))
+        } catch (_: Exception) {}
+    }
+
+    fun loadTrackingFromDisk(context: Context, type: String): List<UserMediaItem>? {
+        return try {
+            val file = File(context.filesDir, "cached_tracking_${type.lowercase()}.json")
+            if (file.exists()) {
+                val json = file.readText()
+                val listType = object : com.google.gson.reflect.TypeToken<List<UserMediaItem>>() {}.type
+                val items = gson.fromJson<List<UserMediaItem>>(json, listType)
+                if (items != null) {
+                    putTracking(type, items)
+                }
+                items
+            } else {
+                null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
     fun invalidateTracking(type: String? = null) {
         if (type != null) {
             trackingCache.remove(type)
         } else {
             trackingCache.clear()
         }
+    }
+
+    // --- Cast & Crew Profile Cache ---
+    private val castCrewCache = createLruMap<String, CacheEntry<com.canim.app.data.model.CastCrewProfile>>(100)
+
+    fun castCrewKey(id: Int, isStaff: Boolean): String = "castcrew_${if (isStaff) "staff" else "char"}_$id"
+
+    fun getCastCrewProfile(id: Int, isStaff: Boolean): com.canim.app.data.model.CastCrewProfile? {
+        val key = castCrewKey(id, isStaff)
+        val entry = castCrewCache[key] ?: return null
+        return if (entry.isExpired) {
+            castCrewCache.remove(key)
+            null
+        } else {
+            entry.data
+        }
+    }
+
+    fun putCastCrewProfile(id: Int, isStaff: Boolean, profile: com.canim.app.data.model.CastCrewProfile) {
+        castCrewCache[castCrewKey(id, isStaff)] = CacheEntry(profile, ttlMillis = TTL_DETAIL)
     }
 
     // --- ID Mapping AniList <-> MAL ---
@@ -243,6 +291,7 @@ object CacheManager {
         malFallbackCache.entries.removeIf { it.value.isExpired }
         negativeCache.entries.removeIf { it.value.isExpired }
         trackingCache.entries.removeIf { it.value.isExpired }
+        castCrewCache.entries.removeIf { it.value.isExpired }
     }
 
     // --- Manual Cache Clear ---
@@ -256,6 +305,7 @@ object CacheManager {
         searchCache.clear()
         discoverCache.clear()
         detailCache.clear()
+        castCrewCache.clear()
         malFallbackCache.clear()
         negativeCache.clear()
         trackingCache.clear()

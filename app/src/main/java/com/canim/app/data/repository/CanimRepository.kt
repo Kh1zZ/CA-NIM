@@ -30,6 +30,20 @@ class CanimRepository(
 
     suspend fun syncWithMal(): MalSyncResult = malAuthManager.syncWithMal()
 
+    fun getCachedTracking(type: String): List<UserMediaItem>? {
+        val memory = CacheManager.getTracking(type)
+        if (memory != null) return memory
+        val appContext = runCatching { com.canim.app.CanimApplication.instance }.getOrNull()
+        if (appContext != null) {
+            val disk = CacheManager.loadTrackingFromDisk(appContext, type)
+            if (disk != null) {
+                CacheManager.putTracking(type, disk)
+                return disk
+            }
+        }
+        return null
+    }
+
     /**
      * Loads the user's anime list from MAL as source of truth, enriched with AniList metadata.
      * Batches metadata requests via AniList GraphQL (50 per batch) to avoid API request storms.
@@ -41,11 +55,17 @@ class CanimRepository(
             is MalFetchResult.Success -> {
                 val enriched = enrichWithAniListMetadata(result.data, MediaType.ANIME)
                 CacheManager.putTracking("ANIME", enriched)
+                runCatching { com.canim.app.CanimApplication.instance }.getOrNull()?.let {
+                    CacheManager.saveTrackingToDisk(it, "ANIME", enriched)
+                }
                 MalFetchResult.Success(enriched, result.totalItems)
             }
             is MalFetchResult.Partial -> {
                 val enriched = enrichWithAniListMetadata(result.data, MediaType.ANIME)
                 CacheManager.putTracking("ANIME", enriched)
+                runCatching { com.canim.app.CanimApplication.instance }.getOrNull()?.let {
+                    CacheManager.saveTrackingToDisk(it, "ANIME", enriched)
+                }
                 MalFetchResult.Partial(enriched, result.fetchedItems, result.error)
             }
         }
@@ -61,14 +81,28 @@ class CanimRepository(
             is MalFetchResult.Success -> {
                 val enriched = enrichWithAniListMetadata(result.data, MediaType.MANGA)
                 CacheManager.putTracking("MANGA", enriched)
+                runCatching { com.canim.app.CanimApplication.instance }.getOrNull()?.let {
+                    CacheManager.saveTrackingToDisk(it, "MANGA", enriched)
+                }
                 MalFetchResult.Success(enriched, result.totalItems)
             }
             is MalFetchResult.Partial -> {
                 val enriched = enrichWithAniListMetadata(result.data, MediaType.MANGA)
                 CacheManager.putTracking("MANGA", enriched)
+                runCatching { com.canim.app.CanimApplication.instance }.getOrNull()?.let {
+                    CacheManager.saveTrackingToDisk(it, "MANGA", enriched)
+                }
                 MalFetchResult.Partial(enriched, result.fetchedItems, result.error)
             }
         }
+    }
+
+    suspend fun getCharacterProfile(characterId: Int, forceRefresh: Boolean = false): CastCrewProfile? = withContext(Dispatchers.IO) {
+        AniListClient.getCharacterProfile(characterId, forceRefresh)
+    }
+
+    suspend fun getStaffProfile(staffId: Int, forceRefresh: Boolean = false): CastCrewProfile? = withContext(Dispatchers.IO) {
+        AniListClient.getStaffProfile(staffId, forceRefresh)
     }
 
     private suspend fun enrichWithAniListMetadata(

@@ -211,7 +211,8 @@ class MainActivity : ComponentActivity() {
                                     onLoadDemoData = { viewModel.loadDemoData() },
                                     onNavigateTab = { viewModel.setTab(it) },
                                     onLoginMal = { viewModel.loginWithMal(context) },
-                                    onSyncMal = { viewModel.syncWithMal() }
+                                    onSyncMal = { viewModel.syncWithMal() },
+                                    onOpenStats = { viewModel.openStats() }
                                 )
                             }
                             "library" -> {
@@ -245,6 +246,7 @@ class MainActivity : ComponentActivity() {
                                     onAddMedia = { item, status -> viewModel.addFromCatalog(item, status) },
                                     onSelectItem = { item, type -> viewModel.openDetail(item, type) },
                                     onRandomize = { filter -> viewModel.randomizeAnime(filter) },
+                                    onRandomizeManga = { filter -> viewModel.randomizeManga(filter) },
                                     onLoadMore = { viewModel.loadMoreDiscover() },
                                     onSaveAnime = { viewModel.saveAnime(it) },
                                     onSaveManga = { viewModel.saveManga(it) }
@@ -266,9 +268,22 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        // Media Detail Modal Dialog
-                        if (uiState.isDetailOpen && uiState.selectedDetailItem != null) {
-                            MediaDetailDialog(
+                        // Fullscreen Overlays with natural hierarchy:
+                        // 1. Cast & Crew Bio Fullscreen
+                        if (uiState.selectedCastCrewProfile != null || uiState.isLoadingCastCrewProfile) {
+                            CastCrewProfileScreen(
+                                profile = uiState.selectedCastCrewProfile,
+                                isLoading = uiState.isLoadingCastCrewProfile,
+                                onBack = { viewModel.closeCastCrewProfile() },
+                                onSelectMedia = { mediaItem ->
+                                    viewModel.closeCastCrewProfile()
+                                    viewModel.openDetail(mediaItem, mediaItem.type)
+                                }
+                            )
+                        }
+                        // 2. Media Detail Fullscreen (MDL style layout)
+                        else if (uiState.isDetailOpen && uiState.selectedDetailItem != null) {
+                            MediaDetailScreen(
                                 item = uiState.selectedDetailItem!!,
                                 type = uiState.detailMediaType,
                                 extendedDetail = uiState.extendedDetail,
@@ -277,7 +292,16 @@ class MainActivity : ComponentActivity() {
                                 onSaveManga = { viewModel.saveManga(it) },
                                 onDeleteAnime = { viewModel.deleteAnime(it) },
                                 onDeleteManga = { viewModel.deleteManga(it) },
+                                onOpenCastCrew = { id, isStaff -> viewModel.openCastCrewProfile(id, isStaff) },
                                 onDismiss = { viewModel.closeDetail() }
+                            )
+                        }
+                        // 3. Fullscreen User Stats Screen
+                        else if (uiState.isStatsOpen) {
+                            StatsScreen(
+                                state = uiState,
+                                onBack = { viewModel.closeStats() },
+                                onSelectItem = { item, type -> viewModel.openDetail(item, type) }
                             )
                         }
                     }

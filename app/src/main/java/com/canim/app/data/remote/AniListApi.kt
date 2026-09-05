@@ -50,9 +50,26 @@ data class AniListMedia(
     val endDate: AniListFuzzyDate?,
     val duration: Int?,
     val source: String?,
+    val popularity: Int?,
+    val rankings: List<AniListRanking>?,
+    val recommendations: AniListRecommendations?,
     val studios: AniListStudios?,
     val characters: AniListCharacters?,
     val staff: AniListStaff?
+)
+
+data class AniListRanking(
+    val rank: Int?,
+    val type: String?,
+    val allTime: Boolean?
+)
+
+data class AniListRecommendations(
+    val nodes: List<AniListRecommendationNode>?
+)
+
+data class AniListRecommendationNode(
+    val mediaRecommendation: AniListMedia?
 )
 
 data class AniListTitle(
@@ -86,11 +103,13 @@ data class AniListCharacterEdge(
 )
 
 data class AniListCharacterNode(
+    val id: Int?,
     val name: AniListName?,
     val image: AniListImage?
 )
 
 data class AniListVoiceActor(
+    val id: Int?,
     val name: AniListName?,
     val image: AniListImage?
 )
@@ -105,12 +124,14 @@ data class AniListStaffEdge(
 )
 
 data class AniListStaffNode(
+    val id: Int?,
     val name: AniListName?,
     val image: AniListImage?
 )
 
 data class AniListName(
-    val full: String?
+    val full: String?,
+    val native: String? = null
 )
 
 data class AniListImage(
@@ -538,6 +559,31 @@ object AniListClient {
                     source
                     status
                     genres
+                    averageScore
+                    popularity
+                    rankings {
+                      rank
+                      allTime
+                    }
+                    recommendations(page: 1, perPage: 8, sort: RATING_DESC) {
+                      nodes {
+                        mediaRecommendation {
+                          id
+                          idMal
+                          title {
+                            romaji
+                            english
+                          }
+                          coverImage {
+                            large
+                            medium
+                          }
+                          type
+                          averageScore
+                          format
+                        }
+                      }
+                    }
                     startDate {
                       year
                       month
@@ -557,8 +603,10 @@ object AniListClient {
                       edges {
                         role
                         node {
+                          id
                           name {
                             full
+                            native
                           }
                           image {
                             medium
@@ -566,8 +614,10 @@ object AniListClient {
                           }
                         }
                         voiceActors(language: JAPANESE) {
+                          id
                           name {
                             full
+                            native
                           }
                           image {
                             medium
@@ -580,8 +630,10 @@ object AniListClient {
                       edges {
                         role
                         node {
+                          id
                           name {
                             full
+                            native
                           }
                           image {
                             medium
@@ -608,6 +660,31 @@ object AniListClient {
                     source
                     status
                     genres
+                    averageScore
+                    popularity
+                    rankings {
+                      rank
+                      allTime
+                    }
+                    recommendations(page: 1, perPage: 8, sort: RATING_DESC) {
+                      nodes {
+                        mediaRecommendation {
+                          id
+                          idMal
+                          title {
+                            romaji
+                            english
+                          }
+                          coverImage {
+                            large
+                            medium
+                          }
+                          type
+                          averageScore
+                          format
+                        }
+                      }
+                    }
                     startDate {
                       year
                       month
@@ -627,8 +704,10 @@ object AniListClient {
                       edges {
                         role
                         node {
+                          id
                           name {
                             full
+                            native
                           }
                           image {
                             medium
@@ -636,8 +715,10 @@ object AniListClient {
                           }
                         }
                         voiceActors(language: JAPANESE) {
+                          id
                           name {
                             full
+                            native
                           }
                           image {
                             medium
@@ -650,8 +731,10 @@ object AniListClient {
                       edges {
                         role
                         node {
+                          id
                           name {
                             full
+                            native
                           }
                           image {
                             medium
@@ -691,8 +774,10 @@ object AniListClient {
             val charNode = edge.node ?: return@mapNotNull null
             val va = edge.voiceActors?.firstOrNull()
             CharacterCastItem(
+                characterId = charNode.id,
                 characterName = charNode.name?.full ?: "Karakter",
                 characterImage = charNode.image?.large ?: charNode.image?.medium,
+                actorId = va?.id,
                 actorName = va?.name?.full,
                 actorImage = va?.image?.large ?: va?.image?.medium,
                 role = edge.role ?: "Supporting"
@@ -702,6 +787,7 @@ object AniListClient {
         val staffList = media.staff?.edges?.mapNotNull { edge ->
             val staffNode = edge.node ?: return@mapNotNull null
             StaffMemberItem(
+                staffId = staffNode.id,
                 name = staffNode.name?.full ?: "Staff",
                 role = edge.role ?: "Crew",
                 image = staffNode.image?.large ?: staffNode.image?.medium
@@ -709,6 +795,14 @@ object AniListClient {
         } ?: emptyList()
 
         val studioName = media.studios?.nodes?.firstOrNull()?.name
+
+        val recList = media.recommendations?.nodes?.mapNotNull { node ->
+            val rec = node.mediaRecommendation ?: return@mapNotNull null
+            mapAniListMediaToItem(rec, if (rec.format == "MANGA") MediaType.MANGA else MediaType.ANIME)
+        } ?: emptyList()
+
+        val avgScore = if (media.averageScore != null && media.averageScore > 0) media.averageScore / 10.0 else null
+        val rankValue = media.rankings?.firstOrNull { it.allTime == true }?.rank ?: media.rankings?.firstOrNull()?.rank
 
         val detail = ExtendedMediaDetail(
             anilistId = media.id,
@@ -725,10 +819,360 @@ object AniListClient {
             durationMinutes = media.duration,
             cast = castList,
             crew = staffList,
+            averageScore = avgScore,
+            popularity = media.popularity,
+            rank = rankValue,
+            watchers = media.popularity,
+            recommendations = recList,
             isFromFallback = false
         )
 
         CacheManager.putDetail(cacheKey, detail)
         detail
+    }
+
+    suspend fun getCharacterProfile(id: Int, forceRefresh: Boolean = false): CastCrewProfile? = withContext(Dispatchers.IO) {
+        if (!forceRefresh) {
+            val cached = CacheManager.getCastCrewProfile(id, isStaff = false)
+            if (cached != null) return@withContext cached
+        }
+
+        val query = """
+            query (${'$'}id: Int) {
+              Character(id: ${'$'}id) {
+                id
+                name {
+                  first
+                  middle
+                  last
+                  full
+                  native
+                }
+                image {
+                  large
+                  medium
+                }
+                description(asHtml: false)
+                gender
+                dateOfBirth {
+                  year
+                  month
+                  day
+                }
+                age
+                media(page: 1, perPage: 25, sort: POPULARITY_DESC) {
+                  edges {
+                    characterRole
+                    node {
+                      id
+                      idMal
+                      title {
+                        romaji
+                        english
+                      }
+                      coverImage {
+                        large
+                        medium
+                      }
+                      startDate {
+                        year
+                      }
+                      format
+                      type
+                    }
+                  }
+                }
+              }
+            }
+        """.trimIndent()
+
+        val variables = JSONObject().apply { put("id", id) }
+        val responseString = executeQuery(query, variables) ?: return@withContext null
+        try {
+            val root = JSONObject(responseString)
+            val data = root.optJSONObject("data") ?: return@withContext null
+            val charObj = data.optJSONObject("Character") ?: return@withContext null
+
+            val nameObj = charObj.optJSONObject("name")
+            val fullName = nameObj?.optString("full")?.takeIf { it.isNotBlank() } ?: "Karakter"
+            val nativeName = nameObj?.optString("native")?.takeIf { it.isNotBlank() }
+            val firstName = nameObj?.optString("first")?.takeIf { it.isNotBlank() }
+            val lastName = nameObj?.optString("last")?.takeIf { it.isNotBlank() }
+
+            val imgObj = charObj.optJSONObject("image")
+            val imageUrl = imgObj?.optString("large")?.takeIf { it.isNotBlank() }
+                ?: imgObj?.optString("medium")?.takeIf { it.isNotBlank() }
+
+            val cleanDesc = charObj.optString("description")
+                ?.replace(Regex("<[^>]*>"), "")
+                ?.replace("&quot;", "\"")
+                ?.replace("&#039;", "'")
+                ?.replace("&amp;", "&")
+                ?.takeIf { it.isNotBlank() }
+
+            val dob = charObj.optJSONObject("dateOfBirth")
+            val dobStr = if (dob != null && !dob.isNull("year")) {
+                val y = dob.optInt("year")
+                val m = dob.optInt("month", 0)
+                val d = dob.optInt("day", 0)
+                if (m > 0 && d > 0) "$d/$m/$y" else "$y"
+            } else null
+
+            val ageStr = charObj.optString("age")?.takeIf { it.isNotBlank() && it != "null" }
+
+            val mediaArray = charObj.optJSONObject("media")?.optJSONArray("edges")
+            val filmography = mutableListOf<FilmographyItem>()
+            if (mediaArray != null) {
+                for (i in 0 until mediaArray.length()) {
+                    val edge = mediaArray.optJSONObject(i) ?: continue
+                    val role = edge.optString("characterRole")
+                    val node = edge.optJSONObject("node") ?: continue
+                    val mId = node.optInt("id")
+                    val malId = if (node.has("idMal") && !node.isNull("idMal")) node.optInt("idMal") else null
+                    val titleObj = node.optJSONObject("title")
+                    val tRomaji = titleObj?.optString("romaji")
+                    val tEng = titleObj?.optString("english")
+                    val cImg = node.optJSONObject("coverImage")?.optString("large")
+                        ?: node.optJSONObject("coverImage")?.optString("medium")
+                    val sYear = node.optJSONObject("startDate")?.optInt("year", 0)?.takeIf { it > 0 }
+                    val fmt = node.optString("format")
+                    val mType = if (node.optString("type") == "MANGA") MediaType.MANGA else MediaType.ANIME
+
+                    filmography.add(
+                        FilmographyItem(
+                            id = mId,
+                            malId = malId,
+                            title = tRomaji ?: tEng ?: "Judul",
+                            titleEnglish = tEng,
+                            imageUrl = cImg,
+                            year = sYear,
+                            format = fmt,
+                            type = mType,
+                            role = role
+                        )
+                    )
+                }
+            }
+
+            val profile = CastCrewProfile(
+                id = id,
+                isStaff = false,
+                name = fullName,
+                nativeName = nativeName,
+                firstName = firstName,
+                lastName = lastName,
+                image = imageUrl,
+                biography = cleanDesc,
+                nationality = null,
+                birthday = dobStr,
+                age = ageStr,
+                filmography = filmography
+            )
+            CacheManager.putCastCrewProfile(id, isStaff = false, profile)
+            profile
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    suspend fun getStaffProfile(id: Int, forceRefresh: Boolean = false): CastCrewProfile? = withContext(Dispatchers.IO) {
+        if (!forceRefresh) {
+            val cached = CacheManager.getCastCrewProfile(id, isStaff = true)
+            if (cached != null) return@withContext cached
+        }
+
+        val query = """
+            query (${'$'}id: Int) {
+              Staff(id: ${'$'}id) {
+                id
+                name {
+                  first
+                  middle
+                  last
+                  full
+                  native
+                }
+                image {
+                  large
+                  medium
+                }
+                description(asHtml: false)
+                gender
+                dateOfBirth {
+                  year
+                  month
+                  day
+                }
+                age
+                homeTown
+                characterMedia(page: 1, perPage: 25, sort: POPULARITY_DESC) {
+                  edges {
+                    characterRole
+                    node {
+                      id
+                      idMal
+                      title {
+                        romaji
+                        english
+                      }
+                      coverImage {
+                        large
+                        medium
+                      }
+                      startDate {
+                        year
+                      }
+                      format
+                      type
+                    }
+                  }
+                }
+                staffMedia(page: 1, perPage: 25, sort: POPULARITY_DESC) {
+                  edges {
+                    staffRole
+                    node {
+                      id
+                      idMal
+                      title {
+                        romaji
+                        english
+                      }
+                      coverImage {
+                        large
+                        medium
+                      }
+                      startDate {
+                        year
+                      }
+                      format
+                      type
+                    }
+                  }
+                }
+              }
+            }
+        """.trimIndent()
+
+        val variables = JSONObject().apply { put("id", id) }
+        val responseString = executeQuery(query, variables) ?: return@withContext null
+        try {
+            val root = JSONObject(responseString)
+            val data = root.optJSONObject("data") ?: return@withContext null
+            val staffObj = data.optJSONObject("Staff") ?: return@withContext null
+
+            val nameObj = staffObj.optJSONObject("name")
+            val fullName = nameObj?.optString("full")?.takeIf { it.isNotBlank() } ?: "Staff"
+            val nativeName = nameObj?.optString("native")?.takeIf { it.isNotBlank() }
+            val firstName = nameObj?.optString("first")?.takeIf { it.isNotBlank() }
+            val lastName = nameObj?.optString("last")?.takeIf { it.isNotBlank() }
+
+            val imgObj = staffObj.optJSONObject("image")
+            val imageUrl = imgObj?.optString("large")?.takeIf { it.isNotBlank() }
+                ?: imgObj?.optString("medium")?.takeIf { it.isNotBlank() }
+
+            val cleanDesc = staffObj.optString("description")
+                ?.replace(Regex("<[^>]*>"), "")
+                ?.replace("&quot;", "\"")
+                ?.replace("&#039;", "'")
+                ?.replace("&amp;", "&")
+                ?.takeIf { it.isNotBlank() }
+
+            val dob = staffObj.optJSONObject("dateOfBirth")
+            val dobStr = if (dob != null && !dob.isNull("year")) {
+                val y = dob.optInt("year")
+                val m = dob.optInt("month", 0)
+                val d = dob.optInt("day", 0)
+                if (m > 0 && d > 0) "$d/$m/$y" else "$y"
+            } else null
+
+            val ageStr = if (staffObj.has("age") && !staffObj.isNull("age")) staffObj.optString("age") else null
+            val homeTown = staffObj.optString("homeTown")?.takeIf { it.isNotBlank() && it != "null" }
+
+            val filmography = mutableListOf<FilmographyItem>()
+            val charMediaArray = staffObj.optJSONObject("characterMedia")?.optJSONArray("edges")
+            if (charMediaArray != null) {
+                for (i in 0 until charMediaArray.length()) {
+                    val edge = charMediaArray.optJSONObject(i) ?: continue
+                    val role = edge.optString("characterRole")
+                    val node = edge.optJSONObject("node") ?: continue
+                    val mId = node.optInt("id")
+                    val malId = if (node.has("idMal") && !node.isNull("idMal")) node.optInt("idMal") else null
+                    val titleObj = node.optJSONObject("title")
+                    val tRomaji = titleObj?.optString("romaji")
+                    val tEng = titleObj?.optString("english")
+                    val cImg = node.optJSONObject("coverImage")?.optString("large")
+                        ?: node.optJSONObject("coverImage")?.optString("medium")
+                    val sYear = node.optJSONObject("startDate")?.optInt("year", 0)?.takeIf { it > 0 }
+                    val fmt = node.optString("format")
+                    val mType = if (node.optString("type") == "MANGA") MediaType.MANGA else MediaType.ANIME
+
+                    filmography.add(
+                        FilmographyItem(
+                            id = mId,
+                            malId = malId,
+                            title = tRomaji ?: tEng ?: "Judul",
+                            titleEnglish = tEng,
+                            imageUrl = cImg,
+                            year = sYear,
+                            format = fmt,
+                            type = mType,
+                            role = if (role.isNotBlank()) "Karakter: $role" else "Pemeran"
+                        )
+                    )
+                }
+            }
+
+            val staffMediaArray = staffObj.optJSONObject("staffMedia")?.optJSONArray("edges")
+            if (staffMediaArray != null) {
+                for (i in 0 until staffMediaArray.length()) {
+                    val edge = staffMediaArray.optJSONObject(i) ?: continue
+                    val role = edge.optString("staffRole")
+                    val node = edge.optJSONObject("node") ?: continue
+                    val mId = node.optInt("id")
+                    val malId = if (node.has("idMal") && !node.isNull("idMal")) node.optInt("idMal") else null
+                    val titleObj = node.optJSONObject("title")
+                    val tRomaji = titleObj?.optString("romaji")
+                    val tEng = titleObj?.optString("english")
+                    val cImg = node.optJSONObject("coverImage")?.optString("large")
+                        ?: node.optJSONObject("coverImage")?.optString("medium")
+                    val sYear = node.optJSONObject("startDate")?.optInt("year", 0)?.takeIf { it > 0 }
+                    val fmt = node.optString("format")
+                    val mType = if (node.optString("type") == "MANGA") MediaType.MANGA else MediaType.ANIME
+
+                    filmography.add(
+                        FilmographyItem(
+                            id = mId,
+                            malId = malId,
+                            title = tRomaji ?: tEng ?: "Judul",
+                            titleEnglish = tEng,
+                            imageUrl = cImg,
+                            year = sYear,
+                            format = fmt,
+                            type = mType,
+                            role = role
+                        )
+                    )
+                }
+            }
+
+            val profile = CastCrewProfile(
+                id = id,
+                isStaff = true,
+                name = fullName,
+                nativeName = nativeName,
+                firstName = firstName,
+                lastName = lastName,
+                image = imageUrl,
+                biography = cleanDesc,
+                nationality = homeTown,
+                birthday = dobStr,
+                age = ageStr,
+                filmography = filmography.distinctBy { it.id }
+            )
+            CacheManager.putCastCrewProfile(id, isStaff = true, profile)
+            profile
+        } catch (_: Exception) {
+            null
+        }
     }
 }

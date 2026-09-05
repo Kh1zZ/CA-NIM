@@ -19,6 +19,7 @@ data class CanimUiState(
     val watchingAnime: List<UserMediaItem> = emptyList(),
     val readingManga: List<UserMediaItem> = emptyList(),
     val completedAnimeMalIds: Set<Int> = emptySet(),
+    val completedMangaMalIds: Set<Int> = emptySet(),
 
     val stats: TrackerStats = TrackerStats(),
     val activeTab: String = "dashboard",
@@ -50,7 +51,15 @@ data class CanimUiState(
     val extendedDetail: ExtendedMediaDetail? = null,
     val isLoadingExtendedDetail: Boolean = false,
 
+    // Cast & Crew Profile state
+    val selectedCastCrewProfile: CastCrewProfile? = null,
+    val isLoadingCastCrewProfile: Boolean = false,
+
+    // Stats Fullscreen state
+    val isStatsOpen: Boolean = false,
+
     // App & Auth state
+    val syncStatus: SyncStatus = SyncStatus.IDLE,
     val snackbarMessage: String? = null,
     val appMode: String = "online_sync", // "offline" or "online_sync"
     val malUser: MalUser = MalUser(),
@@ -80,10 +89,17 @@ class CanimViewModel(
     private var detailJob: Job? = null
 
     init {
+        // Cold-start instant cache-first load from disk/memory
+        val cachedAnime = repository.getCachedTracking("ANIME")
+        val cachedManga = repository.getCachedTracking("MANGA")
+        if (!cachedAnime.isNullOrEmpty() || !cachedManga.isNullOrEmpty()) {
+            updateLibraryData(cachedAnime ?: emptyList(), cachedManga ?: emptyList())
+        }
+
         // Load discovery category
         loadDiscoverCategory(_uiState.value.selectedDiscoverCategory, _uiState.value.discoverFilter)
 
-        // Load user library or demo data
+        // Silent background sync / load user library
         loadUserLibrary()
 
         // Reactive Debounced Search (300ms)
@@ -123,15 +139,18 @@ class CanimViewModel(
     }
 
     /**
-     * Loads the authoritative library from MAL (or demo dataset if not logged in).
+     * Loads the authoritative library from MAL in parallel (or demo dataset if not logged in).
      */
     fun loadUserLibrary(forceRefresh: Boolean = false) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoadingLibrary = true) }
+            _uiState.update { it.copy(isLoadingLibrary = true, syncStatus = SyncStatus.SYNCING) }
             val user = repository.getMalUser()
             if (user.isLoggedIn) {
-                val animeResult = repository.getUserAnimeList(forceRefresh)
-                val mangaResult = repository.getUserMangaList(forceRefresh)
+                val animeDeferred = async(Dispatchers.IO) { repository.getUserAnimeList(forceRefresh) }
+                val mangaDeferred = async(Dispatchers.IO) { repository.getUserMangaList(forceRefresh) }
+
+                val animeResult = animeDeferred.await()
+                val mangaResult = mangaDeferred.await()
 
                 val animes = when (animeResult) {
                     is MalFetchResult.Success -> animeResult.data
@@ -157,14 +176,25 @@ class CanimViewModel(
                     }
                 }
 
+                val hasFailure = animeResult is MalFetchResult.Failure && mangaResult is MalFetchResult.Failure
+                val finalSyncStatus = if (hasFailure) SyncStatus.FAILED else SyncStatus.SUCCESS
+
                 updateLibraryData(animes, mangas)
+                _uiState.update { it.copy(isLoadingLibrary = false, syncStatus = finalSyncStatus) }
+
+                if (finalSyncStatus == SyncStatus.SUCCESS) {
+                    launch {
+                        delay(3000L)
+                        _uiState.update { if (it.syncStatus == SyncStatus.SUCCESS) it.copy(syncStatus = SyncStatus.IDLE) else it }
+                    }
+                }
             } else {
                 // In-memory demo data for unauthenticated mode
                 if (_uiState.value.animeList.isEmpty() && _uiState.value.mangaList.isEmpty()) {
                     updateLibraryData(repository.getDemoAnime(), repository.getDemoManga())
                 }
+                _uiState.update { it.copy(isLoadingLibrary = false, syncStatus = SyncStatus.IDLE) }
             }
-            _uiState.update { it.copy(isLoadingLibrary = false) }
         }
     }
 
@@ -173,6 +203,7 @@ class CanimViewModel(
             val watching = animes.filter { it.status == "watching" }
             val reading = mangas.filter { it.status == "reading" }
             val completedAnimeIds = animes.filter { it.status == "completed" }.mapNotNull { it.malId }.toSet()
+            val completedMangaIds = mangas.filter { it.status == "completed" }.mapNotNull { it.malId }.toSet()
 
             val totalEp = animes.sumOf { it.progress }
             val totalCh = mangas.sumOf { it.progressChapters }
@@ -213,6 +244,7 @@ class CanimViewModel(
                         watchingAnime = watching,
                         readingManga = reading,
                         completedAnimeMalIds = completedAnimeIds,
+                        completedMangaMalIds = completedMangaIds,
                         stats = stats
                     )
                 }
@@ -614,6 +646,107 @@ class CanimViewModel(
                 }
             }
         }
+    }
+
+    /**
+     * Fixed Randomizer for Manga:
+     * - Genuinely random selection.
+     * - Strictly excludes completed manga.
+     * - If page has insufficient eligible items, fetches more pages instead of reintroducing completed entries.
+     */
+    fun randomizeManga(filter: DiscoverFilter = _uiState.value.discoverFilter.copy(format = "MANGA")) {
+        discoverJob?.cancel()
+        val token = ++discoverRequestToken
+        val mangaFilter = filter.copy(format = "MANGA")
+
+        _uiState.update {
+            it.copy(
+                selectedDiscoverCategory = DiscoverCategory.RANDOM_FILTER,
+                discoverFilter = mangaFilter,
+                randomSort = null,
+                isDiscoverLoading = true,
+                discoverPage = 1,
+                canLoadMoreDiscover = false
+            )
+        }
+
+        discoverJob = viewModelScope.launch(Dispatchers.IO) {
+            val completedIds = _uiState.value.completedMangaMalIds
+            val candidates = mutableListOf<MediaItem>()
+            var searchPage = 1
+            val maxPages = 3
+
+            while (candidates.size < 15 && searchPage <= maxPages) {
+                val pageItems = repository.getDiscoverMedia(
+                    category = DiscoverCategory.RANDOM_FILTER,
+                    filter = mangaFilter,
+                    page = searchPage,
+                    forceRefresh = true
+                )
+                if (pageItems.isEmpty()) break
+
+                val eligible = pageItems.filter { item ->
+                    val mId = item.malId
+                    mId == null || !completedIds.contains(mId)
+                }
+                candidates.addAll(eligible)
+                searchPage++
+            }
+
+            // Genuinely shuffle and pick distinct
+            val shuffled = candidates.distinctBy { it.malId ?: it.anilistId }.shuffled()
+
+            if (token == discoverRequestToken) {
+                _uiState.update {
+                    it.copy(
+                        discoverItems = shuffled,
+                        isDiscoverLoading = false,
+                        canLoadMoreDiscover = false
+                    )
+                }
+            }
+        }
+    }
+
+    // --- Cast & Crew Bio Navigation ---
+    fun openCastCrewProfile(id: Int, isStaff: Boolean) {
+        _uiState.update {
+            it.copy(
+                selectedCastCrewProfile = null,
+                isLoadingCastCrewProfile = true
+            )
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            val profile = if (isStaff) {
+                repository.getStaffProfile(id)
+            } else {
+                repository.getCharacterProfile(id)
+            }
+            _uiState.update {
+                it.copy(
+                    selectedCastCrewProfile = profile,
+                    isLoadingCastCrewProfile = false
+                )
+            }
+        }
+    }
+
+    fun closeCastCrewProfile() {
+        _uiState.update {
+            it.copy(
+                selectedCastCrewProfile = null,
+                isLoadingCastCrewProfile = false
+            )
+        }
+    }
+
+    // --- Stats Screen Navigation ---
+    fun openStats() {
+        _uiState.update { it.copy(isStatsOpen = true) }
+    }
+
+    fun closeStats() {
+        _uiState.update { it.copy(isStatsOpen = false) }
     }
 
     // --- Details ---

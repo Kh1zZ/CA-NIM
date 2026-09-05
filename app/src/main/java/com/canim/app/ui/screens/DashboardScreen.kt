@@ -57,6 +57,7 @@ fun DashboardScreen(
     onNavigateTab: (String) -> Unit,
     onLoginMal: () -> Unit = {},
     onSyncMal: () -> Unit = {},
+    onOpenStats: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -72,7 +73,7 @@ fun DashboardScreen(
         contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        // Top App Bar: CA'NIM + Logo (Left padding) & Online/Offline status (Right) (Request 8)
+        // Top App Bar: CA'NIM + Logo & Sync Status Badge
         item {
             Row(
                 modifier = Modifier
@@ -112,40 +113,125 @@ fun DashboardScreen(
                     }
                 }
 
-                // Right: Online / Offline status badge
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(if (isDeviceOnline) AccentGreen.copy(alpha = 0.15f) else CardElevated)
-                        .border(
-                            1.dp,
-                            if (isDeviceOnline) AccentGreen.copy(alpha = 0.4f) else CardBorder,
-                            RoundedCornerShape(20.dp)
-                        )
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
+                // Right: Sync Status & Connectivity indicator
+                when (state.syncStatus) {
+                    com.canim.app.data.model.SyncStatus.SYNCING -> {
                         Box(
                             modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(if (isDeviceOnline) AccentGreen else TextMuted)
-                        )
-                        Icon(
-                            imageVector = if (isDeviceOnline) Icons.Default.Wifi else Icons.Default.WifiOff,
-                            contentDescription = if (isDeviceOnline) "Online" else "Offline",
-                            tint = if (isDeviceOnline) AccentGreen else TextMuted,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Text(
-                            text = if (isDeviceOnline) "Online" else "Offline",
-                            color = if (isDeviceOnline) AccentGreen else TextMuted,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(AccentBlue.copy(alpha = 0.15f))
+                                .border(1.dp, AccentBlue.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(12.dp),
+                                    color = AccentBlue,
+                                    strokeWidth = 2.dp
+                                )
+                                Text(
+                                    text = "Sinkron...",
+                                    color = AccentBlue,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                    com.canim.app.data.model.SyncStatus.SUCCESS -> {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(AccentGreen.copy(alpha = 0.15f))
+                                .border(1.dp, AccentGreen.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = AccentGreen,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Text(
+                                    text = "Tersinkron",
+                                    color = AccentGreen,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                    com.canim.app.data.model.SyncStatus.FAILED -> {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Color(0xFFEF4444).copy(alpha = 0.15f))
+                                .border(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                                .clickable { onSyncMal() }
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = "Coba lagi",
+                                    tint = Color(0xFFEF4444),
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Text(
+                                    text = "Gagal • Coba Lagi",
+                                    color = Color(0xFFEF4444),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                    com.canim.app.data.model.SyncStatus.IDLE -> {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(if (isDeviceOnline) AccentGreen.copy(alpha = 0.15f) else CardElevated)
+                                .border(
+                                    1.dp,
+                                    if (isDeviceOnline) AccentGreen.copy(alpha = 0.4f) else CardBorder,
+                                    RoundedCornerShape(20.dp)
+                                )
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isDeviceOnline) AccentGreen else TextMuted)
+                                )
+                                Icon(
+                                    imageVector = if (isDeviceOnline) Icons.Default.Wifi else Icons.Default.WifiOff,
+                                    contentDescription = if (isDeviceOnline) "Online" else "Offline",
+                                    tint = if (isDeviceOnline) AccentGreen else TextMuted,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Text(
+                                    text = if (isDeviceOnline) "Online" else "Offline",
+                                    color = if (isDeviceOnline) AccentGreen else TextMuted,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -329,16 +415,64 @@ fun DashboardScreen(
             }
         }
 
-        // Stats Overview & Detailed Breakdown (Request 10)
+        // Simplified Stats Overview (4 Metrics Only) & More Button
         item {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = "STATISTIK & OVERVIEW LENGKAP",
-                    color = TextSecondary,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "RINGKASAN STATISTIK",
+                        color = TextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+
+                    TextButton(
+                        onClick = onOpenStats,
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "Lihat Detail",
+                            color = AccentBlue,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = null,
+                            tint = AccentBlue,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+
+                // 4-Metric Grid (2 rows x 2 columns)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    StatCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Total Anime",
+                        value = "${state.stats.totalAnime}",
+                        subtitle = "Judul Tersimpan",
+                        icon = Icons.Default.Tv,
+                        iconColor = AccentBlue
+                    )
+                    StatCard(
+                        modifier = Modifier.weight(1f),
+                        title = "Total Manga",
+                        value = "${state.stats.totalManga}",
+                        subtitle = "Judul Tersimpan",
+                        icon = Icons.Default.AutoStories,
+                        iconColor = MangaAccentDarkBlue
+                    )
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -346,127 +480,69 @@ fun DashboardScreen(
                 ) {
                     StatCard(
                         modifier = Modifier.weight(1f),
-                        title = "Anime",
-                        value = "${state.stats.totalAnime}",
-                        subtitle = "${state.stats.episodesWatched} ep (${state.stats.daysWatched}h)",
-                        icon = Icons.Default.Tv,
-                        iconColor = AccentBlue
+                        title = "Waktu Tonton",
+                        value = "${state.stats.daysWatched} Hari",
+                        subtitle = "${(state.stats.episodesWatched * 24) / 60} Jam Total",
+                        icon = Icons.Default.Schedule,
+                        iconColor = Color(0xFFF59E0B)
                     )
                     StatCard(
                         modifier = Modifier.weight(1f),
-                        title = "Manga",
-                        value = "${state.stats.totalManga}",
-                        subtitle = "${state.stats.chaptersRead} ch",
-                        icon = Icons.Default.AutoStories,
-                        iconColor = MangaAccentDarkBlue
-                    )
-                    StatCard(
-                        modifier = Modifier.weight(1f),
-                        title = "Skor",
-                        value = if (state.stats.meanScore > 0) "★ ${state.stats.meanScore}" else "-",
-                        subtitle = "${state.stats.completedCount} selesai",
-                        icon = Icons.Default.Star,
-                        iconColor = StarGold
+                        title = "Chapter Dibaca",
+                        value = "${state.stats.chaptersRead}",
+                        subtitle = "Bab Manga",
+                        icon = Icons.Default.MenuBook,
+                        iconColor = AccentGreen
                     )
                 }
 
-                // Detailed Anime Breakdown Card
+                // Full Details Action Banner
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(1.dp, CardBorder, RoundedCornerShape(14.dp)),
+                        .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
+                        .clickable(onClick = onOpenStats),
                     colors = CardDefaults.cardColors(containerColor = CardBg),
-                    shape = RoundedCornerShape(14.dp)
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Tv,
+                                imageVector = Icons.Default.PieChart,
                                 contentDescription = null,
                                 tint = AccentBlue,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(20.dp)
                             )
-                            Text(
-                                text = "Distribusi Status Anime",
-                                color = TextPrimary,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.weight(1f))
-                            Text(
-                                text = "${state.stats.episodesWatched} Episode Total",
-                                color = AccentBlue,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
+                            Column {
+                                Text(
+                                    text = "Lihat Statistik Lengkap & Ekspor",
+                                    color = TextPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Pie chart distribusi, Top 5 personal score, unduh PDF/JPG/PNG",
+                                    color = TextMuted,
+                                    fontSize = 11.sp
+                                )
+                            }
                         }
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            StatusBadge(label = "Ditonton", count = state.stats.animeWatching, color = AccentBlue, modifier = Modifier.weight(1f))
-                            StatusBadge(label = "Selesai", count = state.stats.animeCompleted, color = AccentGreen, modifier = Modifier.weight(1f))
-                            StatusBadge(label = "Ditunda", count = state.stats.animeOnHold, color = Color(0xFFF59E0B), modifier = Modifier.weight(1f))
-                            StatusBadge(label = "Drop", count = state.stats.animeDropped, color = Color(0xFFEF4444), modifier = Modifier.weight(1f))
-                            StatusBadge(label = "Rencana", count = state.stats.animePlanToWatch, color = Color(0xFFA855F7), modifier = Modifier.weight(1f))
-                        }
-                    }
-                }
-
-                // Detailed Manga Breakdown Card (Dark Blue Manga Style - Request 6)
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, MangaCardBorder, RoundedCornerShape(14.dp)),
-                    colors = CardDefaults.cardColors(containerColor = CardBg),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.AutoStories,
-                                contentDescription = null,
-                                tint = MangaAccentDarkBlue,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Text(
-                                text = "Distribusi Status Manga",
-                                color = TextPrimary,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.weight(1f))
-                            Text(
-                                text = "${state.stats.chaptersRead} Ch • ${state.stats.volumesRead} Vol",
-                                color = MangaAccentDarkBlue,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            StatusBadge(label = "Dibaca", count = state.stats.mangaReading, color = MangaAccentDarkBlue, modifier = Modifier.weight(1f))
-                            StatusBadge(label = "Selesai", count = state.stats.mangaCompleted, color = AccentGreen, modifier = Modifier.weight(1f))
-                            StatusBadge(label = "Ditunda", count = state.stats.mangaOnHold, color = Color(0xFFF59E0B), modifier = Modifier.weight(1f))
-                            StatusBadge(label = "Drop", count = state.stats.mangaDropped, color = Color(0xFFEF4444), modifier = Modifier.weight(1f))
-                            StatusBadge(label = "Rencana", count = state.stats.mangaPlanToRead, color = Color(0xFFA855F7), modifier = Modifier.weight(1f))
-                        }
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = AccentBlue,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
                 }
             }

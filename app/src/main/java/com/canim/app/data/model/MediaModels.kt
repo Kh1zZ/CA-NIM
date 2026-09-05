@@ -174,10 +174,19 @@ data class MediaItem(
     val scoreFormatted: String get() = if (score != null && score > 0) "%.1f".format(score) else ""
 }
 
+enum class SyncStatus {
+    IDLE,
+    SYNCING,
+    SUCCESS,
+    FAILED
+}
+
 @Immutable
 data class CharacterCastItem(
+    val characterId: Int? = null,
     val characterName: String,
     val characterImage: String? = null,
+    val actorId: Int? = null,
     val actorName: String? = null,
     val actorImage: String? = null,
     val role: String? = null
@@ -185,9 +194,40 @@ data class CharacterCastItem(
 
 @Immutable
 data class StaffMemberItem(
+    val staffId: Int? = null,
     val name: String,
     val role: String,
     val image: String? = null
+)
+
+@Immutable
+data class FilmographyItem(
+    val id: Int,
+    val malId: Int? = null,
+    val title: String,
+    val titleEnglish: String? = null,
+    val imageUrl: String? = null,
+    val year: Int? = null,
+    val format: String? = null,
+    val type: MediaType = MediaType.ANIME,
+    val role: String? = null
+)
+
+@Immutable
+data class CastCrewProfile(
+    val id: Int,
+    val isStaff: Boolean = false,
+    val name: String,
+    val nativeName: String? = null,
+    val firstName: String? = null,
+    val lastName: String? = null,
+    val image: String? = null,
+    val biography: String? = null,
+    val nationality: String? = null,
+    val birthday: String? = null,
+    val age: String? = null,
+    val gender: String? = null,
+    val filmography: List<FilmographyItem> = emptyList()
 )
 
 @Immutable
@@ -211,6 +251,11 @@ data class ExtendedMediaDetail(
     val cast: List<CharacterCastItem> = emptyList(),
     val crew: List<StaffMemberItem> = emptyList(),
     val relations: List<String> = emptyList(),
+    val averageScore: Double? = null,
+    val popularity: Int? = null,
+    val rank: Int? = null,
+    val watchers: Int? = null,
+    val recommendations: List<MediaItem> = emptyList(),
     val isFromFallback: Boolean = false
 )
 
@@ -225,7 +270,7 @@ enum class DiscoverCategory(val key: String, val label: String) {
 @Immutable
 data class DiscoverFilter(
     val genre: String? = null,
-    val format: String? = null, // "TV", "MOVIE", "MANGA"
+    val format: String? = null, // "TV", "MOVIE", "ONA", "OVA", "SPECIAL", "MANGA"
     val year: Int? = null,
     val status: String? = null,
     val season: String? = null,

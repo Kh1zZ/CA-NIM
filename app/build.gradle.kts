@@ -11,12 +11,27 @@ android {
         applicationId = "com.canim.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 3
-        versionName = "3.0.0"
+        versionCode = 4
+        versionName = "4.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
+        }
+    }
+
+    applicationVariants.all {
+        val variant = this
+        variant.outputs.all {
+            val output = this as? com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            if (output != null) {
+                val fileName = if (variant.buildType.name == "release") {
+                    "canim-universal-release-${variant.versionName}.apk"
+                } else {
+                    "canim-debug-${variant.versionName}.apk"
+                }
+                output.outputFileName = fileName
+            }
         }
     }
 

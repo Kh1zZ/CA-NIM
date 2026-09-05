@@ -12,8 +12,14 @@ import java.util.concurrent.TimeUnit
 
 class CanimApplication : Application(), ImageLoaderFactory {
 
+    companion object {
+        lateinit var instance: CanimApplication
+            private set
+    }
+
     override fun onCreate() {
         super.onCreate()
+        instance = this
     }
 
     override fun newImageLoader(): ImageLoader {
