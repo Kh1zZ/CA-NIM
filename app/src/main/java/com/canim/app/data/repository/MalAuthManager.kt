@@ -623,6 +623,12 @@ class MalAuthManager(
                         endDate = body.endDate,
                         genres = body.genres?.map { it.name } ?: emptyList(),
                         malScore = body.mean,
+                        malRank = body.rank,
+                        malPopularity = body.popularity,
+                        malMembers = body.numListUsers,
+                        rank = body.rank,
+                        popularity = body.popularity,
+                        watchers = body.numListUsers,
                         isFromFallback = true
                     )
                     CacheManager.putDetail(cacheKey, ext)
@@ -641,10 +647,56 @@ class MalAuthManager(
                         endDate = body.endDate,
                         genres = body.genres?.map { it.name } ?: emptyList(),
                         malScore = body.mean,
+                        malRank = body.rank,
+                        malPopularity = body.popularity,
+                        malMembers = body.numListUsers,
+                        rank = body.rank,
+                        popularity = body.popularity,
+                        watchers = body.numListUsers,
                         isFromFallback = true
                     )
                     CacheManager.putDetail(cacheKey, ext)
                     return@withContext ext
+                }
+            }
+        } catch (_: Exception) {}
+        null
+    }
+
+    suspend fun getMalUserTracking(malId: Int, type: MediaType): MalTracking? = withContext(Dispatchers.IO) {
+        val token = getValidAccessToken() ?: return@withContext null
+        try {
+            if (type == MediaType.ANIME) {
+                val response = ApiClient.malApi.getAnimeDetailAuth("Bearer $token", malId)
+                if (response.isSuccessful && response.body() != null) {
+                    val statusObj = response.body()!!.myListStatus ?: return@withContext null
+                    return@withContext MalTracking(
+                        status = statusObj.status,
+                        score = statusObj.score,
+                        progress = statusObj.numEpisodesWatched,
+                        isRepeating = statusObj.isRewatching,
+                        numTimesRewatched = statusObj.numTimesRewatched,
+                        comments = statusObj.comments,
+                        startDate = statusObj.startDate,
+                        finishDate = statusObj.finishDate,
+                        updatedAt = System.currentTimeMillis()
+                    )
+                }
+            } else {
+                val response = ApiClient.malApi.getMangaDetailAuth("Bearer $token", malId)
+                if (response.isSuccessful && response.body() != null) {
+                    val statusObj = response.body()!!.myListStatus ?: return@withContext null
+                    return@withContext MalTracking(
+                        status = statusObj.status,
+                        score = statusObj.score,
+                        progress = statusObj.numChaptersRead,
+                        isRepeating = statusObj.isRereading,
+                        numTimesRewatched = statusObj.numTimesReread,
+                        comments = statusObj.comments,
+                        startDate = statusObj.startDate,
+                        finishDate = statusObj.finishDate,
+                        updatedAt = System.currentTimeMillis()
+                    )
                 }
             }
         } catch (_: Exception) {}

@@ -60,6 +60,15 @@ data class CanimUiState(
     val isStatsOpen: Boolean = false,
     val isAddTitleSheetOpen: Boolean = false,
 
+    // Studio Filmography state
+    val studioFilmographyStudioId: Int? = null,
+    val studioFilmographyStudioName: String = "",
+    val studioFilmographyItems: List<MediaItem> = emptyList(),
+    val isStudioFilmographyLoading: Boolean = false,
+    val isStudioFilmographyLoadingMore: Boolean = false,
+    val studioFilmographyPage: Int = 1,
+    val canLoadMoreStudioFilmography: Boolean = true,
+
     // App & Auth state
     val syncStatus: SyncStatus = SyncStatus.IDLE,
     val snackbarMessage: String? = null,
@@ -505,6 +514,11 @@ class CanimViewModel(
         val list = _uiState.value.animeList
         return when (identifier) {
             is UserMediaItem -> identifier
+            is MediaItem -> list.firstOrNull {
+                (identifier.malId != null && it.malId == identifier.malId) ||
+                (identifier.anilistId != null && it.anilistId == identifier.anilistId) ||
+                it.title.equals(identifier.title, ignoreCase = true)
+            }
             is String -> list.firstOrNull { it.id == identifier || it.malId?.toString() == identifier }
             is Int -> list.firstOrNull { it.malId == identifier || it.anilistId == identifier }
             else -> null
@@ -515,6 +529,11 @@ class CanimViewModel(
         val list = _uiState.value.mangaList
         return when (identifier) {
             is UserMediaItem -> identifier
+            is MediaItem -> list.firstOrNull {
+                (identifier.malId != null && it.malId == identifier.malId) ||
+                (identifier.anilistId != null && it.anilistId == identifier.anilistId) ||
+                it.title.equals(identifier.title, ignoreCase = true)
+            }
             is String -> list.firstOrNull { it.id == identifier || it.malId?.toString() == identifier }
             is Int -> list.firstOrNull { it.malId == identifier || it.anilistId == identifier }
             else -> null
@@ -738,20 +757,23 @@ class CanimViewModel(
             is ScreenRoute.Detail -> {
                 val item = route.item
                 val type = route.type
-                val anilistId = when (item) {
-                    is UserMediaItem -> item.anilistId
-                    is MediaItem -> item.anilistId
+                val localItem = if (type == MediaType.ANIME) findAnimeItem(item) else findMangaItem(item)
+                var resolvedItem: Any = localItem ?: item
+
+                val anilistId = when (resolvedItem) {
+                    is UserMediaItem -> resolvedItem.anilistId
+                    is MediaItem -> resolvedItem.anilistId
                     else -> null
                 }
-                val malId = when (item) {
-                    is UserMediaItem -> item.malId
-                    is MediaItem -> item.malId
+                val malId = when (resolvedItem) {
+                    is UserMediaItem -> resolvedItem.malId
+                    is MediaItem -> resolvedItem.malId
                     else -> null
                 }
 
                 _uiState.update {
                     it.copy(
-                        selectedDetailItem = item,
+                        selectedDetailItem = resolvedItem,
                         detailMediaType = type,
                         isDetailOpen = true,
                         selectedCastCrewProfile = null,
@@ -766,6 +788,49 @@ class CanimViewModel(
                 detailJob?.cancel()
                 detailJob = viewModelScope.launch(Dispatchers.IO) {
                     val detail = repository.getExtendedDetails(anilistId, malId, type)
+                    val effectiveMalId = detail?.malId ?: malId
+
+                    // Unified tracking resolution: if not in local library, fetch live MAL tracking
+                    if (resolvedItem !is UserMediaItem && effectiveMalId != null && _uiState.value.malUser.isLoggedIn) {
+                        try {
+                            val tracking = repository.getMalTrackingStatus(effectiveMalId, type)
+                            if (tracking != null && tracking.status != null) {
+                                val media = resolvedItem as? MediaItem
+                                val itemTitle = media?.title ?: detail?.title ?: ""
+                                val itemImageUrl = media?.imageUrl ?: detail?.coverImage ?: ""
+                                val metadata = MediaMetadata(
+                                    title = itemTitle,
+                                    titleEnglish = media?.titleEnglish ?: detail?.titleEnglish,
+                                    titleNative = detail?.nativeTitle,
+                                    imageUrl = itemImageUrl,
+                                    type = type,
+                                    score = detail?.malScore ?: detail?.averageScore ?: media?.score,
+                                    synopsis = media?.synopsis ?: detail?.synopsis,
+                                    totalEpisodes = media?.episodes,
+                                    totalChapters = media?.chapters,
+                                    status = media?.status ?: detail?.airingStatus,
+                                    year = media?.year ?: detail?.startDate?.take(4)?.toIntOrNull(),
+                                    season = media?.season,
+                                    genres = if (media?.genres?.isNotEmpty() == true) media.genres else (detail?.genres ?: emptyList()),
+                                    format = media?.format ?: detail?.source,
+                                    studio = media?.studio ?: detail?.studio
+                                )
+                                val newUserItem = UserMediaItem(
+                                    identity = MediaRef(
+                                        anilistId = anilistId ?: detail?.anilistId,
+                                        malId = effectiveMalId
+                                    ),
+                                    metadata = metadata,
+                                    tracking = tracking
+                                )
+                                resolvedItem = newUserItem
+                                _uiState.update {
+                                    it.copy(selectedDetailItem = newUserItem)
+                                }
+                            }
+                        } catch (_: Exception) {}
+                    }
+
                     _uiState.update {
                         it.copy(
                             extendedDetail = detail,
@@ -829,6 +894,9 @@ class CanimViewModel(
                     )
                 }
             }
+            is ScreenRoute.StudioFilmography -> {
+                loadStudioFilmography(route.studioId, route.studioName, 1)
+            }
             null -> {
                 detailJob?.cancel()
                 _uiState.update {
@@ -840,7 +908,14 @@ class CanimViewModel(
                         selectedCastCrewProfile = null,
                         isLoadingCastCrewProfile = false,
                         isStatsOpen = false,
-                        isAddTitleSheetOpen = false
+                        isAddTitleSheetOpen = false,
+                        studioFilmographyStudioId = null,
+                        studioFilmographyStudioName = "",
+                        studioFilmographyItems = emptyList(),
+                        isStudioFilmographyLoading = false,
+                        isStudioFilmographyLoadingMore = false,
+                        studioFilmographyPage = 1,
+                        canLoadMoreStudioFilmography = true
                     )
                 }
             }
@@ -899,6 +974,73 @@ class CanimViewModel(
         isCrewInitial: Boolean = false
     ) {
         pushScreen(ScreenRoute.FullCastList(mediaTitle, castList, staffList, isCrewInitial))
+    }
+
+    // --- Studio Filmography ---
+    fun openStudio(studioId: Int, studioName: String) {
+        pushScreen(ScreenRoute.StudioFilmography(studioId, studioName))
+    }
+
+    fun closeStudio() {
+        if (_screenStack.value.lastOrNull() is ScreenRoute.StudioFilmography) {
+            popScreen()
+        } else {
+            _uiState.update {
+                it.copy(
+                    studioFilmographyStudioId = null,
+                    studioFilmographyStudioName = "",
+                    studioFilmographyItems = emptyList(),
+                    isStudioFilmographyLoading = false,
+                    isStudioFilmographyLoadingMore = false,
+                    studioFilmographyPage = 1,
+                    canLoadMoreStudioFilmography = true
+                )
+            }
+        }
+    }
+
+    fun loadStudioFilmography(studioId: Int, studioName: String, page: Int = 1) {
+        if (page == 1) {
+            _uiState.update {
+                it.copy(
+                    studioFilmographyStudioId = studioId,
+                    studioFilmographyStudioName = studioName,
+                    isStudioFilmographyLoading = true,
+                    studioFilmographyItems = emptyList(),
+                    studioFilmographyPage = 1,
+                    canLoadMoreStudioFilmography = true
+                )
+            }
+        } else {
+            _uiState.update { it.copy(isStudioFilmographyLoadingMore = true) }
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val pageResult = repository.getStudioFilmography(studioId = studioId, page = page)
+            _uiState.update {
+                val newItems = if (page == 1) {
+                    pageResult?.items ?: emptyList()
+                } else {
+                    val existingIds = it.studioFilmographyItems.map { item -> item.id }.toSet()
+                    val added = (pageResult?.items ?: emptyList()).filter { item -> item.id !in existingIds }
+                    it.studioFilmographyItems + added
+                }
+                it.copy(
+                    studioFilmographyItems = newItems,
+                    isStudioFilmographyLoading = false,
+                    isStudioFilmographyLoadingMore = false,
+                    studioFilmographyPage = page,
+                    canLoadMoreStudioFilmography = pageResult?.hasNextPage ?: false
+                )
+            }
+        }
+    }
+
+    fun loadMoreStudioFilmography() {
+        val s = _uiState.value
+        if (s.isStudioFilmographyLoading || s.isStudioFilmographyLoadingMore || !s.canLoadMoreStudioFilmography) return
+        val studioId = s.studioFilmographyStudioId ?: return
+        loadStudioFilmography(studioId, s.studioFilmographyStudioName, s.studioFilmographyPage + 1)
     }
 
     // --- Details ---

@@ -58,7 +58,11 @@ data class MalAnimeNode(
     @SerializedName("end_date") val endDate: String? = null,
     @SerializedName("studios") val studios: List<MalGenre>? = null,
     @SerializedName("source") val source: String? = null,
-    @SerializedName("mean") val mean: Double? = null
+    @SerializedName("mean") val mean: Double? = null,
+    @SerializedName("rank") val rank: Int? = null,
+    @SerializedName("popularity") val popularity: Int? = null,
+    @SerializedName("num_list_users") val numListUsers: Int? = null,
+    @SerializedName("my_list_status") val myListStatus: MalAnimeListStatus? = null
 )
 
 data class MalMangaNodeItem(
@@ -78,7 +82,11 @@ data class MalMangaNode(
     @SerializedName("start_date") val startDate: String? = null,
     @SerializedName("end_date") val endDate: String? = null,
     @SerializedName("authors") val authors: List<MalGenre>? = null,
-    @SerializedName("mean") val mean: Double? = null
+    @SerializedName("mean") val mean: Double? = null,
+    @SerializedName("rank") val rank: Int? = null,
+    @SerializedName("popularity") val popularity: Int? = null,
+    @SerializedName("num_list_users") val numListUsers: Int? = null,
+    @SerializedName("my_list_status") val myListStatus: MalMangaListStatus? = null
 )
 
 data class MalPicture(

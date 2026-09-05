@@ -11,6 +11,14 @@ import java.io.File
 import java.util.Collections
 import java.util.LinkedHashMap
 
+data class StudioFilmographyPage(
+    val studioId: Int,
+    val studioName: String,
+    val items: List<MediaItem>,
+    val hasNextPage: Boolean,
+    val currentPage: Int
+)
+
 data class CacheEntry<T>(
     val data: T,
     val timestamp: Long = System.currentTimeMillis(),
@@ -32,6 +40,7 @@ object CacheManager {
     const val TTL_SEARCH = 60 * 60 * 1000L               // 1 hour
     const val TTL_DISCOVER = 30 * 60 * 1000L             // 30 minutes
     const val TTL_DETAIL = 12 * 60 * 60 * 1000L          // 12 hours
+    const val TTL_STUDIO = 12 * 60 * 60 * 1000L          // 12 hours
     const val TTL_MAL_FALLBACK = 24 * 60 * 60 * 1000L    // 24 hours
     const val TTL_ID_MAPPING = 30L * 24 * 60 * 60 * 1000L // 30 days
     const val TTL_TRACKING = 5 * 60 * 1000L              // 5 minutes short-lived tracking cache
@@ -42,6 +51,7 @@ object CacheManager {
     private const val MAX_SEARCH_ENTRIES = 150
     private const val MAX_DISCOVER_ENTRIES = 50
     private const val MAX_DETAIL_ENTRIES = 200
+    private const val MAX_STUDIO_ENTRIES = 100
     private const val MAX_ID_MAPPINGS = 2500
     private const val MAX_TRACKING_ENTRIES = 10
 
@@ -71,11 +81,14 @@ object CacheManager {
 
     fun discoverKey(categoryKey: String): String = "discover_$categoryKey"
 
+    fun studioKey(studioId: Int, page: Int): String = "studio_${studioId}_page_$page"
+
     // Cache stores
     private val metadataCache = createLruMap<String, CacheEntry<MediaItem>>(MAX_METADATA_ENTRIES)
     private val searchCache = createLruMap<String, CacheEntry<List<MediaItem>>>(MAX_SEARCH_ENTRIES)
     private val discoverCache = createLruMap<String, CacheEntry<List<MediaItem>>>(MAX_DISCOVER_ENTRIES)
     private val detailCache = createLruMap<String, CacheEntry<ExtendedMediaDetail>>(MAX_DETAIL_ENTRIES)
+    private val studioCache = createLruMap<String, CacheEntry<StudioFilmographyPage>>(MAX_STUDIO_ENTRIES)
     private val malFallbackCache = createLruMap<String, CacheEntry<MediaItem>>(MAX_METADATA_ENTRIES)
     private val idMappingMalToAniList = createLruMap<Int, CacheEntry<Int>>(MAX_ID_MAPPINGS)
     private val idMappingAniListToMal = createLruMap<Int, CacheEntry<Int>>(MAX_ID_MAPPINGS)
@@ -116,7 +129,7 @@ object CacheManager {
         discoverCache[key] = CacheEntry(items, ttlMillis = TTL_DISCOVER)
     }
 
-    // --- Extended Detail Cache with Canonical Keys ---
+    // --- Detail Cache ---
     fun getDetail(key: String): ExtendedMediaDetail? {
         val entry = detailCache[key] ?: return null
         return if (entry.isExpired) {
@@ -129,6 +142,38 @@ object CacheManager {
 
     fun putDetail(key: String, detail: ExtendedMediaDetail) {
         detailCache[key] = CacheEntry(detail, ttlMillis = TTL_DETAIL)
+    }
+
+    // --- Studio Filmography Cache ---
+    fun getStudioFilmography(studioId: Int, page: Int): StudioFilmographyPage? {
+        val key = studioKey(studioId, page)
+        val entry = studioCache[key] ?: return null
+        return if (entry.isExpired) {
+            studioCache.remove(key)
+            null
+        } else {
+            entry.data
+        }
+    }
+
+    fun putStudioFilmography(studioId: Int, page: Int, pageData: StudioFilmographyPage) {
+        val key = studioKey(studioId, page)
+        studioCache[key] = CacheEntry(pageData, ttlMillis = TTL_STUDIO)
+    }
+
+    // --- Static Metadata Cache ---
+    fun getMetadata(key: String): MediaItem? {
+        val entry = metadataCache[key] ?: return null
+        return if (entry.isExpired) {
+            metadataCache.remove(key)
+            null
+        } else {
+            entry.data
+        }
+    }
+
+    fun putMetadata(key: String, item: MediaItem) {
+        metadataCache[key] = CacheEntry(item, ttlMillis = TTL_STATIC_METADATA)
     }
 
     // --- MAL Fallback Cache ---
@@ -145,6 +190,9 @@ object CacheManager {
     fun putMalFallback(key: String, item: MediaItem) {
         malFallbackCache[key] = CacheEntry(item, ttlMillis = TTL_MAL_FALLBACK)
     }
+
+    fun getMalFallback(malId: Int, type: String): MediaItem? = getMalFallback(malFallbackKey(malId, type))
+    fun putMalFallback(malId: Int, type: String, item: MediaItem) = putMalFallback(malFallbackKey(malId, type), item)
 
     // --- Short-lived Tracking Cache & Disk Persistence ---
     private val gson = com.google.gson.Gson()
@@ -181,6 +229,37 @@ object CacheManager {
                     putTracking(type, items)
                 }
                 items
+            } else {
+                null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun updateSingleTrackingItem(item: UserMediaItem) {
+        val typeStr = item.type.name
+        val current = trackingCache[typeStr]?.data?.toMutableList() ?: return
+        val index = current.indexOfFirst { it.id == item.id || it.malId == item.malId }
+        if (index >= 0) {
+            current[index] = item
+        } else {
+            current.add(0, item)
+        }
+        trackingCache[typeStr] = CacheEntry(current, ttlMillis = TTL_TRACKING)
+    }
+
+    fun removeSingleTrackingItem(id: String, type: String) {
+        val current = trackingCache[type]?.data?.toMutableList() ?: return
+        current.removeAll { it.id == id || it.malId?.toString() == id }
+        trackingCache[type] = CacheEntry(current, ttlMillis = TTL_TRACKING)
+    }
+
+    fun getTrackingItem(id: String, type: String): UserMediaItem? {
+        return try {
+            val list = trackingCache[type]?.data
+            if (list != null && !trackingCache[type]!!.isExpired) {
+                list.firstOrNull { it.id == id || it.malId?.toString() == id }
             } else {
                 null
             }
@@ -292,6 +371,7 @@ object CacheManager {
         negativeCache.entries.removeIf { it.value.isExpired }
         trackingCache.entries.removeIf { it.value.isExpired }
         castCrewCache.entries.removeIf { it.value.isExpired }
+        studioCache.entries.removeIf { it.value.isExpired }
     }
 
     // --- Manual Cache Clear ---
@@ -309,6 +389,7 @@ object CacheManager {
         malFallbackCache.clear()
         negativeCache.clear()
         trackingCache.clear()
+        studioCache.clear()
     }
 
     @OptIn(coil.annotation.ExperimentalCoilApi::class)
@@ -331,4 +412,3 @@ object CacheManager {
         clearImageCache(context)
     }
 }
-

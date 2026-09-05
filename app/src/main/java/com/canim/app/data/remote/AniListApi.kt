@@ -1,6 +1,7 @@
 package com.canim.app.data.remote
 
 import com.canim.app.data.cache.CacheManager
+import com.canim.app.data.cache.StudioFilmographyPage
 import com.canim.app.data.model.*
 import com.canim.app.util.TextSanitizer
 import com.google.gson.Gson
@@ -90,6 +91,7 @@ data class AniListStudios(
 )
 
 data class AniListStudioNode(
+    val id: Int? = null,
     val name: String
 )
 
@@ -449,6 +451,9 @@ object AniListClient {
                 variables.put("status", "NOT_YET_RELEASED")
                 variables.put("sort", JSONArray().apply { put("ID_DESC") })
             }
+            DiscoverCategory.STUDIO -> {
+                variables.put("sort", JSONArray().apply { put("POPULARITY_DESC") })
+            }
             DiscoverCategory.RANDOM_FILTER -> {
                 filter.genre?.takeIf { it.isNotBlank() }?.let { variables.put("genre", it) }
                 filter.format?.takeIf { it.isNotBlank() }?.let { variables.put("format", it) }
@@ -597,6 +602,7 @@ object AniListClient {
                     }
                     studios(isMain: true) {
                       nodes {
+                        id
                         name
                       }
                     }
@@ -698,6 +704,7 @@ object AniListClient {
                     }
                     studios(isMain: true) {
                       nodes {
+                        id
                         name
                       }
                     }
@@ -795,7 +802,9 @@ object AniListClient {
             )
         } ?: emptyList()
 
-        val studioName = media.studios?.nodes?.firstOrNull()?.name
+        val studioNode = media.studios?.nodes?.firstOrNull()
+        val studioName = studioNode?.name
+        val studioId = studioNode?.id
 
         val recList = media.recommendations?.nodes?.mapNotNull { node ->
             val rec = node.mediaRecommendation ?: return@mapNotNull null
@@ -812,6 +821,7 @@ object AniListClient {
             titleEnglish = media.title?.english,
             nativeTitle = media.title?.native,
             studio = studioName,
+            studioId = studioId,
             source = media.source,
             airingStatus = media.status,
             startDate = media.startDate?.toFormattedString(),
@@ -1183,6 +1193,146 @@ object AniListClient {
             )
             CacheManager.putCastCrewProfile(id, isStaff = true, profile)
             profile
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    suspend fun getStudioFilmography(
+        studioId: Int?,
+        search: String? = null,
+        page: Int = 1,
+        perPage: Int = 24,
+        forceRefresh: Boolean = false
+    ): StudioFilmographyPage? = withContext(Dispatchers.IO) {
+        if (studioId == null && search.isNullOrBlank()) return@withContext null
+        if (!forceRefresh && studioId != null) {
+            val cached = CacheManager.getStudioFilmography(studioId, page)
+            if (cached != null) return@withContext cached
+        }
+
+        val query = """
+            query (${'$'}id: Int, ${'$'}search: String, ${'$'}page: Int, ${'$'}perPage: Int) {
+              Studio(id: ${'$'}id, search: ${'$'}search) {
+                id
+                name
+                media(page: ${'$'}page, perPage: ${'$'}perPage, sort: POPULARITY_DESC) {
+                  pageInfo {
+                    total
+                    perPage
+                    currentPage
+                    lastPage
+                    hasNextPage
+                  }
+                  nodes {
+                    id
+                    idMal
+                    title {
+                      romaji
+                      english
+                      native
+                    }
+                    coverImage {
+                      large
+                      medium
+                    }
+                    format
+                    type
+                    status
+                    episodes
+                    chapters
+                    averageScore
+                    genres
+                    startDate {
+                      year
+                    }
+                  }
+                }
+              }
+            }
+        """.trimIndent()
+
+        val variables = JSONObject().apply {
+            if (studioId != null) put("id", studioId)
+            if (!search.isNullOrBlank()) put("search", search)
+            put("page", page)
+            put("perPage", perPage)
+        }
+
+        val responseString = executeQuery(query, variables) ?: return@withContext null
+        try {
+            val root = JSONObject(responseString)
+            val data = root.optJSONObject("data") ?: return@withContext null
+            val studioObj = data.optJSONObject("Studio") ?: return@withContext null
+            val resolvedStudioId = studioObj.optInt("id", studioId ?: 0)
+            val resolvedStudioName = studioObj.optString("name", search ?: "Studio")
+
+            val mediaObj = studioObj.optJSONObject("media")
+            val pageInfo = mediaObj?.optJSONObject("pageInfo")
+            val hasNextPage = pageInfo?.optBoolean("hasNextPage", false) ?: false
+            val currentPage = pageInfo?.optInt("currentPage", page) ?: page
+
+            val nodesArray = mediaObj?.optJSONArray("nodes")
+            val items = mutableListOf<MediaItem>()
+            if (nodesArray != null) {
+                for (i in 0 until nodesArray.length()) {
+                    val node = nodesArray.optJSONObject(i) ?: continue
+                    val mId = node.optInt("id")
+                    val malId = if (node.has("idMal") && !node.isNull("idMal")) node.optInt("idMal") else null
+                    val titleObj = node.optJSONObject("title")
+                    val tRomaji = titleObj?.optString("romaji")
+                    val tEng = titleObj?.optString("english")
+                    val coverObj = node.optJSONObject("coverImage")
+                    val cover = coverObj?.optString("large") ?: coverObj?.optString("medium") ?: ""
+                    val fmt = node.optString("format")
+                    val mType = if (node.optString("type") == "MANGA") MediaType.MANGA else MediaType.ANIME
+                    val status = node.optString("status")
+                    val episodes = if (node.has("episodes") && !node.isNull("episodes")) node.optInt("episodes") else null
+                    val chapters = if (node.has("chapters") && !node.isNull("chapters")) node.optInt("chapters") else null
+                    val score = if (node.has("averageScore") && !node.isNull("averageScore")) node.optDouble("averageScore") / 10.0 else null
+                    val genresList = mutableListOf<String>()
+                    val genresArr = node.optJSONArray("genres")
+                    if (genresArr != null) {
+                        for (g in 0 until genresArr.length()) {
+                            genresList.add(genresArr.optString(g))
+                        }
+                    }
+                    val year = node.optJSONObject("startDate")?.optInt("year", 0)?.takeIf { it > 0 }
+
+                    if (malId != null) {
+                        CacheManager.putIdMapping(malId, mId)
+                    }
+
+                    items.add(
+                        MediaItem(
+                            malId = malId,
+                            anilistId = mId,
+                            title = tRomaji ?: tEng ?: "Judul",
+                            titleEnglish = tEng,
+                            imageUrl = cover,
+                            type = mType,
+                            score = score,
+                            format = fmt,
+                            status = status,
+                            episodes = episodes,
+                            chapters = chapters,
+                            genres = genresList,
+                            year = year,
+                            studio = resolvedStudioName
+                        )
+                    )
+                }
+            }
+
+            val result = StudioFilmographyPage(
+                studioId = resolvedStudioId,
+                studioName = resolvedStudioName,
+                items = items,
+                hasNextPage = hasNextPage,
+                currentPage = currentPage
+            )
+            CacheManager.putStudioFilmography(resolvedStudioId, page, result)
+            result
         } catch (_: Exception) {
             null
         }

@@ -46,6 +46,7 @@ fun MediaDetailScreen(
     onDeleteManga: (String) -> Unit,
     onOpenCastCrew: (Int, Boolean) -> Unit,
     onOpenFullCast: (isCrew: Boolean) -> Unit,
+    onOpenStudio: ((studioId: Int, studioName: String) -> Unit)? = null,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -100,12 +101,12 @@ fun MediaDetailScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 90.dp)
         ) {
-            // Header Backdrop Image with Gradient Overlay
+            // Header Backdrop Image with Gradient Overlay (Optimized 220dp)
             item {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(260.dp)
+                        .height(220.dp)
                 ) {
                     AsyncImage(
                         model = bannerUrl,
@@ -128,48 +129,6 @@ fun MediaDetailScreen(
                                 )
                             )
                     )
-
-                    // Top Action Bar
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(
-                            onClick = onDismiss,
-                            modifier = Modifier
-                                .size(40.dp)
-                                .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.5f))
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Kembali",
-                                tint = Color.White
-                            )
-                        }
-
-                        if (userItem != null) {
-                            IconButton(
-                                onClick = {
-                                    if (isAnime) onDeleteAnime(userItem.id) else onDeleteManga(userItem.id)
-                                },
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(CircleShape)
-                                    .background(Color.Black.copy(alpha = 0.5f))
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Delete,
-                                    contentDescription = "Hapus",
-                                    tint = StatusDroppedColor
-                                )
-                            }
-                        }
-                    }
                 }
             }
 
@@ -271,7 +230,7 @@ fun MediaDetailScreen(
                 }
             }
 
-            // Stats & Ranking Badges Row (AniList Score, Rank, Popularity, Watchers)
+            // Stats & Ranking Badges Row (Synergy: MAL prioritized, AniList fallback; Single Star)
             item {
                 Row(
                     modifier = Modifier
@@ -280,43 +239,48 @@ fun MediaDetailScreen(
                         .offset(y = (-20).dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val scoreVal = extendedDetail?.averageScore
-                        ?: (userItem?.score?.toDouble() ?: mediaItem?.score)
-                    if (scoreVal != null && scoreVal > 0) {
+                    val effectiveScore = extendedDetail?.malScore
+                        ?: extendedDetail?.averageScore
+                        ?: (userItem?.score?.takeIf { it > 0 }?.toDouble() ?: mediaItem?.score)
+                    if (effectiveScore != null && effectiveScore > 0) {
+                        val scoreStr = String.format(java.util.Locale.US, "%.1f", effectiveScore)
                         MDLStatPill(
                             icon = Icons.Default.Star,
-                            label = "Rating AniList",
-                            value = "★ ${(scoreVal * 10).toInt() / 10.0}",
+                            label = if (extendedDetail?.malScore != null) "Rating MAL" else "Rating Publik",
+                            value = scoreStr,
                             color = StarGold,
                             modifier = Modifier.weight(1f)
                         )
                     }
 
-                    if (extendedDetail?.rank != null) {
+                    val effectiveRank = extendedDetail?.malRank ?: extendedDetail?.rank
+                    if (effectiveRank != null && effectiveRank > 0) {
                         MDLStatPill(
                             icon = Icons.Default.EmojiEvents,
-                            label = "Ranked",
-                            value = "#${formatCompactNumber(extendedDetail.rank)}",
+                            label = "Peringkat",
+                            value = "#${formatCompactNumber(effectiveRank)}",
                             color = AccentBlue,
                             modifier = Modifier.weight(1f)
                         )
                     }
 
-                    if (extendedDetail?.popularity != null) {
+                    val effectivePopularity = extendedDetail?.malPopularity ?: extendedDetail?.popularity
+                    if (effectivePopularity != null && effectivePopularity > 0) {
                         MDLStatPill(
                             icon = Icons.AutoMirrored.Filled.TrendingUp,
                             label = "Popularitas",
-                            value = "#${formatCompactNumber(extendedDetail.popularity)}",
+                            value = "#${formatCompactNumber(effectivePopularity)}",
                             color = AccentGreen,
                             modifier = Modifier.weight(1f)
                         )
                     }
 
-                    if (extendedDetail?.watchers != null) {
+                    val effectiveMembers = extendedDetail?.malMembers ?: extendedDetail?.watchers
+                    if (effectiveMembers != null && effectiveMembers > 0) {
                         MDLStatPill(
                             icon = Icons.Default.People,
-                            label = "Penggemar",
-                            value = formatCompactNumber(extendedDetail.watchers),
+                            label = "Anggota",
+                            value = formatCompactNumber(effectiveMembers),
                             color = Color(0xFFA855F7),
                             modifier = Modifier.weight(1f)
                         )
@@ -324,34 +288,35 @@ fun MediaDetailScreen(
                 }
             }
 
-            // Dual Rating Row (Rating MAL & Rating Pribadi) - Bagian 1.3
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .offset(y = (-10).dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    val malRating = extendedDetail?.malScore
-                    val malRatingStr = if (malRating != null && malRating > 0) "★ ${(malRating * 10).toInt() / 10.0}" else "N/A"
-                    MDLStatPill(
-                        icon = Icons.Default.Grade,
-                        label = "Rating MAL",
-                        value = malRatingStr,
-                        color = Color(0xFF38BDF8),
-                        modifier = Modifier.weight(1f)
-                    )
+            // Rating Pribadi Row (Terpisah & Jelas)
+            if (userItem != null) {
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .offset(y = (-10).dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val userScore = userItem.score
+                        val userRatingStr = if (userScore > 0) "$userScore / 10" else "Belum Dinilai"
+                        MDLStatPill(
+                            icon = Icons.Default.Person,
+                            label = "Rating Pribadi Anda",
+                            value = userRatingStr,
+                            color = if (userScore > 0) StarGold else TextMuted,
+                            modifier = Modifier.weight(1f)
+                        )
 
-                    val userScore = userItem?.score ?: 0
-                    val userRatingStr = if (userScore > 0) "★ $userScore / 10" else "Belum dinilai"
-                    MDLStatPill(
-                        icon = Icons.Default.Person,
-                        label = "Rating Pribadi",
-                        value = userRatingStr,
-                        color = if (userScore > 0) StarGold else TextMuted,
-                        modifier = Modifier.weight(1f)
-                    )
+                        val currentStatusName = currentStatusOptions.firstOrNull { it.first == userItem.status }?.second ?: userItem.status
+                        MDLStatPill(
+                            icon = Icons.Default.Bookmark,
+                            label = "Status Koleksi",
+                            value = currentStatusName,
+                            color = themeAccent,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
 
@@ -426,7 +391,14 @@ fun MediaDetailScreen(
 
                         val studio = extendedDetail?.studio ?: userItem?.studio ?: mediaItem?.studio
                         if (!studio.isNullOrBlank()) {
-                            DetailRowItem(label = if (isAnime) "Studio" else "Penerbit/Author", value = studio)
+                            val studioId = extendedDetail?.studioId
+                            val canOpenStudio = isAnime && studioId != null && onOpenStudio != null
+                            DetailRowItem(
+                                label = if (isAnime) "Studio" else "Penerbit/Author",
+                                value = studio,
+                                isClickable = canOpenStudio,
+                                onClick = if (canOpenStudio) { { onOpenStudio?.invoke(studioId!!, studio) } } else null
+                            )
                         }
 
                         val duration = extendedDetail?.durationMinutes
@@ -854,22 +826,112 @@ fun MediaDetailScreen(
                 }
             }
         }
+
+        // Top Gradient Scrim for Persistent Floating Action Buttons
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(90.dp)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Black.copy(alpha = 0.8f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
+
+        // Pinned Top-Left Back FAB
+        IconButton(
+            onClick = onDismiss,
+            modifier = Modifier
+                .statusBarsPadding()
+                .padding(start = 16.dp, top = 8.dp)
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.65f))
+                .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Kembali",
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
+        // Pinned Top-Right Delete FAB
+        if (userItem != null) {
+            var showDeleteDialog by remember { mutableStateOf(false) }
+            IconButton(
+                onClick = { showDeleteDialog = true },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(end = 16.dp, top = 8.dp)
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.65f))
+                    .border(1.dp, StatusDroppedColor.copy(alpha = 0.4f), CircleShape)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Hapus",
+                    tint = StatusDroppedColor,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            if (showDeleteDialog) {
+                AlertDialog(
+                    onDismissRequest = { showDeleteDialog = false },
+                    title = { Text("Hapus dari Koleksi", color = TextPrimary, fontWeight = FontWeight.Bold) },
+                    text = { Text("Apakah kamu yakin ingin menghapus \"$title\" dari koleksimu?", color = TextSecondary) },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                showDeleteDialog = false
+                                if (isAnime) onDeleteAnime(userItem.id) else onDeleteManga(userItem.id)
+                                onDismiss()
+                            }
+                        ) {
+                            Text("Hapus", color = StatusDroppedColor, fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDeleteDialog = false }) {
+                            Text("Batal", color = TextSecondary)
+                        }
+                    },
+                    containerColor = CardBg,
+                    shape = RoundedCornerShape(16.dp)
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun DetailRowItem(label: String, value: String) {
+private fun DetailRowItem(
+    label: String,
+    value: String,
+    isClickable: Boolean = false,
+    onClick: (() -> Unit)? = null
+) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(text = label, color = TextMuted, fontSize = 12.sp, modifier = Modifier.weight(0.4f))
         Text(
-            text = value,
-            color = TextPrimary,
+            text = if (isClickable) "$value ↗" else value,
+            color = if (isClickable) AccentBlue else TextPrimary,
             fontSize = 12.sp,
-            fontWeight = FontWeight.SemiBold,
+            fontWeight = if (isClickable) FontWeight.Bold else FontWeight.SemiBold,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(0.6f)

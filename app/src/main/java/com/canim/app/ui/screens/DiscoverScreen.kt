@@ -8,6 +8,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -39,6 +42,7 @@ private val ItemImageShape = RoundedCornerShape(8.dp)
 private val AnimeBorderStroke = BorderStroke(1.dp, CardBorder)
 private val MangaBorderStroke = BorderStroke(1.dp, MangaCardBorder)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiscoverScreen(
     state: CanimUiState,
@@ -50,12 +54,15 @@ fun DiscoverScreen(
     onLoadMore: () -> Unit = {},
     onSaveAnime: (UserMediaItem) -> Unit = {},
     onSaveManga: (UserMediaItem) -> Unit = {},
+    onOpenStudio: ((studioId: Int, studioName: String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var showFilterPanel by remember { mutableStateOf(false) }
     var filterMediaType by remember { mutableStateOf(if (state.discoverFilter.format == "MANGA") MediaType.MANGA else MediaType.ANIME) }
     var selectedItemForAdd by remember { mutableStateOf<MediaItem?>(null) }
     var selectedItemForEdit by remember { mutableStateOf<MediaItem?>(null) }
+    var showStudioPickerSheet by remember { mutableStateOf(false) }
+    var studioSearchQuery by remember { mutableStateOf("") }
 
     val onSelectDiscoverMedia: (MediaItem) -> Unit = remember(onSelectItem) {
         { media -> onSelectItem(media, media.type) }
@@ -191,11 +198,14 @@ fun DiscoverScreen(
                 contentPadding = PaddingValues(vertical = 4.dp)
             ) {
                 items(categories) { category ->
+                    val isStudio = category == DiscoverCategory.STUDIO
                     val isSelected = state.selectedDiscoverCategory == category
                     FilterChip(
                         selected = isSelected,
                         onClick = {
-                            if (!isSelected) {
+                            if (isStudio) {
+                                showStudioPickerSheet = true
+                            } else if (!isSelected) {
                                 val currentFilter = DiscoverFilter(
                                     genre = filterGenre,
                                     format = filterFormat,
@@ -206,24 +216,34 @@ fun DiscoverScreen(
                                 onSelectCategory(category, currentFilter)
                             }
                         },
+                        leadingIcon = if (isStudio) {
+                            {
+                                Icon(
+                                    imageVector = Icons.Default.Movie,
+                                    contentDescription = null,
+                                    tint = if (isSelected) Color.White else AccentBlue,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
+                        } else null,
                         label = {
                             Text(
                                 text = category.label,
                                 fontSize = 12.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                fontWeight = if (isSelected || isStudio) FontWeight.Bold else FontWeight.Normal
                             )
                         },
                         shape = RoundedCornerShape(20.dp),
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = AccentBlue,
                             selectedLabelColor = Color.White,
-                            containerColor = CardBg,
-                            labelColor = TextSecondary
+                            containerColor = if (isStudio) AccentBlue.copy(alpha = 0.18f) else CardBg,
+                            labelColor = if (isStudio) AccentBlue else TextSecondary
                         ),
                         border = FilterChipDefaults.filterChipBorder(
                             enabled = true,
                             selected = isSelected,
-                            borderColor = CardBorder,
+                            borderColor = if (isStudio) AccentBlue.copy(alpha = 0.6f) else CardBorder,
                             selectedBorderColor = AccentBlue
                         )
                     )
@@ -688,7 +708,138 @@ fun DiscoverScreen(
         )
     }
 
+    // Studio Picker Modal Bottom Sheet
+    if (showStudioPickerSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showStudioPickerSheet = false },
+            containerColor = CardBg,
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ) {
+            val popularStudios = remember {
+                listOf(
+                    569 to "MAPPA",
+                    43 to "Ufotable",
+                    2 to "Kyoto Animation",
+                    4 to "Bones",
+                    858 to "Wit Studio",
+                    11 to "Madhouse",
+                    6140 to "CloverWorks",
+                    56 to "A-1 Pictures",
+                    44 to "Shaft",
+                    10 to "Production I.G",
+                    803 to "Trigger",
+                    7 to "J.C.Staff",
+                    18 to "Toei Animation",
+                    290 to "CoMix Wave Films",
+                    95 to "Doga Kobo",
+                    287 to "David Production"
+                )
+            }
 
+            val filteredStudios = remember(studioSearchQuery) {
+                if (studioSearchQuery.isBlank()) popularStudios
+                else popularStudios.filter { it.second.contains(studioSearchQuery, ignoreCase = true) }
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "Jelajahi Filmografi Studio",
+                    color = TextPrimary,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Pilih studio animasi ternama untuk melihat katalog karya yang diproduksi",
+                    color = TextSecondary,
+                    fontSize = 12.sp
+                )
+
+                OutlinedTextField(
+                    value = studioSearchQuery,
+                    onValueChange = { studioSearchQuery = it },
+                    placeholder = { Text("Cari nama studio...", color = TextMuted, fontSize = 13.sp) },
+                    leadingIcon = {
+                        Icon(imageVector = Icons.Default.Search, contentDescription = null, tint = AccentBlue)
+                    },
+                    trailingIcon = if (studioSearchQuery.isNotEmpty()) {
+                        {
+                            IconButton(onClick = { studioSearchQuery = "" }) {
+                                Icon(imageVector = Icons.Default.Close, contentDescription = null, tint = TextMuted)
+                            }
+                        }
+                    } else null,
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = AccentBlue,
+                        unfocusedBorderColor = CardBorder,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Text(
+                    text = "STUDIO POPULER",
+                    color = TextMuted,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(minSize = 130.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 350.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(filteredStudios) { (sId, sName) ->
+                        Surface(
+                            onClick = {
+                                showStudioPickerSheet = false
+                                onOpenStudio?.invoke(sId, sName)
+                            },
+                            color = CardElevated,
+                            shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = sName,
+                                    color = TextPrimary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Icon(
+                                    imageVector = Icons.Default.ChevronRight,
+                                    contentDescription = null,
+                                    tint = AccentBlue,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+        }
+    }
 }
 }
 

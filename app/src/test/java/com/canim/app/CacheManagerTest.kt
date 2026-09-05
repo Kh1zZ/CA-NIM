@@ -88,4 +88,31 @@ class CacheManagerTest {
         assertEquals(1, cached?.filmography?.size)
         assertEquals("Sousou no Frieren", cached?.filmography?.first()?.title)
     }
+
+    @Test
+    fun testStudioFilmographyCache() {
+        val page = com.canim.app.data.cache.StudioFilmographyPage(
+            studioId = 569,
+            studioName = "MAPPA",
+            items = listOf(
+                MediaItem(
+                    anilistId = 113415,
+                    malId = 40748,
+                    title = "Jujutsu Kaisen",
+                    imageUrl = "https://example.com/jjk.jpg",
+                    type = MediaType.ANIME
+                )
+            ),
+            hasNextPage = true,
+            currentPage = 1
+        )
+
+        CacheManager.putStudioFilmography(569, 1, page)
+        val cached = CacheManager.getStudioFilmography(569, 1)
+        assertNotNull(cached)
+        assertEquals("MAPPA", cached?.studioName)
+        assertEquals(1, cached?.items?.size)
+        assertEquals("Jujutsu Kaisen", cached?.items?.first()?.title)
+        assertTrue(cached?.hasNextPage == true)
+    }
 }

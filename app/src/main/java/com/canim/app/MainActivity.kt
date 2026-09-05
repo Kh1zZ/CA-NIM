@@ -257,7 +257,8 @@ class MainActivity : ComponentActivity() {
                                     onRandomizeManga = { filter -> viewModel.randomizeManga(filter) },
                                     onLoadMore = { viewModel.loadMoreDiscover() },
                                     onSaveAnime = { viewModel.saveAnime(it) },
-                                    onSaveManga = { viewModel.saveManga(it) }
+                                    onSaveManga = { viewModel.saveManga(it) },
+                                    onOpenStudio = { studioId, studioName -> viewModel.openStudio(studioId, studioName) }
                                 )
                             }
                             "settings" -> {
@@ -323,7 +324,21 @@ class MainActivity : ComponentActivity() {
                                             isCrewInitial = isCrew
                                         )
                                     },
+                                    onOpenStudio = { studioId, studioName -> viewModel.openStudio(studioId, studioName) },
                                     onDismiss = { viewModel.popScreen() }
+                                )
+                            }
+                            is ScreenRoute.StudioFilmography -> {
+                                StudioFilmographyScreen(
+                                    studioId = currentScreen.studioId,
+                                    studioName = currentScreen.studioName,
+                                    items = uiState.studioFilmographyItems,
+                                    isLoading = uiState.isStudioFilmographyLoading,
+                                    isLoadingMore = uiState.isStudioFilmographyLoadingMore,
+                                    canLoadMore = uiState.canLoadMoreStudioFilmography,
+                                    onLoadMore = { viewModel.loadMoreStudioFilmography() },
+                                    onOpenDetail = { media, type -> viewModel.openDetail(media, type) },
+                                    onBack = { viewModel.popScreen() }
                                 )
                             }
                             is ScreenRoute.Stats -> {

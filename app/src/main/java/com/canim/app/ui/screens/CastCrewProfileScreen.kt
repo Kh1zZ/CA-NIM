@@ -123,7 +123,7 @@ fun CastCrewProfileScreen(
                     .fillMaxSize()
                     .padding(innerPadding),
                 contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 // Header Bio Card
                 item {
@@ -174,13 +174,19 @@ fun CastCrewProfileScreen(
 
                                 Spacer(modifier = Modifier.height(2.dp))
 
+                                val badgeTitle = when {
+                                    !profile.isStaff -> "KARAKTER"
+                                    hasVa -> "VA / SEIYUU"
+                                    else -> "STAF PRODUKSI"
+                                }
+                                val badgeColor = if (!profile.isStaff) AccentBlue else if (hasVa) StarGold else MangaAccentDarkBlue
                                 Surface(
-                                    color = if (profile.isStaff) MangaAccentDarkBlue.copy(alpha = 0.2f) else AccentBlue.copy(alpha = 0.2f),
+                                    color = badgeColor.copy(alpha = 0.2f),
                                     shape = RoundedCornerShape(6.dp)
                                 ) {
                                     Text(
-                                        text = if (profile.isStaff) "STAF / ARTIS" else "KARAKTER",
-                                        color = if (profile.isStaff) MangaAccentDarkBlue else AccentBlue,
+                                        text = badgeTitle,
+                                        color = badgeColor,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Black,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
@@ -222,7 +228,7 @@ fun CastCrewProfileScreen(
                                 BioRowItem(label = "Usia", value = "${profile.age} Tahun")
                             }
                             if (!profile.nationality.isNullOrBlank()) {
-                                BioRowItem(label = "Kota Asal / Kebangsaan", value = profile.nationality)
+                                BioRowItem(label = "Nationality", value = profile.nationality)
                             }
                             BioRowItem(label = "Total Entri Filmografi", value = "${profile.filmography.size} Judul")
                         }
@@ -358,14 +364,21 @@ private fun BioRowItem(label: String, value: String) {
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = label, color = TextMuted, fontSize = 12.sp)
+        Text(
+            text = label,
+            color = TextMuted,
+            fontSize = 12.sp,
+            modifier = Modifier.weight(0.42f)
+        )
         Text(
             text = value,
             color = TextPrimary,
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = androidx.compose.ui.text.style.TextAlign.End,
+            modifier = Modifier.weight(0.58f)
         )
     }
 }

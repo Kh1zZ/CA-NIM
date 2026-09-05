@@ -273,7 +273,7 @@ private fun FullCastRowItem(
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "Pengisi Suara (JP)",
+                        text = "VA / Seiyuu",
                         color = TextMuted,
                         fontSize = 10.sp
                     )

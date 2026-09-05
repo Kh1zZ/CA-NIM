@@ -3,6 +3,7 @@ package com.canim.app.data.repository
 import android.content.Context
 import com.canim.app.data.cache.CacheManager
 import com.canim.app.data.model.*
+import com.canim.app.data.cache.StudioFilmographyPage
 import com.canim.app.data.remote.AniListClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -247,13 +248,19 @@ class CanimRepository(
         var detail = AniListClient.getExtendedDetails(aniListId, malId, type, forceRefresh)
 
         val effectiveMalId = detail?.malId ?: malId
-        if (effectiveMalId != null && (detail == null || detail.malScore == null || detail.studio.isNullOrBlank() || detail.startDate.isNullOrBlank() || detail.genres.isEmpty())) {
+        if (effectiveMalId != null) {
             val malExt = malAuthManager.getExtendedDetailFallback(effectiveMalId, type)
             if (malExt != null) {
                 detail = if (detail != null) {
                     detail.copy(
-                        malScore = malExt.malScore,
+                        // Metrics: Prioritize MAL, fallback to AniList so nothing is empty
+                        malScore = malExt.malScore ?: detail.averageScore,
+                        malRank = malExt.malRank ?: detail.rank,
+                        malPopularity = malExt.malPopularity ?: detail.popularity,
+                        malMembers = malExt.malMembers ?: detail.watchers,
+                        // Visual / rich media: Prioritize AniList, fallback to MAL
                         studio = detail.studio ?: malExt.studio,
+                        studioId = detail.studioId ?: malExt.studioId,
                         publisher = detail.publisher ?: malExt.publisher,
                         airingStatus = detail.airingStatus ?: malExt.airingStatus,
                         startDate = detail.startDate ?: malExt.startDate,
@@ -427,4 +434,17 @@ class CanimRepository(
         MediaItem(656, 30656, "Vagabond", "Vagabond", "https://cdn.myanimelist.net/images/manga/1/259070l.jpg", MediaType.MANGA, 9.25, "Growing up in 16th century Sengoku era Japan...", null, 327, 37, "On Hiatus", null, null, listOf("Action", "Historical"), "MANGA", null),
         MediaItem(121496, 105398, "Solo Leveling", "Solo Leveling", "https://cdn.myanimelist.net/images/manga/3/222295l.jpg", MediaType.MANGA, 8.68, "Ten years ago, 'the Gate' appeared...", null, 179, null, "Finished", null, null, listOf("Action", "Fantasy"), "MANGA", null)
     )
+
+    suspend fun getMalTrackingStatus(malId: Int, type: MediaType): MalTracking? {
+        return malAuthManager.getMalUserTracking(malId, type)
+    }
+
+    suspend fun getStudioFilmography(
+        studioId: Int?,
+        search: String? = null,
+        page: Int = 1,
+        forceRefresh: Boolean = false
+    ): StudioFilmographyPage? {
+        return AniListClient.getStudioFilmography(studioId, search, page, forceRefresh = forceRefresh)
+    }
 }

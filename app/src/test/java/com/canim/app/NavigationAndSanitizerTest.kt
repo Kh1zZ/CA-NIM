@@ -145,4 +145,63 @@ class NavigationAndSanitizerTest {
         assertTrue(staffOnly.any { it.role == "Director" })
         assertTrue(staffOnly.any { it.role == "Story & Art" })
     }
+
+    @Test
+    fun testStudioFilmographyRoute() {
+        val route = ScreenRoute.StudioFilmography(studioId = 569, studioName = "MAPPA")
+        assertEquals(569, route.studioId)
+        assertEquals("MAPPA", route.studioName)
+    }
+
+    @Test
+    fun testMalAniListSynergyFallbackLogic() {
+        // Mock AniList detail with high quality visual but missing MAL metrics
+        val aniListOnly = com.canim.app.data.model.ExtendedMediaDetail(
+            title = "Jujutsu Kaisen",
+            coverImage = "https://anilist.co/cover_hd.jpg",
+            bannerImage = "https://anilist.co/banner_hd.jpg",
+            studio = "MAPPA",
+            studioId = 569,
+            averageScore = 8.5,
+            rank = 150,
+            popularity = 25,
+            watchers = 350000,
+            malScore = null,
+            malRank = null,
+            malPopularity = null,
+            malMembers = null
+        )
+
+        // Effective score should fallback to averageScore if malScore is null
+        val effectiveScore1 = aniListOnly.malScore ?: aniListOnly.averageScore
+        assertEquals(8.5, effectiveScore1)
+
+        val effectiveRank1 = aniListOnly.malRank ?: aniListOnly.rank
+        assertEquals(150, effectiveRank1)
+
+        // When MAL metrics are present, MAL is prioritized over AniList
+        val synergized = aniListOnly.copy(
+            malScore = 8.8,
+            malRank = 45,
+            malPopularity = 12,
+            malMembers = 500000
+        )
+
+        val effectiveScore2 = synergized.malScore ?: synergized.averageScore
+        assertEquals(8.8, effectiveScore2)
+
+        val effectiveRank2 = synergized.malRank ?: synergized.rank
+        assertEquals(45, effectiveRank2)
+
+        val effectivePopularity2 = synergized.malPopularity ?: synergized.popularity
+        assertEquals(12, effectivePopularity2)
+
+        val effectiveMembers2 = synergized.malMembers ?: synergized.watchers
+        assertEquals(500000, effectiveMembers2)
+
+        // Visuals remain preserved from AniList
+        assertEquals("https://anilist.co/cover_hd.jpg", synergized.coverImage)
+        assertEquals("https://anilist.co/banner_hd.jpg", synergized.bannerImage)
+        assertEquals(569, synergized.studioId)
+    }
 }
