@@ -118,7 +118,7 @@ CA'NIM dibangun dengan arsitektur modern yang memisahkan tanggung jawab secara t
 1. **MyAnimeList sebagai Single Source of Truth**: Status tontonan/bacaan (`watching`, `reading`, `completed`, `on_hold`, `dropped`, `plan_to_watch`, `plan_to_read`), jumlah progres, skor (1–10), dan tanggal dikelola langsung oleh server MyAnimeList tanpa database lokal ganda (Room) yang rentan konflik.
 2. **AniList GraphQL sebagai Sumber Metadata Utama**: Sinopsis lengkap, poster HD, studio animasi, genre, dan format serial diambil langsung via AniList GraphQL API secara efisien (*batching up to 50 items*).
 3. **MediaResolver Terpusat & Pemisahan ID (`MediaRef`)**: Memisahkan secara ketat namespace `anilistId` dan `malId` tanpa fabrikasi ID tiruan.
-4. **Optimistic UI dengan Garansi Rollback**: Tombol +1 episode/chapter langsung memperbarui tampilan antarmuka seketika (*0 ms perceived latency*). Jika terjadi kegagalan jaringan, status otomatis di-*rollback* ke kondisi semula disertai notifikasi jelas.
+4. **Optimistic UI dengan Garansi Rollback**: Tombol +1 episode/chapter langsung memperbarui tampilan antarmuka seketika (*50 ms perceived latency*). Jika terjadi kegagalan jaringan, status otomatis di-*rollback* ke kondisi semula disertai notifikasi jelas.
 
 ---
 
