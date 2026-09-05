@@ -27,7 +27,6 @@ Dapatkan rilis resmi **CA'NIM** siap pasang langsung dari halaman rilis GitHub:
 | Berkas | Tipe | Arsitektur | Kebutuhan Minimum | Tautan |
 | :--- | :---: | :---: | :---: | :---: |
 | **`canim-universal-release-v4.4.2.apk`** | **Release** | **Universal** (`arm64-v8a`, `armeabi-v7a`, `x86_64`) | Android 7.0+ (API 24+) | [👉 Unduh APK Rilis](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
-| **`canim-debug-v4.4.2.apk`** | **Debug** | **Universal** | Android 7.0+ (API 24+) | [👉 Unduh APK Debug](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
 | **`SHA256SUMS.txt`** | **Checksum** | — | — | [👉 Verifikasi Checksum](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
 
 > 💡 **Catatan Instalasi**: APK Release dikompilasi secara universal oleh GitHub Actions CI/CD, bebas dari bloatware/tracker, dan telah dioptimalkan secara penuh menggunakan R8 Minifier untuk pengalaman scrolling terbaik.
@@ -223,7 +222,7 @@ Mulai versi `v4.4.1`, seluruh berkas APK rilis resmi **CA'NIM** dikompilasi seca
 - **Release Pipeline (`.github/workflows/release.yml`)**: Terpicu secara otomatis ketika sebuah Git tag rilis dibuat dan di-push (`v*`, contoh: `v4.4.1`, `v4.5.0`):
   1. Validasi kecocokan ketat antara Git tag (`vX.Y.Z`) dan `versionName` serta `versionCode` pada `app/build.gradle.kts` (mencegah salah rilis/tag).
   2. Menjalankan seluruh automated unit tests.
-  3. Mengompilasi APK Release Universal (`canim-universal-release-vX.Y.Z.apk`) dan APK Debug (`canim-debug-vX.Y.Z.apk`).
+  3. Mengompilasi APK Release Universal (`canim-universal-release-vX.Y.Z.apk`).
   4. Menghasilkan ringkasan kriptografi `SHA256SUMS.txt`.
   5. Menghasilkan *release notes* otomatis terstruktur berdasarkan commit messages (`feat:`, `fix:`, `perf:`, `ui:`).
   6. Memublikasikan GitHub Release beserta seluruh aset APK.

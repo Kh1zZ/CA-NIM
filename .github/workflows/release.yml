@@ -75,14 +75,13 @@ jobs:
       - name: Run Unit Tests
         run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
 
-      - name: Build Official Release and Debug APKs
-        run: ./gradlew assembleRelease assembleDebug --no-daemon --stacktrace
+      - name: Build Official Release APK
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Validate APKs and Stage Release Assets
+      - name: Validate and Stage Release APK
         run: |
           VERSION_NAME="${{ steps.version_check.outputs.version_name }}"
           RELEASE_APK="app/build/outputs/apk/release/canim-universal-release-${VERSION_NAME}.apk"
-          DEBUG_APK="app/build/outputs/apk/debug/canim-debug-${VERSION_NAME}.apk"
 
           echo "Validating Release APK: $RELEASE_APK"
           if [ ! -s "$RELEASE_APK" ]; then
@@ -91,16 +90,8 @@ jobs:
             exit 1
           fi
 
-          echo "Validating Debug APK: $DEBUG_APK"
-          if [ ! -s "$DEBUG_APK" ]; then
-            echo "::error::Debug APK not found or empty at $DEBUG_APK"
-            ls -la app/build/outputs/apk/debug/ || true
-            exit 1
-          fi
-
           mkdir -p release-dist
           cp "$RELEASE_APK" release-dist/
-          cp "$DEBUG_APK" release-dist/
 
           echo "Staged release assets:"
           ls -lh release-dist/
@@ -109,7 +100,7 @@ jobs:
         run: |
           cd release-dist
           VERSION_NAME="${{ steps.version_check.outputs.version_name }}"
-          sha256sum "canim-universal-release-${VERSION_NAME}.apk" "canim-debug-${VERSION_NAME}.apk" > SHA256SUMS.txt
+          sha256sum "canim-universal-release-${VERSION_NAME}.apk" > SHA256SUMS.txt
           echo "=== SHA256SUMS.txt ==="
           cat SHA256SUMS.txt
           cd ..
@@ -215,7 +206,6 @@ jobs:
           sections.append("| File | Type | Description |")
           sections.append("| :--- | :---: | :--- |")
           sections.append(f"| `canim-universal-release-{current_tag}.apk` | **Release** | **Official Production APK** (Universal arm64/arm32/x86_64, R8 optimized) |")
-          sections.append(f"| `canim-debug-{current_tag}.apk` | **Debug** | **Testing APK** (development & log debugging) |")
           sections.append("| `SHA256SUMS.txt` | **Checksum** | Cryptographic SHA-256 hash list for integrity verification |")
 
           with open("release_notes.md", "w", encoding="utf-8") as f:
@@ -233,7 +223,6 @@ jobs:
           echo "Publishing GitHub Release for tag $TAG_NAME..."
           gh release create "$TAG_NAME" \
             "release-dist/canim-universal-release-${TAG_NAME}.apk" \
-            "release-dist/canim-debug-${TAG_NAME}.apk" \
             "release-dist/SHA256SUMS.txt" \
             --title "CA'NIM $TAG_NAME" \
             --notes-file release_notes.md
