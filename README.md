@@ -26,8 +26,8 @@ Dapatkan rilis resmi **CA'NIM** siap pasang langsung dari halaman rilis GitHub:
 
 | Berkas | Tipe | Arsitektur | Kebutuhan Minimum | Tautan |
 | :--- | :---: | :---: | :---: | :---: |
-| **`canim-universal-release-v4.4.1.apk`** | **Release** | **Universal** (`arm64-v8a`, `armeabi-v7a`, `x86_64`) | Android 7.0+ (API 24+) | [👉 Unduh APK Rilis](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
-| **`canim-debug-v4.4.1.apk`** | **Debug** | **Universal** | Android 7.0+ (API 24+) | [👉 Unduh APK Debug](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
+| **`canim-universal-release-v4.4.2.apk`** | **Release** | **Universal** (`arm64-v8a`, `armeabi-v7a`, `x86_64`) | Android 7.0+ (API 24+) | [👉 Unduh APK Rilis](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
+| **`canim-debug-v4.4.2.apk`** | **Debug** | **Universal** | Android 7.0+ (API 24+) | [👉 Unduh APK Debug](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
 | **`SHA256SUMS.txt`** | **Checksum** | — | — | [👉 Verifikasi Checksum](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
 
 > 💡 **Catatan Instalasi**: APK Release dikompilasi secara universal oleh GitHub Actions CI/CD, bebas dari bloatware/tracker, dan telah dioptimalkan secara penuh menggunakan R8 Minifier untuk pengalaman scrolling terbaik.
