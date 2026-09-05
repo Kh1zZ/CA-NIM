@@ -35,17 +35,30 @@ enum class StatsExportFormat(val label: String, val extension: String, val mimeT
     PNG("Gambar PNG", "png", "image/png")
 }
 
+enum class ExportResolution(val label: String) {
+    FHD("Full HD (1080p)"),
+    QHD_2K("2K (1440p)")
+}
+
 enum class ExportAspectRatio(
     val label: String,
-    val width: Int,
-    val height: Int,
+    val fhdWidth: Int,
+    val fhdHeight: Int,
+    val qhdWidth: Int,
+    val qhdHeight: Int,
     val isLandscape: Boolean
 ) {
-    RATIO_16_9("16:9", 1920, 1080, true),
-    RATIO_19_6("19:6", 1900, 600, true),
-    RATIO_1_1("1:1", 1200, 1200, false),
-    RATIO_4_5("4:5", 1080, 1350, false),
-    RATIO_3_4("3:4", 1080, 1440, false)
+    STORY_16_9("16:9 (Story)", 1080, 1920, 1440, 2560, false),
+    PORTRAIT_4_5("4:5", 1080, 1350, 1440, 1800, false),
+    PORTRAIT_3_4("3:4", 1080, 1440, 1440, 1920, false),
+    SQUARE_1_1("1:1", 1080, 1080, 1440, 1440, false),
+    LANDSCAPE_16_9("16:9 (Landscape)", 1920, 1080, 2560, 1440, true);
+
+    fun getWidth(resolution: ExportResolution): Int =
+        if (resolution == ExportResolution.QHD_2K) qhdWidth else fhdWidth
+
+    fun getHeight(resolution: ExportResolution): Int =
+        if (resolution == ExportResolution.QHD_2K) qhdHeight else fhdHeight
 }
 
 private data class CanvasPieSlice(val label: String, val count: Int, val color: Int)
@@ -59,16 +72,19 @@ object StatsExporter {
         topAnime: List<UserMediaItem>,
         topManga: List<UserMediaItem>,
         format: StatsExportFormat,
-        aspectRatio: ExportAspectRatio = ExportAspectRatio.RATIO_16_9
+        aspectRatio: ExportAspectRatio = ExportAspectRatio.STORY_16_9,
+        resolution: ExportResolution = ExportResolution.FHD
     ): Result<Uri> = withContext(Dispatchers.IO) {
         try {
             // Apply Top 5 Sequel exclusion rule for Anime
             val filteredTopAnime = AnimeFranchiseFilter.selectTopAnimeNonSequel(topAnime, 5)
             val filteredTopManga = topManga.take(5)
 
-            val bitmap = renderStatsBitmap(context, stats, malUser, filteredTopAnime, filteredTopManga, aspectRatio)
+            val bitmap = renderStatsBitmap(context, stats, malUser, filteredTopAnime, filteredTopManga, aspectRatio, resolution)
             val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            val filename = "canim_stats_${malUser.username.ifBlank { "user" }}_${aspectRatio.label.replace(":", "_")}_$timeStamp.${format.extension}"
+            val resTag = if (resolution == ExportResolution.QHD_2K) "2k" else "fhd"
+            val ratioTag = aspectRatio.name.lowercase()
+            val filename = "canim_stats_${malUser.username.ifBlank { "user" }}_${ratioTag}_${resTag}_$timeStamp.${format.extension}"
 
             // 1. Save locally for FileProvider sharing
             val statsDir = File(context.cacheDir, "stats").apply { mkdirs() }
@@ -80,7 +96,7 @@ object StatsExporter {
                     StatsExportFormat.PNG -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)
                     StatsExportFormat.PDF -> {
                         val pdfDoc = PdfDocument()
-                        val pageInfo = PdfDocument.PageInfo.Builder(aspectRatio.width, aspectRatio.height, 1).create()
+                        val pageInfo = PdfDocument.PageInfo.Builder(bitmap.width, bitmap.height, 1).create()
                         val page = pdfDoc.startPage(pageInfo)
                         page.canvas.drawBitmap(bitmap, 0f, 0f, null)
                         pdfDoc.finishPage(page)
@@ -192,12 +208,22 @@ object StatsExporter {
         malUser: MalUser,
         topAnime: List<UserMediaItem>,
         topManga: List<UserMediaItem>,
-        aspectRatio: ExportAspectRatio
+        aspectRatio: ExportAspectRatio,
+        resolution: ExportResolution
     ): Bitmap {
-        val width = aspectRatio.width
-        val height = aspectRatio.height
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val targetWidth = aspectRatio.getWidth(resolution)
+        val targetHeight = aspectRatio.getHeight(resolution)
+        val bitmap = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
+
+        // Scale canvas up if 2K resolution is selected
+        if (resolution == ExportResolution.QHD_2K) {
+            val scale = targetWidth.toFloat() / aspectRatio.fhdWidth.toFloat()
+            canvas.scale(scale, scale)
+        }
+
+        val baseWidth = aspectRatio.fhdWidth.toFloat()
+        val baseHeight = aspectRatio.fhdHeight.toFloat()
 
         // Preload cover bitmaps in parallel
         val animeCoversDeferred = withContext(Dispatchers.IO) {
@@ -216,21 +242,21 @@ object StatsExporter {
         // Background Gradient
         val bgPaint = Paint().apply {
             shader = LinearGradient(
-                0f, 0f, width.toFloat(), height.toFloat(),
+                0f, 0f, baseWidth, baseHeight,
                 intArrayOf(Color.rgb(10, 15, 29), Color.rgb(15, 23, 42), Color.rgb(2, 6, 23)),
                 null, Shader.TileMode.CLAMP
             )
         }
-        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bgPaint)
+        canvas.drawRect(0f, 0f, baseWidth, baseHeight, bgPaint)
 
         // Decorative background glow
         val glowPaint = Paint().apply {
             shader = RadialGradient(
-                width * 0.85f, height * 0.15f, width * 0.35f,
-                Color.argb(40, 56, 189, 248), Color.TRANSPARENT, Shader.TileMode.CLAMP
+                baseWidth * 0.85f, baseHeight * 0.15f, baseWidth * 0.40f,
+                Color.argb(45, 56, 189, 248), Color.TRANSPARENT, Shader.TileMode.CLAMP
             )
         }
-        canvas.drawCircle(width * 0.85f, height * 0.15f, width * 0.35f, glowPaint)
+        canvas.drawCircle(baseWidth * 0.85f, baseHeight * 0.15f, baseWidth * 0.40f, glowPaint)
 
         val cardBgPaint = Paint().apply {
             color = Color.rgb(17, 24, 39)
@@ -253,30 +279,29 @@ object StatsExporter {
             BitmapFactory.decodeResource(context.resources, R.drawable.ic_app_logo)
         }.getOrNull()
 
-        val headerMargin = if (width >= 1200) 70f else 40f
-        var headerTextX = headerMargin
-        val headerY = if (height <= 700) 24f else 32f
-        val logoHeight = if (height <= 700) 48f else 60f
+        val margin = if (baseWidth >= 1200) 65f else 50f
+        var headerTextX = margin
+        val headerY = if (aspectRatio == ExportAspectRatio.STORY_16_9) 50f else 38f
+        val logoHeight = if (aspectRatio == ExportAspectRatio.STORY_16_9) 66f else 56f
 
         if (logoBitmap != null) {
             val logoWidth = logoBitmap.width * (logoHeight / logoBitmap.height)
-            val destRect = RectF(headerMargin, headerY, headerMargin + logoWidth, headerY + logoHeight)
+            val destRect = RectF(margin, headerY, margin + logoWidth, headerY + logoHeight)
             canvas.drawBitmap(logoBitmap, null, destRect, Paint(Paint.FILTER_BITMAP_FLAG))
-            headerTextX = headerMargin + logoWidth + 20f
+            headerTextX = margin + logoWidth + 20f
         }
 
         val appSubPaint = Paint().apply {
             color = Color.rgb(56, 189, 248)
-            textSize = if (height <= 700) 18f else 22f
+            textSize = if (aspectRatio == ExportAspectRatio.STORY_16_9) 24f else 20f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             isAntiAlias = true
         }
-        // Requirement 4: Remove "• Terhubung dengan MAL"
         canvas.drawText("Lacak Anime dan Mangamu", headerTextX, headerY + (logoHeight * 0.65f), appSubPaint)
 
         // Header Divider
-        val divY = headerY + logoHeight + (if (height <= 700) 14f else 20f)
-        canvas.drawLine(headerMargin, divY, width - headerMargin, divY, divPaint)
+        val divY = headerY + logoHeight + 16f
+        canvas.drawLine(margin, divY, baseWidth - margin, divY, divPaint)
 
         // Status Distribution Pie Slices
         val pieSlices = listOf(
@@ -288,47 +313,12 @@ object StatsExporter {
         ).filter { it.count > 0 }
 
         when (aspectRatio) {
-            ExportAspectRatio.RATIO_16_9 -> {
-                renderLayout16x9(
+            ExportAspectRatio.STORY_16_9 -> {
+                renderLayoutStory(
                     canvas = canvas,
-                    width = width.toFloat(),
-                    height = height.toFloat(),
-                    topY = divY + 22f,
-                    stats = stats,
-                    malUser = malUser,
-                    topAnime = topAnime,
-                    topManga = topManga,
-                    animeBitmaps = animeBitmaps,
-                    mangaBitmaps = mangaBitmaps,
-                    pieSlices = pieSlices,
-                    cardBgPaint = cardBgPaint,
-                    cardBorderPaint = cardBorderPaint,
-                    divPaint = divPaint
-                )
-            }
-            ExportAspectRatio.RATIO_19_6 -> {
-                renderLayout19x6(
-                    canvas = canvas,
-                    width = width.toFloat(),
-                    height = height.toFloat(),
-                    topY = divY + 16f,
-                    stats = stats,
-                    malUser = malUser,
-                    topAnime = topAnime,
-                    topManga = topManga,
-                    animeBitmaps = animeBitmaps,
-                    mangaBitmaps = mangaBitmaps,
-                    pieSlices = pieSlices,
-                    cardBgPaint = cardBgPaint,
-                    cardBorderPaint = cardBorderPaint,
-                    divPaint = divPaint
-                )
-            }
-            ExportAspectRatio.RATIO_1_1 -> {
-                renderLayout1x1(
-                    canvas = canvas,
-                    width = width.toFloat(),
-                    height = height.toFloat(),
+                    width = baseWidth,
+                    height = baseHeight,
+                    margin = margin,
                     topY = divY + 20f,
                     stats = stats,
                     malUser = malUser,
@@ -342,12 +332,76 @@ object StatsExporter {
                     divPaint = divPaint
                 )
             }
-            ExportAspectRatio.RATIO_4_5, ExportAspectRatio.RATIO_3_4 -> {
+            ExportAspectRatio.PORTRAIT_4_5 -> {
                 renderLayoutPortrait(
                     canvas = canvas,
-                    width = width.toFloat(),
-                    height = height.toFloat(),
-                    topY = divY + 20f,
+                    width = baseWidth,
+                    height = baseHeight,
+                    margin = margin,
+                    topY = divY + 16f,
+                    topCardHeight = 370f,
+                    cardHeight = 345f,
+                    stats = stats,
+                    malUser = malUser,
+                    topAnime = topAnime,
+                    topManga = topManga,
+                    animeBitmaps = animeBitmaps,
+                    mangaBitmaps = mangaBitmaps,
+                    pieSlices = pieSlices,
+                    cardBgPaint = cardBgPaint,
+                    cardBorderPaint = cardBorderPaint,
+                    divPaint = divPaint
+                )
+            }
+            ExportAspectRatio.PORTRAIT_3_4 -> {
+                renderLayoutPortrait(
+                    canvas = canvas,
+                    width = baseWidth,
+                    height = baseHeight,
+                    margin = margin,
+                    topY = divY + 18f,
+                    topCardHeight = 385f,
+                    cardHeight = 380f,
+                    stats = stats,
+                    malUser = malUser,
+                    topAnime = topAnime,
+                    topManga = topManga,
+                    animeBitmaps = animeBitmaps,
+                    mangaBitmaps = mangaBitmaps,
+                    pieSlices = pieSlices,
+                    cardBgPaint = cardBgPaint,
+                    cardBorderPaint = cardBorderPaint,
+                    divPaint = divPaint
+                )
+            }
+            ExportAspectRatio.SQUARE_1_1 -> {
+                renderLayoutPortrait(
+                    canvas = canvas,
+                    width = baseWidth,
+                    height = baseHeight,
+                    margin = margin,
+                    topY = divY + 12f,
+                    topCardHeight = 300f,
+                    cardHeight = 280f,
+                    stats = stats,
+                    malUser = malUser,
+                    topAnime = topAnime,
+                    topManga = topManga,
+                    animeBitmaps = animeBitmaps,
+                    mangaBitmaps = mangaBitmaps,
+                    pieSlices = pieSlices,
+                    cardBgPaint = cardBgPaint,
+                    cardBorderPaint = cardBorderPaint,
+                    divPaint = divPaint
+                )
+            }
+            ExportAspectRatio.LANDSCAPE_16_9 -> {
+                renderLayoutLandscape(
+                    canvas = canvas,
+                    width = baseWidth,
+                    height = baseHeight,
+                    margin = margin,
+                    topY = divY + 22f,
                     stats = stats,
                     malUser = malUser,
                     topAnime = topAnime,
@@ -364,21 +418,22 @@ object StatsExporter {
 
         // FOOTER: Low Opacity Credit
         val footerPaint = Paint().apply {
-            color = Color.argb(102, 255, 255, 255)
-            textSize = if (height <= 700) 14f else 16f
+            color = Color.argb(120, 255, 255, 255)
+            textSize = 15f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
             isAntiAlias = true
         }
-        canvas.drawText("Dibuat dengan CA-NIM • github.com/Kh1zZ/CA-NIM", headerMargin, height - (if (height <= 700) 16f else 24f), footerPaint)
+        canvas.drawText("Dibuat dengan CA-NIM • github.com/Kh1zZ/CA-NIM", margin, baseHeight - 16f, footerPaint)
 
         return bitmap
     }
 
-    // --- LAYOUT 16:9 (1920 x 1080) ---
-    private fun renderLayout16x9(
+    // --- LAYOUT STORY 16:9 (1080 x 1920) ---
+    private fun renderLayoutStory(
         canvas: Canvas,
         width: Float,
         height: Float,
+        margin: Float,
         topY: Float,
         stats: TrackerStats,
         malUser: MalUser,
@@ -391,10 +446,264 @@ object StatsExporter {
         cardBorderPaint: Paint,
         divPaint: Paint
     ) {
-        // Left Column: Profile, Simplified Metrics Matrix, and Pie Chart (Width: 500px, x: 80f to 580f)
-        val leftCardRect = RectF(80f, topY, 580f, height - 60f)
-        canvas.drawRoundRect(leftCardRect, 24f, 24f, cardBgPaint)
-        canvas.drawRoundRect(leftCardRect, 24f, 24f, cardBorderPaint)
+        val secHeaderPaint = Paint().apply {
+            color = Color.rgb(56, 189, 248)
+            textSize = 20f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+
+        // 1. Profile & Collections Summary Card (y: topY to topY + 320)
+        val profileCardRect = RectF(margin, topY, width - margin, topY + 320f)
+        canvas.drawRoundRect(profileCardRect, 22f, 22f, cardBgPaint)
+        canvas.drawRoundRect(profileCardRect, 22f, 22f, cardBorderPaint)
+
+        canvas.drawText("PROFIL & RINGKASAN KOLEKSI", margin + 25f, topY + 36f, secHeaderPaint)
+        drawProfileSection(canvas, margin + 25f, topY + 68f, malUser, fontSize = 16f, rowSpacing = 26f)
+
+        val divProfileY = topY + 155f
+        canvas.drawLine(margin + 25f, divProfileY, width - margin - 25f, divProfileY, divPaint)
+
+        // 3 cols x 2 rows of metrics
+        drawMetricsMatrix(
+            canvas = canvas,
+            startX = margin + 25f,
+            startY = divProfileY + 28f,
+            colWidth = 310f,
+            rowHeight = 65f,
+            stats = stats,
+            labelSize = 14f,
+            valSize = 22f
+        )
+
+        // 2. Status Distribution Card (y: topY + 345 to topY + 715)
+        val pieCardTop = topY + 345f
+        val pieCardRect = RectF(margin, pieCardTop, width - margin, pieCardTop + 370f)
+        canvas.drawRoundRect(pieCardRect, 22f, 22f, cardBgPaint)
+        canvas.drawRoundRect(pieCardRect, 22f, 22f, cardBorderPaint)
+
+        canvas.drawText("DISTRIBUSI STATUS KOLEKSI", margin + 25f, pieCardTop + 36f, secHeaderPaint)
+        drawPieChartAndLegend(
+            canvas = canvas,
+            centerX = margin + 175f,
+            centerY = pieCardTop + 200f,
+            radius = 105f,
+            slices = pieSlices,
+            legendX = margin + 350f,
+            legendStartY = pieCardTop + 95f,
+            legendItemSpacing = 38f,
+            legendFontSize = 16f
+        )
+
+        // 3. Top 5 Anime Section (startY: pieCardTop + 400)
+        val animeSecY = pieCardTop + 400f
+        val animeCardTop = animeSecY + 32f
+        val cardSpacing = 16f
+        val cardWidth = (width - (margin * 2f) - (4 * cardSpacing)) / 5f
+        val cardHeight = 410f
+
+        val animeHeaderPaint = Paint().apply {
+            color = Color.rgb(56, 189, 248)
+            textSize = 22f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+        canvas.drawText("TOP 5 ANIME PRIBADI (NON-SEQUEL)", margin, animeSecY + 18f, animeHeaderPaint)
+
+        topAnime.take(5).forEachIndexed { idx, item ->
+            val cardX = margin + idx * (cardWidth + cardSpacing)
+            val cardRect = RectF(cardX, animeCardTop, cardX + cardWidth, animeCardTop + cardHeight)
+            drawCoverCard(
+                canvas = canvas,
+                rect = cardRect,
+                bitmap = animeBitmaps.getOrNull(idx),
+                rank = idx + 1,
+                title = item.title,
+                score = item.score,
+                subtitle = "${item.progress} / ${if (item.totalEpisodes > 0) item.totalEpisodes else "?"} Ep",
+                accentColor = Color.rgb(56, 189, 248)
+            )
+        }
+
+        // 4. Top 5 Manga Section
+        val mangaSecY = animeCardTop + cardHeight + 35f
+        val mangaCardTop = mangaSecY + 32f
+
+        val mangaHeaderPaint = Paint().apply {
+            color = Color.rgb(96, 165, 250)
+            textSize = 22f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+        canvas.drawText("TOP 5 MANGA PRIBADI (SKOR TERTINGGI)", margin, mangaSecY + 18f, mangaHeaderPaint)
+
+        topManga.take(5).forEachIndexed { idx, item ->
+            val cardX = margin + idx * (cardWidth + cardSpacing)
+            val cardRect = RectF(cardX, mangaCardTop, cardX + cardWidth, mangaCardTop + cardHeight)
+            drawCoverCard(
+                canvas = canvas,
+                rect = cardRect,
+                bitmap = mangaBitmaps.getOrNull(idx),
+                rank = idx + 1,
+                title = item.title,
+                score = item.score,
+                subtitle = "${item.progressChapters} Bab",
+                accentColor = Color.rgb(96, 165, 250)
+            )
+        }
+    }
+
+    // --- SHARED PORTRAIT & SQUARE LAYOUT (4:5, 3:4, 1:1) ---
+    private fun renderLayoutPortrait(
+        canvas: Canvas,
+        width: Float,
+        height: Float,
+        margin: Float,
+        topY: Float,
+        topCardHeight: Float,
+        cardHeight: Float,
+        stats: TrackerStats,
+        malUser: MalUser,
+        topAnime: List<UserMediaItem>,
+        topManga: List<UserMediaItem>,
+        animeBitmaps: List<Bitmap?>,
+        mangaBitmaps: List<Bitmap?>,
+        pieSlices: List<CanvasPieSlice>,
+        cardBgPaint: Paint,
+        cardBorderPaint: Paint,
+        divPaint: Paint
+    ) {
+        val totalUsableWidth = width - (margin * 2f)
+        val halfCardWidth = (totalUsableWidth - 20f) / 2f
+
+        val secHeaderPaint = Paint().apply {
+            color = Color.rgb(56, 189, 248)
+            textSize = 17f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+
+        // Left Card: Profile & Metrics
+        val leftCardRect = RectF(margin, topY, margin + halfCardWidth, topY + topCardHeight)
+        canvas.drawRoundRect(leftCardRect, 20f, 20f, cardBgPaint)
+        canvas.drawRoundRect(leftCardRect, 20f, 20f, cardBorderPaint)
+
+        canvas.drawText("PROFIL MYANIMELIST", margin + 20f, topY + 30f, secHeaderPaint)
+        drawProfileSection(canvas, margin + 20f, topY + 56f, malUser, fontSize = 13f, rowSpacing = 22f)
+
+        val divInnerY = topY + 118f
+        canvas.drawLine(margin + 20f, divInnerY, margin + halfCardWidth - 20f, divInnerY, divPaint)
+
+        drawMetricsMatrix(
+            canvas = canvas,
+            startX = margin + 20f,
+            startY = divInnerY + 26f,
+            colWidth = halfCardWidth / 2f - 10f,
+            rowHeight = if (topCardHeight >= 360f) 52f else 44f,
+            stats = stats,
+            labelSize = 12f,
+            valSize = 18f
+        )
+
+        // Right Card: Status Distribution Pie Chart & Legend
+        val rightCardLeft = margin + halfCardWidth + 20f
+        val rightCardRect = RectF(rightCardLeft, topY, margin + totalUsableWidth, topY + topCardHeight)
+        canvas.drawRoundRect(rightCardRect, 20f, 20f, cardBgPaint)
+        canvas.drawRoundRect(rightCardRect, 20f, 20f, cardBorderPaint)
+
+        canvas.drawText("DISTRIBUSI STATUS", rightCardLeft + 20f, topY + 30f, secHeaderPaint)
+        val pieRadius = if (topCardHeight >= 360f) 88f else 75f
+        drawPieChartAndLegend(
+            canvas = canvas,
+            centerX = rightCardLeft + 110f,
+            centerY = topY + (topCardHeight / 2f) + 12f,
+            radius = pieRadius,
+            slices = pieSlices,
+            legendX = rightCardLeft + 225f,
+            legendStartY = topY + 60f,
+            legendItemSpacing = if (topCardHeight >= 360f) 30f else 24f,
+            legendFontSize = 13f
+        )
+
+        // Middle Section: Top 5 Anime
+        val cardSpacing = 15f
+        val itemCardWidth = (totalUsableWidth - (4 * cardSpacing)) / 5f
+
+        val animeSecY = topY + topCardHeight + 25f
+        val animeCardTop = animeSecY + 28f
+
+        val animeHeaderPaint = Paint().apply {
+            color = Color.rgb(56, 189, 248)
+            textSize = 19f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+        canvas.drawText("TOP 5 ANIME PRIBADI (NON-SEQUEL)", margin, animeSecY + 14f, animeHeaderPaint)
+
+        topAnime.take(5).forEachIndexed { idx, item ->
+            val cardX = margin + idx * (itemCardWidth + cardSpacing)
+            val cardRect = RectF(cardX, animeCardTop, cardX + itemCardWidth, animeCardTop + cardHeight)
+            drawCoverCard(
+                canvas = canvas,
+                rect = cardRect,
+                bitmap = animeBitmaps.getOrNull(idx),
+                rank = idx + 1,
+                title = item.title,
+                score = item.score,
+                subtitle = "${item.progress} / ${if (item.totalEpisodes > 0) item.totalEpisodes else "?"} Ep",
+                accentColor = Color.rgb(56, 189, 248)
+            )
+        }
+
+        // Bottom Section: Top 5 Manga
+        val mangaSecY = animeCardTop + cardHeight + 25f
+        val mangaCardTop = mangaSecY + 28f
+
+        val mangaHeaderPaint = Paint().apply {
+            color = Color.rgb(96, 165, 250)
+            textSize = 19f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+        canvas.drawText("TOP 5 MANGA PRIBADI (SKOR TERTINGGI)", margin, mangaSecY + 14f, mangaHeaderPaint)
+
+        topManga.take(5).forEachIndexed { idx, item ->
+            val cardX = margin + idx * (itemCardWidth + cardSpacing)
+            val cardRect = RectF(cardX, mangaCardTop, cardX + itemCardWidth, mangaCardTop + cardHeight)
+            drawCoverCard(
+                canvas = canvas,
+                rect = cardRect,
+                bitmap = mangaBitmaps.getOrNull(idx),
+                rank = idx + 1,
+                title = item.title,
+                score = item.score,
+                subtitle = "${item.progressChapters} Bab",
+                accentColor = Color.rgb(96, 165, 250)
+            )
+        }
+    }
+
+    // --- LAYOUT LANDSCAPE 16:9 (1920 x 1080) ---
+    private fun renderLayoutLandscape(
+        canvas: Canvas,
+        width: Float,
+        height: Float,
+        margin: Float,
+        topY: Float,
+        stats: TrackerStats,
+        malUser: MalUser,
+        topAnime: List<UserMediaItem>,
+        topManga: List<UserMediaItem>,
+        animeBitmaps: List<Bitmap?>,
+        mangaBitmaps: List<Bitmap?>,
+        pieSlices: List<CanvasPieSlice>,
+        cardBgPaint: Paint,
+        cardBorderPaint: Paint,
+        divPaint: Paint
+    ) {
+        val leftCardRect = RectF(margin, topY, margin + 500f, height - 55f)
+        canvas.drawRoundRect(leftCardRect, 22f, 22f, cardBgPaint)
+        canvas.drawRoundRect(leftCardRect, 22f, 22f, cardBorderPaint)
 
         val secHeaderPaint = Paint().apply {
             color = Color.rgb(56, 189, 248)
@@ -403,42 +712,36 @@ object StatsExporter {
             isAntiAlias = true
         }
 
-        // 1. Profile Section
-        canvas.drawText("PROFIL MYANIMELIST", 110f, topY + 40f, secHeaderPaint)
-        drawProfileSection(canvas, 110f, topY + 75f, malUser)
+        canvas.drawText("PROFIL MYANIMELIST", margin + 30f, topY + 40f, secHeaderPaint)
+        drawProfileSection(canvas, margin + 30f, topY + 75f, malUser)
 
-        // 2. Divider
         val div1Y = topY + 160f
-        canvas.drawLine(110f, div1Y, 550f, div1Y, divPaint)
+        canvas.drawLine(margin + 30f, div1Y, margin + 470f, div1Y, divPaint)
 
-        // 3. Simplified Metrics Matrix (Col 1 & Col 2)
-        canvas.drawText("RINGKASAN METRIK", 110f, div1Y + 36f, secHeaderPaint)
-        drawMetricsMatrix(canvas, 110f, div1Y + 68f, colWidth = 220f, rowHeight = 60f, stats = stats)
+        canvas.drawText("RINGKASAN METRIK", margin + 30f, div1Y + 36f, secHeaderPaint)
+        drawMetricsMatrix(canvas, margin + 30f, div1Y + 68f, colWidth = 220f, rowHeight = 60f, stats = stats)
 
-        // 4. Divider
         val div2Y = div1Y + 260f
-        canvas.drawLine(110f, div2Y, 550f, div2Y, divPaint)
+        canvas.drawLine(margin + 30f, div2Y, margin + 470f, div2Y, divPaint)
 
-        // 5. Pie Chart & Legend
-        canvas.drawText("DISTRIBUSI STATUS KOLEKSI", 110f, div2Y + 36f, secHeaderPaint)
+        canvas.drawText("DISTRIBUSI STATUS KOLEKSI", margin + 30f, div2Y + 36f, secHeaderPaint)
         drawPieChartAndLegend(
             canvas = canvas,
-            centerX = 210f,
+            centerX = margin + 120f,
             centerY = div2Y + 160f,
             radius = 85f,
             slices = pieSlices,
-            legendX = 325f,
+            legendX = margin + 235f,
             legendStartY = div2Y + 85f,
             legendItemSpacing = 28f
         )
 
-        // Right Area: Top 5 Anime & Top 5 Manga (Width: 1220px, x: 620f to 1840f)
+        // Right Area: Top 5 Anime & Top 5 Manga (Width: 1220px)
+        val rightStartX = margin + 530f
         val cardWidth = 224f
         val cardHeight = 336f
         val cardSpacing = 20f
-        val rightStartX = 620f
 
-        // Top 5 Anime
         val animeSecPaint = Paint().apply {
             color = Color.rgb(56, 189, 248)
             textSize = 22f
@@ -463,7 +766,6 @@ object StatsExporter {
             )
         }
 
-        // Top 5 Manga
         val mangaSecPaint = Paint().apply {
             color = Color.rgb(96, 165, 250)
             textSize = 22f
@@ -476,336 +778,6 @@ object StatsExporter {
         val topMangaY = topMangaLabelY + 20f
         topManga.take(5).forEachIndexed { idx, item ->
             val cardX = rightStartX + idx * (cardWidth + cardSpacing)
-            val cardRect = RectF(cardX, topMangaY, cardX + cardWidth, topMangaY + cardHeight)
-            drawCoverCard(
-                canvas = canvas,
-                rect = cardRect,
-                bitmap = mangaBitmaps.getOrNull(idx),
-                rank = idx + 1,
-                title = item.title,
-                score = item.score,
-                subtitle = "${item.progressChapters} Bab",
-                accentColor = Color.rgb(96, 165, 250)
-            )
-        }
-    }
-
-    // --- LAYOUT 19:6 (1900 x 600) ---
-    private fun renderLayout19x6(
-        canvas: Canvas,
-        width: Float,
-        height: Float,
-        topY: Float,
-        stats: TrackerStats,
-        malUser: MalUser,
-        topAnime: List<UserMediaItem>,
-        topManga: List<UserMediaItem>,
-        animeBitmaps: List<Bitmap?>,
-        mangaBitmaps: List<Bitmap?>,
-        pieSlices: List<CanvasPieSlice>,
-        cardBgPaint: Paint,
-        cardBorderPaint: Paint,
-        divPaint: Paint
-    ) {
-        val leftCardRect = RectF(60f, topY, 560f, height - 35f)
-        canvas.drawRoundRect(leftCardRect, 20f, 20f, cardBgPaint)
-        canvas.drawRoundRect(leftCardRect, 20f, 20f, cardBorderPaint)
-
-        val secHeaderPaint = Paint().apply {
-            color = Color.rgb(56, 189, 248)
-            textSize = 17f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-
-        // Profile & Metrics in left card
-        canvas.drawText("PROFIL & METRIK", 85f, topY + 30f, secHeaderPaint)
-        drawProfileSection(canvas, 85f, topY + 56f, malUser, fontSize = 14f, rowSpacing = 22f)
-
-        val div1Y = topY + 115f
-        canvas.drawLine(85f, div1Y, 535f, div1Y, divPaint)
-
-        drawMetricsMatrix(canvas, 85f, div1Y + 28f, colWidth = 220f, rowHeight = 44f, stats = stats, labelSize = 12f, valSize = 16f)
-
-        val div2Y = div1Y + 160f
-        canvas.drawLine(85f, div2Y, 535f, div2Y, divPaint)
-
-        // Small Pie Chart
-        drawPieChartAndLegend(
-            canvas = canvas,
-            centerX = 160f,
-            centerY = div2Y + 80f,
-            radius = 55f,
-            slices = pieSlices,
-            legendX = 250f,
-            legendStartY = div2Y + 35f,
-            legendItemSpacing = 20f,
-            legendFontSize = 12f
-        )
-
-        // Right Area: 2 compact rows of 5 cards
-        val rightStartX = 600f
-        val cardWidth = 230f
-        val cardHeight = 185f
-        val cardSpacing = 20f
-
-        val animeSecPaint = Paint().apply {
-            color = Color.rgb(56, 189, 248)
-            textSize = 17f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-        canvas.drawText("TOP 5 ANIME PRIBADI (NON-SEQUEL)", rightStartX, topY + 24f, animeSecPaint)
-
-        val topAnimeY = topY + 36f
-        topAnime.take(5).forEachIndexed { idx, item ->
-            val cardX = rightStartX + idx * (cardWidth + cardSpacing)
-            val cardRect = RectF(cardX, topAnimeY, cardX + cardWidth, topAnimeY + cardHeight)
-            drawCoverCard(
-                canvas = canvas,
-                rect = cardRect,
-                bitmap = animeBitmaps.getOrNull(idx),
-                rank = idx + 1,
-                title = item.title,
-                score = item.score,
-                subtitle = "${item.progress} / ${if (item.totalEpisodes > 0) item.totalEpisodes else "?"} Ep",
-                accentColor = Color.rgb(56, 189, 248)
-            )
-        }
-
-        val mangaSecPaint = Paint().apply {
-            color = Color.rgb(96, 165, 250)
-            textSize = 17f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-        val topMangaLabelY = topAnimeY + cardHeight + 28f
-        canvas.drawText("TOP 5 MANGA PRIBADI (SKOR TERTINGGI)", rightStartX, topMangaLabelY, mangaSecPaint)
-
-        val topMangaY = topMangaLabelY + 12f
-        topManga.take(5).forEachIndexed { idx, item ->
-            val cardX = rightStartX + idx * (cardWidth + cardSpacing)
-            val cardRect = RectF(cardX, topMangaY, cardX + cardWidth, topMangaY + cardHeight)
-            drawCoverCard(
-                canvas = canvas,
-                rect = cardRect,
-                bitmap = mangaBitmaps.getOrNull(idx),
-                rank = idx + 1,
-                title = item.title,
-                score = item.score,
-                subtitle = "${item.progressChapters} Bab",
-                accentColor = Color.rgb(96, 165, 250)
-            )
-        }
-    }
-
-    // --- LAYOUT 1:1 (1200 x 1200) ---
-    private fun renderLayout1x1(
-        canvas: Canvas,
-        width: Float,
-        height: Float,
-        topY: Float,
-        stats: TrackerStats,
-        malUser: MalUser,
-        topAnime: List<UserMediaItem>,
-        topManga: List<UserMediaItem>,
-        animeBitmaps: List<Bitmap?>,
-        mangaBitmaps: List<Bitmap?>,
-        pieSlices: List<CanvasPieSlice>,
-        cardBgPaint: Paint,
-        cardBorderPaint: Paint,
-        divPaint: Paint
-    ) {
-        // Top Card: Left = Profile & Metrics, Right = Pie Chart
-        val topCardRect = RectF(60f, topY, width - 60f, topY + 310f)
-        canvas.drawRoundRect(topCardRect, 22f, 22f, cardBgPaint)
-        canvas.drawRoundRect(topCardRect, 22f, 22f, cardBorderPaint)
-
-        val secHeaderPaint = Paint().apply {
-            color = Color.rgb(56, 189, 248)
-            textSize = 18f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-
-        // Left Side
-        canvas.drawText("PROFIL & RINGKASAN METRIK", 85f, topY + 32f, secHeaderPaint)
-        drawProfileSection(canvas, 85f, topY + 60f, malUser, fontSize = 14f, rowSpacing = 22f)
-
-        val divInnerY = topY + 118f
-        canvas.drawLine(85f, divInnerY, 560f, divInnerY, divPaint)
-        drawMetricsMatrix(canvas, 85f, divInnerY + 28f, colWidth = 230f, rowHeight = 46f, stats = stats, labelSize = 12f, valSize = 17f)
-
-        // Vertical divider between metrics and pie chart
-        canvas.drawLine(590f, topY + 20f, 590f, topY + 290f, divPaint)
-
-        // Right Side: Pie Chart
-        canvas.drawText("DISTRIBUSI STATUS KOLEKSI", 620f, topY + 32f, secHeaderPaint)
-        drawPieChartAndLegend(
-            canvas = canvas,
-            centerX = 730f,
-            centerY = topY + 175f,
-            radius = 80f,
-            slices = pieSlices,
-            legendX = 850f,
-            legendStartY = topY + 80f,
-            legendItemSpacing = 28f
-        )
-
-        // Middle Area: Top 5 Anime
-        val startX = 60f
-        val cardSpacing = 16f
-        val cardWidth = (width - 120f - (4 * cardSpacing)) / 5f
-        val cardHeight = 295f
-
-        val animeSecPaint = Paint().apply {
-            color = Color.rgb(56, 189, 248)
-            textSize = 20f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-        val animeLabelY = topY + 345f
-        canvas.drawText("TOP 5 ANIME PRIBADI (NON-SEQUEL)", startX, animeLabelY, animeSecPaint)
-
-        val topAnimeY = animeLabelY + 18f
-        topAnime.take(5).forEachIndexed { idx, item ->
-            val cardX = startX + idx * (cardWidth + cardSpacing)
-            val cardRect = RectF(cardX, topAnimeY, cardX + cardWidth, topAnimeY + cardHeight)
-            drawCoverCard(
-                canvas = canvas,
-                rect = cardRect,
-                bitmap = animeBitmaps.getOrNull(idx),
-                rank = idx + 1,
-                title = item.title,
-                score = item.score,
-                subtitle = "${item.progress} / ${if (item.totalEpisodes > 0) item.totalEpisodes else "?"} Ep",
-                accentColor = Color.rgb(56, 189, 248)
-            )
-        }
-
-        // Bottom Area: Top 5 Manga
-        val mangaSecPaint = Paint().apply {
-            color = Color.rgb(96, 165, 250)
-            textSize = 20f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-        val mangaLabelY = topAnimeY + cardHeight + 35f
-        canvas.drawText("TOP 5 MANGA PRIBADI (SKOR TERTINGGI)", startX, mangaLabelY, mangaSecPaint)
-
-        val topMangaY = mangaLabelY + 18f
-        topManga.take(5).forEachIndexed { idx, item ->
-            val cardX = startX + idx * (cardWidth + cardSpacing)
-            val cardRect = RectF(cardX, topMangaY, cardX + cardWidth, topMangaY + cardHeight)
-            drawCoverCard(
-                canvas = canvas,
-                rect = cardRect,
-                bitmap = mangaBitmaps.getOrNull(idx),
-                rank = idx + 1,
-                title = item.title,
-                score = item.score,
-                subtitle = "${item.progressChapters} Bab",
-                accentColor = Color.rgb(96, 165, 250)
-            )
-        }
-    }
-
-    // --- LAYOUT PORTRAIT (4:5 and 3:4) ---
-    private fun renderLayoutPortrait(
-        canvas: Canvas,
-        width: Float,
-        height: Float,
-        topY: Float,
-        stats: TrackerStats,
-        malUser: MalUser,
-        topAnime: List<UserMediaItem>,
-        topManga: List<UserMediaItem>,
-        animeBitmaps: List<Bitmap?>,
-        mangaBitmaps: List<Bitmap?>,
-        pieSlices: List<CanvasPieSlice>,
-        cardBgPaint: Paint,
-        cardBorderPaint: Paint,
-        divPaint: Paint
-    ) {
-        val margin = 50f
-        val topCardRect = RectF(margin, topY, width - margin, topY + 340f)
-        canvas.drawRoundRect(topCardRect, 22f, 22f, cardBgPaint)
-        canvas.drawRoundRect(topCardRect, 22f, 22f, cardBorderPaint)
-
-        val secHeaderPaint = Paint().apply {
-            color = Color.rgb(56, 189, 248)
-            textSize = 17f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-
-        // Left Side: Profile + Metrics
-        canvas.drawText("PROFIL & METRIK", margin + 25f, topY + 32f, secHeaderPaint)
-        drawProfileSection(canvas, margin + 25f, topY + 60f, malUser, fontSize = 13f, rowSpacing = 22f)
-
-        val divInnerY = topY + 118f
-        canvas.drawLine(margin + 25f, divInnerY, margin + 460f, divInnerY, divPaint)
-        drawMetricsMatrix(canvas, margin + 25f, divInnerY + 28f, colWidth = 210f, rowHeight = 46f, stats = stats, labelSize = 12f, valSize = 16f)
-
-        // Vertical divider
-        canvas.drawLine(margin + 480f, topY + 20f, margin + 480f, topY + 320f, divPaint)
-
-        // Right Side: Pie Chart
-        canvas.drawText("DISTRIBUSI STATUS", margin + 505f, topY + 32f, secHeaderPaint)
-        drawPieChartAndLegend(
-            canvas = canvas,
-            centerX = margin + 610f,
-            centerY = topY + 195f,
-            radius = 78f,
-            slices = pieSlices,
-            legendX = margin + 725f,
-            legendStartY = topY + 95f,
-            legendItemSpacing = 26f,
-            legendFontSize = 13f
-        )
-
-        // 5 cards per row
-        val cardSpacing = 14f
-        val cardWidth = (width - (margin * 2f) - (4 * cardSpacing)) / 5f
-        val cardHeight = 280f
-
-        val animeSecPaint = Paint().apply {
-            color = Color.rgb(56, 189, 248)
-            textSize = 19f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-        val animeLabelY = topY + 380f
-        canvas.drawText("TOP 5 ANIME PRIBADI (NON-SEQUEL)", margin, animeLabelY, animeSecPaint)
-
-        val topAnimeY = animeLabelY + 18f
-        topAnime.take(5).forEachIndexed { idx, item ->
-            val cardX = margin + idx * (cardWidth + cardSpacing)
-            val cardRect = RectF(cardX, topAnimeY, cardX + cardWidth, topAnimeY + cardHeight)
-            drawCoverCard(
-                canvas = canvas,
-                rect = cardRect,
-                bitmap = animeBitmaps.getOrNull(idx),
-                rank = idx + 1,
-                title = item.title,
-                score = item.score,
-                subtitle = "${item.progress} / ${if (item.totalEpisodes > 0) item.totalEpisodes else "?"} Ep",
-                accentColor = Color.rgb(56, 189, 248)
-            )
-        }
-
-        val mangaSecPaint = Paint().apply {
-            color = Color.rgb(96, 165, 250)
-            textSize = 19f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-        val mangaLabelY = topAnimeY + cardHeight + 35f
-        canvas.drawText("TOP 5 MANGA PRIBADI (SKOR TERTINGGI)", margin, mangaLabelY, mangaSecPaint)
-
-        val topMangaY = mangaLabelY + 18f
-        topManga.take(5).forEachIndexed { idx, item ->
-            val cardX = margin + idx * (cardWidth + cardSpacing)
             val cardRect = RectF(cardX, topMangaY, cardX + cardWidth, topMangaY + cardHeight)
             drawCoverCard(
                 canvas = canvas,
@@ -941,14 +913,14 @@ object StatsExporter {
             // Center text
             val totalCountPaint = Paint().apply {
                 color = Color.WHITE
-                textSize = (holeRadius * 0.50f).coerceIn(13f, 22f)
+                textSize = (holeRadius * 0.50f).coerceIn(13f, 24f)
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
                 textAlign = Paint.Align.CENTER
                 isAntiAlias = true
             }
             val totalSubPaint = Paint().apply {
                 color = Color.rgb(156, 163, 175)
-                textSize = (holeRadius * 0.32f).coerceIn(9f, 13f)
+                textSize = (holeRadius * 0.32f).coerceIn(9f, 14f)
                 textAlign = Paint.Align.CENTER
                 isAntiAlias = true
             }
@@ -1016,7 +988,7 @@ object StatsExporter {
         // 2. High-contrast Dark Fading Gradient at Bottom of Cover
         val gradPaint = Paint().apply {
             shader = LinearGradient(
-                rect.left, rect.top + rect.height() * 0.30f,
+                rect.left, rect.top + rect.height() * 0.28f,
                 rect.left, rect.bottom,
                 intArrayOf(Color.TRANSPARENT, Color.argb(195, 10, 15, 29), Color.argb(252, 2, 6, 23)),
                 floatArrayOf(0f, 0.40f, 1f),
@@ -1089,7 +1061,7 @@ object StatsExporter {
         subtitle: String
     ) {
         val maxAvailableWidth = rect.width() - 16f
-        var titleFontSize = if (rect.height() < 220f) 14f else 16f
+        var titleFontSize = if (rect.height() < 250f) 13f else 16f
         val titlePaint = Paint().apply {
             color = Color.WHITE
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
@@ -1113,7 +1085,6 @@ object StatsExporter {
 
         val subtitleY = rect.bottom - 10f
         var titleStartY = subtitleY - 14f - ((lines.size - 1) * lineHeight)
-        // Ensure title does not overlap with top rank badge
         titleStartY = titleStartY.coerceAtLeast(rect.top + 46f)
 
         lines.forEach { line ->
