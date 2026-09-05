@@ -24,11 +24,13 @@
 
 Dapatkan rilis resmi **CA'NIM** siap pasang langsung dari halaman rilis GitHub:
 
-| Berkas | Versi | Ukuran | Arsitektur | Kebutuhan Minimum | Tautan |
-| :--- | :---: | :---: | :---: | :---: | :---: |
-| **`app-release.apk`** | `v3.0.0` | **~2.13 MB** | **Universal** (`arm64-v8a`, `armeabi-v7a`, `x86_64`) | Android 7.0+ (API 24+) | [👉 Unduh APK Langsung](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
+| Berkas | Tipe | Arsitektur | Kebutuhan Minimum | Tautan |
+| :--- | :---: | :---: | :---: | :---: |
+| **`canim-universal-release-v4.4.1.apk`** | **Release** | **Universal** (`arm64-v8a`, `armeabi-v7a`, `x86_64`) | Android 7.0+ (API 24+) | [👉 Unduh APK Rilis](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
+| **`canim-debug-v4.4.1.apk`** | **Debug** | **Universal** | Android 7.0+ (API 24+) | [👉 Unduh APK Debug](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
+| **`SHA256SUMS.txt`** | **Checksum** | — | — | [👉 Verifikasi Checksum](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
 
-> 💡 **Catatan Instalasi**: APK Release dikompilasi secara universal, bebas dari bloatware/tracker, dan telah dioptimalkan secara penuh menggunakan R8 Minifier untuk pengalaman scrolling terbaik.
+> 💡 **Catatan Instalasi**: APK Release dikompilasi secara universal oleh GitHub Actions CI/CD, bebas dari bloatware/tracker, dan telah dioptimalkan secara penuh menggunakan R8 Minifier untuk pengalaman scrolling terbaik.
 
 ---
 
@@ -194,7 +196,7 @@ Bagi pengembang yang ingin memodifikasi atau mengompilasi APK secara mandiri:
    ```
    *File keluaran berlokasi di:*
    ```text
-   app/build/outputs/apk/release/app-release.apk
+   app/build/outputs/apk/release/canim-universal-release-v<version>.apk
    ```
 
 3. **Kompilasi APK Debug**:
@@ -203,13 +205,30 @@ Bagi pengembang yang ingin memodifikasi atau mengompilasi APK secara mandiri:
    ```
    *File keluaran berlokasi di:*
    ```text
-   app/build/outputs/apk/debug/app-debug.apk
+   app/build/outputs/apk/debug/canim-debug-v<version>.apk
    ```
 
 4. **Menjalankan Seluruh Automated Unit Tests**:
    ```bash
    ./gradlew testDebugUnitTest
    ```
+
+---
+
+## 🚀 CI/CD & Rilis Otomatis (GitHub Actions)
+
+Mulai versi `v4.4.1`, seluruh berkas APK rilis resmi **CA'NIM** dikompilasi secara eksklusif dan otomatis oleh **GitHub Actions** (tidak dikompilasi manual di mesin lokal):
+
+- **CI Pipeline (`.github/workflows/ci.yml`)**: Berjalan pada setiap pull request dan push ke branch `main`, menjalankan unit test otomatis (`./gradlew testDebugUnitTest`) serta validasi build debug (`./gradlew assembleDebug`).
+- **Release Pipeline (`.github/workflows/release.yml`)**: Terpicu secara otomatis ketika sebuah Git tag rilis dibuat dan di-push (`v*`, contoh: `v4.4.1`, `v4.5.0`):
+  1. Validasi kecocokan ketat antara Git tag (`vX.Y.Z`) dan `versionName` serta `versionCode` pada `app/build.gradle.kts` (mencegah salah rilis/tag).
+  2. Menjalankan seluruh automated unit tests.
+  3. Mengompilasi APK Release Universal (`canim-universal-release-vX.Y.Z.apk`) dan APK Debug (`canim-debug-vX.Y.Z.apk`).
+  4. Menghasilkan ringkasan kriptografi `SHA256SUMS.txt`.
+  5. Menghasilkan *release notes* otomatis terstruktur berdasarkan commit messages (`feat:`, `fix:`, `perf:`, `ui:`).
+  6. Memublikasikan GitHub Release beserta seluruh aset APK.
+- **Distribusi & Keamanan**: Berkas APK murni didistribusikan melalui [GitHub Releases](https://github.com/Kh1zZ/CA-NIM/releases) dan **tidak pernah di-commit ke dalam Git history**.
+- **Konfigurasi Signing Produksi (Opsional)**: Saat ini release APK menggunakan konfigurasi signing bawaan Android debug key sehingga langsung siap dipasang. Untuk mengonfigurasi keystore rilis mandiri di masa depan, tambahkan GitHub Secrets `RELEASE_KEYSTORE_BASE64`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS`, dan `RELEASE_KEY_PASSWORD`.
 
 ---
 

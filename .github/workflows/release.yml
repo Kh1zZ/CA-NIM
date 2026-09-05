@@ -1,0 +1,240 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  publish-release:
+    name: Build & Publish Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout Tag Commit
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Prepare Gradle Environment
+        run: |
+          chmod +x gradlew
+          # Remove local developer machine JDK override if present
+          sed -i '/org.gradle.java.home/d' gradle.properties
+
+      - name: Validate Tag, Version, and VersionCode
+        id: version_check
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+          echo "Processing Git Tag: $TAG_NAME"
+
+          # Extract versionName and versionCode from app/build.gradle.kts
+          VERSION_NAME=$(grep -E '^\s*versionName\s*=\s*"([^"]+)"' app/build.gradle.kts | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')
+          VERSION_CODE=$(grep -E '^\s*versionCode\s*=\s*([0-9]+)' app/build.gradle.kts | head -n1 | sed -E 's/.*=\s*([0-9]+).*/\1/')
+
+          echo "Gradle configured versionName: '$VERSION_NAME'"
+          echo "Gradle configured versionCode: '$VERSION_CODE'"
+
+          # 1. Validate versionName extraction
+          if [ -z "$VERSION_NAME" ]; then
+            echo "::error::Failed to extract versionName from app/build.gradle.kts"
+            exit 1
+          fi
+
+          # 2. Enforce strict match between git tag and Gradle versionName
+          if [ "$TAG_NAME" != "$VERSION_NAME" ]; then
+            echo "::error::Tag mismatch! Git tag is '$TAG_NAME' but Gradle versionName is '$VERSION_NAME'. Release aborted."
+            exit 1
+          fi
+
+          # 3. Validate versionCode is a positive integer
+          if [ -z "$VERSION_CODE" ] || ! [[ "$VERSION_CODE" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::Invalid versionCode '$VERSION_CODE'. Must be a positive integer."
+            exit 1
+          fi
+
+          echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
+          echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
+          echo "Version validation passed successfully: Tag '$TAG_NAME' matches versionName '$VERSION_NAME' with versionCode $VERSION_CODE."
+
+      - name: Run Unit Tests
+        run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
+
+      - name: Build Official Release and Debug APKs
+        run: ./gradlew assembleRelease assembleDebug --no-daemon --stacktrace
+
+      - name: Validate APKs and Stage Release Assets
+        run: |
+          VERSION_NAME="${{ steps.version_check.outputs.version_name }}"
+          RELEASE_APK="app/build/outputs/apk/release/canim-universal-release-${VERSION_NAME}.apk"
+          DEBUG_APK="app/build/outputs/apk/debug/canim-debug-${VERSION_NAME}.apk"
+
+          echo "Validating Release APK: $RELEASE_APK"
+          if [ ! -s "$RELEASE_APK" ]; then
+            echo "::error::Official Release APK not found or empty at $RELEASE_APK"
+            ls -la app/build/outputs/apk/release/ || true
+            exit 1
+          fi
+
+          echo "Validating Debug APK: $DEBUG_APK"
+          if [ ! -s "$DEBUG_APK" ]; then
+            echo "::error::Debug APK not found or empty at $DEBUG_APK"
+            ls -la app/build/outputs/apk/debug/ || true
+            exit 1
+          fi
+
+          mkdir -p release-dist
+          cp "$RELEASE_APK" release-dist/
+          cp "$DEBUG_APK" release-dist/
+
+          echo "Staged release assets:"
+          ls -lh release-dist/
+
+      - name: Generate Cryptographic SHA-256 Checksums
+        run: |
+          cd release-dist
+          VERSION_NAME="${{ steps.version_check.outputs.version_name }}"
+          sha256sum "canim-universal-release-${VERSION_NAME}.apk" "canim-debug-${VERSION_NAME}.apk" > SHA256SUMS.txt
+          echo "=== SHA256SUMS.txt ==="
+          cat SHA256SUMS.txt
+          cd ..
+
+      - name: Generate Automated Release Notes
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+          python3 - << 'EOF'
+          import subprocess
+          import os
+
+          current_tag = os.environ.get("GITHUB_REF_NAME", "")
+          print(f"Generating release notes for tag: {current_tag}")
+
+          # Retrieve list of version tags sorted by version
+          try:
+              tags_output = subprocess.check_output(['git', 'tag', '--sort=-version:refname'], text=True)
+              tags = [t.strip() for t in tags_output.strip().split('\n') if t.strip()]
+          except Exception:
+              tags = []
+
+          prev_tag = None
+          for t in tags:
+              if t != current_tag:
+                  prev_tag = t
+                  break
+
+          print(f"Previous tag detected: {prev_tag}")
+
+          if prev_tag:
+              git_log_cmd = ['git', 'log', f'{prev_tag}..{current_tag}', '--pretty=format:%s (%h)']
+          else:
+              git_log_cmd = ['git', 'log', '-n', '50', current_tag, '--pretty=format:%s (%h)']
+
+          try:
+              log_output = subprocess.check_output(git_log_cmd, text=True)
+              commits = [c.strip() for c in log_output.strip().split('\n') if c.strip()]
+          except Exception as e:
+              print(f"Warning: git log execution error: {e}")
+              commits = []
+
+          features = []
+          fixes = []
+          performance = []
+          ui = []
+          others = []
+
+          for commit in commits:
+              lower = commit.lower()
+              if lower.startswith(('feat', 'feature')):
+                  features.append(commit)
+              elif lower.startswith(('fix', 'bugfix')):
+                  fixes.append(commit)
+              elif lower.startswith(('perf', 'opt')):
+                  performance.append(commit)
+              elif lower.startswith(('ui', 'ux')):
+                  ui.append(commit)
+              else:
+                  others.append(commit)
+
+          sections = ["## What's Changed\n"]
+
+          if features:
+              sections.append("### Features")
+              for f in features:
+                  sections.append(f"- {f}")
+              sections.append("")
+
+          if fixes:
+              sections.append("### Bug Fixes")
+              for f in fixes:
+                  sections.append(f"- {f}")
+              sections.append("")
+
+          if performance:
+              sections.append("### Performance")
+              for p in performance:
+                  sections.append(f"- {p}")
+              sections.append("")
+
+          if ui:
+              sections.append("### UI/UX")
+              for u in ui:
+                  sections.append(f"- {u}")
+              sections.append("")
+
+          if others:
+              sections.append("### Other Changes")
+              for o in others:
+                  sections.append(f"- {o}")
+              sections.append("")
+
+          if not (features or fixes or performance or ui or others):
+              sections.append("- Routine release maintenance and dependency updates.\n")
+
+          sections.append("---")
+          if prev_tag:
+              sections.append(f"**Full Changelog**: https://github.com/Kh1zZ/CA-NIM/compare/{prev_tag}...{current_tag}\n")
+          else:
+              sections.append(f"**Tag Reference**: https://github.com/Kh1zZ/CA-NIM/tree/{current_tag}\n")
+
+          sections.append("### Assets & Verification")
+          sections.append("| File | Type | Description |")
+          sections.append("| :--- | :---: | :--- |")
+          sections.append(f"| `canim-universal-release-{current_tag}.apk` | **Release** | **Official Production APK** (Universal arm64/arm32/x86_64, R8 optimized) |")
+          sections.append(f"| `canim-debug-{current_tag}.apk` | **Debug** | **Testing APK** (development & log debugging) |")
+          sections.append("| `SHA256SUMS.txt` | **Checksum** | Cryptographic SHA-256 hash list for integrity verification |")
+
+          with open("release_notes.md", "w", encoding="utf-8") as f:
+              f.write("\n".join(sections) + "\n")
+
+          print("release_notes.md generated successfully.")
+          EOF
+          cat release_notes.md
+
+      - name: Publish GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME="${GITHUB_REF_NAME}"
+          echo "Publishing GitHub Release for tag $TAG_NAME..."
+          gh release create "$TAG_NAME" \
+            "release-dist/canim-universal-release-${TAG_NAME}.apk" \
+            "release-dist/canim-debug-${TAG_NAME}.apk" \
+            "release-dist/SHA256SUMS.txt" \
+            --title "CA'NIM $TAG_NAME" \
+            --notes-file release_notes.md
+          echo "GitHub Release published successfully with official APK assets."
