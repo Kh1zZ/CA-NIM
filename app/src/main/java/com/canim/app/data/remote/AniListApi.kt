@@ -2,6 +2,7 @@ package com.canim.app.data.remote
 
 import com.canim.app.data.cache.CacheManager
 import com.canim.app.data.model.*
+import com.canim.app.util.TextSanitizer
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -903,12 +904,7 @@ object AniListClient {
             val imageUrl = imgObj?.optString("large")?.takeIf { it.isNotBlank() }
                 ?: imgObj?.optString("medium")?.takeIf { it.isNotBlank() }
 
-            val cleanDesc = charObj.optString("description")
-                ?.replace(Regex("<[^>]*>"), "")
-                ?.replace("&quot;", "\"")
-                ?.replace("&#039;", "'")
-                ?.replace("&amp;", "&")
-                ?.takeIf { it.isNotBlank() }
+            val cleanDesc = TextSanitizer.sanitize(charObj.optString("description")).takeIf { it.isNotBlank() }
 
             val dob = charObj.optJSONObject("dateOfBirth")
             val dobStr = if (dob != null && !dob.isNull("year")) {
@@ -948,7 +944,9 @@ object AniListClient {
                             year = sYear,
                             format = fmt,
                             type = mType,
-                            role = role
+                            role = if (role.isNotBlank()) role else "Character",
+                            characterName = fullName,
+                            characterImage = imageUrl
                         )
                     )
                 }
@@ -1008,6 +1006,16 @@ object AniListClient {
                 characterMedia(page: 1, perPage: 25, sort: POPULARITY_DESC) {
                   edges {
                     characterRole
+                    characters {
+                      id
+                      name {
+                        full
+                      }
+                      image {
+                        medium
+                        large
+                      }
+                    }
                     node {
                       id
                       idMal
@@ -1070,12 +1078,7 @@ object AniListClient {
             val imageUrl = imgObj?.optString("large")?.takeIf { it.isNotBlank() }
                 ?: imgObj?.optString("medium")?.takeIf { it.isNotBlank() }
 
-            val cleanDesc = staffObj.optString("description")
-                ?.replace(Regex("<[^>]*>"), "")
-                ?.replace("&quot;", "\"")
-                ?.replace("&#039;", "'")
-                ?.replace("&amp;", "&")
-                ?.takeIf { it.isNotBlank() }
+            val cleanDesc = TextSanitizer.sanitize(staffObj.optString("description")).takeIf { it.isNotBlank() }
 
             val dob = staffObj.optJSONObject("dateOfBirth")
             val dobStr = if (dob != null && !dob.isNull("year")) {
@@ -1094,6 +1097,11 @@ object AniListClient {
                 for (i in 0 until charMediaArray.length()) {
                     val edge = charMediaArray.optJSONObject(i) ?: continue
                     val role = edge.optString("characterRole")
+                    val chars = edge.optJSONArray("characters")
+                    val firstChar = chars?.optJSONObject(0)
+                    val charName = firstChar?.optJSONObject("name")?.optString("full")?.takeIf { it.isNotBlank() }
+                    val charImg = firstChar?.optJSONObject("image")?.optString("large")
+                        ?: firstChar?.optJSONObject("image")?.optString("medium")
                     val node = edge.optJSONObject("node") ?: continue
                     val mId = node.optInt("id")
                     val malId = if (node.has("idMal") && !node.isNull("idMal")) node.optInt("idMal") else null
@@ -1116,7 +1124,9 @@ object AniListClient {
                             year = sYear,
                             format = fmt,
                             type = mType,
-                            role = if (role.isNotBlank()) "Karakter: $role" else "Pemeran"
+                            role = if (role.isNotBlank()) role else "Voice Actor",
+                            characterName = charName,
+                            characterImage = charImg
                         )
                     )
                 }
@@ -1149,7 +1159,9 @@ object AniListClient {
                             year = sYear,
                             format = fmt,
                             type = mType,
-                            role = role
+                            role = role,
+                            characterName = null,
+                            characterImage = null
                         )
                     )
                 }

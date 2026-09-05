@@ -1,19 +1,26 @@
-﻿package com.canim.app.ui.screens
+package com.canim.app.ui.screens
 
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.graphics.*
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.pdf.PdfDocument
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import androidx.core.content.FileProvider
+import coil.Coil
+import coil.request.ImageRequest
+import coil.request.SuccessResult
+import com.canim.app.R
 import com.canim.app.data.model.MalUser
 import com.canim.app.data.model.TrackerStats
 import com.canim.app.data.model.UserMediaItem
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
@@ -38,7 +45,7 @@ object StatsExporter {
         format: StatsExportFormat
     ): Result<Uri> = withContext(Dispatchers.IO) {
         try {
-            val bitmap = renderStatsBitmap(stats, malUser, topAnime, topManga)
+            val bitmap = renderStatsBitmap(context, stats, malUser, topAnime, topManga)
             val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
             val filename = "canim_stats_${malUser.username.ifBlank { "user" }}_$timeStamp.${format.extension}"
 
@@ -139,7 +146,27 @@ object StatsExporter {
         }
     }
 
-    private fun renderStatsBitmap(
+    private suspend fun loadBitmap(context: Context, url: String?): Bitmap? = withContext(Dispatchers.IO) {
+        if (url.isNullOrBlank()) return@withContext null
+        try {
+            val loader = Coil.imageLoader(context)
+            val request = ImageRequest.Builder(context)
+                .data(url)
+                .allowHardware(false)
+                .build()
+            val result = loader.execute(request)
+            if (result is SuccessResult) {
+                (result.drawable as? BitmapDrawable)?.bitmap
+            } else {
+                null
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private suspend fun renderStatsBitmap(
+        context: Context,
         stats: TrackerStats,
         malUser: MalUser,
         topAnime: List<UserMediaItem>,
@@ -149,6 +176,20 @@ object StatsExporter {
         val height = 1080
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
+
+        // Preload cover bitmaps in parallel
+        val animeCoversDeferred = withContext(Dispatchers.IO) {
+            topAnime.take(5).map { item ->
+                async { loadBitmap(context, item.imageUrl) }
+            }
+        }
+        val mangaCoversDeferred = withContext(Dispatchers.IO) {
+            topManga.take(5).map { item ->
+                async { loadBitmap(context, item.imageUrl) }
+            }
+        }
+        val animeBitmaps = animeCoversDeferred.awaitAll()
+        val mangaBitmaps = mangaCoversDeferred.awaitAll()
 
         // Background Gradient
         val bgPaint = Paint().apply {
@@ -181,14 +222,19 @@ object StatsExporter {
             isAntiAlias = true
         }
 
-        // Header Section
-        val titlePaint = Paint().apply {
-            color = Color.WHITE
-            textSize = 46f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
+        // Header Section with App Logo Bitmap
+        val logoBitmap = runCatching {
+            BitmapFactory.decodeResource(context.resources, R.drawable.ic_app_logo)
+        }.getOrNull()
+
+        var headerTextX = 80f
+        if (logoBitmap != null) {
+            val logoHeight = 64f
+            val logoWidth = logoBitmap.width * (logoHeight / logoBitmap.height)
+            val destRect = RectF(80f, 32f, 80f + logoWidth, 32f + logoHeight)
+            canvas.drawBitmap(logoBitmap, null, destRect, Paint(Paint.FILTER_BITMAP_FLAG))
+            headerTextX = 80f + logoWidth + 24f
         }
-        canvas.drawText("CA'NIM", 80f, 100f, titlePaint)
 
         val appSubPaint = Paint().apply {
             color = Color.rgb(56, 189, 248)
@@ -196,63 +242,86 @@ object StatsExporter {
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             isAntiAlias = true
         }
-        canvas.drawText("Lacak Anime dan Mangamu • Terhubung dengan MAL", 250f, 98f, appSubPaint)
-
-        val userBadgePaint = Paint().apply {
-            color = Color.rgb(148, 163, 184)
-            textSize = 24f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            isAntiAlias = true
-        }
-        val usernameStr = malUser.username.ifBlank { "Tamu (Mode Offline)" }
-        canvas.drawText("Pengguna: @$usernameStr", width - 480f, 98f, userBadgePaint)
+        canvas.drawText("Lacak Anime dan Mangamu • Terhubung dengan MAL", headerTextX, 72f, appSubPaint)
 
         // Divider
         val divPaint = Paint().apply {
             color = Color.rgb(30, 41, 59)
             strokeWidth = 2f
         }
-        canvas.drawLine(80f, 130f, width - 80f, 130f, divPaint)
+        canvas.drawLine(80f, 115f, width - 80f, 115f, divPaint)
 
-        // LEFT COLUMN: Key Metrics & Status Breakdown (Width: 540px)
-        val leftCardRect = RectF(80f, 160f, 620f, 980f)
+        // LEFT COLUMN: MAL Profile & Key Metrics (Width: 500px, x: 80f to 580f)
+        val leftCardRect = RectF(80f, 140f, 580f, 1000f)
         canvas.drawRoundRect(leftCardRect, 24f, 24f, cardBgPaint)
         canvas.drawRoundRect(leftCardRect, 24f, 24f, cardBorderPaint)
 
         val secHeaderPaint = Paint().apply {
             color = Color.rgb(56, 189, 248)
-            textSize = 26f
+            textSize = 24f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             isAntiAlias = true
         }
-        canvas.drawText("RINGKASAN METRIK", 110f, 210f, secHeaderPaint)
+        canvas.drawText("PROFIL MYANIMELIST", 110f, 185f, secHeaderPaint)
+
+        // MAL Profile Box (Username, Lokasi, Gender - Tanpa Tanggal Lahir)
+        val profileLabelPaint = Paint().apply {
+            color = Color.rgb(156, 163, 175)
+            textSize = 18f
+            isAntiAlias = true
+        }
+        val profileValPaint = Paint().apply {
+            color = Color.WHITE
+            textSize = 22f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+
+        var profileY = 225f
+        fun drawProfileRow(label: String, value: String) {
+            canvas.drawText(label, 110f, profileY, profileLabelPaint)
+            val cleanVal = if (value.isBlank()) "-" else value
+            canvas.drawText(cleanVal, 220f, profileY, profileValPaint)
+            profileY += 38f
+        }
+
+        drawProfileRow("Username:", "@${malUser.username.ifBlank { "Tamu" }}")
+        drawProfileRow("Lokasi:", malUser.location ?: "-")
+        drawProfileRow("Gender:", malUser.gender?.replaceFirstChar { it.uppercase() } ?: "-")
+
+        // Metric divider
+        profileY += 10f
+        canvas.drawLine(110f, profileY, 550f, profileY, divPaint)
+        profileY += 45f
+
+        canvas.drawText("RINGKASAN METRIK", 110f, profileY, secHeaderPaint)
+        profileY += 40f
 
         val metricLabelPaint = Paint().apply {
             color = Color.rgb(156, 163, 175)
-            textSize = 20f
+            textSize = 18f
             isAntiAlias = true
         }
         val metricValuePaint = Paint().apply {
             color = Color.WHITE
-            textSize = 34f
+            textSize = 30f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             isAntiAlias = true
         }
 
-        var yOffset = 270f
         fun drawMetric(label: String, value: String, unit: String = "") {
-            canvas.drawText(label, 110f, yOffset, metricLabelPaint)
-            canvas.drawText(value, 110f, yOffset + 40f, metricValuePaint)
+            canvas.drawText(label, 110f, profileY, metricLabelPaint)
+            canvas.drawText(value, 110f, profileY + 36f, metricValuePaint)
             if (unit.isNotEmpty()) {
                 val valWidth = metricValuePaint.measureText(value)
                 val unitPaint = Paint().apply {
                     color = Color.rgb(148, 163, 184)
-                    textSize = 20f
+                    textSize = 18f
                     isAntiAlias = true
                 }
-                canvas.drawText(unit, 110f + valWidth + 10f, yOffset + 38f, unitPaint)
+                canvas.drawText(unit, 110f + valWidth + 10f, profileY + 34f, unitPaint)
             }
-            yOffset += 90f
+            profileY += 80f
         }
 
         drawMetric("Total Judul Anime", "${stats.totalAnime}", "Judul")
@@ -262,97 +331,242 @@ object StatsExporter {
         drawMetric("Rata-Rata Skor", if (stats.meanScore > 0) "★ ${stats.meanScore}" else "-", "/ 10")
         drawMetric("Total Ditamatkan", "${stats.completedCount}", "Anime + Manga")
 
-        // Draw Mini Status Bars inside left column
-        canvas.drawLine(110f, yOffset + 10f, 590f, yOffset + 10f, divPaint)
-        yOffset += 50f
-        canvas.drawText("DISTRIBUSI STATUS", 110f, yOffset, secHeaderPaint)
-        yOffset += 40f
+        // RIGHT AREA: TOP 5 ANIME & TOP 5 MANGA COVERS WITH GRADIENT FADING
+        val cardWidth = 224f
+        val cardHeight = 336f
+        val cardSpacing = 20f
+        val rightStartX = 620f
 
-        val distPaint = Paint().apply {
-            color = Color.rgb(209, 213, 219)
-            textSize = 18f
-            isAntiAlias = true
-        }
-        canvas.drawText("Anime: ${stats.animeWatching} Menonton • ${stats.animeCompleted} Tamat • ${stats.animePlanToWatch} Rencana", 110f, yOffset, distPaint)
-        yOffset += 30f
-        canvas.drawText("Manga: ${stats.mangaReading} Membaca • ${stats.mangaCompleted} Tamat • ${stats.mangaPlanToRead} Rencana", 110f, yOffset, distPaint)
-
-        // RIGHT COLUMN TOP: TOP 5 ANIME (Width: 1220px, Height: 380px)
-        val rightTopRect = RectF(660f, 160f, 1840f, 550f)
-        canvas.drawRoundRect(rightTopRect, 24f, 24f, cardBgPaint)
-        canvas.drawRoundRect(rightTopRect, 24f, 24f, cardBorderPaint)
-
-        canvas.drawText("TOP 5 ANIME PRIBADI (SKOR TERTINGGI)", 690f, 210f, secHeaderPaint)
-
-        val itemTitlePaint = Paint().apply {
-            color = Color.WHITE
-            textSize = 20f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-        val itemSubPaint = Paint().apply {
-            color = Color.rgb(156, 163, 175)
-            textSize = 17f
-            isAntiAlias = true
-        }
-        val scorePaint = Paint().apply {
-            color = Color.rgb(250, 204, 21) // Gold
+        // 1. TOP 5 ANIME
+        val animeSecHeaderPaint = Paint().apply {
+            color = Color.rgb(56, 189, 248)
             textSize = 24f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             isAntiAlias = true
         }
+        canvas.drawText("TOP 5 ANIME PRIBADI (SKOR TERTINGGI)", rightStartX, 170f, animeSecHeaderPaint)
 
-        var animeY = 265f
+        val topAnimeY = 195f
         if (topAnime.isEmpty()) {
-            canvas.drawText("Belum ada anime yang diberi skor personal", 690f, animeY + 40f, itemSubPaint)
+            val emptyPaint = Paint().apply {
+                color = Color.rgb(148, 163, 184)
+                textSize = 20f
+                isAntiAlias = true
+            }
+            canvas.drawText("Belum ada anime yang diberi skor personal di koleksi Anda", rightStartX, topAnimeY + 60f, emptyPaint)
         } else {
             topAnime.take(5).forEachIndexed { idx, item ->
-                val rankText = "#${idx + 1}"
-                canvas.drawText(rankText, 690f, animeY, secHeaderPaint)
-                val safeTitle = if (item.title.length > 55) item.title.take(52) + "..." else item.title
-                canvas.drawText(safeTitle, 750f, animeY, itemTitlePaint)
-                canvas.drawText("${item.progress} / ${if (item.totalEpisodes > 0) item.totalEpisodes else "?"} Ep • ${item.status.replace("_", " ").replaceFirstChar { it.uppercase() }}", 750f, animeY + 24f, itemSubPaint)
-                canvas.drawText("★ ${item.score}", 1740f, animeY + 10f, scorePaint)
-                animeY += 56f
+                val cardX = rightStartX + idx * (cardWidth + cardSpacing)
+                val cardRect = RectF(cardX, topAnimeY, cardX + cardWidth, topAnimeY + cardHeight)
+                drawCoverCard(
+                    canvas = canvas,
+                    rect = cardRect,
+                    bitmap = animeBitmaps.getOrNull(idx),
+                    rank = idx + 1,
+                    title = item.title,
+                    score = item.score,
+                    subtitle = "${item.progress} / ${if (item.totalEpisodes > 0) item.totalEpisodes else "?"} Ep",
+                    accentColor = Color.rgb(56, 189, 248)
+                )
             }
         }
 
-        // RIGHT COLUMN BOTTOM: TOP 5 MANGA (Width: 1220px, Height: 380px)
-        val rightBottomRect = RectF(660f, 580f, 1840f, 980f)
-        canvas.drawRoundRect(rightBottomRect, 24f, 24f, cardBgPaint)
-        canvas.drawRoundRect(rightBottomRect, 24f, 24f, cardBorderPaint)
-
+        // 2. TOP 5 MANGA
         val mangaSecHeaderPaint = Paint().apply {
-            color = Color.rgb(96, 165, 250) // Blue
-            textSize = 26f
+            color = Color.rgb(96, 165, 250)
+            textSize = 24f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             isAntiAlias = true
         }
-        canvas.drawText("TOP 5 MANGA PRIBADI (SKOR TERTINGGI)", 690f, 630f, mangaSecHeaderPaint)
+        val topMangaLabelY = 590f
+        canvas.drawText("TOP 5 MANGA PRIBADI (SKOR TERTINGGI)", rightStartX, topMangaLabelY, mangaSecHeaderPaint)
 
-        var mangaY = 685f
+        val topMangaY = 615f
         if (topManga.isEmpty()) {
-            canvas.drawText("Belum ada manga yang diberi skor personal", 690f, mangaY + 40f, itemSubPaint)
+            val emptyPaint = Paint().apply {
+                color = Color.rgb(148, 163, 184)
+                textSize = 20f
+                isAntiAlias = true
+            }
+            canvas.drawText("Belum ada manga yang diberi skor personal di koleksi Anda", rightStartX, topMangaY + 60f, emptyPaint)
         } else {
             topManga.take(5).forEachIndexed { idx, item ->
-                val rankText = "#${idx + 1}"
-                canvas.drawText(rankText, 690f, mangaY, mangaSecHeaderPaint)
-                val safeTitle = if (item.title.length > 55) item.title.take(52) + "..." else item.title
-                canvas.drawText(safeTitle, 750f, mangaY, itemTitlePaint)
-                canvas.drawText("${item.progressChapters} Ch • ${item.status.replace("_", " ").replaceFirstChar { it.uppercase() }}", 750f, mangaY + 24f, itemSubPaint)
-                canvas.drawText("★ ${item.score}", 1740f, mangaY + 10f, scorePaint)
-                mangaY += 56f
+                val cardX = rightStartX + idx * (cardWidth + cardSpacing)
+                val cardRect = RectF(cardX, topMangaY, cardX + cardWidth, topMangaY + cardHeight)
+                drawCoverCard(
+                    canvas = canvas,
+                    rect = cardRect,
+                    bitmap = mangaBitmaps.getOrNull(idx),
+                    rank = idx + 1,
+                    title = item.title,
+                    score = item.score,
+                    subtitle = "${item.progressChapters} Bab",
+                    accentColor = Color.rgb(96, 165, 250)
+                )
             }
         }
 
-        // Footer Brand & Disclaimer
+        // FOOTER: Low Opacity (0.4 alpha) Credit
         val footerPaint = Paint().apply {
-            color = Color.rgb(100, 116, 139)
-            textSize = 16f
+            color = Color.argb(102, 255, 255, 255) // 0.4 alpha
+            textSize = 18f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
             isAntiAlias = true
         }
-        canvas.drawText("Dibuat otomatis oleh CA'NIM v4.1.0 • Single Source of Truth MyAnimeList • AniList Rich Metadata", 80f, 1030f, footerPaint)
+        canvas.drawText("Dibuat dengan CA-NIM • github.com/Kh1zZ/CA-NIM", 80f, 1045f, footerPaint)
 
         return bitmap
+    }
+
+    private fun drawCoverCard(
+        canvas: Canvas,
+        rect: RectF,
+        bitmap: Bitmap?,
+        rank: Int,
+        title: String,
+        score: Int,
+        subtitle: String,
+        accentColor: Int
+    ) {
+        val cornerRadius = 18f
+        val path = Path().apply {
+            addRoundRect(rect, cornerRadius, cornerRadius, Path.Direction.CW)
+        }
+
+        canvas.save()
+        canvas.clipPath(path)
+
+        // 1. Draw Cover or Fallback Background
+        if (bitmap != null) {
+            val srcRect = Rect(0, 0, bitmap.width, bitmap.height)
+            canvas.drawBitmap(bitmap, srcRect, rect, Paint(Paint.FILTER_BITMAP_FLAG))
+        } else {
+            val fallbackPaint = Paint().apply {
+                color = Color.rgb(30, 41, 59)
+            }
+            canvas.drawRect(rect, fallbackPaint)
+        }
+
+        // 2. Dark Fading Gradient at Bottom of the Cover
+        val gradPaint = Paint().apply {
+            shader = LinearGradient(
+                rect.left, rect.top + rect.height() * 0.35f,
+                rect.left, rect.bottom,
+                intArrayOf(Color.TRANSPARENT, Color.argb(190, 10, 15, 29), Color.argb(250, 2, 6, 23)),
+                floatArrayOf(0f, 0.45f, 1f),
+                Shader.TileMode.CLAMP
+            )
+        }
+        canvas.drawRect(rect, gradPaint)
+
+        // 3. Top Rank Badge
+        val rankBadgePaint = Paint().apply {
+            color = Color.argb(210, 15, 23, 42)
+            style = Paint.Style.FILL
+            isAntiAlias = true
+        }
+        val rankRect = RectF(rect.left + 10f, rect.top + 10f, rect.left + 48f, rect.top + 42f)
+        canvas.drawRoundRect(rankRect, 8f, 8f, rankBadgePaint)
+
+        val rankTextPaint = Paint().apply {
+            color = accentColor
+            textSize = 18f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+            textAlign = Paint.Align.CENTER
+        }
+        canvas.drawText("#$rank", rankRect.centerX(), rankRect.centerY() + 6f, rankTextPaint)
+
+        // 4. Score Badge inside Cover
+        if (score > 0) {
+            val scoreBadgePaint = Paint().apply {
+                color = Color.argb(210, 15, 23, 42)
+                style = Paint.Style.FILL
+                isAntiAlias = true
+            }
+            val scoreRect = RectF(rect.right - 72f, rect.top + 10f, rect.right - 10f, rect.top + 42f)
+            canvas.drawRoundRect(scoreRect, 8f, 8f, scoreBadgePaint)
+
+            val scoreTextPaint = Paint().apply {
+                color = Color.rgb(250, 204, 21) // Gold
+                textSize = 17f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                isAntiAlias = true
+                textAlign = Paint.Align.CENTER
+            }
+            canvas.drawText("★ $score", scoreRect.centerX(), scoreRect.centerY() + 6f, scoreTextPaint)
+        }
+
+        // 5. Title & Progress Inside the Bottom Gradient
+        val titlePaint = Paint().apply {
+            color = Color.WHITE
+            textSize = 18f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            isAntiAlias = true
+        }
+
+        val subPaint = Paint().apply {
+            color = Color.rgb(156, 163, 175)
+            textSize = 14f
+            isAntiAlias = true
+        }
+
+        val maxWidth = rect.width() - 24f
+        val lines = wrapText(title, titlePaint, maxWidth, maxLines = 2)
+
+        var textY = rect.bottom - 20f - (lines.size * 22f)
+        lines.forEach { line ->
+            canvas.drawText(line, rect.left + 12f, textY, titlePaint)
+            textY += 22f
+        }
+        canvas.drawText(subtitle, rect.left + 12f, rect.bottom - 12f, subPaint)
+
+        canvas.restore()
+
+        // Card Border
+        val borderPaint = Paint().apply {
+            color = Color.argb(80, 56, 189, 248)
+            style = Paint.Style.STROKE
+            strokeWidth = 2f
+            isAntiAlias = true
+        }
+        canvas.drawRoundRect(rect, cornerRadius, cornerRadius, borderPaint)
+    }
+
+    private fun wrapText(text: String, paint: Paint, maxWidth: Float, maxLines: Int): List<String> {
+        val words = text.split(" ")
+        val lines = mutableListOf<String>()
+        var currentLine = ""
+
+        for (word in words) {
+            val candidate = if (currentLine.isEmpty()) word else "$currentLine $word"
+            if (paint.measureText(candidate) <= maxWidth) {
+                currentLine = candidate
+            } else {
+                if (currentLine.isNotEmpty()) {
+                    lines.add(currentLine)
+                }
+                currentLine = word
+                if (lines.size == maxLines - 1) break
+            }
+        }
+
+        if (currentLine.isNotEmpty() && lines.size < maxLines) {
+            lines.add(currentLine)
+        }
+
+        // If last line overflows, truncate with ellipsis
+        if (lines.isNotEmpty()) {
+            val lastIdx = lines.size - 1
+            if (paint.measureText(lines[lastIdx]) > maxWidth) {
+                var truncated = lines[lastIdx]
+                while (truncated.isNotEmpty() && paint.measureText("$truncated...") > maxWidth) {
+                    truncated = truncated.dropLast(1)
+                }
+                lines[lastIdx] = "$truncated..."
+            }
+        }
+
+        return lines
     }
 }

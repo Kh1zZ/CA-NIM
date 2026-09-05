@@ -210,7 +210,9 @@ data class FilmographyItem(
     val year: Int? = null,
     val format: String? = null,
     val type: MediaType = MediaType.ANIME,
-    val role: String? = null
+    val role: String? = null,
+    val characterName: String? = null,
+    val characterImage: String? = null
 )
 
 @Immutable
@@ -252,12 +254,21 @@ data class ExtendedMediaDetail(
     val crew: List<StaffMemberItem> = emptyList(),
     val relations: List<String> = emptyList(),
     val averageScore: Double? = null,
+    val malScore: Double? = null,
     val popularity: Int? = null,
     val rank: Int? = null,
     val watchers: Int? = null,
     val recommendations: List<MediaItem> = emptyList(),
     val isFromFallback: Boolean = false
 )
+
+fun formatCompactNumber(value: Int): String {
+    return when {
+        value >= 1_000_000 -> String.format(java.util.Locale.US, "%.1fM", value / 1_000_000.0)
+        value >= 1_000 -> String.format(java.util.Locale.US, "%.1fK", value / 1_000.0)
+        else -> value.toString()
+    }
+}
 
 enum class DiscoverCategory(val key: String, val label: String) {
     CURRENT_SEASON("season_now", "Musim Ini"),

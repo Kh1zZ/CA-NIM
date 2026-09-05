@@ -1,7 +1,6 @@
 package com.canim.app.ui.screens
 
 import android.widget.Toast
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -36,6 +35,15 @@ import com.canim.app.ui.theme.*
 import com.canim.app.ui.viewmodel.CanimUiState
 import kotlinx.coroutines.launch
 
+object StatsColors {
+    val Completed = Color(0xFF10B981)
+    val Watching = AccentBlue
+    val Reading = MangaAccentDarkBlue
+    val OnHold = Color(0xFFF59E0B)
+    val Dropped = Color(0xFFEF4444)
+    val PlanTo = Color(0xFFA855F7)
+}
+
 data class PieSlice(val label: String, val count: Int, val color: Color)
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -46,8 +54,6 @@ fun StatsScreen(
     onSelectItem: (Any, MediaType) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    BackHandler(onBack = onBack)
-
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var showExportDialog by remember { mutableStateOf(false) }
@@ -68,24 +74,24 @@ fun StatsScreen(
             .take(5)
     }
 
-    // Pie chart data
+    // Pie chart data with unified StatsColors
     val animeSlices = remember(state.stats) {
         listOf(
-            PieSlice("Ditonton", state.stats.animeWatching, AccentBlue),
-            PieSlice("Selesai", state.stats.animeCompleted, AccentGreen),
-            PieSlice("Ditunda", state.stats.animeOnHold, Color(0xFFF59E0B)),
-            PieSlice("Drop", state.stats.animeDropped, Color(0xFFEF4444)),
-            PieSlice("Rencana", state.stats.animePlanToWatch, Color(0xFFA855F7))
+            PieSlice("Ditonton", state.stats.animeWatching, StatsColors.Watching),
+            PieSlice("Selesai", state.stats.animeCompleted, StatsColors.Completed),
+            PieSlice("Ditunda", state.stats.animeOnHold, StatsColors.OnHold),
+            PieSlice("Drop", state.stats.animeDropped, StatsColors.Dropped),
+            PieSlice("Rencana", state.stats.animePlanToWatch, StatsColors.PlanTo)
         ).filter { it.count > 0 }
     }
 
     val mangaSlices = remember(state.stats) {
         listOf(
-            PieSlice("Dibaca", state.stats.mangaReading, MangaAccentDarkBlue),
-            PieSlice("Selesai", state.stats.mangaCompleted, AccentGreen),
-            PieSlice("Ditunda", state.stats.mangaOnHold, Color(0xFFF59E0B)),
-            PieSlice("Drop", state.stats.mangaDropped, Color(0xFFEF4444)),
-            PieSlice("Rencana", state.stats.mangaPlanToRead, Color(0xFFA855F7))
+            PieSlice("Dibaca", state.stats.mangaReading, StatsColors.Reading),
+            PieSlice("Selesai", state.stats.mangaCompleted, StatsColors.Completed),
+            PieSlice("Ditunda", state.stats.mangaOnHold, StatsColors.OnHold),
+            PieSlice("Drop", state.stats.mangaDropped, StatsColors.Dropped),
+            PieSlice("Rencana", state.stats.mangaPlanToRead, StatsColors.PlanTo)
         ).filter { it.count > 0 }
     }
 

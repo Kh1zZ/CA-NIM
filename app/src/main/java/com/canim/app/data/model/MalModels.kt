@@ -12,13 +12,17 @@ data class MalTokenResponse(
 data class MalUserProfile(
     @SerializedName("id") val id: Long,
     @SerializedName("name") val name: String,
-    @SerializedName("picture") val picture: String?
+    @SerializedName("picture") val picture: String?,
+    @SerializedName("location") val location: String? = null,
+    @SerializedName("gender") val gender: String? = null
 )
 
 data class MalUser(
     val id: Long = 0,
     val username: String = "",
     val pictureUrl: String? = null,
+    val location: String? = null,
+    val gender: String? = null,
     val isLoggedIn: Boolean = false
 )
 
@@ -53,7 +57,8 @@ data class MalAnimeNode(
     @SerializedName("start_date") val startDate: String? = null,
     @SerializedName("end_date") val endDate: String? = null,
     @SerializedName("studios") val studios: List<MalGenre>? = null,
-    @SerializedName("source") val source: String? = null
+    @SerializedName("source") val source: String? = null,
+    @SerializedName("mean") val mean: Double? = null
 )
 
 data class MalMangaNodeItem(
@@ -72,7 +77,8 @@ data class MalMangaNode(
     @SerializedName("synopsis") val synopsis: String?,
     @SerializedName("start_date") val startDate: String? = null,
     @SerializedName("end_date") val endDate: String? = null,
-    @SerializedName("authors") val authors: List<MalGenre>? = null
+    @SerializedName("authors") val authors: List<MalGenre>? = null,
+    @SerializedName("mean") val mean: Double? = null
 )
 
 data class MalPicture(

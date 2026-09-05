@@ -53,7 +53,7 @@ fun DiscoverScreen(
     modifier: Modifier = Modifier
 ) {
     var showFilterPanel by remember { mutableStateOf(false) }
-    var showRandomizerMenu by remember { mutableStateOf(false) }
+    var filterMediaType by remember { mutableStateOf(if (state.discoverFilter.format == "MANGA") MediaType.MANGA else MediaType.ANIME) }
     var selectedItemForAdd by remember { mutableStateOf<MediaItem?>(null) }
     var selectedItemForEdit by remember { mutableStateOf<MediaItem?>(null) }
 
@@ -108,8 +108,7 @@ fun DiscoverScreen(
         "MOVIE" to "Movie",
         "ONA" to "ONA",
         "OVA" to "OVA",
-        "SPECIAL" to "Special",
-        "MANGA" to "Manga"
+        "SPECIAL" to "Special"
     )
 
     // Expanded score options with 5+ and 6+ (Request 4)
@@ -247,30 +246,69 @@ fun DiscoverScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            text = "Kustomisasi Filter AniList",
+                            text = "Kustomisasi Filter & Acak",
                             color = TextPrimary,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
 
-                        // Format selector (Scrollable for compact & wide ratios)
-                        Text(text = "Tipe / Format:", color = TextSecondary, fontSize = 11.sp)
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            items(formats) { (key, label) ->
-                                val isSelected = filterFormat == key
+                        // 2-state Anime/Manga toggle
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(CardElevated)
+                                .padding(4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            listOf(MediaType.ANIME to "Anime", MediaType.MANGA to "Manga").forEach { (type, label) ->
+                                val isSelected = filterMediaType == type
                                 Box(
                                     modifier = Modifier
+                                        .weight(1f)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isSelected) AccentBlue else CardElevated)
-                                        .clickable { filterFormat = key }
-                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                        .background(if (isSelected) (if (type == MediaType.ANIME) AccentBlue else MangaAccentDarkBlue) else Color.Transparent)
+                                        .clickable { 
+                                            filterMediaType = type
+                                            if (type == MediaType.MANGA) {
+                                                filterFormat = "MANGA"
+                                            } else if (filterFormat == "MANGA") {
+                                                filterFormat = "TV"
+                                            }
+                                        }
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
                                 ) {
                                     Text(
                                         text = label,
-                                        color = if (isSelected) Color.White else TextPrimary,
-                                        fontSize = 11.sp,
+                                        color = if (isSelected) Color.White else TextSecondary,
+                                        fontSize = 12.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                                     )
+                                }
+                            }
+                        }
+
+                        // Format selector (Only shown for Anime, hidden for Manga)
+                        if (filterMediaType == MediaType.ANIME) {
+                            Text(text = "Tipe / Format:", color = TextSecondary, fontSize = 11.sp)
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                items(formats) { (key, label) ->
+                                    val isSelected = filterFormat == key
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (isSelected) AccentBlue else CardElevated)
+                                            .clickable { filterFormat = key }
+                                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            color = if (isSelected) Color.White else TextPrimary,
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -318,12 +356,10 @@ fun DiscoverScreen(
                             }
                         }
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Button(
-                                onClick = {
+                        // Single Acak Button
+                        Button(
+                            onClick = {
+                                if (filterMediaType == MediaType.ANIME) {
                                     val activeFilter = DiscoverFilter(
                                         genre = filterGenre,
                                         format = if (filterFormat == "MANGA") "TV" else filterFormat,
@@ -332,24 +368,7 @@ fun DiscoverScreen(
                                         minScore = filterMinScore
                                     )
                                     onRandomize(activeFilter)
-                                    showFilterPanel = false
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("discover_filter_randomize_anime_btn"),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = AccentBlue,
-                                    contentColor = Color.White
-                                ),
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-                                Icon(imageVector = Icons.Default.Shuffle, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Acak Anime", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            }
-
-                            Button(
-                                onClick = {
+                                } else {
                                     val activeFilter = DiscoverFilter(
                                         genre = filterGenre,
                                         format = "MANGA",
@@ -358,21 +377,25 @@ fun DiscoverScreen(
                                         minScore = filterMinScore
                                     )
                                     onRandomizeManga(activeFilter)
-                                    showFilterPanel = false
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .testTag("discover_filter_randomize_manga_btn"),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MangaAccentDarkBlue,
-                                    contentColor = Color.White
-                                ),
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-                                Icon(imageVector = Icons.Default.AutoStories, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Acak Manga", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            }
+                                }
+                                showFilterPanel = false
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("discover_filter_randomize_btn"),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (filterMediaType == MediaType.ANIME) AccentBlue else MangaAccentDarkBlue,
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Shuffle, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (filterMediaType == MediaType.ANIME) "Acak Anime" else "Acak Manga",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
                         }
                     }
                 }
@@ -665,98 +688,7 @@ fun DiscoverScreen(
         )
     }
 
-    // Floating Action Button (FAB) for Quick Randomizer
-    FloatingActionButton(
-        onClick = { showRandomizerMenu = true },
-        containerColor = AccentBlue,
-        contentColor = Color.White,
-        shape = CircleShape,
-        modifier = Modifier
-            .align(Alignment.BottomEnd)
-            .padding(bottom = 24.dp, end = 16.dp)
-            .testTag("discover_randomize_fab")
-    ) {
-        Icon(
-            imageVector = Icons.Default.Casino,
-            contentDescription = "Acak Rekomendasi",
-            modifier = Modifier.size(24.dp)
-        )
-    }
 
-    // Quick Randomizer Selection Dialog
-    if (showRandomizerMenu) {
-        AlertDialog(
-            onDismissRequest = { showRandomizerMenu = false },
-            title = {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(imageVector = Icons.Default.Casino, contentDescription = null, tint = AccentBlue)
-                    Text("Rekomendasi Acak", color = TextPrimary, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                }
-            },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        text = "Pilih kategori media yang ingin diacak. Judul yang telah tamat akan otomatis dilewati:",
-                        color = TextSecondary,
-                        fontSize = 13.sp
-                    )
-
-                    Button(
-                        onClick = {
-                            val activeFilter = DiscoverFilter(
-                                genre = filterGenre,
-                                format = if (filterFormat == "MANGA") "TV" else filterFormat,
-                                year = filterYear,
-                                season = filterSeason,
-                                minScore = filterMinScore
-                            )
-                            onRandomize(activeFilter)
-                            showRandomizerMenu = false
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Icon(imageVector = Icons.Default.Tv, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Acak Anime Sekarang", fontWeight = FontWeight.Bold)
-                    }
-
-                    Button(
-                        onClick = {
-                            val activeFilter = DiscoverFilter(
-                                genre = filterGenre,
-                                format = "MANGA",
-                                year = filterYear,
-                                season = filterSeason,
-                                minScore = filterMinScore
-                            )
-                            onRandomizeManga(activeFilter)
-                            showRandomizerMenu = false
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = MangaAccentDarkBlue),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Icon(imageVector = Icons.Default.AutoStories, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Acak Manga Sekarang", fontWeight = FontWeight.Bold)
-                    }
-                }
-            },
-            confirmButton = {},
-            dismissButton = {
-                TextButton(onClick = { showRandomizerMenu = false }) {
-                    Text("Tutup", color = TextMuted)
-                }
-            },
-            containerColor = CardElevated,
-            shape = RoundedCornerShape(16.dp)
-        )
-    }
 }
 }
 

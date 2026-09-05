@@ -120,13 +120,17 @@ class MalAuthManager(
             secureStorage.saveUserProfile(
                 id = profile.id,
                 username = profile.name,
-                pictureUrl = profile.picture
+                pictureUrl = profile.picture,
+                location = profile.location,
+                gender = profile.gender
             )
 
             val malUser = MalUser(
                 id = profile.id,
                 username = profile.name,
                 pictureUrl = profile.picture,
+                location = profile.location,
+                gender = profile.gender,
                 isLoggedIn = true
             )
 
@@ -498,6 +502,15 @@ class MalAuthManager(
      */
     suspend fun syncWithMal(): MalSyncResult = withContext(Dispatchers.IO) {
         try {
+            // Also refresh profile for location and gender
+            runCatching {
+                val token = getValidAccessToken()
+                if (token != null) {
+                    val p = ApiClient.malApi.getUserProfile("Bearer $token")
+                    secureStorage.saveUserProfile(p.id, p.name, p.picture, p.location, p.gender)
+                }
+            }
+
             val animeResult = fetchUserAnimeList(forceRefresh = true)
             val mangaResult = fetchUserMangaList(forceRefresh = true)
 
@@ -609,6 +622,7 @@ class MalAuthManager(
                         startDate = body.startDate,
                         endDate = body.endDate,
                         genres = body.genres?.map { it.name } ?: emptyList(),
+                        malScore = body.mean,
                         isFromFallback = true
                     )
                     CacheManager.putDetail(cacheKey, ext)
@@ -626,6 +640,7 @@ class MalAuthManager(
                         startDate = body.startDate,
                         endDate = body.endDate,
                         genres = body.genres?.map { it.name } ?: emptyList(),
+                        malScore = body.mean,
                         isFromFallback = true
                     )
                     CacheManager.putDetail(cacheKey, ext)

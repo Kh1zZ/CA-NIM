@@ -1,11 +1,11 @@
 package com.canim.app.ui.screens
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -29,6 +29,7 @@ import com.canim.app.data.model.FilmographyItem
 import com.canim.app.data.model.MediaItem
 import com.canim.app.data.model.MediaType
 import com.canim.app.ui.theme.*
+import com.canim.app.util.TextSanitizer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,21 +40,18 @@ fun CastCrewProfileScreen(
     onSelectMedia: (MediaItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    BackHandler(onBack = onBack)
-
     var isBioExpanded by remember { mutableStateOf(false) }
+    var selectedFilter by remember { mutableStateOf("Semua") }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        text = profile?.name ?: "Profil Cast / Crew",
+                        text = if (profile?.isStaff == true) "Profil Staf / Pengisi Suara" else "Profil Karakter",
                         color = TextPrimary,
                         fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        fontWeight = FontWeight.Bold
                     )
                 },
                 navigationIcon = {
@@ -65,7 +63,7 @@ fun CastCrewProfileScreen(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = BlackBg)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = CardBg)
             )
         },
         containerColor = BlackBg,
@@ -80,83 +78,120 @@ fun CastCrewProfileScreen(
             ) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     CircularProgressIndicator(color = AccentBlue)
-                    Text(
-                        text = "Memuat data biografi dari AniList...",
-                        color = TextSecondary,
-                        fontSize = 12.sp
-                    )
+                    Text("Memuat data profil...", color = TextSecondary, fontSize = 13.sp)
                 }
             }
         } else {
+            val cleanBio = remember(profile.biography) {
+                TextSanitizer.sanitize(profile.biography)
+            }
+
+            // Available filter options based on available filmography
+            val hasAnime = remember(profile.filmography) { profile.filmography.any { it.type == MediaType.ANIME } }
+            val hasManga = remember(profile.filmography) { profile.filmography.any { it.type == MediaType.MANGA } }
+            val hasVa = remember(profile.filmography) { profile.filmography.any { !it.characterName.isNullOrBlank() } }
+            val hasStaffRole = remember(profile.filmography) { profile.filmography.any { it.characterName.isNullOrBlank() } }
+
+            val filterOptions = remember(profile.filmography) {
+                val list = mutableListOf("Semua")
+                if (hasAnime && hasManga) {
+                    list.add("Anime")
+                    list.add("Manga")
+                }
+                if (profile.isStaff && hasVa && hasStaffRole) {
+                    list.add("Pengisi Suara")
+                    list.add("Staf")
+                }
+                list
+            }
+
+            val filteredFilmography = remember(profile.filmography, selectedFilter) {
+                when (selectedFilter) {
+                    "Anime" -> profile.filmography.filter { it.type == MediaType.ANIME }
+                    "Manga" -> profile.filmography.filter { it.type == MediaType.MANGA }
+                    "Pengisi Suara" -> profile.filmography.filter { !it.characterName.isNullOrBlank() }
+                    "Staf" -> profile.filmography.filter { it.characterName.isNullOrBlank() }
+                    else -> profile.filmography
+                }
+            }
+
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(horizontal = 16.dp),
-                contentPadding = PaddingValues(top = 8.dp, bottom = 48.dp),
+                    .padding(innerPadding),
+                contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Profile Avatar & Names
+                // Header Bio Card
                 item {
-                    Column(
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                            .border(1.dp, CardBorder, RoundedCornerShape(16.dp)),
+                        colors = CardDefaults.cardColors(containerColor = CardBg),
+                        shape = RoundedCornerShape(16.dp)
                     ) {
-                        AsyncImage(
-                            model = profile.image,
-                            contentDescription = profile.name,
+                        Row(
                             modifier = Modifier
-                                .size(110.dp)
-                                .clip(CircleShape)
-                                .border(3.dp, AccentBlue, CircleShape),
-                            contentScale = ContentScale.Crop
-                        )
-
-                        Text(
-                            text = profile.name,
-                            color = TextPrimary,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Black
-                        )
-
-                        if (!profile.nativeName.isNullOrBlank()) {
-                            Text(
-                                text = profile.nativeName,
-                                color = AccentBlueLight,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-
-                        // Badge
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(if (profile.isStaff) AccentBlue.copy(alpha = 0.15f) else Color(0xFFA855F7).copy(alpha = 0.15f))
-                                .border(
-                                    1.dp,
-                                    if (profile.isStaff) AccentBlue.copy(alpha = 0.5f) else Color(0xFFA855F7).copy(alpha = 0.5f),
-                                    RoundedCornerShape(20.dp)
-                                )
-                                .padding(horizontal = 12.dp, vertical = 4.dp)
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = if (profile.isStaff) "Staf / Pengisi Suara" else "Karakter Fiksi",
-                                color = if (profile.isStaff) AccentBlue else Color(0xFFA855F7),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
+                            AsyncImage(
+                                model = profile.image,
+                                contentDescription = profile.name,
+                                modifier = Modifier
+                                    .size(90.dp)
+                                    .clip(CircleShape)
+                                    .border(2.dp, if (profile.isStaff) MangaAccentDarkBlue else AccentBlue, CircleShape),
+                                contentScale = ContentScale.Crop
                             )
+
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = profile.name,
+                                    color = TextPrimary,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+
+                                if (!profile.nativeName.isNullOrBlank()) {
+                                    Text(
+                                        text = profile.nativeName,
+                                        color = TextMuted,
+                                        fontSize = 13.sp
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(2.dp))
+
+                                Surface(
+                                    color = if (profile.isStaff) MangaAccentDarkBlue.copy(alpha = 0.2f) else AccentBlue.copy(alpha = 0.2f),
+                                    shape = RoundedCornerShape(6.dp)
+                                ) {
+                                    Text(
+                                        text = if (profile.isStaff) "STAF / ARTIS" else "KARAKTER",
+                                        color = if (profile.isStaff) MangaAccentDarkBlue else AccentBlue,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Black,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
 
-                // Public Details Card
+                // Public Detail Card
                 item {
                     Card(
                         modifier = Modifier
@@ -170,36 +205,32 @@ fun CastCrewProfileScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
-                                text = "DETAIL PUBLIK",
+                                text = "DETAIL INFORMASI",
                                 color = TextSecondary,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.sp
                             )
 
-                            if (!profile.nativeName.isNullOrBlank()) {
-                                ProfileDetailRow("Nama Asli / Native", profile.nativeName)
-                            }
                             if (!profile.gender.isNullOrBlank()) {
-                                ProfileDetailRow("Jenis Kelamin", profile.gender)
+                                BioRowItem(label = "Jenis Kelamin", value = profile.gender)
                             }
                             if (!profile.birthday.isNullOrBlank()) {
-                                val dobText = if (!profile.age.isNullOrBlank()) {
-                                    "${profile.birthday} (${profile.age} Tahun)"
-                                } else {
-                                    profile.birthday
-                                }
-                                ProfileDetailRow("Tanggal Lahir", dobText)
+                                BioRowItem(label = "Tanggal Lahir", value = profile.birthday)
+                            }
+                            if (!profile.age.isNullOrBlank()) {
+                                BioRowItem(label = "Usia", value = "${profile.age} Tahun")
                             }
                             if (!profile.nationality.isNullOrBlank()) {
-                                ProfileDetailRow("Asal / Kebangsaan", profile.nationality)
+                                BioRowItem(label = "Kota Asal / Kebangsaan", value = profile.nationality)
                             }
+                            BioRowItem(label = "Total Entri Filmografi", value = "${profile.filmography.size} Judul")
                         }
                     }
                 }
 
                 // Biography Section
-                if (!profile.biography.isNullOrBlank()) {
+                if (cleanBio.isNotBlank()) {
                     item {
                         Card(
                             modifier = Modifier
@@ -220,26 +251,18 @@ fun CastCrewProfileScreen(
                                     letterSpacing = 1.sp
                                 )
 
-                                val cleanBio = remember(profile.biography) {
-                                    profile.biography
-                                        .replace(Regex("<br\\s*/?>"), "\n")
-                                        .replace(Regex("<[^>]*>"), "")
-                                        .replace(Regex("~!|!~"), "")
-                                        .trim()
-                                }
-
                                 Text(
                                     text = cleanBio,
                                     color = TextPrimary,
                                     fontSize = 13.sp,
                                     lineHeight = 20.sp,
-                                    maxLines = if (isBioExpanded) Int.MAX_VALUE else 5,
+                                    maxLines = if (isBioExpanded) Int.MAX_VALUE else 4,
                                     overflow = TextOverflow.Ellipsis
                                 )
 
                                 if (cleanBio.length > 200) {
                                     Text(
-                                        text = if (isBioExpanded) "Tutup Selengkapnya" else "Baca Selengkapnya...",
+                                        text = if (isBioExpanded) "Tutup Biografi" else "Baca Selengkapnya...",
                                         color = AccentBlue,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
@@ -253,42 +276,56 @@ fun CastCrewProfileScreen(
                     }
                 }
 
-                // Filmography Section
+                // Filmography Header with Filter Chips
                 item {
-                    Text(
-                        text = "FILMOGRAFI (${profile.filmography.size})",
-                        color = TextSecondary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
-                    )
-                }
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            text = "DAFTAR FILMOGRAFI (${filteredFilmography.size})",
+                            color = TextSecondary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        )
 
-                if (profile.filmography.isEmpty()) {
-                    item {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(1.dp, CardBorder, RoundedCornerShape(12.dp)),
-                            colors = CardDefaults.cardColors(containerColor = CardBg),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(20.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "Tidak ada riwayat filmografi yang terdaftar di AniList.",
-                                    color = TextMuted,
-                                    fontSize = 12.sp
-                                )
+                        if (filterOptions.size > 1) {
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(filterOptions) { filter ->
+                                    val isSelected = selectedFilter == filter
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (isSelected) AccentBlue else CardBg)
+                                            .border(1.dp, if (isSelected) AccentBlue else CardBorder, RoundedCornerShape(8.dp))
+                                            .clickable { selectedFilter = filter }
+                                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                                    ) {
+                                        Text(
+                                            text = filter,
+                                            color = if (isSelected) Color.White else TextPrimary,
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
+                }
+
+                // Filmography Items
+                if (filteredFilmography.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("Tidak ada judul untuk kategori filter ini.", color = TextMuted, fontSize = 13.sp)
+                        }
+                    }
                 } else {
-                    items(profile.filmography) { item ->
+                    items(filteredFilmography) { item ->
                         FilmographyCard(
                             item = item,
                             onClick = {
@@ -315,7 +352,7 @@ fun CastCrewProfileScreen(
 }
 
 @Composable
-private fun ProfileDetailRow(label: String, value: String) {
+private fun BioRowItem(label: String, value: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -353,17 +390,19 @@ private fun FilmographyCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // Media Poster
             AsyncImage(
                 model = item.imageUrl,
                 contentDescription = item.title,
                 modifier = Modifier
-                    .width(46.dp)
-                    .height(64.dp)
+                    .width(48.dp)
+                    .height(68.dp)
                     .clip(RoundedCornerShape(6.dp)),
                 contentScale = ContentScale.Crop
             )
 
-            Column(modifier = Modifier.weight(1f)) {
+            // Details
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(
                     text = item.title,
                     color = TextPrimary,
@@ -372,20 +411,58 @@ private fun FilmographyCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+
+                // Character Name (for Voice Acting roles)
+                if (!item.characterName.isNullOrBlank()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        if (!item.characterImage.isNullOrBlank()) {
+                            AsyncImage(
+                                model = item.characterImage,
+                                contentDescription = item.characterName,
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .clip(CircleShape)
+                                    .border(1.dp, AccentBlue, CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        }
+                        Text(
+                            text = "Sebagai ${item.characterName}",
+                            color = AccentBlue,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                // Role / Jabatan Badge
                 if (!item.role.isNullOrBlank()) {
+                    val roleLabel = when (item.role.uppercase()) {
+                        "MAIN" -> "Main Role"
+                        "SUPPORTING" -> "Support Role"
+                        "BACKGROUND" -> "Background Role"
+                        else -> item.role
+                    }
                     Text(
-                        text = item.role,
-                        color = AccentBlue,
+                        text = roleLabel,
+                        color = if (item.characterName.isNullOrBlank()) AccentGreen else TextSecondary,
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        fontWeight = FontWeight.Medium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+
+                // Format & Year
                 Text(
-                    text = "${item.format ?: "TV"}${if (item.year != null) " • ${item.year}" else ""}",
+                    text = "${item.format ?: if (item.type == MediaType.MANGA) "Manga" else "TV"}${if (item.year != null) " • ${item.year}" else ""}",
                     color = TextMuted,
-                    fontSize = 11.sp
+                    fontSize = 10.sp
                 )
             }
 

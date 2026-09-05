@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.canim.app.data.cache.CacheManager
 import com.canim.app.data.model.*
 import com.canim.app.data.repository.CanimRepository
+import com.canim.app.ui.navigation.ScreenRoute
 import androidx.compose.runtime.Immutable
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -57,6 +58,7 @@ data class CanimUiState(
 
     // Stats Fullscreen state
     val isStatsOpen: Boolean = false,
+    val isAddTitleSheetOpen: Boolean = false,
 
     // App & Auth state
     val syncStatus: SyncStatus = SyncStatus.IDLE,
@@ -80,6 +82,10 @@ class CanimViewModel(
         )
     )
     val uiState: StateFlow<CanimUiState> = _uiState.asStateFlow()
+
+    // Centralized Navigation Back Stack (ScreenRoute)
+    private val _screenStack = MutableStateFlow<List<ScreenRoute>>(emptyList())
+    val screenStack: StateFlow<List<ScreenRoute>> = _screenStack.asStateFlow()
 
     // Reactive search flow
     private val _searchQueryFlow = MutableStateFlow(Pair("", MediaType.ANIME))
@@ -254,6 +260,7 @@ class CanimViewModel(
 
     // --- Navigation & Filter Controls ---
     fun setTab(tab: String) {
+        clearScreenStack()
         _uiState.update { it.copy(activeTab = tab) }
     }
 
@@ -708,91 +715,210 @@ class CanimViewModel(
         }
     }
 
+    // --- Centralized Screen Stack Navigation (v4.2.0) ---
+    fun pushScreen(route: ScreenRoute) {
+        _screenStack.update { it + route }
+        syncStateWithRoute(route)
+    }
+
+    fun popScreen() {
+        _screenStack.update { stack ->
+            if (stack.isNotEmpty()) stack.dropLast(1) else stack
+        }
+        syncStateWithRoute(_screenStack.value.lastOrNull())
+    }
+
+    fun clearScreenStack() {
+        _screenStack.value = emptyList()
+        syncStateWithRoute(null)
+    }
+
+    private fun syncStateWithRoute(route: ScreenRoute?) {
+        when (route) {
+            is ScreenRoute.Detail -> {
+                val item = route.item
+                val type = route.type
+                val anilistId = when (item) {
+                    is UserMediaItem -> item.anilistId
+                    is MediaItem -> item.anilistId
+                    else -> null
+                }
+                val malId = when (item) {
+                    is UserMediaItem -> item.malId
+                    is MediaItem -> item.malId
+                    else -> null
+                }
+
+                _uiState.update {
+                    it.copy(
+                        selectedDetailItem = item,
+                        detailMediaType = type,
+                        isDetailOpen = true,
+                        selectedCastCrewProfile = null,
+                        isLoadingCastCrewProfile = false,
+                        isStatsOpen = false,
+                        isAddTitleSheetOpen = false,
+                        extendedDetail = null,
+                        isLoadingExtendedDetail = true
+                    )
+                }
+
+                detailJob?.cancel()
+                detailJob = viewModelScope.launch(Dispatchers.IO) {
+                    val detail = repository.getExtendedDetails(anilistId, malId, type)
+                    _uiState.update {
+                        it.copy(
+                            extendedDetail = detail,
+                            isLoadingExtendedDetail = false
+                        )
+                    }
+                }
+            }
+            is ScreenRoute.CastCrew -> {
+                _uiState.update {
+                    it.copy(
+                        selectedDetailItem = null,
+                        isDetailOpen = false,
+                        selectedCastCrewProfile = null,
+                        isLoadingCastCrewProfile = true,
+                        isStatsOpen = false,
+                        isAddTitleSheetOpen = false
+                    )
+                }
+                viewModelScope.launch(Dispatchers.IO) {
+                    val profile = if (route.isStaff) {
+                        repository.getStaffProfile(route.id)
+                    } else {
+                        repository.getCharacterProfile(route.id)
+                    }
+                    _uiState.update {
+                        it.copy(
+                            selectedCastCrewProfile = profile,
+                            isLoadingCastCrewProfile = false
+                        )
+                    }
+                }
+            }
+            is ScreenRoute.FullCastList -> {
+                _uiState.update {
+                    it.copy(
+                        isStatsOpen = false,
+                        isAddTitleSheetOpen = false
+                    )
+                }
+            }
+            is ScreenRoute.Stats -> {
+                _uiState.update {
+                    it.copy(
+                        isStatsOpen = true,
+                        isDetailOpen = false,
+                        selectedCastCrewProfile = null,
+                        isLoadingCastCrewProfile = false,
+                        isAddTitleSheetOpen = false
+                    )
+                }
+            }
+            is ScreenRoute.AddTitleSheet -> {
+                _uiState.update {
+                    it.copy(
+                        isAddTitleSheetOpen = true,
+                        isStatsOpen = false,
+                        isDetailOpen = false,
+                        selectedCastCrewProfile = null,
+                        isLoadingCastCrewProfile = false
+                    )
+                }
+            }
+            null -> {
+                detailJob?.cancel()
+                _uiState.update {
+                    it.copy(
+                        selectedDetailItem = null,
+                        isDetailOpen = false,
+                        extendedDetail = null,
+                        isLoadingExtendedDetail = false,
+                        selectedCastCrewProfile = null,
+                        isLoadingCastCrewProfile = false,
+                        isStatsOpen = false,
+                        isAddTitleSheetOpen = false
+                    )
+                }
+            }
+        }
+    }
+
     // --- Cast & Crew Bio Navigation ---
     fun openCastCrewProfile(id: Int, isStaff: Boolean) {
-        _uiState.update {
-            it.copy(
-                selectedCastCrewProfile = null,
-                isLoadingCastCrewProfile = true
-            )
-        }
-        viewModelScope.launch(Dispatchers.IO) {
-            val profile = if (isStaff) {
-                repository.getStaffProfile(id)
-            } else {
-                repository.getCharacterProfile(id)
-            }
+        pushScreen(ScreenRoute.CastCrew(id, isStaff))
+    }
+
+    fun closeCastCrewProfile() {
+        if (_screenStack.value.lastOrNull() is ScreenRoute.CastCrew) {
+            popScreen()
+        } else {
             _uiState.update {
                 it.copy(
-                    selectedCastCrewProfile = profile,
+                    selectedCastCrewProfile = null,
                     isLoadingCastCrewProfile = false
                 )
             }
         }
     }
 
-    fun closeCastCrewProfile() {
-        _uiState.update {
-            it.copy(
-                selectedCastCrewProfile = null,
-                isLoadingCastCrewProfile = false
-            )
-        }
-    }
-
     // --- Stats Screen Navigation ---
     fun openStats() {
-        _uiState.update { it.copy(isStatsOpen = true) }
+        pushScreen(ScreenRoute.Stats)
     }
 
     fun closeStats() {
-        _uiState.update { it.copy(isStatsOpen = false) }
+        if (_screenStack.value.lastOrNull() is ScreenRoute.Stats) {
+            popScreen()
+        } else {
+            _uiState.update { it.copy(isStatsOpen = false) }
+        }
+    }
+
+    // --- Add Title Modal Sheet ---
+    fun openAddTitleSheet() {
+        pushScreen(ScreenRoute.AddTitleSheet)
+    }
+
+    fun closeAddTitleSheet() {
+        if (_screenStack.value.lastOrNull() is ScreenRoute.AddTitleSheet) {
+            popScreen()
+        } else {
+            _uiState.update { it.copy(isAddTitleSheetOpen = false) }
+        }
+    }
+
+    // --- Full Cast & Crew List Navigation ---
+    fun openFullCastList(
+        mediaTitle: String,
+        castList: List<CharacterCastItem>,
+        staffList: List<StaffMemberItem>,
+        isCrewInitial: Boolean = false
+    ) {
+        pushScreen(ScreenRoute.FullCastList(mediaTitle, castList, staffList, isCrewInitial))
     }
 
     // --- Details ---
     fun openDetail(item: Any, type: MediaType) {
-        detailJob?.cancel()
-        val anilistId = when (item) {
-            is UserMediaItem -> item.anilistId
-            is MediaItem -> item.anilistId
-            else -> null
-        }
-        val malId = when (item) {
-            is UserMediaItem -> item.malId
-            is MediaItem -> item.malId
-            else -> null
-        }
-
-        _uiState.update {
-            it.copy(
-                selectedDetailItem = item,
-                detailMediaType = type,
-                isDetailOpen = true,
-                extendedDetail = null,
-                isLoadingExtendedDetail = true
-            )
-        }
-
-        detailJob = viewModelScope.launch(Dispatchers.IO) {
-            val detail = repository.getExtendedDetails(anilistId, malId, type)
-            _uiState.update {
-                it.copy(
-                    extendedDetail = detail,
-                    isLoadingExtendedDetail = false
-                )
-            }
-        }
+        pushScreen(ScreenRoute.Detail(item, type))
     }
 
     fun closeDetail() {
-        detailJob?.cancel()
-        _uiState.update {
-            it.copy(
-                selectedDetailItem = null,
-                isDetailOpen = false,
-                extendedDetail = null,
-                isLoadingExtendedDetail = false
-            )
+        if (_screenStack.value.lastOrNull() is ScreenRoute.Detail) {
+            popScreen()
+        } else {
+            detailJob?.cancel()
+            _uiState.update {
+                it.copy(
+                    selectedDetailItem = null,
+                    isDetailOpen = false,
+                    extendedDetail = null,
+                    isLoadingExtendedDetail = false
+                )
+            }
         }
     }
 

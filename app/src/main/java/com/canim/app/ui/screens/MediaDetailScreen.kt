@@ -1,6 +1,5 @@
 package com.canim.app.ui.screens
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -14,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.canim.app.data.model.*
 import com.canim.app.ui.theme.*
+import com.canim.app.util.TextSanitizer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,18 +45,17 @@ fun MediaDetailScreen(
     onDeleteAnime: (String) -> Unit,
     onDeleteManga: (String) -> Unit,
     onOpenCastCrew: (Int, Boolean) -> Unit,
+    onOpenFullCast: (isCrew: Boolean) -> Unit,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    BackHandler(onBack = onDismiss)
-
     val isAnime = type == MediaType.ANIME
     val isManga = !isAnime
     val themeAccent = if (isManga) MangaAccentDarkBlue else AccentBlue
     val themeBorder = if (isManga) MangaCardBorder else CardBorder
 
-    val userItem = item as? UserMediaItem
-    val mediaItem = item as? MediaItem
+    val userItem: UserMediaItem? = item as? UserMediaItem
+    val mediaItem: MediaItem? = item as? MediaItem
 
     val title: String = userItem?.title ?: mediaItem?.title ?: ""
     val titleEnglish: String? = userItem?.metadata?.titleEnglish ?: mediaItem?.titleEnglish ?: extendedDetail?.titleEnglish
@@ -64,11 +64,7 @@ fun MediaDetailScreen(
     val bannerUrl: String = imageUrl
     val synopsis: String = userItem?.synopsis ?: mediaItem?.synopsis ?: ""
     val cleanSynopsis: String = remember(synopsis) {
-        synopsis
-            .replace(Regex("<br.*?>"), "\n")
-            .replace(Regex("<[^>]*>"), "")
-            .replace(Regex("~!|!~"), "")
-            .trim()
+        TextSanitizer.sanitize(synopsis)
     }
 
     val totalEpisodes = userItem?.totalEpisodes ?: mediaItem?.episodes ?: 0
@@ -82,96 +78,72 @@ fun MediaDetailScreen(
     var trackingNotes by remember { mutableStateOf(userItem?.notes ?: "") }
 
     var isSynopsisExpanded by remember { mutableStateOf(false) }
-    var showAllCast by remember { mutableStateOf(false) }
-    var showAllCrew by remember { mutableStateOf(false) }
 
     val animeStatusOptions = listOf(
         "watching" to "Ditonton",
         "completed" to "Selesai",
         "on_hold" to "Ditunda",
         "dropped" to "Ditinggalkan",
-        "plan_to_watch" to "Rencana"
+        "plan_to_watch" to "Rencana Tonton"
     )
-
     val mangaStatusOptions = listOf(
         "reading" to "Dibaca",
         "completed" to "Selesai",
         "on_hold" to "Ditunda",
         "dropped" to "Ditinggalkan",
-        "plan_to_read" to "Rencana"
+        "plan_to_read" to "Rencana Baca"
     )
-
     val currentStatusOptions = if (isAnime) animeStatusOptions else mangaStatusOptions
 
-    Scaffold(
-        containerColor = BlackBg,
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showTrackingSheet = true },
-                containerColor = themeAccent,
-                contentColor = Color.White,
-                shape = CircleShape,
-                modifier = Modifier.padding(bottom = 16.dp, end = 8.dp)
-            ) {
-                Icon(
-                    imageVector = if (userItem != null) Icons.Default.Edit else Icons.Default.Add,
-                    contentDescription = "Lacak",
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-        },
-        modifier = modifier.fillMaxSize()
-    ) { innerPadding ->
+    Box(modifier = modifier.fillMaxSize().background(BlackBg)) {
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(bottom = innerPadding.calculateBottomPadding()),
-            contentPadding = PaddingValues(bottom = 80.dp)
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 90.dp)
         ) {
-            // MyDramaList (MDL) Header: Large Cover Backdrop
+            // Header Backdrop Image with Gradient Overlay
             item {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(240.dp)
+                        .height(260.dp)
                 ) {
                     AsyncImage(
                         model = bannerUrl,
                         contentDescription = title,
-                        modifier = Modifier.fillMaxSize(),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp)),
                         contentScale = ContentScale.Crop
                     )
-
-                    // Dark overlay gradient
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(
                                 Brush.verticalGradient(
                                     colors = listOf(
-                                        Color.Black.copy(alpha = 0.4f),
-                                        Color.Black.copy(alpha = 0.7f),
+                                        Color.Black.copy(alpha = 0.35f),
+                                        Color.Black.copy(alpha = 0.85f),
                                         BlackBg
                                     )
                                 )
                             )
                     )
 
-                    // Top App Bar with back button
+                    // Top Action Bar
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .statusBarsPadding()
                             .padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(
                             onClick = onDismiss,
                             modifier = Modifier
                                 .size(40.dp)
                                 .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.6f))
+                                .background(Color.Black.copy(alpha = 0.5f))
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -180,35 +152,37 @@ fun MediaDetailScreen(
                             )
                         }
 
-                        // Badge format
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(Color.Black.copy(alpha = 0.6f))
-                                .border(1.dp, themeBorder, RoundedCornerShape(16.dp))
-                                .padding(horizontal = 10.dp, vertical = 5.dp)
-                        ) {
-                            Text(
-                                text = if (isAnime) "ANIME" else "MANGA",
-                                color = themeAccent,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                        if (userItem != null) {
+                            IconButton(
+                                onClick = {
+                                    if (isAnime) onDeleteAnime(userItem.id) else onDeleteManga(userItem.id)
+                                },
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Black.copy(alpha = 0.5f))
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Delete,
+                                    contentDescription = "Hapus",
+                                    tint = StatusDroppedColor
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            // Poster & Title Info Row
+            // MDL-Style Overlapping Info Section
             item {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
-                        .offset(y = (-40).dp),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp),
-                    verticalAlignment = Alignment.Bottom
+                        .offset(y = (-55).dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    // Overlapping Poster Image
                     AsyncImage(
                         model = imageUrl,
                         contentDescription = title,
@@ -220,15 +194,18 @@ fun MediaDetailScreen(
                         contentScale = ContentScale.Crop
                     )
 
+                    // Titles & Metadata
                     Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(top = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
                             text = title,
                             color = TextPrimary,
                             fontSize = 18.sp,
-                            fontWeight = FontWeight.Black,
+                            fontWeight = FontWeight.Bold,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -246,36 +223,47 @@ fun MediaDetailScreen(
                         if (!titleNative.isNullOrBlank()) {
                             Text(
                                 text = titleNative,
-                                color = AccentBlueLight,
-                                fontSize = 12.sp,
+                                color = TextMuted,
+                                fontSize = 11.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
 
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Type & Format Badge
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            val formatText: String = userItem?.metadata?.format ?: mediaItem?.format ?: if (isAnime) "TV" else "MANGA"
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(CardElevated)
-                                    .padding(horizontal = 6.dp, vertical = 3.dp)
+                            Surface(
+                                color = if (isAnime) AccentBlue.copy(alpha = 0.2f) else MangaAccentDarkBlue.copy(alpha = 0.2f),
+                                shape = RoundedCornerShape(6.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, themeAccent.copy(alpha = 0.4f))
                             ) {
-                                Text(text = formatText, color = TextPrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                Text(
+                                    text = if (isAnime) "ANIME" else "MANGA",
+                                    color = themeAccent,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Black,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
                             }
 
-                            val yr: Int? = userItem?.year ?: mediaItem?.year
-                            if (yr != null) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(CardElevated)
-                                        .padding(horizontal = 6.dp, vertical = 3.dp)
+                            val fmt = userItem?.metadata?.format ?: mediaItem?.format ?: extendedDetail?.source
+                            if (!fmt.isNullOrBlank()) {
+                                Surface(
+                                    color = CardElevated,
+                                    shape = RoundedCornerShape(6.dp)
                                 ) {
-                                    Text(text = "$yr", color = TextSecondary, fontSize = 10.sp)
+                                    Text(
+                                        text = fmt.uppercase(),
+                                        color = TextSecondary,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
                                 }
                             }
                         }
@@ -297,7 +285,7 @@ fun MediaDetailScreen(
                     if (scoreVal != null && scoreVal > 0) {
                         MDLStatPill(
                             icon = Icons.Default.Star,
-                            label = "Rating",
+                            label = "Rating AniList",
                             value = "★ ${(scoreVal * 10).toInt() / 10.0}",
                             color = StarGold,
                             modifier = Modifier.weight(1f)
@@ -308,7 +296,7 @@ fun MediaDetailScreen(
                         MDLStatPill(
                             icon = Icons.Default.EmojiEvents,
                             label = "Ranked",
-                            value = "#${extendedDetail.rank}",
+                            value = "#${formatCompactNumber(extendedDetail.rank)}",
                             color = AccentBlue,
                             modifier = Modifier.weight(1f)
                         )
@@ -316,9 +304,9 @@ fun MediaDetailScreen(
 
                     if (extendedDetail?.popularity != null) {
                         MDLStatPill(
-                            icon = Icons.Default.TrendingUp,
+                            icon = Icons.AutoMirrored.Filled.TrendingUp,
                             label = "Popularitas",
-                            value = "#${extendedDetail.popularity}",
+                            value = "#${formatCompactNumber(extendedDetail.popularity)}",
                             color = AccentGreen,
                             modifier = Modifier.weight(1f)
                         )
@@ -328,11 +316,42 @@ fun MediaDetailScreen(
                         MDLStatPill(
                             icon = Icons.Default.People,
                             label = "Penggemar",
-                            value = "${extendedDetail.watchers}",
+                            value = formatCompactNumber(extendedDetail.watchers),
                             color = Color(0xFFA855F7),
                             modifier = Modifier.weight(1f)
                         )
                     }
+                }
+            }
+
+            // Dual Rating Row (Rating MAL & Rating Pribadi) - Bagian 1.3
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .offset(y = (-10).dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    val malRating = extendedDetail?.malScore
+                    val malRatingStr = if (malRating != null && malRating > 0) "★ ${(malRating * 10).toInt() / 10.0}" else "N/A"
+                    MDLStatPill(
+                        icon = Icons.Default.Grade,
+                        label = "Rating MAL",
+                        value = malRatingStr,
+                        color = Color(0xFF38BDF8),
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    val userScore = userItem?.score ?: 0
+                    val userRatingStr = if (userScore > 0) "★ $userScore / 10" else "Belum dinilai"
+                    MDLStatPill(
+                        icon = Icons.Default.Person,
+                        label = "Rating Pribadi",
+                        value = userRatingStr,
+                        color = if (userScore > 0) StarGold else TextMuted,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
 
@@ -382,9 +401,9 @@ fun MediaDetailScreen(
                 }
             }
 
-            // Details Section (Genres, Status, Episodes, Dates, Studio - NO TAGS)
+            // Media Details Table Card
             item {
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -395,76 +414,51 @@ fun MediaDetailScreen(
                 ) {
                     Column(
                         modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
-                            text = "DETAIL INFORMASI",
+                            text = "INFORMASI DETAIL",
                             color = TextSecondary,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp
                         )
 
-                        val airingStatus = extendedDetail?.airingStatus ?: (userItem?.status ?: mediaItem?.status)
-                        if (!airingStatus.isNullOrBlank()) {
-                            DetailRow("Status Penayangan", airingStatus)
-                        }
-
-                        if (isAnime && totalEpisodes > 0) {
-                            DetailRow("Total Episode", "$totalEpisodes Ep")
-                        } else if (isManga && totalChapters > 0) {
-                            DetailRow("Total Bab", "$totalChapters Bab")
+                        val studio = extendedDetail?.studio ?: userItem?.studio ?: mediaItem?.studio
+                        if (!studio.isNullOrBlank()) {
+                            DetailRowItem(label = if (isAnime) "Studio" else "Penerbit/Author", value = studio)
                         }
 
                         val duration = extendedDetail?.durationMinutes
                         if (duration != null && duration > 0) {
-                            DetailRow("Durasi", "$duration Menit / Ep")
+                            DetailRowItem(label = "Durasi", value = "$duration Menit/Ep")
                         }
 
-                        val startDate = extendedDetail?.startDate
+                        val airingStatus = extendedDetail?.airingStatus ?: userItem?.airingStatus ?: mediaItem?.status
+                        if (!airingStatus.isNullOrBlank()) {
+                            DetailRowItem(label = "Status", value = airingStatus)
+                        }
+
+                        val startDate = extendedDetail?.startDate ?: userItem?.metadata?.year?.toString()
                         if (!startDate.isNullOrBlank()) {
-                            DetailRow("Tanggal Mulai", startDate)
+                            DetailRowItem(label = "Tanggal Rilis", value = startDate)
                         }
 
                         val endDate = extendedDetail?.endDate
                         if (!endDate.isNullOrBlank()) {
-                            DetailRow("Tanggal Selesai", endDate)
+                            DetailRowItem(label = "Tanggal Selesai", value = endDate)
                         }
 
-                        val studio = extendedDetail?.studio ?: (userItem?.studio ?: mediaItem?.studio)
-                        if (!studio.isNullOrBlank()) {
-                            DetailRow(if (isAnime) "Studio Animasi" else "Penerbit", studio)
-                        }
-
-                        val source = extendedDetail?.source
-                        if (!source.isNullOrBlank()) {
-                            DetailRow("Sumber Orisinal", source)
-                        }
-
-                        // Genres Section (Tags are strictly excluded as requested)
-                        val genres = extendedDetail?.genres ?: (userItem?.metadata?.genres ?: mediaItem?.genres ?: emptyList())
+                        val genres = extendedDetail?.genres?.takeIf { it.isNotEmpty() }
+                            ?: userItem?.metadata?.genres ?: mediaItem?.genres ?: emptyList()
                         if (genres.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(text = "Genre:", color = TextMuted, fontSize = 11.sp)
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                items(genres) { g ->
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(CardElevated)
-                                            .border(1.dp, CardBorder, RoundedCornerShape(8.dp))
-                                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                                    ) {
-                                        Text(text = g, color = themeAccent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                                    }
-                                }
-                            }
+                            DetailRowItem(label = "Genre", value = genres.joinToString(", "))
                         }
                     }
                 }
             }
 
-            // Cast Section (Characters & Voice Actors)
+            // Cast Section (Pemeran & Karakter)
             val castList: List<CharacterCastItem> = extendedDetail?.cast ?: emptyList()
             if (castList.isNotEmpty()) {
                 item {
@@ -485,21 +479,20 @@ fun MediaDetailScreen(
                         )
                         if (castList.size > 6) {
                             Text(
-                                text = if (showAllCast) "Tutup" else "Lihat Semua",
+                                text = "Lihat Semua",
                                 color = themeAccent,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                modifier = Modifier.clickable { showAllCast = !showAllCast }
+                                modifier = Modifier.clickable { onOpenFullCast(false) }
                             )
                         }
                     }
 
-                    val displayedCast: List<CharacterCastItem> = if (showAllCast) castList else castList.take(8)
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        items(displayedCast) { cast ->
+                        items(castList.take(8)) { cast ->
                             CastAvatarItem(
                                 cast = cast,
                                 onClick = {
@@ -536,21 +529,20 @@ fun MediaDetailScreen(
                         )
                         if (staffList.size > 6) {
                             Text(
-                                text = if (showAllCrew) "Tutup" else "Lihat Semua",
+                                text = "Lihat Semua",
                                 color = themeAccent,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                modifier = Modifier.clickable { showAllCrew = !showAllCrew }
+                                modifier = Modifier.clickable { onOpenFullCast(true) }
                             )
                         }
                     }
 
-                    val displayedStaff: List<StaffMemberItem> = if (showAllCrew) staffList else staffList.take(8)
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        items(displayedStaff) { staff ->
+                        items(staffList.take(8)) { staff ->
                             StaffAvatarItem(
                                 staff = staff,
                                 onClick = {
@@ -581,234 +573,283 @@ fun MediaDetailScreen(
 
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(recommendations) { rec ->
-                            Card(
-                                modifier = Modifier
-                                    .width(110.dp)
-                                    .border(1.dp, CardBorder, RoundedCornerShape(10.dp)),
-                                colors = CardDefaults.cardColors(containerColor = CardBg),
-                                shape = RoundedCornerShape(10.dp)
-                            ) {
-                                Column {
-                                    AsyncImage(
-                                        model = rec.imageUrl,
-                                        contentDescription = rec.title,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(140.dp)
-                                            .clip(RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp)),
-                                        contentScale = ContentScale.Crop
-                                    )
-                                    Text(
-                                        text = rec.title,
-                                        color = TextPrimary,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.padding(6.dp)
-                                    )
-                                }
-                            }
+                            MediaItemMiniCard(item = rec, onClick = {})
                         }
                     }
                 }
             }
         }
-    }
 
-    // Compact Personal Tracking Bottom Sheet (FAB Triggered)
-    if (showTrackingSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showTrackingSheet = false },
-            containerColor = CardElevated,
-            dragHandle = { BottomSheetDefaults.DragHandle() },
-            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+        // Floating Action Button (FAB) - Open Tracking Sheet
+        FloatingActionButton(
+            onClick = { showTrackingSheet = true },
+            containerColor = themeAccent,
+            contentColor = Color.White,
+            shape = CircleShape,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(bottom = 20.dp, end = 20.dp)
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 10.dp)
-                    .padding(bottom = 30.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+            Icon(
+                imageVector = if (userItem != null) Icons.Default.Edit else Icons.Default.Add,
+                contentDescription = if (userItem != null) "Edit Status" else "Tambah ke Library",
+                modifier = Modifier.size(24.dp)
+            )
+        }
+
+        // Bottom Sheet: Track Progress Dialog (Bagian 3.1: 2-Baris tanpa side-scroll)
+        if (showTrackingSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showTrackingSheet = false },
+                containerColor = CardElevated,
+                dragHandle = { BottomSheetDefaults.DragHandle(color = TextMuted) }
             ) {
-                Text(
-                    text = "Lacak Progres Pribadi",
-                    color = TextPrimary,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                // Status Chips
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(text = "Status:", color = TextSecondary, fontSize = 12.sp)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(currentStatusOptions) { (key, label) ->
-                            val isSelected = trackingStatus == key
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(if (isSelected) themeAccent else CardBg)
-                                    .border(1.dp, if (isSelected) themeAccent else CardBorder, RoundedCornerShape(8.dp))
-                                    .clickable { trackingStatus = key }
-                                    .padding(horizontal = 10.dp, vertical = 6.dp)
-                            ) {
-                                Text(
-                                    text = label,
-                                    color = if (isSelected) Color.White else TextPrimary,
-                                    fontSize = 11.sp,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                )
-                            }
-                        }
-                    }
-                }
-
-                // Progress Counter (+1 / -1 / Direct input)
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 10.dp)
+                        .padding(bottom = 30.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
                     Text(
-                        text = if (isAnime) "Progres Episode (Total: ${if (totalEpisodes > 0) totalEpisodes else "?"}):"
-                        else "Progres Bab (Total: ${if (totalChapters > 0) totalChapters else "?"}):",
-                        color = TextSecondary,
-                        fontSize = 12.sp
+                        text = "Lacak Progres Pribadi",
+                        color = TextPrimary,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
                     )
 
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        IconButton(
-                            onClick = { if (trackingProgress > 0) trackingProgress-- },
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(CardBg)
-                                .border(1.dp, CardBorder, RoundedCornerShape(8.dp))
+                    // Status Chips: 2 Rows without horizontal scroll
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(text = "Status:", color = TextSecondary, fontSize = 12.sp)
+                        val row1 = currentStatusOptions.take(3)
+                        val row2 = currentStatusOptions.drop(3)
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(imageVector = Icons.Default.Remove, contentDescription = "-1", tint = TextPrimary)
+                            row1.forEach { (key, label) ->
+                                val isSelected = trackingStatus == key
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSelected) themeAccent else CardBg)
+                                        .border(1.dp, if (isSelected) themeAccent else CardBorder, RoundedCornerShape(8.dp))
+                                        .clickable { trackingStatus = key }
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = label,
+                                        color = if (isSelected) Color.White else TextPrimary,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
                         }
 
-                        OutlinedTextField(
-                            value = "$trackingProgress",
-                            onValueChange = { str ->
-                                val num = str.filter { it.isDigit() }.toIntOrNull() ?: 0
-                                trackingProgress = if (maxProgress > 0) num.coerceIn(0, maxProgress) else num
-                            },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(50.dp),
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = themeAccent,
-                                unfocusedBorderColor = CardBorder
-                            )
-                        )
-
-                        IconButton(
-                            onClick = {
-                                if (maxProgress == 0 || trackingProgress < maxProgress) trackingProgress++
-                            },
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(CardBg)
-                                .border(1.dp, CardBorder, RoundedCornerShape(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(imageVector = Icons.Default.Add, contentDescription = "+1", tint = TextPrimary)
-                        }
-                    }
-                }
-
-                // Personal Score (1 - 10)
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(text = "Rating Pribadi: ★ $trackingScore / 10", color = TextSecondary, fontSize = 12.sp)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items((0..10).toList()) { sc ->
-                            val isSelected = trackingScore == sc
-                            Box(
-                                modifier = Modifier
-                                    .size(34.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isSelected) StarGold else CardBg)
-                                    .border(1.dp, if (isSelected) StarGold else CardBorder, CircleShape)
-                                    .clickable { trackingScore = sc },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = if (sc == 0) "-" else "$sc",
-                                    color = if (isSelected) BlackBg else TextPrimary,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                            row2.forEach { (key, label) ->
+                                val isSelected = trackingStatus == key
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSelected) themeAccent else CardBg)
+                                        .border(1.dp, if (isSelected) themeAccent else CardBorder, RoundedCornerShape(8.dp))
+                                        .clickable { trackingStatus = key }
+                                        .padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = label,
+                                        color = if (isSelected) Color.White else TextPrimary,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
                             }
                         }
                     }
-                }
 
-                // Action Buttons: Save & Delete
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    if (userItem != null) {
-                        OutlinedButton(
-                            onClick = {
-                                if (isAnime) onDeleteAnime(userItem.id) else onDeleteManga(userItem.id)
-                                showTrackingSheet = false
-                                onDismiss()
-                            },
-                            modifier = Modifier.weight(0.4f),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFEF4444)),
-                            shape = RoundedCornerShape(10.dp)
+                    // Progress Counter (+1 / -1 / Direct input)
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = if (isAnime) "Progres Episode (Total: ${if (totalEpisodes > 0) totalEpisodes else "?"}):"
+                            else "Progres Bab (Total: ${if (totalChapters > 0) totalChapters else "?"}):",
+                            color = TextSecondary,
+                            fontSize = 12.sp
+                        )
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text("Hapus", fontWeight = FontWeight.Bold)
+                            IconButton(
+                                onClick = { if (trackingProgress > 0) trackingProgress-- },
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(CardBg)
+                                    .border(1.dp, CardBorder, RoundedCornerShape(8.dp))
+                            ) {
+                                Icon(imageVector = Icons.Default.Remove, contentDescription = "-1", tint = TextPrimary)
+                            }
+
+                            OutlinedTextField(
+                                value = "$trackingProgress",
+                                onValueChange = { str ->
+                                    val num = str.filter { it.isDigit() }.toIntOrNull() ?: 0
+                                    trackingProgress = if (maxProgress > 0) num.coerceIn(0, maxProgress) else num
+                                },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(50.dp),
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = themeAccent,
+                                    unfocusedBorderColor = CardBorder
+                                )
+                            )
+
+                            IconButton(
+                                onClick = {
+                                    if (maxProgress == 0 || trackingProgress < maxProgress) trackingProgress++
+                                },
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(CardBg)
+                                    .border(1.dp, CardBorder, RoundedCornerShape(8.dp))
+                            ) {
+                                Icon(imageVector = Icons.Default.Add, contentDescription = "+1", tint = TextPrimary)
+                            }
                         }
                     }
 
+                    // Personal Score (0 - 10): 2 Rows without horizontal scroll
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(
+                            text = "Rating Pribadi: ${if (trackingScore > 0) "★ $trackingScore / 10" else "Belum dinilai"}",
+                            color = TextSecondary,
+                            fontSize = 12.sp
+                        )
+
+                        val scoreRow1 = (0..5).toList()
+                        val scoreRow2 = (6..10).toList()
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            scoreRow1.forEach { sc ->
+                                val isSelected = trackingScore == sc
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(36.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSelected) StarGold else CardBg)
+                                        .border(1.dp, if (isSelected) StarGold else CardBorder, RoundedCornerShape(8.dp))
+                                        .clickable { trackingScore = sc },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (sc == 0) "-" else "$sc",
+                                        color = if (isSelected) BlackBg else TextPrimary,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            scoreRow2.forEach { sc ->
+                                val isSelected = trackingScore == sc
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(36.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSelected) StarGold else CardBg)
+                                        .border(1.dp, if (isSelected) StarGold else CardBorder, RoundedCornerShape(8.dp))
+                                        .clickable { trackingScore = sc },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "$sc",
+                                        color = if (isSelected) BlackBg else TextPrimary,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Personal Notes
+                    OutlinedTextField(
+                        value = trackingNotes,
+                        onValueChange = { trackingNotes = it },
+                        label = { Text("Catatan Pribadi", color = TextMuted, fontSize = 12.sp) },
+                        modifier = Modifier.fillMaxWidth(),
+                        maxLines = 3,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = themeAccent,
+                            unfocusedBorderColor = CardBorder
+                        )
+                    )
+
+                    // Save Button
                     Button(
                         onClick = {
-                            val updatedUserItem = userItem?.copy(
-                                tracking = userItem.tracking.copy(
-                                    status = trackingStatus,
-                                    score = trackingScore,
-                                    progress = trackingProgress,
-                                    comments = trackingNotes
-                                )
-                            ) ?: UserMediaItem(
-                                identity = mediaItem?.identity ?: MediaRef(),
-                                metadata = MediaMetadata(
-                                    title = title,
-                                    titleEnglish = titleEnglish,
-                                    imageUrl = imageUrl,
-                                    type = type,
-                                    totalEpisodes = totalEpisodes,
-                                    totalChapters = totalChapters,
-                                    status = extendedDetail?.airingStatus ?: "Finished",
-                                    genres = extendedDetail?.genres ?: emptyList(),
-                                    year = mediaItem?.year,
-                                    format = mediaItem?.format,
-                                    studio = extendedDetail?.studio,
-                                    synopsis = cleanSynopsis
-                                ),
-                                tracking = MalTracking(
-                                    status = trackingStatus,
-                                    score = trackingScore,
-                                    progress = trackingProgress,
-                                    comments = trackingNotes
-                                )
+                            val tracking = MalTracking(
+                                status = trackingStatus,
+                                score = trackingScore,
+                                progress = trackingProgress,
+                                comments = trackingNotes
+                            )
+                            val identity = userItem?.identity ?: mediaItem?.identity ?: MediaRef()
+                            val metadata = userItem?.metadata ?: MediaMetadata(
+                                title = title,
+                                titleEnglish = titleEnglish,
+                                titleNative = titleNative,
+                                imageUrl = imageUrl,
+                                type = type,
+                                totalEpisodes = totalEpisodes,
+                                totalChapters = totalChapters
+                            )
+                            val updatedUserItem = UserMediaItem(
+                                identity = identity,
+                                metadata = metadata,
+                                tracking = tracking
                             )
 
                             if (isAnime) onSaveAnime(updatedUserItem) else onSaveManga(updatedUserItem)
                             showTrackingSheet = false
                         },
-                        modifier = Modifier.weight(if (userItem != null) 0.6f else 1f),
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = themeAccent),
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Simpan ke Library", fontWeight = FontWeight.Bold)
+                        Text("Simpan ke Library", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
                 }
             }
@@ -817,20 +858,21 @@ fun MediaDetailScreen(
 }
 
 @Composable
-private fun DetailRow(label: String, value: String) {
+private fun DetailRowItem(label: String, value: String) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = label, color = TextMuted, fontSize = 12.sp)
+        Text(text = label, color = TextMuted, fontSize = 12.sp, modifier = Modifier.weight(0.4f))
         Text(
             text = value,
             color = TextPrimary,
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(0.6f)
         )
     }
 }
@@ -848,17 +890,30 @@ private fun MDLStatPill(
             .clip(RoundedCornerShape(10.dp))
             .background(CardBg)
             .border(1.dp, CardBorder, RoundedCornerShape(10.dp))
-            .padding(horizontal = 8.dp, vertical = 6.dp)
+            .padding(horizontal = 6.dp, vertical = 6.dp)
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                horizontalArrangement = Arrangement.spacedBy(3.dp)
             ) {
-                Icon(imageVector = icon, contentDescription = null, tint = color, modifier = Modifier.size(13.dp))
-                Text(text = value, color = color, fontSize = 12.sp, fontWeight = FontWeight.Black)
+                Icon(imageVector = icon, contentDescription = null, tint = color, modifier = Modifier.size(12.dp))
+                Text(
+                    text = value,
+                    color = color,
+                    fontSize = if (value.length > 7) 10.sp else if (value.length > 5) 11.sp else 12.sp,
+                    fontWeight = FontWeight.Black,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
-            Text(text = label, color = TextMuted, fontSize = 9.sp)
+            Text(
+                text = label,
+                color = TextMuted,
+                fontSize = 9.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
@@ -943,6 +998,37 @@ private fun StaffAvatarItem(
             text = staff.role,
             color = TextMuted,
             fontSize = 10.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun MediaItemMiniCard(
+    item: MediaItem,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .width(100.dp)
+            .clickable(onClick = onClick),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        AsyncImage(
+            model = item.imageUrl,
+            contentDescription = item.title,
+            modifier = Modifier
+                .width(100.dp)
+                .height(140.dp)
+                .clip(RoundedCornerShape(8.dp)),
+            contentScale = ContentScale.Crop
+        )
+        Text(
+            text = item.title,
+            color = TextPrimary,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )

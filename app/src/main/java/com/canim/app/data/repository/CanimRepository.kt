@@ -246,12 +246,13 @@ class CanimRepository(
         // 1. Primary: AniList
         var detail = AniListClient.getExtendedDetails(aniListId, malId, type, forceRefresh)
 
-        // 2. If metadata is missing or incomplete, enrich from MyAnimeList Fallback Provider
-        if ((detail == null || detail.studio.isNullOrBlank() || detail.startDate.isNullOrBlank() || detail.genres.isEmpty()) && malId != null) {
-            val malExt = malAuthManager.getExtendedDetailFallback(malId, type)
+        val effectiveMalId = detail?.malId ?: malId
+        if (effectiveMalId != null && (detail == null || detail.malScore == null || detail.studio.isNullOrBlank() || detail.startDate.isNullOrBlank() || detail.genres.isEmpty())) {
+            val malExt = malAuthManager.getExtendedDetailFallback(effectiveMalId, type)
             if (malExt != null) {
                 detail = if (detail != null) {
                     detail.copy(
+                        malScore = malExt.malScore,
                         studio = detail.studio ?: malExt.studio,
                         publisher = detail.publisher ?: malExt.publisher,
                         airingStatus = detail.airingStatus ?: malExt.airingStatus,

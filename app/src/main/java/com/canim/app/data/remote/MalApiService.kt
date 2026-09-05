@@ -28,7 +28,7 @@ interface MalApiService {
     @GET("users/@me")
     suspend fun getUserProfile(
         @Header("Authorization") authHeader: String,
-        @Query("fields") fields: String = "name,picture"
+        @Query("fields") fields: String = "name,picture,location,gender"
     ): MalUserProfile
 
     @GET("users/@me/animelist")

@@ -38,6 +38,8 @@ class MalSecureStorage(private val context: Context) {
         private const val KEY_USER_ID = "mal_user_id"
         private const val KEY_USERNAME = "mal_username"
         private const val KEY_USER_PICTURE = "mal_user_picture"
+        private const val KEY_USER_LOCATION = "mal_user_location"
+        private const val KEY_USER_GENDER = "mal_user_gender"
         private const val KEY_LAST_SYNCED = "mal_last_synced"
     }
 
@@ -114,12 +116,14 @@ class MalSecureStorage(private val context: Context) {
         }
     }
 
-    fun saveUserProfile(id: Long, username: String, pictureUrl: String?) {
+    fun saveUserProfile(id: Long, username: String, pictureUrl: String?, location: String? = null, gender: String? = null) {
         try {
             prefs.edit()
                 .putLong(KEY_USER_ID, id)
                 .putString(KEY_USERNAME, username)
                 .putString(KEY_USER_PICTURE, pictureUrl)
+                .putString(KEY_USER_LOCATION, location)
+                .putString(KEY_USER_GENDER, gender)
                 .commit()
         } catch (e: Exception) {
             Log.e("MalSecureStorage", "Failed to save user profile: ${e.message}", e)
@@ -130,12 +134,16 @@ class MalSecureStorage(private val context: Context) {
         val token = getAccessToken()
         val username = prefs.getString(KEY_USERNAME, null)
         val picture = prefs.getString(KEY_USER_PICTURE, null)
+        val location = prefs.getString(KEY_USER_LOCATION, null)
+        val gender = prefs.getString(KEY_USER_GENDER, null)
         val id = prefs.getLong(KEY_USER_ID, 0L)
 
         MalUser(
             id = id,
             username = username ?: "",
             pictureUrl = picture,
+            location = location,
+            gender = gender,
             isLoggedIn = !token.isNullOrBlank() && !username.isNullOrBlank()
         )
     } catch (e: Exception) {

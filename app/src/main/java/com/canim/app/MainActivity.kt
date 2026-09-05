@@ -3,6 +3,7 @@ package com.canim.app
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -25,12 +26,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.canim.app.data.local.MalSecureStorage
 import com.canim.app.data.repository.CanimRepository
 import com.canim.app.data.repository.MalAuthManager
+import com.canim.app.ui.navigation.ScreenRoute
 import com.canim.app.ui.screens.*
 import com.canim.app.ui.theme.*
 import com.canim.app.ui.viewmodel.CanimViewModel
@@ -52,6 +53,7 @@ class MainActivity : ComponentActivity() {
         CanimViewModelFactory(repository)
     }
 
+    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -64,8 +66,14 @@ class MainActivity : ComponentActivity() {
         setContent {
             CanimTheme {
                 val uiState by viewModel.uiState.collectAsState()
+                val screenStack by viewModel.screenStack.collectAsState()
                 val context = LocalContext.current
                 val snackbarHostState = remember { SnackbarHostState() }
+
+                // Single centralized top-level BackHandler
+                BackHandler(enabled = screenStack.isNotEmpty()) {
+                    viewModel.popScreen()
+                }
 
                 LaunchedEffect(uiState.snackbarMessage) {
                     val msg = uiState.snackbarMessage
@@ -106,9 +114,9 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     floatingActionButton = {
-                        if (uiState.activeTab == "library") {
+                        if (uiState.activeTab == "library" && screenStack.isEmpty()) {
                             ExtendedFloatingActionButton(
-                                onClick = { viewModel.setTab("search") },
+                                onClick = { viewModel.openAddTitleSheet() },
                                 containerColor = AccentBlue,
                                 contentColor = Color.White,
                                 shape = RoundedCornerShape(16.dp),
@@ -268,41 +276,82 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        // Fullscreen Overlays with natural hierarchy:
-                        // 1. Cast & Crew Bio Fullscreen
-                        if (uiState.selectedCastCrewProfile != null || uiState.isLoadingCastCrewProfile) {
-                            CastCrewProfileScreen(
-                                profile = uiState.selectedCastCrewProfile,
-                                isLoading = uiState.isLoadingCastCrewProfile,
-                                onBack = { viewModel.closeCastCrewProfile() },
-                                onSelectMedia = { mediaItem ->
-                                    viewModel.closeCastCrewProfile()
-                                    viewModel.openDetail(mediaItem, mediaItem.type)
+                        // Top-level modal/overlay stack rendering
+                        when (val currentScreen = screenStack.lastOrNull()) {
+                            is ScreenRoute.CastCrew -> {
+                                CastCrewProfileScreen(
+                                    profile = uiState.selectedCastCrewProfile,
+                                    isLoading = uiState.isLoadingCastCrewProfile,
+                                    onBack = { viewModel.popScreen() },
+                                    onSelectMedia = { mediaItem ->
+                                        viewModel.openDetail(mediaItem, mediaItem.type)
+                                    }
+                                )
+                            }
+                            is ScreenRoute.FullCastList -> {
+                                FullCastListScreen(
+                                    mediaTitle = currentScreen.mediaTitle,
+                                    castList = currentScreen.castList,
+                                    staffList = currentScreen.staffList,
+                                    isCrewInitial = currentScreen.isCrewInitial,
+                                    onBack = { viewModel.popScreen() },
+                                    onOpenCastCrew = { id, isStaff ->
+                                        viewModel.openCastCrewProfile(id, isStaff)
+                                    }
+                                )
+                            }
+                            is ScreenRoute.Detail -> {
+                                val detailItem = uiState.selectedDetailItem ?: currentScreen.item
+                                val detailTitle = (detailItem as? com.canim.app.data.model.UserMediaItem)?.title
+                                    ?: (detailItem as? com.canim.app.data.model.MediaItem)?.title
+                                    ?: ""
+                                MediaDetailScreen(
+                                    item = detailItem,
+                                    type = uiState.detailMediaType,
+                                    extendedDetail = uiState.extendedDetail,
+                                    isLoadingExtendedDetail = uiState.isLoadingExtendedDetail,
+                                    onSaveAnime = { viewModel.saveAnime(it) },
+                                    onSaveManga = { viewModel.saveManga(it) },
+                                    onDeleteAnime = { viewModel.deleteAnime(it) },
+                                    onDeleteManga = { viewModel.deleteManga(it) },
+                                    onOpenCastCrew = { id, isStaff -> viewModel.openCastCrewProfile(id, isStaff) },
+                                    onOpenFullCast = { isCrew ->
+                                        viewModel.openFullCastList(
+                                            mediaTitle = detailTitle,
+                                            castList = uiState.extendedDetail?.cast ?: emptyList(),
+                                            staffList = uiState.extendedDetail?.crew ?: emptyList(),
+                                            isCrewInitial = isCrew
+                                        )
+                                    },
+                                    onDismiss = { viewModel.popScreen() }
+                                )
+                            }
+                            is ScreenRoute.Stats -> {
+                                StatsScreen(
+                                    state = uiState,
+                                    onBack = { viewModel.popScreen() },
+                                    onSelectItem = { item, type -> viewModel.openDetail(item, type) }
+                                )
+                            }
+                            is ScreenRoute.AddTitleSheet -> {
+                                ModalBottomSheet(
+                                    onDismissRequest = { viewModel.popScreen() },
+                                    containerColor = BlackBg,
+                                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                                    dragHandle = { BottomSheetDefaults.DragHandle(color = CardBorder) },
+                                    modifier = Modifier.fillMaxHeight(0.92f)
+                                ) {
+                                    SearchScreen(
+                                        state = uiState,
+                                        onSearch = { query, type -> viewModel.search(query, type) },
+                                        onAddMedia = { item, status -> viewModel.addFromCatalog(item, status) },
+                                        onSelectItem = { item, type -> viewModel.openDetail(item, type) },
+                                        onSaveAnime = { viewModel.saveAnime(it) },
+                                        onSaveManga = { viewModel.saveManga(it) }
+                                    )
                                 }
-                            )
-                        }
-                        // 2. Media Detail Fullscreen (MDL style layout)
-                        else if (uiState.isDetailOpen && uiState.selectedDetailItem != null) {
-                            MediaDetailScreen(
-                                item = uiState.selectedDetailItem!!,
-                                type = uiState.detailMediaType,
-                                extendedDetail = uiState.extendedDetail,
-                                isLoadingExtendedDetail = uiState.isLoadingExtendedDetail,
-                                onSaveAnime = { viewModel.saveAnime(it) },
-                                onSaveManga = { viewModel.saveManga(it) },
-                                onDeleteAnime = { viewModel.deleteAnime(it) },
-                                onDeleteManga = { viewModel.deleteManga(it) },
-                                onOpenCastCrew = { id, isStaff -> viewModel.openCastCrewProfile(id, isStaff) },
-                                onDismiss = { viewModel.closeDetail() }
-                            )
-                        }
-                        // 3. Fullscreen User Stats Screen
-                        else if (uiState.isStatsOpen) {
-                            StatsScreen(
-                                state = uiState,
-                                onBack = { viewModel.closeStats() },
-                                onSelectItem = { item, type -> viewModel.openDetail(item, type) }
-                            )
+                            }
+                            null -> { /* No overlay active */ }
                         }
                     }
                 }
