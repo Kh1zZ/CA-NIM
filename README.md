@@ -9,13 +9,13 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases/latest"><img src="https://img.shields.io/badge/Download-APK%20(v3.0.0)-10B981.svg?style=for-the-badge&logo=android" alt="Download APK"></a>
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v3.0.0-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases/latest"><img src="https://img.shields.io/badge/Download-APK%20(v4.4.2)-10B981.svg?style=for-the-badge&logo=android" alt="Download APK"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v4.4.2-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#-fitur-utama"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#-arsitektur-dan-prinsip-desain"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
-  <a href="#-kinerja-dan-optimasi"><img src="https://img.shields.io/badge/APK%20Size-~2.13%20MB-F59E0B.svg?style=for-the-badge" alt="Size"></a>
-  <a href="#-panduan-kompilasi-manual"><img src="https://img.shields.io/badge/Tests-14%20Passed-6366F1.svg?style=for-the-badge" alt="Tests"></a>
+  <a href="#-kinerja-dan-optimasi"><img src="https://img.shields.io/badge/APK%20Size-~2.1%20MB-F59E0B.svg?style=for-the-badge" alt="Size"></a>
+  <a href="#-panduan-kompilasi-manual"><img src="https://img.shields.io/badge/Tests-32%20Passed-6366F1.svg?style=for-the-badge" alt="Tests"></a>
 </p>
 
 ---
@@ -59,13 +59,17 @@ Logo resmi **CA'NIM** (`art/logo.png`) adalah karya seni beresolusi tinggi (1254
 
 | Fitur | Deskripsi |
 | :--- | :--- |
-| **🏠 Dasbor Interaktif** | Ringkasan statistik tontonan & bacaan, kartu progres aktif, tombol cepat (+1 Episode / +1 Chapter), dan indikator status koneksi jaringan. |
-| **📚 Library Lengkap Tanpa Batas** | Paginasi dinamis tanpa batasan kuota 500 entri (*uncapped pagination*). Menampung ribuan judul koleksi dengan filter status, sorting instan, dan pencarian instan. |
+| **🏠 Dasbor Interaktif** | Ringkasan statistik tontonan & bacaan, kartu progres aktif, tombol cepat (+1 Episode / +1 Chapter), dan indikator status sinkronisasi. |
+| **📚 Library Lengkap Tanpa Batas** | Paginasi dinamis tanpa batasan kuota (*uncapped pagination*). Menampung ribuan judul koleksi dengan filter status, sorting instan, dan pencarian instan. |
 | **🔍 Pencarian Cepat (AniList GraphQL)** | Pencarian ber-filter anime & manga dengan mekanisme *debouncing* (350 ms) dan pembatalan request usang (*cancellation safe*). |
-| **🎲 Discover & Smart Randomizer** | Jelajahi anime populer dan rilis per musim. Fitur *Smart Randomizer* otomatis menyaring judul yang sudah berstatus *Completed*. |
-| **📑 Dialog Detail Menyeluruh** | Tampilan sinopsis lengkap, cover HD, tag genre, pengubah progres interaktif, rating skor (1–10), dan tombol sinkronisasi langsung ke MAL. |
+| **🎲 Discover & Smart Randomizer** | Jelajahi anime populer dan rilis musiman. Fitur *Smart Randomizer* otomatis menyaring judul yang sudah berstatus *Completed*. |
+| **📑 Halaman Detail Menyeluruh (MDL Inspired)** | Tampilan detail komprehensif: sinopsis lengkap, poster HD AniList, genre, trailer YouTube, daftar cast/crew, studio, relasi waralaba, dan pengubah progres interaktif. |
+| **🎬 Studio Filmography** | Eksplorasi katalog anime berdasarkan studio animasi produksi (Ufotable, MAPPA, Kyoto Animation, dll.) beserta rincian tahun rilis dan format media. |
+| **👥 Profil Cast & Kru** | Informasi mendalam pengisi suara (*seiyuu*) dan staf produksi beserta riwayat peran karakter dengan navigasi mulus (*back-stack support*). |
+| **📊 Ekspor Statistik Multi-Rasio** | Ekspor infografis koleksi dengan pilihan rasio fleksibel (`9:16 Story`, `4:5`, `3:4`, `1:1`, `16:9 Landscape`), kartu cover anti-stretch (*center-crop*), profil MAL, dan Pie Chart resolusi tinggi. |
+| **🎯 Algoritma Filter Top 5 Non-Sekuel** | Algoritma pintar yang secara otomatis mendeteksi dan mengecualikan sekuel dari waralaba yang sama agar tidak mendominasi peringkat Top 5. |
 | **🔐 Login MAL via OAuth 2.0 PKCE** | Autentikasi aman tanpa menyimpan sandi pengguna. Token tersimpan aman terenkripsi menggunakan **Android Keystore** (`EncryptedSharedPreferences`). |
-| **🧹 Pembersih Cache Cerdas** | Kelola pembersihan disk mandiri di menu Pengaturan: bersihkan cache gambar Coil, cache metadata GraphQL AniList, atau reset cache menyeluruh tanpa logout dari MAL. |
+| **🧹 Pembersih Cache Cerdas** | Kelola pembersihan disk mandiri di Pengaturan: bersihkan cache gambar Coil, cache metadata GraphQL AniList, atau reset cache menyeluruh tanpa logout dari MAL. |
 
 ---
 
@@ -139,6 +143,12 @@ CA'NIM dibangun dengan arsitektur modern yang memisahkan tanggung jawab secara t
 
 ```text
 ca-nim-opt-v2.1/
+├── .github/
+│   ├── release.yml                        # Template kategori changelog native GitHub
+│   └── workflows/
+│       ├── ci.yml                         # CI Pipeline (unit test & debug validation)
+│       └── release.yml                    # Release Pipeline (automated tag-based release build)
+├── .gitattributes                         # Penegakan line endings LF untuk skrip POSIX
 ├── app/
 │   ├── build.gradle.kts                   # Konfigurasi plugin, SDK, dan dependensi (com.canim.app)
 │   ├── proguard-rules.pro                 # Aturan R8/ProGuard untuk Retrofit & Coroutines
@@ -155,12 +165,14 @@ ca-nim-opt-v2.1/
 │       │   │   │   ├── remote/            # ApiClient, MalApiService, AniListClient
 │       │   │   │   ├── repository/        # CanimRepository, MalAuthManager
 │       │   │   │   └── resolver/          # MediaResolver (Pemetaan AniList ↔ MAL ID)
-│       │   │   └── ui/
-│       │   │       ├── screens/           # Dashboard, Library, Search, Discover, Detail, Settings
-│       │   │       ├── theme/             # Palet warna cyber dark, Tipografi, Shape
-│       │   │       └── viewmodel/         # CanimViewModel & Factory
+│       │   │   ├── ui/
+│       │   │   │   ├── screens/           # Dashboard, Library, Search, Discover, MediaDetail,
+│       │   │   │   │                      # CastCrewProfile, StudioFilmography, StatsScreen, StatsExporter
+│       │   │   │   ├── theme/             # Palet warna cyber dark, Tipografi, Shape
+│       │   │   │   └── viewmodel/         # CanimViewModel & Factory
+│       │   │   └── util/                  # AnimeFranchiseFilter, TextSanitizer
 │       │   └── res/                       # Vektor drawables (ic_app_logo), mipmap, values
-│       └── test/                          # 14 Unit test suite
+│       └── test/                          # 32 Automated unit tests (8 test suites)
 ├── art/
 │   └── logo.png                           # Aset visual master resolusi tinggi (1254x1254 px)
 ├── fastlane/                              # Metadata F-Droid standar (en-US title, desc, icon, changelog)
@@ -231,7 +243,17 @@ Mulai versi `v4.4.1`, seluruh berkas APK rilis resmi **CA'NIM** dikompilasi seca
 
 ---
 
-## 📝 Catatan Rilis (v3.0.0)
+## 📝 Catatan Rilis Terbaru (v4.4.2)
+
+- **Otomatisasi Penuh CI/CD (GitHub Actions)**: Kompilasi APK rilis resmi beralih 100% ke GitHub-hosted runners dengan validasi versi ketat dan integritas hash SHA-256.
+- **Eksklusi Debug APK pada Rilis**: Halaman GitHub Release kini bersih dan terfokus hanya mendistribusikan `canim-universal-release-vX.Y.Z.apk`.
+- **Perombakan Ekspor Statistik & Anti-Stretch**: Desain infografis baru dengan cover *aspect-fill center-crop*, rasio multi-format (`9:16 Story`, `4:5`, `3:4`, `1:1`, `16:9 Landscape`), profil MAL yang diperbesar, dan Pie Chart tajam beresolusi tinggi.
+- **Algoritma Filter Top 5 Non-Sekuel**: Peringkat Top 5 anime kini menyaring sekuel waralaba secara cerdas agar tidak didominasi oleh musim lanjutan dari judul yang sama.
+- **Studio Filmography & Cast/Crew**: Eksplorasi katalog anime berdasarkan studio animasi dan profil mendalam para seiyuu/staf produksi.
+- **Peningkatan Keterbacaan UI/UX**: Nama seiyuu dan karakter ditampilkan lengkap tanpa pemotongan teks, perbaikan tata letak metrik skor/peringkat, dan fitur *auto-fill* episode saat memilih status *Completed*.
+
+<details>
+<summary><b>Lihat Catatan Rilis Sebelumnya (v3.0.0)</b></summary>
 
 - **Identitas Visual Resmi**: Integrasi logo brand *Cyber-Blue Radiant Manga* (`art/logo.png`) ke seluruh launcher mipmap icon, adaptive icon foreground, dan UI in-app.
 - **Pembersihan Application ID**: Standardisasi identitas paket menjadi **`com.canim.app`** yang rapi, profesional, dan siap F-Droid.
@@ -239,6 +261,8 @@ Mulai versi `v4.4.1`, seluruh berkas APK rilis resmi **CA'NIM** dikompilasi seca
 - **Optimasi Scrolling Mulus (Standar ArchiveTune)**: 100% skippable recomposition, lambda hoisting, pre-allocated shapes, dan zero-overhead progress indicator.
 - **Paginasi Tanpa Batas**: Menghilangkan limitasi kuota 500 entri pada koleksi anime/manga pengguna.
 - **Pemangkasan Ukuran**: File APK release berhasil diciutkan hingga **~2.13 MB**.
+
+</details>
 
 ---
 
