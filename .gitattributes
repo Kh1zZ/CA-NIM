@@ -1,0 +1,15 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# POSIX shell scripts must always use LF
+gradlew text eol=lf
+*.sh text eol=lf
+
+# Windows scripts
+gradlew.bat text eol=crlf
+*.bat text eol=crlf
+
+# Binary files
+*.jar binary
+*.png binary
+*.apk binary
