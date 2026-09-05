@@ -356,8 +356,7 @@ fun StatsScreen(
 
     // Export Dialog
     if (showExportDialog) {
-        var selectedRatio by remember { mutableStateOf(ExportAspectRatio.STORY_16_9) }
-        var selectedResolution by remember { mutableStateOf(ExportResolution.FHD) }
+        var selectedRatio by remember { mutableStateOf(ExportAspectRatio.STORY_9_16) }
 
         AlertDialog(
             onDismissRequest = { if (!isExporting) showExportDialog = false },
@@ -365,7 +364,7 @@ fun StatsScreen(
                 Text(text = "Ekspor Statistik", fontWeight = FontWeight.Bold, color = TextPrimary)
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Text(
                         text = "Pilih Rasio Kanvas:",
                         color = TextPrimary,
@@ -373,7 +372,7 @@ fun StatsScreen(
                         fontWeight = FontWeight.Bold
                     )
 
-                    // Aspect Ratio Selector Chips (16:9 Story, 4:5, 3:4, 1:1, 16:9 Landscape)
+                    // Aspect Ratio Selector Chips (9:16 Story, 4:5, 3:4, 1:1, 16:9 Landscape)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -409,47 +408,7 @@ fun StatsScreen(
                     }
 
                     Text(
-                        text = "Pilih Resolusi Gambar:",
-                        color = TextPrimary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    // Resolution Selector Chips (Full HD vs 2K)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        ExportResolution.entries.forEach { res ->
-                            val isSelected = res == selectedResolution
-                            Surface(
-                                selected = isSelected,
-                                onClick = { if (!isExporting) selectedResolution = res },
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isSelected) AccentBlue else CardBg,
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
-                                    if (isSelected) AccentBlue else CardBorder
-                                ),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Box(
-                                    modifier = Modifier.padding(vertical = 8.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = res.label,
-                                        fontSize = 12.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isSelected) Color.White else TextSecondary
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    Text(
-                        text = "Format (${selectedRatio.label} • ${selectedResolution.label} - ${selectedRatio.getWidth(selectedResolution)}x${selectedRatio.getHeight(selectedResolution)}):",
+                        text = "Pilih Format (${selectedRatio.label} - ${selectedRatio.width}x${selectedRatio.height}):",
                         color = TextSecondary,
                         fontSize = 12.sp
                     )
@@ -466,13 +425,12 @@ fun StatsScreen(
                                         topAnime = topAnime,
                                         topManga = topManga,
                                         format = fmt,
-                                        aspectRatio = selectedRatio,
-                                        resolution = selectedResolution
+                                        aspectRatio = selectedRatio
                                     )
                                     isExporting = false
                                     showExportDialog = false
                                     if (result.isSuccess) {
-                                        Toast.makeText(context, "Statistik siap dibagikan (${fmt.extension.uppercase()} - ${selectedRatio.label} ${selectedResolution.name})", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "Statistik siap dibagikan (${fmt.extension.uppercase()} - ${selectedRatio.label})", Toast.LENGTH_SHORT).show()
                                     } else {
                                         Toast.makeText(context, "Gagal mengekspor: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
                                     }
