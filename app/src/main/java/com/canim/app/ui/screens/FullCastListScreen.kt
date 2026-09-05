@@ -18,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -200,6 +201,8 @@ private fun FullCastRowItem(
         else -> cast.role ?: "Pemeran"
     }
 
+    val hasActor = !cast.actorName.isNullOrBlank()
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -209,8 +212,7 @@ private fun FullCastRowItem(
     ) {
         // Karakter (Left)
         Row(
-            modifier = Modifier
-                .weight(1f)
+            modifier = (if (hasActor) Modifier.weight(1f) else Modifier.fillMaxWidth())
                 .clickable(onClick = onCharacterClick),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -230,10 +232,11 @@ private fun FullCastRowItem(
                     color = TextPrimary,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 1,
+                    maxLines = 2,
+                    lineHeight = 16.sp,
                     overflow = TextOverflow.Ellipsis
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(3.dp))
                 Surface(
                     color = if (cast.role?.uppercase() == "MAIN") AccentBlue.copy(alpha = 0.2f) else CardElevated,
                     shape = RoundedCornerShape(4.dp)
@@ -250,7 +253,7 @@ private fun FullCastRowItem(
         }
 
         // Voice Actor (Right, if available)
-        if (!cast.actorName.isNullOrBlank()) {
+        if (hasActor) {
             Spacer(modifier = Modifier.width(12.dp))
             Row(
                 modifier = Modifier
@@ -264,14 +267,16 @@ private fun FullCastRowItem(
                     horizontalAlignment = Alignment.End
                 ) {
                     Text(
-                        text = cast.actorName,
+                        text = cast.actorName!!,
                         color = TextPrimary,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        maxLines = 1,
+                        maxLines = 2,
+                        lineHeight = 16.sp,
+                        textAlign = TextAlign.End,
                         overflow = TextOverflow.Ellipsis
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
                     Text(
                         text = "VA / Seiyuu",
                         color = TextMuted,
@@ -320,12 +325,13 @@ private fun FullStaffRowItem(
             Text(
                 text = staff.name,
                 color = TextPrimary,
-                fontSize = 13.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Bold,
-                maxLines = 1,
+                maxLines = 2,
+                lineHeight = 18.sp,
                 overflow = TextOverflow.Ellipsis
             )
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(3.dp))
             Surface(
                 color = CardElevated,
                 shape = RoundedCornerShape(4.dp)
@@ -335,6 +341,8 @@ private fun FullStaffRowItem(
                     color = AccentGreen,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                    lineHeight = 13.sp,
                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                 )
             }

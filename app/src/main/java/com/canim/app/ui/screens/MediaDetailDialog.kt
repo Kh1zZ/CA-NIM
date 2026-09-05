@@ -21,6 +21,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -845,7 +846,8 @@ fun CastItemRow(cast: CharacterCastItem) {
                     color = TextPrimary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 1,
+                    maxLines = 2,
+                    lineHeight = 15.sp,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
@@ -869,7 +871,9 @@ fun CastItemRow(cast: CharacterCastItem) {
                         color = TextPrimary,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
+                        maxLines = 2,
+                        lineHeight = 15.sp,
+                        textAlign = TextAlign.End,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(

@@ -33,6 +33,7 @@ import com.canim.app.data.model.MediaType
 import com.canim.app.data.model.UserMediaItem
 import com.canim.app.ui.theme.*
 import com.canim.app.ui.viewmodel.CanimUiState
+import com.canim.app.util.AnimeFranchiseFilter
 import kotlinx.coroutines.launch
 
 object StatsColors {
@@ -59,12 +60,9 @@ fun StatsScreen(
     var showExportDialog by remember { mutableStateOf(false) }
     var isExporting by remember { mutableStateOf(false) }
 
-    // Calculate Top 5 by personal score
+    // Calculate Top 5 by personal score (excluding sequel anime)
     val topAnime = remember(state.animeList) {
-        state.animeList
-            .filter { it.score > 0 }
-            .sortedByDescending { it.score }
-            .take(5)
+        AnimeFranchiseFilter.selectTopAnimeNonSequel(state.animeList, 5)
     }
 
     val topManga = remember(state.mangaList) {
@@ -358,17 +356,59 @@ fun StatsScreen(
 
     // Export Dialog
     if (showExportDialog) {
+        var selectedRatio by remember { mutableStateOf(ExportAspectRatio.RATIO_16_9) }
+
         AlertDialog(
             onDismissRequest = { if (!isExporting) showExportDialog = false },
             title = {
                 Text(text = "Ekspor Statistik", fontWeight = FontWeight.Bold, color = TextPrimary)
             },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        text = "Pilih format ekspor ringkasan statistik (Landscape 16:9 1080p):",
+                        text = "Pilih Rasio Kanvas:",
+                        color = TextPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    // Aspect Ratio Selector Chips (16:9, 19:6, 1:1, 4:5, 3:4)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        ExportAspectRatio.entries.forEach { ratio ->
+                            val isSelected = ratio == selectedRatio
+                            Surface(
+                                selected = isSelected,
+                                onClick = { if (!isExporting) selectedRatio = ratio },
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (isSelected) AccentBlue else CardBg,
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    if (isSelected) AccentBlue else CardBorder
+                                ),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(vertical = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = ratio.label,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (isSelected) Color.White else TextSecondary
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = "Pilih Format (${selectedRatio.label} - ${selectedRatio.width}x${selectedRatio.height}):",
                         color = TextSecondary,
-                        fontSize = 13.sp
+                        fontSize = 12.sp
                     )
 
                     StatsExportFormat.entries.forEach { fmt ->
@@ -382,12 +422,13 @@ fun StatsScreen(
                                         malUser = state.malUser,
                                         topAnime = topAnime,
                                         topManga = topManga,
-                                        format = fmt
+                                        format = fmt,
+                                        aspectRatio = selectedRatio
                                     )
                                     isExporting = false
                                     showExportDialog = false
                                     if (result.isSuccess) {
-                                        Toast.makeText(context, "Statistik siap dibagikan (${fmt.extension.uppercase()})", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "Statistik siap dibagikan (${fmt.extension.uppercase()} - ${selectedRatio.label})", Toast.LENGTH_SHORT).show()
                                     } else {
                                         Toast.makeText(context, "Gagal mengekspor: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
                                     }
