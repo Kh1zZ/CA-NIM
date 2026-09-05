@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,6 +30,7 @@ import coil.compose.AsyncImage
 import com.canim.app.data.model.MediaItem
 import com.canim.app.data.model.MediaType
 import com.canim.app.ui.theme.*
+import kotlinx.coroutines.flow.distinctUntilChanged
 
 @Composable
 fun StudioFilmographyScreen(
@@ -42,22 +43,23 @@ fun StudioFilmographyScreen(
     onLoadMore: () -> Unit,
     onOpenDetail: (MediaItem, MediaType) -> Unit,
     onBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    totalEntries: Int = 0
 ) {
     val gridState = rememberLazyGridState()
 
-    // Detect when user scrolls near the bottom to trigger load more
-    val shouldLoadMore = remember {
-        derivedStateOf {
-            val totalItems = gridState.layoutInfo.totalItemsCount
-            val lastVisibleIndex = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            totalItems > 0 && lastVisibleIndex >= totalItems - 4
+    // Robust pagination: detect when user scrolls near the bottom without re-trigger loops
+    LaunchedEffect(gridState, canLoadMore, isLoading, isLoadingMore) {
+        snapshotFlow {
+            val total = gridState.layoutInfo.totalItemsCount
+            val lastVisible = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            total > 0 && lastVisible >= total - 4
         }
-    }
-
-    LaunchedEffect(shouldLoadMore.value) {
-        if (shouldLoadMore.value && canLoadMore && !isLoading && !isLoadingMore) {
-            onLoadMore()
+        .distinctUntilChanged()
+        .collect { nearBottom ->
+            if (nearBottom && canLoadMore && !isLoading && !isLoadingMore) {
+                onLoadMore()
+            }
         }
     }
 
@@ -108,8 +110,14 @@ fun StudioFilmographyScreen(
                             color = TextPrimary
                         )
                         Spacer(modifier = Modifier.height(4.dp))
+                        val countLabel = when {
+                            totalEntries >= 500 -> "500+ judul"
+                            totalEntries > 0 -> "$totalEntries judul"
+                            items.isNotEmpty() -> "${items.size} judul"
+                            else -> ""
+                        }
                         Text(
-                            text = "Filmografi & Katalog Produksi (${items.size} judul)",
+                            text = if (countLabel.isNotEmpty()) "Filmografi & Katalog Produksi ($countLabel)" else "Filmografi & Katalog Produksi",
                             fontSize = 13.sp,
                             color = AccentBlue,
                             fontWeight = FontWeight.Medium
@@ -117,8 +125,11 @@ fun StudioFilmographyScreen(
                     }
                 }
 
-                // Filmography items
-                items(items, key = { it.id }) { media ->
+                // Filmography items with bulletproof unique keys
+                itemsIndexed(
+                    items = items,
+                    key = { index, media -> "${media.malId ?: media.anilistId ?: media.title}_$index" }
+                ) { _, media ->
                     StudioMediaCard(
                         item = media,
                         onClick = { onOpenDetail(media, MediaType.ANIME) }

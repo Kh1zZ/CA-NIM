@@ -611,7 +611,12 @@ fun MediaDetailScreen(
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(if (isSelected) themeAccent else CardBg)
                                         .border(1.dp, if (isSelected) themeAccent else CardBorder, RoundedCornerShape(8.dp))
-                                        .clickable { trackingStatus = key }
+                                        .clickable {
+                                            trackingStatus = key
+                                            if (key == "completed" && maxProgress > 0) {
+                                                trackingProgress = maxProgress
+                                            }
+                                        }
                                         .padding(vertical = 8.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -639,7 +644,12 @@ fun MediaDetailScreen(
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(if (isSelected) themeAccent else CardBg)
                                         .border(1.dp, if (isSelected) themeAccent else CardBorder, RoundedCornerShape(8.dp))
-                                        .clickable { trackingStatus = key }
+                                        .clickable {
+                                            trackingStatus = key
+                                            if (key == "completed" && maxProgress > 0) {
+                                                trackingProgress = maxProgress
+                                            }
+                                        }
                                         .padding(vertical = 8.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -792,10 +802,15 @@ fun MediaDetailScreen(
                     // Save Button
                     Button(
                         onClick = {
+                            val finalProgress = if (trackingStatus == "completed" && maxProgress > 0 && trackingProgress < maxProgress) {
+                                maxProgress
+                            } else {
+                                trackingProgress
+                            }
                             val tracking = MalTracking(
                                 status = trackingStatus,
                                 score = trackingScore,
-                                progress = trackingProgress,
+                                progress = finalProgress,
                                 comments = trackingNotes
                             )
                             val identity = userItem?.identity ?: mediaItem?.identity ?: MediaRef()

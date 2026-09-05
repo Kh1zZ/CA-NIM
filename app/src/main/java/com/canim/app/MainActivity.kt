@@ -333,6 +333,7 @@ class MainActivity : ComponentActivity() {
                                     studioId = currentScreen.studioId,
                                     studioName = currentScreen.studioName,
                                     items = uiState.studioFilmographyItems,
+                                    totalEntries = uiState.studioFilmographyTotalEntries,
                                     isLoading = uiState.isStudioFilmographyLoading,
                                     isLoadingMore = uiState.isStudioFilmographyLoadingMore,
                                     canLoadMore = uiState.canLoadMoreStudioFilmography,

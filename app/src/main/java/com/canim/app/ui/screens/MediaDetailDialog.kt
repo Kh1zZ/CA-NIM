@@ -277,7 +277,12 @@ fun MediaDetailDialog(
                                                         if (isSelected) themeAccent else themeBorder,
                                                         RoundedCornerShape(16.dp)
                                                     )
-                                                    .clickable { status = key }
+                                                    .clickable {
+                                                        status = key
+                                                        if (key == "completed" && total > 0) {
+                                                            progress = total
+                                                        }
+                                                    }
                                                     .padding(horizontal = 12.dp, vertical = 6.dp)
                                             ) {
                                                 Text(
@@ -705,12 +710,13 @@ fun MediaDetailDialog(
 
                     Button(
                         onClick = {
+                            val finalProgress = if (status == "completed" && total > 0 && progress < total) total else progress
                             val updatedItem = if (userItem != null) {
                                 userItem.copy(
                                     tracking = userItem.tracking.copy(
                                         status = status,
                                         score = score,
-                                        progress = progress,
+                                        progress = finalProgress,
                                         comments = notes,
                                         updatedAt = System.currentTimeMillis()
                                     )
@@ -741,7 +747,7 @@ fun MediaDetailDialog(
                                 val tracking = MalTracking(
                                     status = status,
                                     score = score,
-                                    progress = progress,
+                                    progress = finalProgress,
                                     comments = notes,
                                     updatedAt = System.currentTimeMillis()
                                 )

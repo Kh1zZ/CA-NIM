@@ -104,7 +104,8 @@ class CacheManagerTest {
                 )
             ),
             hasNextPage = true,
-            currentPage = 1
+            currentPage = 1,
+            total = 500
         )
 
         CacheManager.putStudioFilmography(569, 1, page)
@@ -114,5 +115,45 @@ class CacheManagerTest {
         assertEquals(1, cached?.items?.size)
         assertEquals("Jujutsu Kaisen", cached?.items?.first()?.title)
         assertTrue(cached?.hasNextPage == true)
+        assertEquals(500, cached?.total)
+    }
+
+    @Test
+    fun testCompletedStatusAutoFillProgress() {
+        val animeItem = com.canim.app.data.model.UserMediaItem(
+            identity = com.canim.app.data.model.MediaRef(malId = 100),
+            metadata = com.canim.app.data.model.MediaMetadata(
+                title = "Sousou no Frieren",
+                imageUrl = "https://example.com/frieren.jpg",
+                type = MediaType.ANIME,
+                totalEpisodes = 28
+            ),
+            tracking = com.canim.app.data.model.MalTracking(
+                status = "watching",
+                progress = 12
+            )
+        )
+
+        val completedAnime = animeItem.withStatus("completed")
+        assertEquals("completed", completedAnime.status)
+        assertEquals(28, completedAnime.progress)
+
+        val mangaItem = com.canim.app.data.model.UserMediaItem(
+            identity = com.canim.app.data.model.MediaRef(malId = 200),
+            metadata = com.canim.app.data.model.MediaMetadata(
+                title = "Berserk",
+                imageUrl = "https://example.com/berserk.jpg",
+                type = MediaType.MANGA,
+                totalChapters = 364
+            ),
+            tracking = com.canim.app.data.model.MalTracking(
+                status = "reading",
+                progress = 50
+            )
+        )
+
+        val completedManga = mangaItem.withStatus("completed")
+        assertEquals("completed", completedManga.status)
+        assertEquals(364, completedManga.progress)
     }
 }

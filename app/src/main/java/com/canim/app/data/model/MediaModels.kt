@@ -96,6 +96,8 @@ data class UserMediaItem(
     val titleEnglish: String? get() = metadata.titleEnglish
     val imageUrl: String get() = metadata.imageUrl
     val type: MediaType get() = metadata.type
+    val isAnime: Boolean get() = type == MediaType.ANIME
+    val isManga: Boolean get() = type == MediaType.MANGA
     val status: String get() = tracking.status
     val score: Int get() = tracking.score
     val scoreFormatted: String get() = if (score > 0) "★ $score" else ""
@@ -118,8 +120,11 @@ data class UserMediaItem(
     val studio: String? get() = metadata.studio
     val updatedAt: Long get() = tracking.updatedAt
 
-    fun withStatus(newStatus: String): UserMediaItem =
-        copy(tracking = tracking.copy(status = newStatus, updatedAt = System.currentTimeMillis()))
+    fun withStatus(newStatus: String): UserMediaItem {
+        val maxP = if (isAnime) totalEpisodes else totalChapters
+        val newProgress = if (newStatus == "completed" && maxP > 0) maxP else tracking.progress
+        return copy(tracking = tracking.copy(status = newStatus, progress = newProgress, updatedAt = System.currentTimeMillis()))
+    }
 }
 
 @Immutable

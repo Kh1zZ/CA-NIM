@@ -67,6 +67,7 @@ data class CanimUiState(
     val isStudioFilmographyLoading: Boolean = false,
     val isStudioFilmographyLoadingMore: Boolean = false,
     val studioFilmographyPage: Int = 1,
+    val studioFilmographyTotalEntries: Int = 0,
     val canLoadMoreStudioFilmography: Boolean = true,
 
     // App & Auth state
@@ -102,6 +103,7 @@ class CanimViewModel(
     private var discoverJob: Job? = null
     private var discoverRequestToken = 0L
     private var detailJob: Job? = null
+    private var studioJob: Job? = null
 
     init {
         // Cold-start instant cache-first load from disk/memory
@@ -899,6 +901,7 @@ class CanimViewModel(
             }
             null -> {
                 detailJob?.cancel()
+                studioJob?.cancel()
                 _uiState.update {
                     it.copy(
                         selectedDetailItem = null,
@@ -912,6 +915,7 @@ class CanimViewModel(
                         studioFilmographyStudioId = null,
                         studioFilmographyStudioName = "",
                         studioFilmographyItems = emptyList(),
+                        studioFilmographyTotalEntries = 0,
                         isStudioFilmographyLoading = false,
                         isStudioFilmographyLoadingMore = false,
                         studioFilmographyPage = 1,
@@ -982,6 +986,7 @@ class CanimViewModel(
     }
 
     fun closeStudio() {
+        studioJob?.cancel()
         if (_screenStack.value.lastOrNull() is ScreenRoute.StudioFilmography) {
             popScreen()
         } else {
@@ -990,6 +995,7 @@ class CanimViewModel(
                     studioFilmographyStudioId = null,
                     studioFilmographyStudioName = "",
                     studioFilmographyItems = emptyList(),
+                    studioFilmographyTotalEntries = 0,
                     isStudioFilmographyLoading = false,
                     isStudioFilmographyLoadingMore = false,
                     studioFilmographyPage = 1,
@@ -1001,12 +1007,14 @@ class CanimViewModel(
 
     fun loadStudioFilmography(studioId: Int, studioName: String, page: Int = 1) {
         if (page == 1) {
+            studioJob?.cancel()
             _uiState.update {
                 it.copy(
                     studioFilmographyStudioId = studioId,
                     studioFilmographyStudioName = studioName,
                     isStudioFilmographyLoading = true,
                     studioFilmographyItems = emptyList(),
+                    studioFilmographyTotalEntries = 0,
                     studioFilmographyPage = 1,
                     canLoadMoreStudioFilmography = true
                 )
@@ -1015,7 +1023,7 @@ class CanimViewModel(
             _uiState.update { it.copy(isStudioFilmographyLoadingMore = true) }
         }
 
-        viewModelScope.launch(Dispatchers.IO) {
+        studioJob = viewModelScope.launch(Dispatchers.IO) {
             val pageResult = repository.getStudioFilmography(studioId = studioId, page = page)
             _uiState.update {
                 val newItems = if (page == 1) {
@@ -1025,8 +1033,10 @@ class CanimViewModel(
                     val added = (pageResult?.items ?: emptyList()).filter { item -> item.id !in existingIds }
                     it.studioFilmographyItems + added
                 }
+                val totalEntries = if (page == 1) (pageResult?.total ?: 0) else it.studioFilmographyTotalEntries
                 it.copy(
                     studioFilmographyItems = newItems,
+                    studioFilmographyTotalEntries = if (totalEntries > 0) totalEntries else newItems.size,
                     isStudioFilmographyLoading = false,
                     isStudioFilmographyLoadingMore = false,
                     studioFilmographyPage = page,

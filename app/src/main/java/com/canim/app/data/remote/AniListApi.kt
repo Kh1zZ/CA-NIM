@@ -1216,7 +1216,7 @@ object AniListClient {
               Studio(id: ${'$'}id, search: ${'$'}search) {
                 id
                 name
-                media(page: ${'$'}page, perPage: ${'$'}perPage, sort: POPULARITY_DESC) {
+                media(page: ${'$'}page, perPage: ${'$'}perPage, sort: POPULARITY_DESC, isMain: true) {
                   pageInfo {
                     total
                     perPage
@@ -1271,13 +1271,18 @@ object AniListClient {
             val pageInfo = mediaObj?.optJSONObject("pageInfo")
             val hasNextPage = pageInfo?.optBoolean("hasNextPage", false) ?: false
             val currentPage = pageInfo?.optInt("currentPage", page) ?: page
+            val total = pageInfo?.optInt("total", 0) ?: 0
 
             val nodesArray = mediaObj?.optJSONArray("nodes")
             val items = mutableListOf<MediaItem>()
+            val seenIds = mutableSetOf<Int>()
             if (nodesArray != null) {
                 for (i in 0 until nodesArray.length()) {
                     val node = nodesArray.optJSONObject(i) ?: continue
                     val mId = node.optInt("id")
+                    if (mId <= 0 || !seenIds.add(mId)) {
+                        continue
+                    }
                     val malId = if (node.has("idMal") && !node.isNull("idMal")) node.optInt("idMal") else null
                     val titleObj = node.optJSONObject("title")
                     val tRomaji = titleObj?.optString("romaji")
@@ -1329,7 +1334,8 @@ object AniListClient {
                 studioName = resolvedStudioName,
                 items = items,
                 hasNextPage = hasNextPage,
-                currentPage = currentPage
+                currentPage = currentPage,
+                total = total
             )
             CacheManager.putStudioFilmography(resolvedStudioId, page, result)
             result

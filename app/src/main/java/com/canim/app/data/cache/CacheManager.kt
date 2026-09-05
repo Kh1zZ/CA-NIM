@@ -16,7 +16,8 @@ data class StudioFilmographyPage(
     val studioName: String,
     val items: List<MediaItem>,
     val hasNextPage: Boolean,
-    val currentPage: Int
+    val currentPage: Int,
+    val total: Int = 0
 )
 
 data class CacheEntry<T>(
