@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   test-and-build-debug:
@@ -68,3 +68,27 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 1
+
+      - name: Publish Direct Debug APK Pre-release
+        if: (github.ref_name == 'debug' || github.ref_name == 'dev') && github.repository == 'Kh1zZ/CA-NIM'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: "debug-build"
+        run: |
+          VERSION_NAME="${{ steps.apk_check.outputs.version_name }}"
+          APK_FILE="app/build/outputs/apk/debug/canim-debug-${VERSION_NAME}.apk"
+
+          echo "Publishing direct debug APK to GitHub Pre-release ($TAG_NAME)..."
+          gh release delete "$TAG_NAME" --cleanup-tag --yes 2>/dev/null || true
+          gh release create "$TAG_NAME" "$APK_FILE" \
+            --title "CA'NIM Debug Build (${VERSION_NAME})" \
+            --notes "### 🧪 CA'NIM Rolling Debug Build (${VERSION_NAME})
+
+Branch: \`${{ github.ref_name }}\` • Commit: [\`${{ github.sha }}\`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
+
+> [!TIP]
+> **Direct APK Download**: Klik langsung pada file **\`canim-debug-${VERSION_NAME}.apk\`** di bagian Assets bawah untuk mengunduh dan memasang di HP tanpa ekstrak zip!
+" \
+            --prerelease
+          echo "Direct Debug APK pre-release published successfully!"
