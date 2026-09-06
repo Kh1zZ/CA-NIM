@@ -60,3 +60,23 @@
 -keep class androidx.security.crypto.** { *; }
 -dontwarn com.google.errorprone.annotations.**
 
+# Cache & Invalidation Models (Gson persistence in R8)
+-keep class com.canim.app.data.cache.** { *; }
+-keepclassmembers class com.canim.app.data.cache.** { *; }
+
+# Coil Image Loader Optimizations
+-keep class coil.** { *; }
+-dontwarn coil.**
+
+# Compose 60 FPS R8 Optimization: Strip sourceInformation debugging traces in release builds
+-assumenosideeffects class androidx.compose.runtime.ComposerKt {
+    void sourceInformation(androidx.compose.runtime.Composer, java.lang.String);
+    void sourceInformationMarkerStart(androidx.compose.runtime.Composer, int, java.lang.String);
+    void sourceInformationMarkerEnd(androidx.compose.runtime.Composer);
+}
+
+# Allow R8 aggressive cross-package inlining and class merging
+-allowaccessmodification
+-repackageclasses
+
+

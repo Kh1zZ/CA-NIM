@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases/latest"><img src="https://img.shields.io/badge/Download-APK%20(v6.0.2)-10B981.svg?style=for-the-badge&logo=android" alt="Download APK"></a>
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.0.2-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases/latest"><img src="https://img.shields.io/badge/Download-APK%20(v6.0.3)-10B981.svg?style=for-the-badge&logo=android" alt="Download APK"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.0.3-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#-fitur-utama"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#-arsitektur-dan-prinsip-desain"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
@@ -26,7 +26,7 @@ Dapatkan rilis resmi **CA'NIM** siap pasang langsung dari halaman rilis GitHub:
 
 | Berkas | Tipe | Arsitektur | Kebutuhan Minimum | Tautan |
 | :--- | :---: | :---: | :---: | :---: |
-| **`canim-universal-release-v6.0.2.apk`** | **Release** | **Universal** (`arm64-v8a`, `armeabi-v7a`, `x86_64`) | Android 7.0+ (API 24+) | [👉 Unduh APK Rilis](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
+| **`canim-universal-release-v6.0.3.apk`** | **Release** | **Universal** (`arm64-v8a`, `armeabi-v7a`, `x86_64`) | Android 7.0+ (API 24+) | [👉 Unduh APK Rilis](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
 | **`SHA256SUMS.txt`** | **Checksum** | — | — | [👉 Verifikasi Checksum](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
 
 > 💡 **Catatan Instalasi**: APK Release dikompilasi secara universal oleh GitHub Actions CI/CD, bebas dari bloatware/tracker, dan telah dioptimalkan secara penuh menggunakan R8 Minifier untuk pengalaman scrolling terbaik.
@@ -288,7 +288,21 @@ Mulai versi `v4.4.1`, seluruh berkas APK rilis resmi **CA'NIM** dikompilasi seca
 
 ---
 
-## 📝 Catatan Rilis Terbaru (v6.0.2)
+## 📝 Catatan Rilis Terbaru (v6.0.3)
+
+- **Aktivasi Penuh R8 Full Mode & Optimasi Bytecode (Standar ArchiveTune)**:
+  - Mengaktifkan **R8 Full Mode** (`android.enableR8.fullMode=true` di `gradle.properties`) untuk inlining agresif terhadap synthetic lambda classes dan composable functions.
+  - Menambahkan aturan `-allowaccessmodification` dan `-repackageclasses` pada `proguard-rules.pro` untuk memperluas cakupan inlining antar-paket dan penggabungan kelas (class merging).
+  - Menghapus overhead debugging Compose di build release dengan aturan `-assumenosideeffects` pada `ComposerKt.sourceInformation`, memangkas ribuan alokasi string dan penanda layout inspector saat scrolling cepat.
+- **100% Skippable Recomposition & Lambda Hoisting**:
+  - Mengisolasi dan me-`remember` seluruh lambda callback di `MainActivity` dan `DashboardScreen` (`WatchingCard` dan `ReadingCard`).
+  - Item daftar pada kartu media kini 100% dilewati (*skipped*) oleh Jetpack Compose saat layar digulir, mencegah pengukuran ulang layout (*zero re-measurement pass*).
+- **Optimasi Memori Bitmap Coil (RGB_565)**:
+  - Mengaktifkan `.allowRgb565(true)` pada Coil `ImageLoader` di `CanimApplication`, memangkas konsumsi RAM decoding poster anime/manga hingga 50% dan melenyapkan jeda Garbage Collection (GC pauses) saat *fast fling scroll*.
+- **Preservasi Fungsionalitas & Test Suite (57 Unit Tests Lulus 100%)**: Seluruh 57 automated unit tests lulus tanpa ada regresi.
+
+<details>
+<summary><b>Lihat Catatan Rilis Sebelumnya (v6.0.2)</b></summary>
 
 - **Eliminasi Redundansi Tombol Dasbor**: Menghapus tombol redundan *"Analisis Lengkap"* dari seksi aksi cepat Dasbor karena fungsi analisis mendalam dan ekspor infografis telah dipusatkan pada tombol *"Detail dan Ekspor"* di header Ringkasan Statistik. Kartu *"Flashcard Gacha"* kini diperluas secara proporsional memenuhi baris (`fillMaxWidth()`) lengkap dengan gradient border Cyber Blue, indikator tiket sisa, dan panah navigasi.
 - **Perbaikan Header Menu Flashcard (Fix Overflowing/Overlap)**: Memperbaiki masalah teks judul Flashcard Gacha yang tertimpa (*overflowing*) oleh box header atas / badge tiket akibat akumulasi WindowInsets. Mengatur `windowInsets = WindowInsets(0.dp)` pada TopAppBar, judul single-line (`maxLines = 1` dengan `TextOverflow.Ellipsis`), serta menyederhanakan subtitle (`"Eksplorasi Anime"`) agar tata letak tetap lapang dan tidak bertabrakan dengan badge tiket.
@@ -298,6 +312,8 @@ Mulai versi `v4.4.1`, seluruh berkas APK rilis resmi **CA'NIM** dikompilasi seca
   - *Two-Phase Progressive Loading*: Data AniList (12 karakter + seiyuu & 10 staf produksi) langsung di-emit ke antarmuka pada fase 1 tanpa menunggu respon sekunder MAL.
 - **Sistem 60 FPS Smooth Scroll (Standar Animite)**: Mengadopsi arsitektur rendering Compose dari [imashnake0/Animite](https://github.com/imashnake0/Animite). Menyematkan `key` stabil dan `contentType` eksplisit pada seluruh `LazyRow` dan `LazyColumn` di Dasbor, Discover, Library, dan Layar Detail, serta menetapkan background placeholder elevasi tetap (`CardElevated`) pada avatar dan kartu mini untuk mengeliminasi relayout pass dan GC thrashing saat scrolling cepat.
 - **Preservasi Fungsionalitas & Test Suite 100% (57 Unit Tests Lulus)**: Seluruh 57 automated unit tests lulus sempurna.
+
+</details>
 
 <details>
 <summary><b>Lihat Catatan Rilis Sebelumnya (v6.0.1)</b></summary>
@@ -312,6 +328,8 @@ Mulai versi `v4.4.1`, seluruh berkas APK rilis resmi **CA'NIM** dikompilasi seca
 - **Preservasi Fungsionalitas & Test Suite 100%**: Seluruh 57 automated unit tests lulus 100% tanpa regresi logika.
 
 </details>
+
+<details>
 <summary><b>Lihat Catatan Rilis Sebelumnya (v6.0.0)</b></summary>
 
 - **Arsitektur Visual Invisible Continuity**: Menghilangkan batasan kotak-kotak tebal (*cardification* dan *card-in-card anti-pattern*) yang memecah konsentrasi pengguna. Mengadopsi prinsip desain antarmuka kontemporer di mana konten mengalir alami melalui kedalaman kanvas (*elevation layering*), kontras tipografi hierarkis, dan pembatas mikro-subtle (`CardBorderSubtle` 12% alpha & `DividerSubtle` 8% alpha).

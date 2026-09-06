@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.canim.app.data.local.GachaCreditManager
 import com.canim.app.data.local.MalSecureStorage
+import com.canim.app.data.model.MediaType
 import com.canim.app.data.repository.CanimRepository
 import com.canim.app.data.repository.MalAuthManager
 import com.canim.app.ui.navigation.ScreenRoute
@@ -211,33 +212,51 @@ class MainActivity : ComponentActivity() {
                             .padding(innerPadding)
                             .background(BlackBg)
                     ) {
+                        // Stable hoisted callbacks to ensure 100% skippable recomposition during scrolling
+                        val onQuickAddEpisode: (String) -> Unit = remember { { viewModel.quickIncrementAnime(it) } }
+                        val onQuickAddChapter: (String) -> Unit = remember { { viewModel.quickIncrementManga(it) } }
+                        val onSelectItem: (Any, MediaType) -> Unit = remember { { item: Any, type: MediaType -> viewModel.openDetail(item, type) } }
+                        val onLoadDemoData: () -> Unit = remember { { viewModel.loadDemoData() } }
+                        val onNavigateTab: (String) -> Unit = remember { { viewModel.setTab(it) } }
+                        val onLoginMal: () -> Unit = remember(context) { { viewModel.loginWithMal(context) } }
+                        val onSyncMal: () -> Unit = remember { { viewModel.syncWithMal() } }
+                        val onOpenStats: () -> Unit = remember { { viewModel.openStats() } }
+                        val onOpenFlashcard: () -> Unit = remember { { viewModel.openFlashcard() } }
+
+                        val onSelectMediaType: (MediaType) -> Unit = remember { { viewModel.setLibraryFilterType(it) } }
+                        val onSelectStatusFilter: (String?) -> Unit = remember { { viewModel.setLibraryStatusFilter(it) } }
+                        val onSelectSort: (String) -> Unit = remember { { viewModel.setLibrarySort(it) } }
+                        val onSearchQueryChange: (String) -> Unit = remember { { viewModel.setLibrarySearch(it) } }
+                        val onQuickDecrementAnime: (String) -> Unit = remember { { viewModel.quickDecrementAnime(it) } }
+                        val onQuickDecrementManga: (String) -> Unit = remember { { viewModel.quickDecrementManga(it) } }
+
                         when (uiState.activeTab) {
                             "dashboard" -> {
                                 DashboardScreen(
                                     state = uiState,
-                                    onQuickAddEpisode = { viewModel.quickIncrementAnime(it) },
-                                    onQuickAddChapter = { viewModel.quickIncrementManga(it) },
-                                    onSelectItem = { item, type -> viewModel.openDetail(item, type) },
-                                    onLoadDemoData = { viewModel.loadDemoData() },
-                                    onNavigateTab = { viewModel.setTab(it) },
-                                    onLoginMal = { viewModel.loginWithMal(context) },
-                                    onSyncMal = { viewModel.syncWithMal() },
-                                    onOpenStats = { viewModel.openStats() },
-                                    onOpenFlashcard = { viewModel.openFlashcard() }
+                                    onQuickAddEpisode = onQuickAddEpisode,
+                                    onQuickAddChapter = onQuickAddChapter,
+                                    onSelectItem = onSelectItem,
+                                    onLoadDemoData = onLoadDemoData,
+                                    onNavigateTab = onNavigateTab,
+                                    onLoginMal = onLoginMal,
+                                    onSyncMal = onSyncMal,
+                                    onOpenStats = onOpenStats,
+                                    onOpenFlashcard = onOpenFlashcard
                                 )
                             }
                             "library" -> {
                                 LibraryScreen(
                                     state = uiState,
-                                    onSelectMediaType = { viewModel.setLibraryFilterType(it) },
-                                    onSelectStatusFilter = { viewModel.setLibraryStatusFilter(it) },
-                                    onSelectSort = { viewModel.setLibrarySort(it) },
-                                    onSearchQueryChange = { viewModel.setLibrarySearch(it) },
-                                    onQuickAddAnime = { viewModel.quickIncrementAnime(it) },
-                                    onQuickDecrementAnime = { viewModel.quickDecrementAnime(it) },
-                                    onQuickAddManga = { viewModel.quickIncrementManga(it) },
-                                    onQuickDecrementManga = { viewModel.quickDecrementManga(it) },
-                                    onSelectItem = { item, type -> viewModel.openDetail(item, type) }
+                                    onSelectMediaType = onSelectMediaType,
+                                    onSelectStatusFilter = onSelectStatusFilter,
+                                    onSelectSort = onSelectSort,
+                                    onSearchQueryChange = onSearchQueryChange,
+                                    onQuickAddAnime = onQuickAddEpisode,
+                                    onQuickDecrementAnime = onQuickDecrementAnime,
+                                    onQuickAddManga = onQuickAddChapter,
+                                    onQuickDecrementManga = onQuickDecrementManga,
+                                    onSelectItem = onSelectItem
                                 )
                             }
                             "search" -> {

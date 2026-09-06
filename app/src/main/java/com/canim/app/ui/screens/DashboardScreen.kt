@@ -65,6 +65,12 @@ fun DashboardScreen(
     val watchingAnime = state.watchingAnime
     val readingManga = state.readingManga
     val isDeviceOnline = remember { isNetworkOnline(context) }
+    val onSelectAnimeItem: (UserMediaItem) -> Unit = remember(onSelectItem) {
+        { anime -> onSelectItem(anime, MediaType.ANIME) }
+    }
+    val onSelectMangaItem: (UserMediaItem) -> Unit = remember(onSelectItem) {
+        { manga -> onSelectItem(manga, MediaType.MANGA) }
+    }
 
     LazyColumn(
         modifier = modifier
@@ -670,8 +676,8 @@ fun DashboardScreen(
                         items(watchingAnime, key = { it.id }, contentType = { "watching_card" }) { anime ->
                             WatchingCard(
                                 anime = anime,
-                                onQuickAdd = { onQuickAddEpisode(anime.id) },
-                                onClick = { onSelectItem(anime, MediaType.ANIME) }
+                                onQuickAdd = onQuickAddEpisode,
+                                onClick = onSelectAnimeItem
                             )
                         }
                     }
@@ -730,8 +736,8 @@ fun DashboardScreen(
                         items(readingManga, key = { it.id }, contentType = { "reading_card" }) { manga ->
                             ReadingCard(
                                 manga = manga,
-                                onQuickAdd = { onQuickAddChapter(manga.id) },
-                                onClick = { onSelectItem(manga, MediaType.MANGA) }
+                                onQuickAdd = onQuickAddChapter,
+                                onClick = onSelectMangaItem
                             )
                         }
                     }
@@ -881,13 +887,13 @@ fun StatCard(
 @Composable
 fun WatchingCard(
     anime: UserMediaItem,
-    onQuickAdd: () -> Unit,
-    onClick: () -> Unit
+    onQuickAdd: (String) -> Unit,
+    onClick: (UserMediaItem) -> Unit
 ) {
     Column(
         modifier = Modifier
             .width(148.dp)
-            .clickable { onClick() }
+            .clickable { onClick(anime) }
             .testTag("watching_card_${anime.id}"),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -987,7 +993,7 @@ fun WatchingCard(
                 (anime.totalEpisodes <= 0 || anime.progress < anime.totalEpisodes)
 
             FilledIconButton(
-                onClick = onQuickAdd,
+                onClick = { onQuickAdd(anime.id) },
                 enabled = canIncrementAnime,
                 modifier = Modifier
                     .size(28.dp)
@@ -1012,13 +1018,13 @@ fun WatchingCard(
 @Composable
 fun ReadingCard(
     manga: UserMediaItem,
-    onQuickAdd: () -> Unit,
-    onClick: () -> Unit
+    onQuickAdd: (String) -> Unit,
+    onClick: (UserMediaItem) -> Unit
 ) {
     Column(
         modifier = Modifier
             .width(148.dp)
-            .clickable { onClick() }
+            .clickable { onClick(manga) }
             .testTag("reading_card_${manga.id}"),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -1118,7 +1124,7 @@ fun ReadingCard(
                 (manga.totalChapters <= 0 || manga.progressChapters < manga.totalChapters)
 
             FilledIconButton(
-                onClick = onQuickAdd,
+                onClick = { onQuickAdd(manga.id) },
                 enabled = canIncrementManga,
                 modifier = Modifier
                     .size(28.dp)

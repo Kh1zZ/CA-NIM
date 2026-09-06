@@ -45,6 +45,7 @@ class CanimApplication : Application(), ImageLoaderFactory {
                     .build()
             }
             .allowHardware(true)
+            .allowRgb565(true) // Reduce bitmap memory by 50% for butter-smooth fling scrolling
             .crossfade(false) // Disable global crossfade to eliminate animation overhead during fast scrolling
             .respectCacheHeaders(false) // Prefer cached cover art
             .build()
