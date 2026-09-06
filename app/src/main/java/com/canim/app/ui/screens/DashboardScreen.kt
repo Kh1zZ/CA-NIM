@@ -65,6 +65,12 @@ fun DashboardScreen(
     val watchingAnime = state.watchingAnime
     val readingManga = state.readingManga
     val isDeviceOnline = remember { isNetworkOnline(context) }
+    val onSelectAnimeItem: (UserMediaItem) -> Unit = remember(onSelectItem) {
+        { anime -> onSelectItem(anime, MediaType.ANIME) }
+    }
+    val onSelectMangaItem: (UserMediaItem) -> Unit = remember(onSelectItem) {
+        { manga -> onSelectItem(manga, MediaType.MANGA) }
+    }
 
     LazyColumn(
         modifier = modifier
@@ -75,7 +81,7 @@ fun DashboardScreen(
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         // Top App Bar: CA'NIM + Logo & Sync Status Badge
-        item {
+        item(key = "dashboard_top_bar") {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -416,213 +422,191 @@ fun DashboardScreen(
             }
         }
 
-        // Integrated Stats Overview (Seamless Continuous Metric Presentation)
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "RINGKASAN STATISTIK",
-                        color = TextSecondary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
-                    )
-
-                    TextButton(
-                        onClick = onOpenStats,
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
-                    ) {
-                        Text(
-                            text = "Lihat Detail",
-                            color = AccentBlue,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                            contentDescription = null,
-                            tint = AccentBlue,
-                            modifier = Modifier.size(14.dp)
-                        )
-                    }
-                }
-
-                // 4-Metric Grid with Seamless Continuity Surfaces
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    StatCard(
-                        modifier = Modifier.weight(1f),
-                        title = "Total Anime",
-                        value = "${state.stats.totalAnime}",
-                        subtitle = "Judul Tersimpan",
-                        icon = Icons.Default.Tv,
-                        iconColor = AccentBlue
-                    )
-                    StatCard(
-                        modifier = Modifier.weight(1f),
-                        title = "Total Manga",
-                        value = "${state.stats.totalManga}",
-                        subtitle = "Judul Tersimpan",
-                        icon = Icons.Default.AutoStories,
-                        iconColor = MangaAccentDarkBlue
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    StatCard(
-                        modifier = Modifier.weight(1f),
-                        title = "Waktu Tonton",
-                        value = "${state.stats.daysWatched} Hari",
-                        subtitle = "${(state.stats.episodesWatched * 24) / 60} Jam Total",
-                        icon = Icons.Default.Schedule,
-                        iconColor = Color(0xFFF59E0B)
-                    )
-                    StatCard(
-                        modifier = Modifier.weight(1f),
-                        title = "Chapter Dibaca",
-                        value = "${state.stats.chaptersRead}",
-                        subtitle = "Bab Manga",
-                        icon = Icons.Default.MenuBook,
-                        iconColor = AccentGreen
-                    )
-                }
-
-                // Full Details Action Banner (Seamless Surface with subtle border)
-                Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, CardBorderSubtle, RoundedCornerShape(12.dp))
-                        .clickable(onClick = onOpenStats),
-                    color = CardBg,
-                    shape = RoundedCornerShape(12.dp)
+        // Unified Hero Metrics Strip (PRD Invisible Continuity)
+        item(key = "dashboard_hero_metrics") {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = CardBg,
+                shape = RoundedCornerShape(16.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderSubtle)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.PieChart,
-                                contentDescription = null,
-                                tint = AccentBlue,
-                                modifier = Modifier.size(20.dp)
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(AccentBlue)
                             )
-                            Column {
-                                Text(
-                                    text = "Lihat Statistik Lengkap & Ekspor",
-                                    color = TextPrimary,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "Pie chart distribusi, Top 5 personal score, unduh PDF/JPG/PNG",
-                                    color = TextMuted,
-                                    fontSize = 11.sp
-                                )
-                            }
+                            Text(
+                                text = "RINGKASAN STATISTIK",
+                                color = TextSecondary,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.2.sp
+                            )
                         }
 
-                        Icon(
-                            imageVector = Icons.Default.ChevronRight,
-                            contentDescription = null,
-                            tint = AccentBlue,
-                            modifier = Modifier.size(20.dp)
+                        TextButton(
+                            onClick = onOpenStats,
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                        ) {
+                            Text(
+                                text = "Detail dan Ekspor",
+                                color = AccentBlueLight,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = null,
+                                tint = AccentBlueLight,
+                                modifier = Modifier.size(13.dp)
+                            )
+                        }
+                    }
+
+                    // 4 Integrated Metrics Flow with Hairline Separators
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        HeroMetricItem(
+                            label = "ANIME",
+                            value = "${state.stats.totalAnime}",
+                            unit = "Judul",
+                            color = AccentBlue,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .height(36.dp)
+                                .background(DividerSubtle)
+                        )
+
+                        HeroMetricItem(
+                            label = "MANGA",
+                            value = "${state.stats.totalManga}",
+                            unit = "Judul",
+                            color = MangaAccentDarkBlue,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .height(36.dp)
+                                .background(DividerSubtle)
+                        )
+
+                        HeroMetricItem(
+                            label = "WAKTU",
+                            value = "${state.stats.daysWatched}",
+                            unit = "Hari",
+                            color = Color(0xFFF59E0B),
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        Box(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .height(36.dp)
+                                .background(DividerSubtle)
+                        )
+
+                        HeroMetricItem(
+                            label = "BACA",
+                            value = "${state.stats.chaptersRead}",
+                            unit = "Ch.",
+                            color = Color(0xFF06B6D4),
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
             }
         }
 
-        // Flashcard Gacha Entry Banner (Tugas 4)
-        item {
-            Card(
+        // Quick Action: Flashcard Gacha (Single unified card, Analisis Lengkap removed)
+        item(key = "dashboard_flashcard_action") {
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(
-                        1.dp,
-                        Brush.horizontalGradient(
-                            listOf(AccentBlue.copy(alpha = 0.35f), Color(0xFF8B5CF6).copy(alpha = 0.35f))
-                        ),
-                        RoundedCornerShape(14.dp)
-                    )
                     .clickable(onClick = onOpenFlashcard),
-                colors = CardDefaults.cardColors(containerColor = CardBg),
-                shape = RoundedCornerShape(14.dp)
+                color = CardBg,
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    Brush.horizontalGradient(
+                        listOf(AccentBlue.copy(alpha = 0.35f), Color(0xFF8B5CF6).copy(alpha = 0.35f))
+                    )
+                )
             ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(14.dp),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(
-                        modifier = Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(44.dp)
+                                .size(38.dp)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(
-                                    Brush.linearGradient(
-                                        listOf(AccentBlue.copy(alpha = 0.25f), Color(0xFF8B5CF6).copy(alpha = 0.25f))
-                                    )
-                                ),
+                                .background(Color(0xFF8B5CF6).copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Style,
                                 contentDescription = null,
-                                tint = AccentBlue,
-                                modifier = Modifier.size(24.dp)
+                                tint = Color(0xFF8B5CF6),
+                                modifier = Modifier.size(20.dp)
                             )
                         }
-
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Text(
                                     text = "Flashcard Gacha",
                                     color = TextPrimary,
-                                    fontSize = 14.sp,
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Box(
                                     modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(if (state.gachaCredits > 0) AccentBlue.copy(alpha = 0.15f) else Color.Red.copy(alpha = 0.15f))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(if (state.gachaCredits > 0) Color(0xFF8B5CF6) else Color(0xFFEF4444))
+                                        .padding(horizontal = 6.dp, vertical = 1.dp)
                                 ) {
                                     Text(
                                         text = "${state.gachaCredits} Tiket",
-                                        color = if (state.gachaCredits > 0) AccentBlue else Color(0xFFEF4444),
-                                        fontSize = 10.sp,
-                                        fontWeight = FontWeight.Bold
+                                        color = Color.White,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Black
                                     )
                                 }
                             }
                             Text(
-                                text = if (state.gachaCredits > 0) "Tarik kartu rekomendasi anime pilihan" else "Tiket habis • Tonton episode untuk +1 tiket",
+                                text = "Tarik kartu acak untuk eksplorasi anime dan manga pilihan",
                                 color = TextMuted,
                                 fontSize = 11.sp,
                                 maxLines = 1,
@@ -632,17 +616,17 @@ fun DashboardScreen(
                     }
 
                     Icon(
-                        imageVector = Icons.Default.ChevronRight,
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = null,
-                        tint = AccentBlue,
-                        modifier = Modifier.size(20.dp)
+                        tint = Color(0xFF8B5CF6),
+                        modifier = Modifier.size(16.dp)
                     )
                 }
             }
         }
 
         // Continue Watching Section
-        item {
+        item(key = "dashboard_continue_watching") {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -692,8 +676,8 @@ fun DashboardScreen(
                         items(watchingAnime, key = { it.id }, contentType = { "watching_card" }) { anime ->
                             WatchingCard(
                                 anime = anime,
-                                onQuickAdd = { onQuickAddEpisode(anime.id) },
-                                onClick = { onSelectItem(anime, MediaType.ANIME) }
+                                onQuickAdd = onQuickAddEpisode,
+                                onClick = onSelectAnimeItem
                             )
                         }
                     }
@@ -702,7 +686,7 @@ fun DashboardScreen(
         }
 
         // Continue Reading Section
-        item {
+        item(key = "dashboard_continue_reading") {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -752,8 +736,8 @@ fun DashboardScreen(
                         items(readingManga, key = { it.id }, contentType = { "reading_card" }) { manga ->
                             ReadingCard(
                                 manga = manga,
-                                onQuickAdd = { onQuickAddChapter(manga.id) },
-                                onClick = { onSelectItem(manga, MediaType.MANGA) }
+                                onQuickAdd = onQuickAddChapter,
+                                onClick = onSelectMangaItem
                             )
                         }
                     }
@@ -798,6 +782,51 @@ fun StatusBadge(
                 overflow = TextOverflow.Ellipsis
             )
         }
+    }
+}
+
+@Composable
+private fun HeroMetricItem(
+    label: String,
+    value: String,
+    unit: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Text(
+            text = value,
+            color = TextPrimary,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Black
+        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(5.dp)
+                    .clip(CircleShape)
+                    .background(color)
+            )
+            Text(
+                text = label,
+                color = TextSecondary,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 0.8.sp
+            )
+        }
+        Text(
+            text = unit,
+            color = TextMuted,
+            fontSize = 9.sp
+        )
     }
 }
 
@@ -858,39 +887,64 @@ fun StatCard(
 @Composable
 fun WatchingCard(
     anime: UserMediaItem,
-    onQuickAdd: () -> Unit,
-    onClick: () -> Unit
+    onQuickAdd: (String) -> Unit,
+    onClick: (UserMediaItem) -> Unit
 ) {
-    Card(
+    Column(
         modifier = Modifier
-            .width(160.dp)
-            .border(1.dp, CardBorderSubtle, RoundedCornerShape(12.dp))
-            .clickable { onClick() }
+            .width(148.dp)
+            .clickable { onClick(anime) }
             .testTag("watching_card_${anime.id}"),
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(12.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Column {
+        // Poster with Score Badge and Sleek Overlay Progress Bar
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(CardBg)
+        ) {
+            AsyncImage(
+                model = anime.imageUrl,
+                contentDescription = anime.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+
+            // Bottom Gradient Shade for Progress Visibility
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp)
-            ) {
-                AsyncImage(
-                    model = anime.imageUrl,
-                    contentDescription = anime.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-                if (anime.score > 0) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(6.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color.Black.copy(alpha = 0.75f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    .height(48.dp)
+                    .align(Alignment.BottomCenter)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
+                        )
+                    )
+            )
+
+            // Score Badge
+            if (anime.score > 0) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color.Black.copy(alpha = 0.8f))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            tint = StarGold,
+                            modifier = Modifier.size(11.dp)
+                        )
                         Text(
                             text = anime.scoreFormatted,
                             color = StarGold,
@@ -901,10 +955,25 @@ fun WatchingCard(
                 }
             }
 
-            Column(
-                modifier = Modifier.padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
+            // Sleek Progress Bar right at bottom of poster
+            LinearProgressIndicator(
+                progress = { anime.progressFrac },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .align(Alignment.BottomCenter),
+                color = AccentBlue,
+                trackColor = Color.White.copy(alpha = 0.15f)
+            )
+        }
+
+        // Title + Episode Progress + Quick Add Row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = anime.title,
                     color = TextPrimary,
@@ -913,53 +982,34 @@ fun WatchingCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-
-                val progressFrac = anime.progressFrac
-
-                LinearProgressIndicator(
-                    progress = { progressFrac },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp)),
-                    color = AccentBlue,
-                    trackColor = CardElevated
+                Text(
+                    text = "Ep. ${anime.progress}/${if (anime.totalEpisodes > 0) anime.totalEpisodes else "?"}",
+                    color = TextSecondary,
+                    fontSize = 11.sp
                 )
+            }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "${anime.progress}/${if (anime.totalEpisodes > 0) anime.totalEpisodes else "?"} ep",
-                        color = TextSecondary,
-                        fontSize = 11.sp
-                    )
+            val canIncrementAnime = !anime.status.equals("completed", ignoreCase = true) &&
+                (anime.totalEpisodes <= 0 || anime.progress < anime.totalEpisodes)
 
-                    val canIncrementAnime = !anime.status.equals("completed", ignoreCase = true) &&
-                        (anime.totalEpisodes <= 0 || anime.progress < anime.totalEpisodes)
-
-                    FilledIconButton(
-                        onClick = onQuickAdd,
-                        enabled = canIncrementAnime,
-                        modifier = Modifier
-                            .size(28.dp)
-                            .testTag("quick_add_${anime.id}"),
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = AccentBlue,
-                            contentColor = Color.White,
-                            disabledContainerColor = CardElevated.copy(alpha = 0.4f),
-                            disabledContentColor = TextMuted.copy(alpha = 0.3f)
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Tambah Episode",
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
+            FilledIconButton(
+                onClick = { onQuickAdd(anime.id) },
+                enabled = canIncrementAnime,
+                modifier = Modifier
+                    .size(28.dp)
+                    .testTag("quick_add_${anime.id}"),
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = AccentBlue,
+                    contentColor = Color.White,
+                    disabledContainerColor = CardElevated.copy(alpha = 0.4f),
+                    disabledContentColor = TextMuted.copy(alpha = 0.3f)
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Tambah Episode",
+                    modifier = Modifier.size(16.dp)
+                )
             }
         }
     }
@@ -968,39 +1018,64 @@ fun WatchingCard(
 @Composable
 fun ReadingCard(
     manga: UserMediaItem,
-    onQuickAdd: () -> Unit,
-    onClick: () -> Unit
+    onQuickAdd: (String) -> Unit,
+    onClick: (UserMediaItem) -> Unit
 ) {
-    Card(
+    Column(
         modifier = Modifier
-            .width(160.dp)
-            .border(1.dp, MangaCardBorder.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
-            .clickable { onClick() }
+            .width(148.dp)
+            .clickable { onClick(manga) }
             .testTag("reading_card_${manga.id}"),
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(12.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Column {
+        // Poster with Score Badge and Sleek Overlay Progress Bar
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(200.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(CardBg)
+        ) {
+            AsyncImage(
+                model = manga.imageUrl,
+                contentDescription = manga.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+
+            // Bottom Gradient Shade for Progress Visibility
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(180.dp)
-            ) {
-                AsyncImage(
-                    model = manga.imageUrl,
-                    contentDescription = manga.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize()
-                )
-                if (manga.score > 0) {
-                    Box(
-                        modifier = Modifier
-                            .align(Alignment.TopEnd)
-                            .padding(6.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color.Black.copy(alpha = 0.75f))
-                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    .height(48.dp)
+                    .align(Alignment.BottomCenter)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color.Transparent, Color.Black.copy(alpha = 0.8f))
+                        )
+                    )
+            )
+
+            // Score Badge
+            if (manga.score > 0) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color.Black.copy(alpha = 0.8f))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(3.dp)
                     ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            tint = StarGold,
+                            modifier = Modifier.size(11.dp)
+                        )
                         Text(
                             text = manga.scoreFormatted,
                             color = StarGold,
@@ -1011,10 +1086,25 @@ fun ReadingCard(
                 }
             }
 
-            Column(
-                modifier = Modifier.padding(10.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
+            // Sleek Progress Bar right at bottom of poster
+            LinearProgressIndicator(
+                progress = { manga.progressChaptersFrac },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .align(Alignment.BottomCenter),
+                color = MangaAccentDarkBlue,
+                trackColor = Color.White.copy(alpha = 0.15f)
+            )
+        }
+
+        // Title + Chapter Progress + Quick Add Row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = manga.title,
                     color = TextPrimary,
@@ -1023,53 +1113,34 @@ fun ReadingCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-
-                val progressFrac = manga.progressChaptersFrac
-
-                LinearProgressIndicator(
-                    progress = { progressFrac },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp)
-                        .clip(RoundedCornerShape(2.dp)),
-                    color = MangaAccentDarkBlue,
-                    trackColor = CardElevated
+                Text(
+                    text = "Ch. ${manga.progressChapters}/${if (manga.totalChapters > 0) manga.totalChapters else "?"}",
+                    color = TextSecondary,
+                    fontSize = 11.sp
                 )
+            }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Ch. ${manga.progressChapters}${if (manga.totalChapters > 0) "/${manga.totalChapters}" else ""}",
-                        color = TextSecondary,
-                        fontSize = 11.sp
-                    )
+            val canIncrementManga = !manga.status.equals("completed", ignoreCase = true) &&
+                (manga.totalChapters <= 0 || manga.progressChapters < manga.totalChapters)
 
-                    val canIncrementManga = !manga.status.equals("completed", ignoreCase = true) &&
-                        (manga.totalChapters <= 0 || manga.progressChapters < manga.totalChapters)
-
-                    FilledIconButton(
-                        onClick = onQuickAdd,
-                        enabled = canIncrementManga,
-                        modifier = Modifier
-                            .size(28.dp)
-                            .testTag("quick_add_manga_${manga.id}"),
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = MangaAccentDarkBlue,
-                            contentColor = Color.White,
-                            disabledContainerColor = CardElevated.copy(alpha = 0.4f),
-                            disabledContentColor = TextMuted.copy(alpha = 0.3f)
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Tambah Chapter",
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
+            FilledIconButton(
+                onClick = { onQuickAdd(manga.id) },
+                enabled = canIncrementManga,
+                modifier = Modifier
+                    .size(28.dp)
+                    .testTag("quick_add_${manga.id}"),
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = MangaAccentDarkBlue,
+                    contentColor = Color.White,
+                    disabledContainerColor = CardElevated.copy(alpha = 0.4f),
+                    disabledContentColor = TextMuted.copy(alpha = 0.3f)
+                )
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Tambah Chapter",
+                    modifier = Modifier.size(16.dp)
+                )
             }
         }
     }

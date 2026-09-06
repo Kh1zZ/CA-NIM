@@ -5,6 +5,7 @@ import coil.Coil
 import com.canim.app.data.model.ExtendedMediaDetail
 import com.canim.app.data.model.MediaItem
 import com.canim.app.data.model.UserMediaItem
+import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -133,19 +134,74 @@ object CacheManager {
         discoverCache[key] = CacheEntry(items, ttlMillis = TTL_DISCOVER)
     }
 
-    // --- Detail Cache ---
+    private val gson by lazy { Gson() }
+    @Volatile
+    private var detailCacheDir: File? = null
+
+    fun init(context: Context) {
+        try {
+            val dir = File(context.cacheDir, "canim_detail_cache")
+            if (!dir.exists()) dir.mkdirs()
+            detailCacheDir = dir
+        } catch (_: Exception) {}
+    }
+
+    // --- Detail Cache with Memory + Disk LRU Fallback ---
     fun getDetail(key: String): ExtendedMediaDetail? {
-        val entry = detailCache[key] ?: return null
-        return if (entry.isExpired) {
-            detailCache.remove(key)
-            null
-        } else {
-            entry.data
+        val entry = detailCache[key]
+        if (entry != null) {
+            return if (entry.isExpired) {
+                detailCache.remove(key)
+                deleteDetailDisk(key)
+                null
+            } else {
+                entry.data
+            }
         }
+        // Fallback to disk cache for sub-10ms instantaneous detail loading
+        val fromDisk = getDetailDisk(key)
+        if (fromDisk != null) {
+            detailCache[key] = CacheEntry(fromDisk, ttlMillis = TTL_DETAIL)
+            return fromDisk
+        }
+        return null
     }
 
     fun putDetail(key: String, detail: ExtendedMediaDetail) {
         detailCache[key] = CacheEntry(detail, ttlMillis = TTL_DETAIL)
+        putDetailDisk(key, detail)
+    }
+
+    private fun getDetailDisk(key: String): ExtendedMediaDetail? {
+        val dir = detailCacheDir ?: return null
+        return try {
+            val file = File(dir, "${key.hashCode().toUInt()}.json")
+            if (!file.exists()) return null
+            if (System.currentTimeMillis() - file.lastModified() > TTL_DETAIL) {
+                file.delete()
+                return null
+            }
+            val json = file.readText()
+            gson.fromJson(json, ExtendedMediaDetail::class.java)
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun putDetailDisk(key: String, detail: ExtendedMediaDetail) {
+        val dir = detailCacheDir ?: return
+        try {
+            val file = File(dir, "${key.hashCode().toUInt()}.json")
+            file.writeText(gson.toJson(detail))
+        } catch (_: Exception) {}
+    }
+
+    private fun deleteDetailDisk(key: String) {
+        val dir = detailCacheDir ?: return
+        try {
+            val file = File(dir, "${key.hashCode().toUInt()}.json")
+            if (file.exists()) file.delete()
+        } catch (_: Exception) {}
     }
 
     // --- Studio Filmography Cache ---
@@ -199,7 +255,6 @@ object CacheManager {
     fun putMalFallback(malId: Int, type: String, item: MediaItem) = putMalFallback(malFallbackKey(malId, type), item)
 
     // --- Short-lived Tracking Cache & Disk Persistence ---
-    private val gson = com.google.gson.Gson()
 
     fun getTracking(type: String): List<UserMediaItem>? {
         val entry = trackingCache[type] ?: return null
@@ -359,7 +414,10 @@ object CacheManager {
             malFallbackCache.remove(malFallbackKey(malId, "ANIME"))
             malFallbackCache.remove(malFallbackKey(malId, "MANGA"))
         }
-        keysToRemove.forEach { detailCache.remove(it) }
+        keysToRemove.forEach {
+            detailCache.remove(it)
+            deleteDetailDisk(it)
+        }
 
         // Also invalidate tracking list cache upon media mutation
         invalidateTracking()
@@ -394,6 +452,7 @@ object CacheManager {
         negativeCache.clear()
         trackingCache.clear()
         studioCache.clear()
+        detailCacheDir?.listFiles()?.forEach { try { it.delete() } catch (_: Exception) {} }
     }
 
     @OptIn(coil.annotation.ExperimentalCoilApi::class)

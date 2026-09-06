@@ -2,22 +2,25 @@ name: CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "debug", "dev" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   test-and-build-debug:
     name: Test & Build Debug
+    # Mencegah duplikasi: jika branch internal di repo yang sama sudah dipicu oleh event 'push', skip event 'pull_request'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
 
     steps:
       - name: Checkout Code
@@ -28,7 +31,11 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle'
+
+      - name: Setup Gradle Build Cache & Acceleration
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
 
       - name: Prepare Gradle Environment
         run: |
@@ -36,13 +43,11 @@ jobs:
           # Remove local developer machine JDK override if present
           sed -i '/org.gradle.java.home/d' gradle.properties
 
-      - name: Run Unit Tests
-        run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
-
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Run Tests & Compile Debug APK (Parallel with Build Cache)
+        run: ./gradlew testDebugUnitTest assembleDebug --build-cache --parallel --stacktrace
 
       - name: Validate Debug APK Output
+        id: apk_check
         run: |
           VERSION_NAME=$(grep -E '^\s*versionName\s*=\s*"([^"]+)"' app/build.gradle.kts | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')
           EXPECTED_APK="app/build/outputs/apk/debug/canim-debug-${VERSION_NAME}.apk"
@@ -52,4 +57,35 @@ jobs:
             ls -la app/build/outputs/apk/debug/ || true
             exit 1
           fi
+          echo "version_name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
           echo "Debug APK verified successfully: $(basename "$EXPECTED_APK") ($(wc -c < "$EXPECTED_APK") bytes)"
+
+      - name: Upload Debug APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: canim-debug-${{ steps.apk_check.outputs.version_name }}
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 1
+
+      - name: Publish Direct Debug APK Pre-release
+        if: (github.ref_name == 'debug' || github.ref_name == 'dev') && github.repository == 'Kh1zZ/CA-NIM'
+        continue-on-error: true
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: debug-build
+          name: "CA'NIM Debug Build (${{ steps.apk_check.outputs.version_name }})"
+          prerelease: true
+          make_latest: false
+          target_commitish: ${{ github.sha }}
+          files: app/build/outputs/apk/debug/canim-debug-*.apk
+          body: |
+            ### 🧪 CA'NIM Rolling Debug Build (${{ steps.apk_check.outputs.version_name }})
+
+            Branch: `${{ github.ref_name }}` • Commit: [`${{ github.sha }}`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
+
+            > [!TIP]
+            > **Direct APK Download**: Unduh langsung file APK di bagian Assets bawah tanpa perlu mengekstrak zip!

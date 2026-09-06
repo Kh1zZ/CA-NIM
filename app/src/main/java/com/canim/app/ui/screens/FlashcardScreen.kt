@@ -73,17 +73,21 @@ fun FlashcardScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
+                    Column(verticalArrangement = Arrangement.Center) {
                         Text(
                             text = "Flashcard Gacha",
-                            fontSize = 18.sp,
+                            fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
-                            color = TextPrimary
+                            color = TextPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "Geser kartu untuk eksplorasi anime pilihan",
+                            text = "Eksplorasi Anime",
                             fontSize = 11.sp,
-                            color = TextSecondary
+                            color = TextSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 },
@@ -101,29 +105,30 @@ fun FlashcardScreen(
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = CardElevated,
-                        border = BorderStroke(1.dp, if (credits > 0) AccentBlue.copy(alpha = 0.5f) else Color.Red.copy(alpha = 0.5f)),
-                        modifier = Modifier.padding(end = 12.dp)
+                        border = BorderStroke(1.dp, if (credits > 0) AccentBlue.copy(alpha = 0.5f) else Color(0xFFEF4444).copy(alpha = 0.5f)),
+                        modifier = Modifier.padding(end = 8.dp)
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Style,
                                 contentDescription = null,
                                 tint = if (credits > 0) AccentBlue else Color(0xFFEF4444),
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(15.dp)
                             )
                             Text(
                                 text = "$credits Tiket",
                                 color = if (credits > 0) AccentBlue else Color(0xFFEF4444),
-                                fontSize = 12.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
                     }
                 },
+                windowInsets = WindowInsets(0.dp),
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = BlackBg)
             )
         }

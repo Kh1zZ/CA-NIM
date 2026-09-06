@@ -231,108 +231,206 @@ fun MediaDetailScreen(
                 }
             }
 
-            // Metrik & Statistik Utama (Seamless Continuous Metric Grid)
+            // Metrik & Skor Terintegrasi (Invisible Continuity High-Density Metric Flow)
             item {
-                Column(
+                val effectiveScore = extendedDetail?.malScore
+                    ?: userItem?.metadata?.score
+                    ?: mediaItem?.score
+                val scoreStr = if (effectiveScore != null && effectiveScore > 0) {
+                    String.format(java.util.Locale.US, "%.2f", effectiveScore)
+                } else {
+                    "—"
+                }
+                val userScore = userItem?.score ?: 0
+                val effectiveRank = extendedDetail?.malRank ?: extendedDetail?.rank
+                val rankStr = if (effectiveRank != null && effectiveRank > 0) "#${formatCompactNumber(effectiveRank)}" else "—"
+                val effectivePopularity = extendedDetail?.malPopularity ?: extendedDetail?.popularity
+                val popStr = if (effectivePopularity != null && effectivePopularity > 0) "#${formatCompactNumber(effectivePopularity)}" else "—"
+                val effectiveMembers = extendedDetail?.malMembers ?: extendedDetail?.watchers
+                val membersStr = if (effectiveMembers != null && effectiveMembers > 0) formatCompactNumber(effectiveMembers) else "—"
+
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
                         .offset(y = (-14).dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    shape = RoundedCornerShape(16.dp),
+                    color = CardBg,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderSubtle)
                 ) {
-                    Text(
-                        text = "METRIK & STATISTIK",
-                        color = TextSecondary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
-                    )
-
-                    // Baris 1: Rating MAL & Rating Pribadi
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        val effectiveScore = extendedDetail?.malScore
-                            ?: userItem?.metadata?.score
-                            ?: mediaItem?.score
-                        val scoreStr = if (effectiveScore != null && effectiveScore > 0) {
-                            String.format(java.util.Locale.US, "%.2f", effectiveScore)
-                        } else {
-                            "—"
+                        // Baris 1: Hero Score MAL & Rating Pribadi
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(42.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(StarGold.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Star,
+                                        contentDescription = null,
+                                        tint = StarGold,
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                }
+
+                                Column {
+                                    Row(
+                                        verticalAlignment = Alignment.Bottom,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Text(
+                                            text = scoreStr,
+                                            color = TextPrimary,
+                                            fontSize = 22.sp,
+                                            fontWeight = FontWeight.Black
+                                        )
+                                        if (scoreStr != "—") {
+                                            Text(
+                                                text = "/ 10",
+                                                color = TextMuted,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                modifier = Modifier.padding(bottom = 2.dp)
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = "Skor Resmi MyAnimeList",
+                                        color = TextMuted,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+
+                            // Personal Rating Chip
+                            Surface(
+                                color = if (userScore > 0) AccentBlue.copy(alpha = 0.15f) else CardElevated,
+                                shape = RoundedCornerShape(8.dp),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    1.dp,
+                                    if (userScore > 0) AccentBlue.copy(alpha = 0.35f) else Color.Transparent
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Person,
+                                        contentDescription = null,
+                                        tint = if (userScore > 0) StarGold else TextMuted,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Column {
+                                        Text(
+                                            text = if (userScore > 0) "$userScore / 10" else "Beri Nilai",
+                                            color = if (userScore > 0) TextPrimary else TextSecondary,
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "Rating Kamu",
+                                            color = TextMuted,
+                                            fontSize = 9.sp
+                                        )
+                                    }
+                                }
+                            }
                         }
-                        MDLStatTile(
-                            icon = Icons.Default.Star,
-                            label = "Rating MAL",
-                            value = if (scoreStr == "—") scoreStr else "$scoreStr / 10",
-                            color = StarGold,
-                            modifier = Modifier.weight(1f)
+
+                        // Hairline Divider
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(DividerSubtle)
                         )
 
-                        val userScore = userItem?.score ?: 0
-                        val userRatingStr = if (userScore > 0) "$userScore / 10" else "Belum Dinilai"
-                        MDLStatTile(
-                            icon = Icons.Default.Person,
-                            label = "Rating Pribadi",
-                            value = userRatingStr,
-                            color = if (userScore > 0) StarGold else TextMuted,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+                        // Baris 2: 3 Kolom Metrik Terintegrasi (Rank, Popularitas, Anggota)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text(
+                                    text = rankStr,
+                                    color = AccentBlue,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                                Text(
+                                    text = "PERINGKAT",
+                                    color = TextMuted,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    letterSpacing = 0.8.sp
+                                )
+                            }
 
-                    // Baris 2: Peringkat & Popularitas
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        val effectiveRank = extendedDetail?.malRank ?: extendedDetail?.rank
-                        val rankStr = if (effectiveRank != null && effectiveRank > 0) "#${formatCompactNumber(effectiveRank)}" else "—"
-                        MDLStatTile(
-                            icon = Icons.Default.EmojiEvents,
-                            label = "Peringkat",
-                            value = rankStr,
-                            color = AccentBlue,
-                            modifier = Modifier.weight(1f)
-                        )
+                            Box(modifier = Modifier.width(1.dp).height(24.dp).background(DividerSubtle))
 
-                        val effectivePopularity = extendedDetail?.malPopularity ?: extendedDetail?.popularity
-                        val popStr = if (effectivePopularity != null && effectivePopularity > 0) "#${formatCompactNumber(effectivePopularity)}" else "—"
-                        MDLStatTile(
-                            icon = Icons.AutoMirrored.Filled.TrendingUp,
-                            label = "Popularitas",
-                            value = popStr,
-                            color = AccentGreen,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text(
+                                    text = popStr,
+                                    color = AccentGreen,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                                Text(
+                                    text = "POPULARITAS",
+                                    color = TextMuted,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    letterSpacing = 0.8.sp
+                                )
+                            }
 
-                    // Baris 3: Status Koleksi & Anggota
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        val currentStatusName = if (userItem != null) {
-                            currentStatusOptions.firstOrNull { it.first == userItem.status }?.second ?: userItem.status
-                        } else {
-                            "Belum Ada di List"
+                            Box(modifier = Modifier.width(1.dp).height(24.dp).background(DividerSubtle))
+
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text(
+                                    text = membersStr,
+                                    color = Color(0xFFA855F7),
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Black
+                                )
+                                Text(
+                                    text = "ANGGOTA",
+                                    color = TextMuted,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    letterSpacing = 0.8.sp
+                                )
+                            }
                         }
-                        MDLStatTile(
-                            icon = Icons.Default.Bookmark,
-                            label = "Status Koleksi",
-                            value = currentStatusName,
-                            color = if (userItem != null) themeAccent else TextMuted,
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        val effectiveMembers = extendedDetail?.malMembers ?: extendedDetail?.watchers
-                        val membersStr = if (effectiveMembers != null && effectiveMembers > 0) formatCompactNumber(effectiveMembers) else "—"
-                        MDLStatTile(
-                            icon = Icons.Default.People,
-                            label = "Anggota",
-                            value = membersStr,
-                            color = Color(0xFFA855F7),
-                            modifier = Modifier.weight(1f)
-                        )
                     }
                 }
             }
@@ -466,7 +564,11 @@ fun MediaDetailScreen(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        items(castList.take(8)) { cast ->
+                        items(
+                            castList.take(8),
+                            key = { "${it.characterId}_${it.actorId}_${it.characterName}" },
+                            contentType = { "cast_item" }
+                        ) { cast ->
                             CastAvatarItem(
                                 cast = cast,
                                 onClick = {
@@ -516,7 +618,11 @@ fun MediaDetailScreen(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        items(staffList.take(8)) { staff ->
+                        items(
+                            staffList.take(8),
+                            key = { "${it.staffId}_${it.name}_${it.role}" },
+                            contentType = { "staff_item" }
+                        ) { staff ->
                             StaffAvatarItem(
                                 staff = staff,
                                 onClick = {
@@ -549,7 +655,11 @@ fun MediaDetailScreen(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        items(recommendations) { rec ->
+                        items(
+                            recommendations,
+                            key = { "${it.type}_${it.malId}_${it.anilistId}_${it.title}" },
+                            contentType = { "rec_item" }
+                        ) { rec ->
                             MediaItemMiniCard(item = rec, onClick = {})
                         }
                     }
@@ -1031,6 +1141,7 @@ private fun CastAvatarItem(
             modifier = Modifier
                 .size(60.dp)
                 .clip(CircleShape)
+                .background(CardElevated, CircleShape)
                 .border(2.dp, AccentBlue, CircleShape),
             contentScale = ContentScale.Crop
         )
@@ -1079,6 +1190,7 @@ private fun StaffAvatarItem(
             modifier = Modifier
                 .size(60.dp)
                 .clip(CircleShape)
+                .background(CardElevated, CircleShape)
                 .border(2.dp, MangaAccentDarkBlue, CircleShape),
             contentScale = ContentScale.Crop
         )
@@ -1123,7 +1235,8 @@ private fun MediaItemMiniCard(
             modifier = Modifier
                 .width(100.dp)
                 .height(140.dp)
-                .clip(RoundedCornerShape(8.dp)),
+                .clip(RoundedCornerShape(8.dp))
+                .background(CardElevated, RoundedCornerShape(8.dp)),
             contentScale = ContentScale.Crop
         )
         Text(

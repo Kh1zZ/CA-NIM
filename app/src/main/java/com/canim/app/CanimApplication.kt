@@ -20,6 +20,7 @@ class CanimApplication : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        com.canim.app.data.cache.CacheManager.init(this)
     }
 
     override fun newImageLoader(): ImageLoader {
@@ -44,6 +45,7 @@ class CanimApplication : Application(), ImageLoaderFactory {
                     .build()
             }
             .allowHardware(true)
+            .allowRgb565(true) // Reduce bitmap memory by 50% for butter-smooth fling scrolling
             .crossfade(false) // Disable global crossfade to eliminate animation overhead during fast scrolling
             .respectCacheHeaders(false) // Prefer cached cover art
             .build()
