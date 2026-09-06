@@ -156,4 +156,60 @@ class CacheManagerTest {
         assertEquals("completed", completedManga.status)
         assertEquals(364, completedManga.progress)
     }
+
+    @Test
+    fun testExtendedMediaDetailCaching() {
+        val detail = com.canim.app.data.model.ExtendedMediaDetail(
+            anilistId = 16498,
+            malId = 52991,
+            title = "Sousou no Frieren",
+            malScore = 9.14,
+            malRank = 1,
+            malPopularity = 40,
+            malMembers = 800000
+        )
+
+        val primaryKey = CacheManager.detailKey(16498, 52991)
+        val aniKey = CacheManager.detailKey(16498, null)
+        val malKey = CacheManager.detailKey(null, 52991)
+
+        CacheManager.putDetail(primaryKey, detail)
+        CacheManager.putDetail(aniKey, detail)
+        CacheManager.putDetail(malKey, detail)
+
+        val cachedByPrimary = CacheManager.getDetail(primaryKey)
+        val cachedByAni = CacheManager.getDetail(aniKey)
+        val cachedByMal = CacheManager.getDetail(malKey)
+
+        assertNotNull(cachedByPrimary)
+        assertNotNull(cachedByAni)
+        assertNotNull(cachedByMal)
+
+        assertEquals(9.14, cachedByPrimary?.malScore)
+        assertEquals(1, cachedByAni?.malRank)
+        assertEquals(40, cachedByMal?.malPopularity)
+    }
+
+    @Test
+    fun testMalScorePreservationInUserMediaItem() {
+        val item = com.canim.app.data.model.UserMediaItem(
+            identity = com.canim.app.data.model.MediaRef(malId = 52991),
+            metadata = com.canim.app.data.model.MediaMetadata(
+                title = "Sousou no Frieren",
+                imageUrl = "https://example.com/frieren.jpg",
+                type = MediaType.ANIME,
+                score = 9.14
+            ),
+            tracking = com.canim.app.data.model.MalTracking(
+                status = "watching",
+                score = 10
+            )
+        )
+
+        // MAL public score is in metadata.score
+        assertEquals(9.14, item.metadata.score)
+        // User's personal rating is in tracking.score / item.score
+        assertEquals(10, item.score)
+    }
 }
+

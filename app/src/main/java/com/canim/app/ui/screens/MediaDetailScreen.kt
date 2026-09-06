@@ -262,17 +262,16 @@ fun MediaDetailScreen(
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             val effectiveScore = extendedDetail?.malScore
-                                ?: extendedDetail?.averageScore
-                                ?: (userItem?.score?.takeIf { it > 0 }?.toDouble() ?: mediaItem?.score)
+                                ?: userItem?.metadata?.score
+                                ?: mediaItem?.score
                             val scoreStr = if (effectiveScore != null && effectiveScore > 0) {
                                 String.format(java.util.Locale.US, "%.2f", effectiveScore)
                             } else {
                                 "—"
                             }
-                            val malLabel = if (extendedDetail?.malScore != null) "Rating MAL" else "Rating Publik"
                             MDLStatTile(
                                 icon = Icons.Default.Star,
-                                label = malLabel,
+                                label = "Rating MAL",
                                 value = if (scoreStr == "—") scoreStr else "$scoreStr / 10",
                                 color = StarGold,
                                 modifier = Modifier.weight(1f)

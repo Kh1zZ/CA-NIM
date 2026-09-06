@@ -773,6 +773,12 @@ class CanimViewModel(
                     else -> null
                 }
 
+                val resolvedAniListId = anilistId ?: (malId?.let { CacheManager.getAniListIdForMalId(it) })
+                val resolvedMalId = malId ?: (resolvedAniListId?.let { CacheManager.getMalIdForAniListId(it) })
+                val cachedDetail = CacheManager.getDetail(CacheManager.detailKey(resolvedAniListId, resolvedMalId))
+                    ?: (resolvedAniListId?.let { CacheManager.getDetail(CacheManager.detailKey(it, null)) })
+                    ?: (resolvedMalId?.let { CacheManager.getDetail(CacheManager.detailKey(null, it)) })
+
                 _uiState.update {
                     it.copy(
                         selectedDetailItem = resolvedItem,
@@ -782,21 +788,29 @@ class CanimViewModel(
                         isLoadingCastCrewProfile = false,
                         isStatsOpen = false,
                         isAddTitleSheetOpen = false,
-                        extendedDetail = null,
-                        isLoadingExtendedDetail = true
+                        extendedDetail = cachedDetail,
+                        isLoadingExtendedDetail = cachedDetail == null
                     )
                 }
 
                 detailJob?.cancel()
                 detailJob = viewModelScope.launch(Dispatchers.IO) {
                     val detail = repository.getExtendedDetails(anilistId, malId, type)
-                    val effectiveMalId = detail?.malId ?: malId
 
-                    // Unified tracking resolution: if not in local library, fetch live MAL tracking
+                    // Immediately update UI with extendedDetail and stop loading spinner
+                    _uiState.update {
+                        it.copy(
+                            extendedDetail = detail ?: it.extendedDetail,
+                            isLoadingExtendedDetail = false
+                        )
+                    }
+
+                    // Unified tracking resolution: if not in local library, fetch live MAL tracking asynchronously
+                    val effectiveMalId = detail?.malId ?: malId ?: resolvedMalId
                     if (resolvedItem !is UserMediaItem && effectiveMalId != null && _uiState.value.malUser.isLoggedIn) {
                         try {
                             val tracking = repository.getMalTrackingStatus(effectiveMalId, type)
-                            if (tracking != null && tracking.status != null) {
+                            if (tracking != null) {
                                 val media = resolvedItem as? MediaItem
                                 val itemTitle = media?.title ?: detail?.title ?: ""
                                 val itemImageUrl = media?.imageUrl ?: detail?.coverImage ?: ""
@@ -806,7 +820,7 @@ class CanimViewModel(
                                     titleNative = detail?.nativeTitle,
                                     imageUrl = itemImageUrl,
                                     type = type,
-                                    score = detail?.malScore ?: detail?.averageScore ?: media?.score,
+                                    score = detail?.malScore ?: media?.score,
                                     synopsis = media?.synopsis ?: detail?.synopsis,
                                     totalEpisodes = media?.episodes,
                                     totalChapters = media?.chapters,
@@ -831,13 +845,6 @@ class CanimViewModel(
                                 }
                             }
                         } catch (_: Exception) {}
-                    }
-
-                    _uiState.update {
-                        it.copy(
-                            extendedDetail = detail,
-                            isLoadingExtendedDetail = false
-                        )
                     }
                 }
             }

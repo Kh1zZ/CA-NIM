@@ -6,6 +6,8 @@ import com.canim.app.data.model.*
 import com.canim.app.data.cache.StudioFilmographyPage
 import com.canim.app.data.remote.AniListClient
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 
 /**
@@ -244,37 +246,77 @@ class CanimRepository(
         type: MediaType,
         forceRefresh: Boolean = false
     ): ExtendedMediaDetail? = withContext(Dispatchers.IO) {
-        // 1. Primary: AniList
-        var detail = AniListClient.getExtendedDetails(aniListId, malId, type, forceRefresh)
+        val resolvedAniListId = aniListId ?: (malId?.let { CacheManager.getAniListIdForMalId(it) })
+        val resolvedMalId = malId ?: (resolvedAniListId?.let { CacheManager.getMalIdForAniListId(it) })
+        val primaryCacheKey = CacheManager.detailKey(resolvedAniListId, resolvedMalId)
 
-        val effectiveMalId = detail?.malId ?: malId
-        if (effectiveMalId != null) {
-            val malExt = malAuthManager.getExtendedDetailFallback(effectiveMalId, type)
-            if (malExt != null) {
-                detail = if (detail != null) {
-                    detail.copy(
-                        // Metrics: Prioritize MAL, fallback to AniList so nothing is empty
-                        malScore = malExt.malScore ?: detail.averageScore,
-                        malRank = malExt.malRank ?: detail.rank,
-                        malPopularity = malExt.malPopularity ?: detail.popularity,
-                        malMembers = malExt.malMembers ?: detail.watchers,
-                        // Visual / rich media: Prioritize AniList, fallback to MAL
-                        studio = detail.studio ?: malExt.studio,
-                        studioId = detail.studioId ?: malExt.studioId,
-                        publisher = detail.publisher ?: malExt.publisher,
-                        airingStatus = detail.airingStatus ?: malExt.airingStatus,
-                        startDate = detail.startDate ?: malExt.startDate,
-                        endDate = detail.endDate ?: malExt.endDate,
-                        genres = if (detail.genres.isNotEmpty()) detail.genres else malExt.genres,
-                        source = detail.source ?: malExt.source
-                    )
-                } else {
-                    malExt
-                }
+        if (!forceRefresh) {
+            val cached = CacheManager.getDetail(primaryCacheKey)
+                ?: (resolvedAniListId?.let { CacheManager.getDetail(CacheManager.detailKey(it, null)) })
+                ?: (resolvedMalId?.let { CacheManager.getDetail(CacheManager.detailKey(null, it)) })
+            if (cached != null && (cached.malScore != null || resolvedMalId == null)) {
+                return@withContext cached
             }
         }
 
-        detail
+        coroutineScope {
+            // Concurrent parallel fetching over HTTP/2
+            val aniDeferred = async {
+                AniListClient.getExtendedDetails(resolvedAniListId, resolvedMalId, type, forceRefresh)
+            }
+            val malDeferred = async {
+                if (resolvedMalId != null) {
+                    malAuthManager.getExtendedDetailFallback(resolvedMalId, type)
+                } else null
+            }
+
+            val aniDetail = aniDeferred.await()
+            var malExt = malDeferred.await()
+
+            // If MAL ID wasn't known beforehand, but AniList returned it, fetch MAL fallback
+            val effectiveMalId = aniDetail?.malId ?: resolvedMalId
+            if (malExt == null && effectiveMalId != null) {
+                malExt = malAuthManager.getExtendedDetailFallback(effectiveMalId, type)
+            }
+
+            val merged = if (aniDetail != null && malExt != null) {
+                aniDetail.copy(
+                    // Metrics: MAL is authoritative for Rating MAL
+                    malScore = malExt.malScore,
+                    malRank = malExt.malRank ?: aniDetail.rank,
+                    malPopularity = malExt.malPopularity ?: aniDetail.popularity,
+                    malMembers = malExt.malMembers ?: aniDetail.watchers,
+                    // Visual / rich media: Prioritize AniList, fallback to MAL
+                    studio = aniDetail.studio ?: malExt.studio,
+                    studioId = aniDetail.studioId ?: malExt.studioId,
+                    publisher = aniDetail.publisher ?: malExt.publisher,
+                    airingStatus = aniDetail.airingStatus ?: malExt.airingStatus,
+                    startDate = aniDetail.startDate ?: malExt.startDate,
+                    endDate = aniDetail.endDate ?: malExt.endDate,
+                    genres = if (aniDetail.genres.isNotEmpty()) aniDetail.genres else malExt.genres,
+                    source = aniDetail.source ?: malExt.source
+                )
+            } else {
+                aniDetail ?: malExt
+            }
+
+            if (merged != null) {
+                val effectiveAni = merged.anilistId
+                val effectiveMal = merged.malId
+                if (effectiveAni != null && effectiveMal != null) {
+                    CacheManager.putIdMapping(effectiveMal, effectiveAni)
+                }
+                CacheManager.putDetail(CacheManager.detailKey(effectiveAni, effectiveMal), merged)
+                if (effectiveAni != null) {
+                    CacheManager.putDetail(CacheManager.detailKey(effectiveAni, null), merged)
+                }
+                if (effectiveMal != null) {
+                    CacheManager.putDetail(CacheManager.detailKey(null, effectiveMal), merged)
+                }
+            }
+
+            merged
+        }
     }
 
     // --- Cache Management Actions ---

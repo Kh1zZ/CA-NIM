@@ -9,13 +9,13 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases/latest"><img src="https://img.shields.io/badge/Download-APK%20(v4.4.2)-10B981.svg?style=for-the-badge&logo=android" alt="Download APK"></a>
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v4.4.2-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases/latest"><img src="https://img.shields.io/badge/Download-APK%20(v4.4.3)-10B981.svg?style=for-the-badge&logo=android" alt="Download APK"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v4.4.3-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#-fitur-utama"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#-arsitektur-dan-prinsip-desain"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
   <a href="#-kinerja-dan-optimasi"><img src="https://img.shields.io/badge/APK%20Size-~2.1%20MB-F59E0B.svg?style=for-the-badge" alt="Size"></a>
-  <a href="#-panduan-kompilasi-manual"><img src="https://img.shields.io/badge/Tests-32%20Passed-6366F1.svg?style=for-the-badge" alt="Tests"></a>
+  <a href="#-panduan-kompilasi-manual"><img src="https://img.shields.io/badge/Tests-34%20Passed-6366F1.svg?style=for-the-badge" alt="Tests"></a>
 </p>
 
 ---
@@ -26,7 +26,7 @@ Dapatkan rilis resmi **CA'NIM** siap pasang langsung dari halaman rilis GitHub:
 
 | Berkas | Tipe | Arsitektur | Kebutuhan Minimum | Tautan |
 | :--- | :---: | :---: | :---: | :---: |
-| **`canim-universal-release-v4.4.2.apk`** | **Release** | **Universal** (`arm64-v8a`, `armeabi-v7a`, `x86_64`) | Android 7.0+ (API 24+) | [👉 Unduh APK Rilis](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
+| **`canim-universal-release-v4.4.3.apk`** | **Release** | **Universal** (`arm64-v8a`, `armeabi-v7a`, `x86_64`) | Android 7.0+ (API 24+) | [👉 Unduh APK Rilis](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
 | **`SHA256SUMS.txt`** | **Checksum** | — | — | [👉 Verifikasi Checksum](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
 
 > 💡 **Catatan Instalasi**: APK Release dikompilasi secara universal oleh GitHub Actions CI/CD, bebas dari bloatware/tracker, dan telah dioptimalkan secara penuh menggunakan R8 Minifier untuk pengalaman scrolling terbaik.
@@ -243,7 +243,16 @@ Mulai versi `v4.4.1`, seluruh berkas APK rilis resmi **CA'NIM** dikompilasi seca
 
 ---
 
-## 📝 Catatan Rilis Terbaru (v4.4.2)
+## 📝 Catatan Rilis Terbaru (v4.4.3)
+
+- **Optimasi Kinerja Metrik Layar Detail**: Menghilangkan latensi *waterfall* dengan eksekusi paralel konkuren (`async`) untuk permintaan metadata AniList dan MyAnimeList secara simultan.
+- **MyAnimeList (MAL) sebagai Sumber Rating Otoritatif**: Skor publik (`Rating MAL`) dan skor pengguna (`Rating Pribadi`) sepenuhnya bersumber dari API resmi MyAnimeList.
+- **Multi-Key In-Memory Caching (0 ms Load)**: Hasil penggabungan metadata tersimpan secara persisten pada memori lokal, memungkinkan layar detail terbuka secara instan tanpa delay atau flicker.
+- **Pre-Enriched Library Sync**: Sinkronisasi koleksi MAL pengguna langsung meminta dan menyimpan metrik skor publik (`node.mean`), popularitas, peringkat, dan anggota ke memori lokal sejak Frame 1.
+- **Decoupled Asynchronous Tracking**: Tampilan metrik publik dan visual detail anime tidak lagi tertahan oleh proses live tracking pengguna.
+
+<details>
+<summary><b>Lihat Catatan Rilis Sebelumnya (v4.4.2)</b></summary>
 
 - **Otomatisasi Penuh CI/CD (GitHub Actions)**: Kompilasi APK rilis resmi beralih 100% ke GitHub-hosted runners dengan validasi versi ketat dan integritas hash SHA-256.
 - **Eksklusi Debug APK pada Rilis**: Halaman GitHub Release kini bersih dan terfokus hanya mendistribusikan `canim-universal-release-vX.Y.Z.apk`.
@@ -251,6 +260,8 @@ Mulai versi `v4.4.1`, seluruh berkas APK rilis resmi **CA'NIM** dikompilasi seca
 - **Algoritma Filter Top 5 Non-Sekuel**: Peringkat Top 5 anime kini menyaring sekuel waralaba secara cerdas agar tidak didominasi oleh musim lanjutan dari judul yang sama.
 - **Studio Filmography & Cast/Crew**: Eksplorasi katalog anime berdasarkan studio animasi dan profil mendalam para seiyuu/staf produksi.
 - **Peningkatan Keterbacaan UI/UX**: Nama seiyuu dan karakter ditampilkan lengkap tanpa pemotongan teks, perbaikan tata letak metrik skor/peringkat, dan fitur *auto-fill* episode saat memilih status *Completed*.
+
+</details>
 
 <details>
 <summary><b>Lihat Catatan Rilis Sebelumnya (v3.0.0)</b></summary>

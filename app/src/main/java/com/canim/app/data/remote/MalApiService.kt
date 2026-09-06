@@ -36,7 +36,7 @@ interface MalApiService {
         @Header("Authorization") authHeader: String,
         @Query("limit") limit: Int = 500,
         @Query("offset") offset: Int = 0,
-        @Query("fields") fields: String = "list_status{status,score,num_episodes_watched,is_rewatching,num_times_rewatched,priority,comments,start_date,finish_date,updated_at},num_episodes,status,genres,main_picture,synopsis,start_date,end_date,studios,source",
+        @Query("fields") fields: String = "list_status{status,score,num_episodes_watched,is_rewatching,num_times_rewatched,priority,comments,start_date,finish_date,updated_at},num_episodes,status,genres,main_picture,synopsis,start_date,end_date,studios,source,mean,rank,popularity,num_list_users",
         @Query("nsfw") nsfw: Boolean = true
     ): MalAnimeListResponse
 
@@ -45,7 +45,7 @@ interface MalApiService {
         @Header("Authorization") authHeader: String,
         @Query("limit") limit: Int = 500,
         @Query("offset") offset: Int = 0,
-        @Query("fields") fields: String = "list_status{status,score,num_chapters_read,num_volumes_read,is_rereading,num_times_reread,priority,comments,start_date,finish_date,updated_at},num_chapters,num_volumes,status,genres,main_picture,synopsis,start_date,end_date,authors",
+        @Query("fields") fields: String = "list_status{status,score,num_chapters_read,num_volumes_read,is_rereading,num_times_reread,priority,comments,start_date,finish_date,updated_at},num_chapters,num_volumes,status,genres,main_picture,synopsis,start_date,end_date,authors,mean,rank,popularity,num_list_users",
         @Query("nsfw") nsfw: Boolean = true
     ): MalMangaListResponse
 
