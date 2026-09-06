@@ -20,6 +20,7 @@ class CanimApplication : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        com.canim.app.data.cache.CacheManager.init(this)
     }
 
     override fun newImageLoader(): ImageLoader {

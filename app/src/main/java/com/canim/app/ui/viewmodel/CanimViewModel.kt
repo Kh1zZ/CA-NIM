@@ -887,6 +887,38 @@ class CanimViewModel(
                     ?: (resolvedAniListId?.let { CacheManager.getDetail(CacheManager.detailKey(it, null)) })
                     ?: (resolvedMalId?.let { CacheManager.getDetail(CacheManager.detailKey(null, it)) })
 
+                // Instant baseline synthesis (0ms): If cachedDetail is null, populate known fields immediately
+                val initialDetail = cachedDetail ?: when (resolvedItem) {
+                    is UserMediaItem -> ExtendedMediaDetail(
+                        anilistId = resolvedItem.anilistId,
+                        malId = resolvedItem.malId,
+                        title = resolvedItem.title,
+                        titleEnglish = resolvedItem.metadata.titleEnglish,
+                        coverImage = resolvedItem.imageUrl,
+                        synopsis = resolvedItem.synopsis,
+                        studio = resolvedItem.metadata.studio,
+                        source = resolvedItem.metadata.format,
+                        airingStatus = resolvedItem.metadata.status,
+                        genres = resolvedItem.metadata.genres,
+                        malScore = if (resolvedItem.score > 0) resolvedItem.score.toDouble() else resolvedItem.metadata.score
+                    )
+                    is MediaItem -> ExtendedMediaDetail(
+                        anilistId = resolvedItem.anilistId,
+                        malId = resolvedItem.malId,
+                        title = resolvedItem.title,
+                        titleEnglish = resolvedItem.titleEnglish,
+                        coverImage = resolvedItem.imageUrl,
+                        synopsis = resolvedItem.synopsis,
+                        studio = resolvedItem.studio,
+                        source = resolvedItem.format,
+                        airingStatus = resolvedItem.status,
+                        genres = resolvedItem.genres,
+                        malScore = resolvedItem.score?.toDouble(),
+                        averageScore = resolvedItem.score?.toDouble()
+                    )
+                    else -> null
+                }
+
                 _uiState.update {
                     it.copy(
                         selectedDetailItem = resolvedItem,
@@ -896,25 +928,44 @@ class CanimViewModel(
                         isLoadingCastCrewProfile = false,
                         isStatsOpen = false,
                         isAddTitleSheetOpen = false,
-                        extendedDetail = cachedDetail,
+                        extendedDetail = initialDetail,
                         isLoadingExtendedDetail = cachedDetail == null
                     )
                 }
 
                 detailJob?.cancel()
                 detailJob = viewModelScope.launch(Dispatchers.IO) {
-                    val detail = repository.getExtendedDetails(anilistId, malId, type)
+                    // FAST PATH (Phase 1): Fetch AniList details immediately (cast, crew, rankings, recommendations)
+                    val aniDetail = com.canim.app.data.remote.AniListClient.getExtendedDetails(resolvedAniListId, resolvedMalId, type)
+                    if (aniDetail != null) {
+                        _uiState.update { current ->
+                            val currentExt = current.extendedDetail
+                            val mergedFast = aniDetail.copy(
+                                malScore = currentExt?.malScore ?: aniDetail.malScore,
+                                malRank = currentExt?.malRank ?: aniDetail.rank
+                            )
+                            current.copy(
+                                extendedDetail = mergedFast,
+                                isLoadingExtendedDetail = false
+                            )
+                        }
+                    }
 
-                    // Immediately update UI with extendedDetail and stop loading spinner
-                    _uiState.update {
-                        it.copy(
-                            extendedDetail = detail ?: it.extendedDetail,
-                            isLoadingExtendedDetail = false
-                        )
+                    // SECONDARY PATH (Phase 2): Asynchronously enrich with authoritative MAL details (score, rank, members)
+                    val effectiveMalId = aniDetail?.malId ?: malId ?: resolvedMalId
+                    val detail = repository.getExtendedDetails(anilistId, effectiveMalId, type)
+
+                    // Final merge with authoritative MAL metrics
+                    if (detail != null) {
+                        _uiState.update {
+                            it.copy(
+                                extendedDetail = detail,
+                                isLoadingExtendedDetail = false
+                            )
+                        }
                     }
 
                     // Unified tracking resolution: if not in local library, fetch live MAL tracking asynchronously
-                    val effectiveMalId = detail?.malId ?: malId ?: resolvedMalId
                     if (resolvedItem !is UserMediaItem && effectiveMalId != null && _uiState.value.malUser.isLoggedIn) {
                         try {
                             val tracking = repository.getMalTrackingStatus(effectiveMalId, type)

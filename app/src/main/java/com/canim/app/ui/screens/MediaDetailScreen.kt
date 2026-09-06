@@ -564,7 +564,11 @@ fun MediaDetailScreen(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        items(castList.take(8)) { cast ->
+                        items(
+                            castList.take(8),
+                            key = { "${it.characterId}_${it.actorId}_${it.characterName}" },
+                            contentType = { "cast_item" }
+                        ) { cast ->
                             CastAvatarItem(
                                 cast = cast,
                                 onClick = {
@@ -614,7 +618,11 @@ fun MediaDetailScreen(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        items(staffList.take(8)) { staff ->
+                        items(
+                            staffList.take(8),
+                            key = { "${it.staffId}_${it.name}_${it.role}" },
+                            contentType = { "staff_item" }
+                        ) { staff ->
                             StaffAvatarItem(
                                 staff = staff,
                                 onClick = {
@@ -647,7 +655,11 @@ fun MediaDetailScreen(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        items(recommendations) { rec ->
+                        items(
+                            recommendations,
+                            key = { "${it.type}_${it.malId}_${it.anilistId}_${it.title}" },
+                            contentType = { "rec_item" }
+                        ) { rec ->
                             MediaItemMiniCard(item = rec, onClick = {})
                         }
                     }
@@ -1129,6 +1141,7 @@ private fun CastAvatarItem(
             modifier = Modifier
                 .size(60.dp)
                 .clip(CircleShape)
+                .background(CardElevated, CircleShape)
                 .border(2.dp, AccentBlue, CircleShape),
             contentScale = ContentScale.Crop
         )
@@ -1177,6 +1190,7 @@ private fun StaffAvatarItem(
             modifier = Modifier
                 .size(60.dp)
                 .clip(CircleShape)
+                .background(CardElevated, CircleShape)
                 .border(2.dp, MangaAccentDarkBlue, CircleShape),
             contentScale = ContentScale.Crop
         )
@@ -1221,7 +1235,8 @@ private fun MediaItemMiniCard(
             modifier = Modifier
                 .width(100.dp)
                 .height(140.dp)
-                .clip(RoundedCornerShape(8.dp)),
+                .clip(RoundedCornerShape(8.dp))
+                .background(CardElevated, RoundedCornerShape(8.dp)),
             contentScale = ContentScale.Crop
         )
         Text(

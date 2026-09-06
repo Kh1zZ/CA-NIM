@@ -196,7 +196,7 @@ fun LibraryScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(vertical = 2.dp)
             ) {
-                items(statuses) { (statusVal, label) ->
+                items(statuses, key = { it.first ?: "all" }, contentType = { "status_filter" }) { (statusVal, label) ->
                     val isSelected = state.libraryStatusFilter == statusVal
                     FilterChip(
                         selected = isSelected,
@@ -255,7 +255,7 @@ fun LibraryScreen(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     contentPadding = PaddingValues(vertical = 2.dp)
                 ) {
-                    items(sortOptions) { (key, label) ->
+                    items(sortOptions, key = { it.first }, contentType = { "sort_option" }) { (key, label) ->
                         val isSelected = state.librarySortBy == key
                         Box(
                             modifier = Modifier

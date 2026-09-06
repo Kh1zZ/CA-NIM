@@ -75,7 +75,7 @@ fun DashboardScreen(
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
         // Top App Bar: CA'NIM + Logo & Sync Status Badge
-        item {
+        item(key = "dashboard_top_bar") {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -417,7 +417,7 @@ fun DashboardScreen(
         }
 
         // Unified Hero Metrics Strip (PRD Invisible Continuity)
-        item {
+        item(key = "dashboard_hero_metrics") {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 color = CardBg,
@@ -535,79 +535,35 @@ fun DashboardScreen(
             }
         }
 
-        // Dual Quick Action Row (Analytics & Gacha)
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // Action 1: Analytics & Export
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable(onClick = onOpenStats),
-                    color = CardBg,
-                    shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderSubtle)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(AccentBlue.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.PieChart,
-                                contentDescription = null,
-                                tint = AccentBlue,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        Column {
-                            Text(
-                                text = "Analisis Lengkap",
-                                color = TextPrimary,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Grafik dan Ekspor",
-                                color = TextMuted,
-                                fontSize = 10.sp
-                            )
-                        }
-                    }
-                }
-
-                // Action 2: Flashcard Gacha
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clickable(onClick = onOpenFlashcard),
-                    color = CardBg,
-                    shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(
-                        1.dp,
-                        Brush.horizontalGradient(
-                            listOf(AccentBlue.copy(alpha = 0.35f), Color(0xFF8B5CF6).copy(alpha = 0.35f))
-                        )
+        // Quick Action: Flashcard Gacha (Single unified card, Analisis Lengkap removed)
+        item(key = "dashboard_flashcard_action") {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onOpenFlashcard),
+                color = CardBg,
+                shape = RoundedCornerShape(12.dp),
+                border = androidx.compose.foundation.BorderStroke(
+                    1.dp,
+                    Brush.horizontalGradient(
+                        listOf(AccentBlue.copy(alpha = 0.35f), Color(0xFF8B5CF6).copy(alpha = 0.35f))
                     )
+                )
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.weight(1f)
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(34.dp)
-                                .clip(RoundedCornerShape(8.dp))
+                                .size(38.dp)
+                                .clip(RoundedCornerShape(10.dp))
                                 .background(Color(0xFF8B5CF6).copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
                         ) {
@@ -615,28 +571,28 @@ fun DashboardScreen(
                                 imageVector = Icons.Default.Style,
                                 contentDescription = null,
                                 tint = Color(0xFF8B5CF6),
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(20.dp)
                             )
                         }
-                        Column {
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
                                 Text(
-                                    text = "Flashcard",
+                                    text = "Flashcard Gacha",
                                     color = TextPrimary,
-                                    fontSize = 12.sp,
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(4.dp))
                                         .background(if (state.gachaCredits > 0) Color(0xFF8B5CF6) else Color(0xFFEF4444))
-                                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                                        .padding(horizontal = 6.dp, vertical = 1.dp)
                                 ) {
                                     Text(
-                                        text = "${state.gachaCredits}",
+                                        text = "${state.gachaCredits} Tiket",
                                         color = Color.White,
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Black
@@ -644,18 +600,27 @@ fun DashboardScreen(
                                 }
                             }
                             Text(
-                                text = "Rekomendasi",
+                                text = "Tarik kartu acak untuk eksplorasi anime dan manga pilihan",
                                 color = TextMuted,
-                                fontSize = 10.sp
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
+
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        tint = Color(0xFF8B5CF6),
+                        modifier = Modifier.size(16.dp)
+                    )
                 }
             }
         }
 
         // Continue Watching Section
-        item {
+        item(key = "dashboard_continue_watching") {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -715,7 +680,7 @@ fun DashboardScreen(
         }
 
         // Continue Reading Section
-        item {
+        item(key = "dashboard_continue_reading") {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),

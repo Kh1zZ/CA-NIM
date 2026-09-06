@@ -132,7 +132,7 @@ fun DiscoverScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(vertical = 4.dp)
             ) {
-                items(categories) { category ->
+                items(categories, key = { it.name }, contentType = { "category_chip" }) { category ->
                     val isStudio = category == DiscoverCategory.STUDIO
                     val isSelected = state.selectedDiscoverCategory == category
                     FilterChip(
@@ -563,7 +563,7 @@ fun DiscoverScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(popularStudios) { (sId, sName) ->
+                        items(popularStudios, key = { it.first }, contentType = { "popular_studio" }) { (sId, sName) ->
                             val studioInfo = remember(sId, sName) { StudioBioRegistry.getStudioInfo(sId, sName) }
                             Card(
                                 onClick = {
@@ -738,7 +738,7 @@ fun DiscoverScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(state.studioSearchResults, key = { it.studioId }) { studioInfo ->
+                            items(state.studioSearchResults, key = { it.studioId }, contentType = { "studio_search_result" }) { studioInfo ->
                                 val sId = studioInfo.studioId
                                 val sName = studioInfo.name
                                 Card(
