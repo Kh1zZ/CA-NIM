@@ -7,6 +7,9 @@ import androidx.lifecycle.viewModelScope
 import com.canim.app.data.cache.CacheManager
 import com.canim.app.data.model.*
 import com.canim.app.data.repository.CanimRepository
+import com.canim.app.CanimApplication
+import com.canim.app.data.local.GachaCreditManager
+import com.canim.app.data.repository.StudioBioRegistry
 import com.canim.app.ui.navigation.ScreenRoute
 import androidx.compose.runtime.Immutable
 import kotlinx.coroutines.*
@@ -32,7 +35,6 @@ data class CanimUiState(
     // Discover state
     val selectedDiscoverCategory: DiscoverCategory = DiscoverCategory.CURRENT_SEASON,
     val discoverFilter: DiscoverFilter = DiscoverFilter(),
-    val randomSort: String? = null,
     val discoverItems: List<MediaItem> = emptyList(),
     val isDiscoverLoading: Boolean = false,
     val discoverPage: Int = 1,
@@ -63,12 +65,19 @@ data class CanimUiState(
     // Studio Filmography state
     val studioFilmographyStudioId: Int? = null,
     val studioFilmographyStudioName: String = "",
+    val studioFilmographyBio: StudioBioInfo? = null,
+    val studioFilmographySort: StudioFilmographySort = StudioFilmographySort.YEAR_DESC,
     val studioFilmographyItems: List<MediaItem> = emptyList(),
     val isStudioFilmographyLoading: Boolean = false,
     val isStudioFilmographyLoadingMore: Boolean = false,
     val studioFilmographyPage: Int = 1,
     val studioFilmographyTotalEntries: Int = 0,
     val canLoadMoreStudioFilmography: Boolean = true,
+
+    // Gacha Flashcard state
+    val gachaCredits: Int = 5,
+    val flashcardDeck: List<MediaItem> = emptyList(),
+    val isFlashcardLoading: Boolean = false,
 
     // App & Auth state
     val syncStatus: SyncStatus = SyncStatus.IDLE,
@@ -82,7 +91,8 @@ data class CanimUiState(
 
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 class CanimViewModel(
-    private val repository: CanimRepository
+    private val repository: CanimRepository,
+    private val gachaCreditManager: GachaCreditManager? = null
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -112,6 +122,11 @@ class CanimViewModel(
         if (!cachedAnime.isNullOrEmpty() || !cachedManga.isNullOrEmpty()) {
             updateLibraryData(cachedAnime ?: emptyList(), cachedManga ?: emptyList())
         }
+
+        // Initialize Gacha Credits
+        val gachaMgr = gachaCreditManager ?: try { GachaCreditManager.getInstance(CanimApplication.instance) } catch (_: Exception) { null }
+        val currentCredits = gachaMgr?.getCredits() ?: 5
+        _uiState.update { it.copy(gachaCredits = currentCredits) }
 
         // Load discovery category
         loadDiscoverCategory(_uiState.value.selectedDiscoverCategory, _uiState.value.discoverFilter)
@@ -304,7 +319,11 @@ class CanimViewModel(
         // 1. Optimistic UI update
         val optimisticList = currentList.map { if (it.id == item.id) updatedItem else it }
         updateLibraryData(optimisticList, _uiState.value.mangaList)
-        showSnackbar("+1 Episode ditambahkan!")
+        val gachaMgr = gachaCreditManager ?: try { GachaCreditManager.getInstance(CanimApplication.instance) } catch (_: Exception) { null }
+        gachaMgr?.addCredit(1)?.let { newBal ->
+            _uiState.update { it.copy(gachaCredits = newBal) }
+        }
+        showSnackbar("+1 Episode ditambahkan! (+1 Tiket Gacha)")
 
         // 2. Dispatch to MAL API if logged in
         if (item.malId != null && _uiState.value.malUser.isLoggedIn) {
@@ -400,6 +419,14 @@ class CanimViewModel(
             currentList.map { if (it.id == item.id) item else it }
         } else {
             currentList + item
+        }
+        val oldItem = currentList.firstOrNull { it.id == item.id }
+        val progressDiff = if (oldItem != null) item.tracking.progress - oldItem.tracking.progress else item.tracking.progress
+        if (progressDiff > 0) {
+            val gachaMgr = gachaCreditManager ?: try { GachaCreditManager.getInstance(CanimApplication.instance) } catch (_: Exception) { null }
+            gachaMgr?.addCredit(progressDiff)?.let { newBal ->
+                _uiState.update { it.copy(gachaCredits = newBal) }
+            }
         }
         updateLibraryData(optimisticList, _uiState.value.mangaList)
         closeDetail()
@@ -565,7 +592,6 @@ class CanimViewModel(
             it.copy(
                 selectedDiscoverCategory = category,
                 discoverFilter = filter,
-                randomSort = null,
                 isDiscoverLoading = true,
                 discoverPage = 1,
                 canLoadMoreDiscover = true
@@ -597,8 +623,7 @@ class CanimViewModel(
             val nextItems = repository.getDiscoverMedia(
                 current.selectedDiscoverCategory,
                 current.discoverFilter,
-                page = nextPage,
-                randomSort = current.randomSort
+                page = nextPage
             )
 
             if (token == discoverRequestToken) {
@@ -617,121 +642,55 @@ class CanimViewModel(
         }
     }
 
-    /**
-     * Fixed Randomizer:
-     * - Genuinely random selection.
-     * - Strictly excludes completed anime.
-     * - If page has insufficient eligible items, fetches more pages instead of reintroducing completed entries.
-     */
-    fun randomizeAnime(filter: DiscoverFilter = _uiState.value.discoverFilter) {
-        discoverJob?.cancel()
-        val token = ++discoverRequestToken
-
-        _uiState.update {
-            it.copy(
-                selectedDiscoverCategory = DiscoverCategory.RANDOM_FILTER,
-                discoverFilter = filter,
-                randomSort = null,
-                isDiscoverLoading = true,
-                discoverPage = 1,
-                canLoadMoreDiscover = false
-            )
-        }
-
-        discoverJob = viewModelScope.launch(Dispatchers.IO) {
-            val completedIds = _uiState.value.completedAnimeMalIds
-            val candidates = mutableListOf<MediaItem>()
-            var searchPage = 1
-            val maxPages = 3
-
-            while (candidates.size < 15 && searchPage <= maxPages) {
-                val pageItems = repository.getDiscoverMedia(
-                    category = DiscoverCategory.RANDOM_FILTER,
-                    filter = filter,
-                    page = searchPage,
-                    forceRefresh = true
-                )
-                if (pageItems.isEmpty()) break
-
-                val eligible = pageItems.filter { item ->
-                    val mId = item.malId
-                    mId == null || !completedIds.contains(mId)
-                }
-                candidates.addAll(eligible)
-                searchPage++
-            }
-
-            // Genuinely shuffle and pick distinct
-            val shuffled = candidates.distinctBy { it.malId ?: it.anilistId }.shuffled()
-
-            if (token == discoverRequestToken) {
-                _uiState.update {
-                    it.copy(
-                        discoverItems = shuffled,
-                        isDiscoverLoading = false,
-                        canLoadMoreDiscover = false
-                    )
-                }
-            }
+        // --- Flashcard Gacha System (v5.0.0) ---
+    fun openFlashcard() {
+        pushScreen(ScreenRoute.Flashcard)
+        if (_uiState.value.flashcardDeck.isEmpty() && _uiState.value.gachaCredits > 0) {
+            loadFlashcardDeck()
         }
     }
 
-    /**
-     * Fixed Randomizer for Manga:
-     * - Genuinely random selection.
-     * - Strictly excludes completed manga.
-     * - If page has insufficient eligible items, fetches more pages instead of reintroducing completed entries.
-     */
-    fun randomizeManga(filter: DiscoverFilter = _uiState.value.discoverFilter.copy(format = "MANGA")) {
-        discoverJob?.cancel()
-        val token = ++discoverRequestToken
-        val mangaFilter = filter.copy(format = "MANGA")
-
-        _uiState.update {
-            it.copy(
-                selectedDiscoverCategory = DiscoverCategory.RANDOM_FILTER,
-                discoverFilter = mangaFilter,
-                randomSort = null,
-                isDiscoverLoading = true,
-                discoverPage = 1,
-                canLoadMoreDiscover = false
-            )
+    fun consumeGachaCredit(): Boolean {
+        val gachaMgr = gachaCreditManager ?: try { GachaCreditManager.getInstance(CanimApplication.instance) } catch (_: Exception) { null }
+        val success = gachaMgr?.consumeCredit() ?: (_uiState.value.gachaCredits > 0)
+        if (success) {
+            val updated = gachaMgr?.getCredits() ?: (_uiState.value.gachaCredits - 1).coerceAtLeast(0)
+            _uiState.update { it.copy(gachaCredits = updated) }
         }
+        return success
+    }
 
-        discoverJob = viewModelScope.launch(Dispatchers.IO) {
-            val completedIds = _uiState.value.completedMangaMalIds
-            val candidates = mutableListOf<MediaItem>()
-            var searchPage = 1
-            val maxPages = 3
+    fun swipeDismissFlashcard(item: MediaItem) {
+        _uiState.update {
+            val updatedDeck = it.flashcardDeck.filter { card -> card.id != item.id }
+            it.copy(flashcardDeck = updatedDeck)
+        }
+        if (_uiState.value.flashcardDeck.isEmpty() && _uiState.value.gachaCredits > 0) {
+            loadFlashcardDeck()
+        }
+    }
 
-            while (candidates.size < 15 && searchPage <= maxPages) {
-                val pageItems = repository.getDiscoverMedia(
-                    category = DiscoverCategory.RANDOM_FILTER,
-                    filter = mangaFilter,
-                    page = searchPage,
-                    forceRefresh = true
-                )
-                if (pageItems.isEmpty()) break
-
-                val eligible = pageItems.filter { item ->
+    fun loadFlashcardDeck() {
+        viewModelScope.launch(Dispatchers.IO) {
+            _uiState.update { it.copy(isFlashcardLoading = true) }
+            val currentSeason = repository.getDiscoverMedia(DiscoverCategory.CURRENT_SEASON, DiscoverFilter(), page = 1)
+            val upcoming = repository.getDiscoverMedia(DiscoverCategory.UPCOMING, DiscoverFilter(), page = 1)
+            val completedIds = _uiState.value.completedAnimeMalIds
+            val libraryIds = _uiState.value.animeList.mapNotNull { it.malId }.toSet()
+            val pool = (currentSeason + upcoming)
+                .filter { item ->
                     val mId = item.malId
-                    mId == null || !completedIds.contains(mId)
+                    mId == null || (!completedIds.contains(mId) && !libraryIds.contains(mId))
                 }
-                candidates.addAll(eligible)
-                searchPage++
-            }
+                .distinctBy { it.malId ?: it.anilistId }
+                .shuffled()
+                .take(15)
 
-            // Genuinely shuffle and pick distinct
-            val shuffled = candidates.distinctBy { it.malId ?: it.anilistId }.shuffled()
-
-            if (token == discoverRequestToken) {
-                _uiState.update {
-                    it.copy(
-                        discoverItems = shuffled,
-                        isDiscoverLoading = false,
-                        canLoadMoreDiscover = false
-                    )
-                }
+            _uiState.update {
+                it.copy(
+                    flashcardDeck = pool,
+                    isFlashcardLoading = false
+                )
             }
         }
     }
@@ -903,6 +862,18 @@ class CanimViewModel(
                     )
                 }
             }
+            is ScreenRoute.Flashcard -> {
+                _uiState.update {
+                    it.copy(
+                        isStatsOpen = false,
+                        isAddTitleSheetOpen = false,
+                        isDetailOpen = false
+                    )
+                }
+                if (_uiState.value.flashcardDeck.isEmpty() && _uiState.value.gachaCredits > 0) {
+                    loadFlashcardDeck()
+                }
+            }
             is ScreenRoute.StudioFilmography -> {
                 loadStudioFilmography(route.studioId, route.studioName, 1)
             }
@@ -921,6 +892,7 @@ class CanimViewModel(
                         isAddTitleSheetOpen = false,
                         studioFilmographyStudioId = null,
                         studioFilmographyStudioName = "",
+                        studioFilmographyBio = null,
                         studioFilmographyItems = emptyList(),
                         studioFilmographyTotalEntries = 0,
                         isStudioFilmographyLoading = false,
@@ -987,9 +959,20 @@ class CanimViewModel(
         pushScreen(ScreenRoute.FullCastList(mediaTitle, castList, staffList, isCrewInitial))
     }
 
-    // --- Studio Filmography ---
+    // --- Studio Filmography (v5.0.0) ---
     fun openStudio(studioId: Int, studioName: String) {
+        val bio = try { StudioBioRegistry.getStudioInfo(studioId, studioName) } catch (_: Exception) { null }
+        _uiState.update {
+            it.copy(
+                studioFilmographyBio = bio,
+                studioFilmographySort = StudioFilmographySort.YEAR_DESC
+            )
+        }
         pushScreen(ScreenRoute.StudioFilmography(studioId, studioName))
+    }
+
+    fun setStudioFilmographySort(sort: StudioFilmographySort) {
+        _uiState.update { it.copy(studioFilmographySort = sort) }
     }
 
     fun closeStudio() {
@@ -1001,6 +984,7 @@ class CanimViewModel(
                 it.copy(
                     studioFilmographyStudioId = null,
                     studioFilmographyStudioName = "",
+                    studioFilmographyBio = null,
                     studioFilmographyItems = emptyList(),
                     studioFilmographyTotalEntries = 0,
                     isStudioFilmographyLoading = false,
@@ -1015,10 +999,13 @@ class CanimViewModel(
     fun loadStudioFilmography(studioId: Int, studioName: String, page: Int = 1) {
         if (page == 1) {
             studioJob?.cancel()
+            val bio = _uiState.value.studioFilmographyBio
+                ?: try { StudioBioRegistry.getStudioInfo(studioId, studioName) } catch (_: Exception) { null }
             _uiState.update {
                 it.copy(
                     studioFilmographyStudioId = studioId,
                     studioFilmographyStudioName = studioName,
+                    studioFilmographyBio = bio,
                     isStudioFilmographyLoading = true,
                     studioFilmographyItems = emptyList(),
                     studioFilmographyTotalEntries = 0,
@@ -1032,16 +1019,24 @@ class CanimViewModel(
 
         studioJob = viewModelScope.launch(Dispatchers.IO) {
             val pageResult = repository.getStudioFilmography(studioId = studioId, page = page)
-            _uiState.update {
+            _uiState.update { currentState ->
                 val newItems = if (page == 1) {
                     pageResult?.items ?: emptyList()
                 } else {
-                    val existingIds = it.studioFilmographyItems.map { item -> item.id }.toSet()
+                    val existingIds = currentState.studioFilmographyItems.map { item -> item.id }.toSet()
                     val added = (pageResult?.items ?: emptyList()).filter { item -> item.id !in existingIds }
-                    it.studioFilmographyItems + added
+                    currentState.studioFilmographyItems + added
                 }
-                val totalEntries = if (page == 1) (pageResult?.total ?: 0) else it.studioFilmographyTotalEntries
-                it.copy(
+                val totalEntries = if (page == 1) (pageResult?.total ?: 0) else currentState.studioFilmographyTotalEntries
+                val updatedBio = currentState.studioFilmographyBio?.let { currBio ->
+                    currBio.copy(
+                        totalAnime = if (totalEntries > 0) totalEntries else currBio.totalAnime,
+                        officialSite = pageResult?.siteUrl ?: currBio.officialSite,
+                        favourites = pageResult?.favourites ?: currBio.favourites
+                    )
+                }
+                currentState.copy(
+                    studioFilmographyBio = updatedBio ?: currentState.studioFilmographyBio,
                     studioFilmographyItems = newItems,
                     studioFilmographyTotalEntries = if (totalEntries > 0) totalEntries else newItems.size,
                     isStudioFilmographyLoading = false,
@@ -1186,12 +1181,13 @@ class CanimViewModel(
 }
 
 class CanimViewModelFactory(
-    private val repository: CanimRepository
+    private val repository: CanimRepository,
+    private val gachaCreditManager: GachaCreditManager? = null
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(CanimViewModel::class.java)) {
-            return CanimViewModel(repository) as T
+            return CanimViewModel(repository, gachaCreditManager) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }

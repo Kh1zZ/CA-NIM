@@ -9,13 +9,13 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases/latest"><img src="https://img.shields.io/badge/Download-APK%20(v4.4.3)-10B981.svg?style=for-the-badge&logo=android" alt="Download APK"></a>
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v4.4.3-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases/latest"><img src="https://img.shields.io/badge/Download-APK%20(v5.0.0)-10B981.svg?style=for-the-badge&logo=android" alt="Download APK"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v5.0.0-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#-fitur-utama"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#-arsitektur-dan-prinsip-desain"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
   <a href="#-kinerja-dan-optimasi"><img src="https://img.shields.io/badge/APK%20Size-~2.1%20MB-F59E0B.svg?style=for-the-badge" alt="Size"></a>
-  <a href="#-panduan-kompilasi-manual"><img src="https://img.shields.io/badge/Tests-34%20Passed-6366F1.svg?style=for-the-badge" alt="Tests"></a>
+  <a href="#-panduan-kompilasi-manual"><img src="https://img.shields.io/badge/Tests-43%20Passed-6366F1.svg?style=for-the-badge" alt="Tests"></a>
 </p>
 
 ---
@@ -26,7 +26,7 @@ Dapatkan rilis resmi **CA'NIM** siap pasang langsung dari halaman rilis GitHub:
 
 | Berkas | Tipe | Arsitektur | Kebutuhan Minimum | Tautan |
 | :--- | :---: | :---: | :---: | :---: |
-| **`canim-universal-release-v4.4.3.apk`** | **Release** | **Universal** (`arm64-v8a`, `armeabi-v7a`, `x86_64`) | Android 7.0+ (API 24+) | [👉 Unduh APK Rilis](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
+| **`canim-universal-release-v5.0.0.apk`** | **Release** | **Universal** (`arm64-v8a`, `armeabi-v7a`, `x86_64`) | Android 7.0+ (API 24+) | [👉 Unduh APK Rilis](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
 | **`SHA256SUMS.txt`** | **Checksum** | — | — | [👉 Verifikasi Checksum](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
 
 > 💡 **Catatan Instalasi**: APK Release dikompilasi secara universal oleh GitHub Actions CI/CD, bebas dari bloatware/tracker, dan telah dioptimalkan secara penuh menggunakan R8 Minifier untuk pengalaman scrolling terbaik.
@@ -62,9 +62,10 @@ Logo resmi **CA'NIM** (`art/logo.png`) adalah karya seni beresolusi tinggi (1254
 | **🏠 Dasbor Interaktif** | Ringkasan statistik tontonan & bacaan, kartu progres aktif, tombol cepat (+1 Episode / +1 Chapter), dan indikator status sinkronisasi. |
 | **📚 Library Lengkap Tanpa Batas** | Paginasi dinamis tanpa batasan kuota (*uncapped pagination*). Menampung ribuan judul koleksi dengan filter status, sorting instan, dan pencarian instan. |
 | **🔍 Pencarian Cepat (AniList GraphQL)** | Pencarian ber-filter anime & manga dengan mekanisme *debouncing* (350 ms) dan pembatalan request usang (*cancellation safe*). |
-| **🎲 Discover & Smart Randomizer** | Jelajahi anime populer dan rilis musiman. Fitur *Smart Randomizer* otomatis menyaring judul yang sudah berstatus *Completed*. |
+| **🎲 Discover & Eksplorasi Cepat** | Jelajahi anime musiman dan katalog produksi studio secara bersih dan responsif (Musim Ini, Musim Depan, Akan Datang, TBA, dan Studio). |
+| **🃏 Flashcard Gacha Rekomendasi** | Tarik kartu anime acak dengan estetika kartu fisik, tumpukan kartu gaya UNO, animasi swipe fisika pegas (spring physics), sistem kuota mingguan (5 tiket dasar, floor minimum 5, +1 tiket per episode ditonton), dan akses cepat di bawah Ringkasan Statistik. |
 | **📑 Halaman Detail Menyeluruh (MDL Inspired)** | Tampilan detail komprehensif: sinopsis lengkap, poster HD AniList, genre, trailer YouTube, daftar cast/crew, studio, relasi waralaba, dan pengubah progres interaktif. |
-| **🎬 Studio Filmography** | Eksplorasi katalog anime berdasarkan studio animasi produksi (Ufotable, MAPPA, Kyoto Animation, dll.) beserta rincian tahun rilis dan format media. |
+| **🎬 Studio Details & Filmography** | Bio studio mendalam dan *quick facts* (tahun berdiri, negara asal, total anime tercatat, situs resmi) dengan database kurasi 35+ studio & cache persisten 30 hari. Dilengkapi pengelompokan tahun rilis dinamis (judul TBA di puncak) dan kontrol sorting minimalis (Tahun, Popularitas, Skor). |
 | **👥 Profil Cast & Kru** | Informasi mendalam pengisi suara (*seiyuu*) dan staf produksi beserta riwayat peran karakter dengan navigasi mulus (*back-stack support*). |
 | **📊 Ekspor Statistik Multi-Rasio** | Ekspor infografis koleksi dengan pilihan rasio fleksibel (`9:16 Story`, `4:5`, `3:4`, `1:1`, `16:9 Landscape`), kartu cover anti-stretch (*center-crop*), profil MAL, dan Pie Chart resolusi tinggi. |
 | **🎯 Algoritma Filter Top 5 Non-Sekuel** | Algoritma pintar yang secara otomatis mendeteksi dan mengecualikan sekuel dari waralaba yang sama agar tidak mendominasi peringkat Top 5. |
@@ -248,13 +249,26 @@ Mulai versi `v4.4.1`, seluruh berkas APK rilis resmi **CA'NIM** dikompilasi seca
 
 ---
 
-## 📝 Catatan Rilis Terbaru (v4.4.3)
+## 📝 Catatan Rilis Terbaru (v5.0.0)
+
+- **Studio Details & Bio Komprehensif**: Bio naratif studio animasi dan *quick facts* terverifikasi (tahun berdiri, negara asal, jumlah anime tercatat, tautan situs resmi) dengan rendering progresif instan 0ms dari database kurasi 35+ studio legendaris (Ufotable, MAPPA, Kyoto Animation, Bones, Wit Studio, Madhouse, CloverWorks, dll.) serta cache persisten 30 hari di penyimpanan lokal.
+- **Pengelompokan Filmografi Berdasarkan Tahun (Year Grouping)**: Katalog filmografi studio kini dikelompokkan secara rapi per tahun rilis, dengan judul yang belum tayang / TBA ("Akan Datang / TBA") otomatis berada di posisi teratas. Komputasi grouping di-*memoize* murni untuk menjamin bebas dari recomposition overhead.
+- **Kontrol Sorting Filmografi Minimalis**: Sediakan kontrol sorting responsif yang sepenuhnya kompatibel dengan grouping tahun: *Tahun: Terbaru → Terlama* (default), *Tahun: Terlama → Terbaru*, *Popularitas*, dan *Rating Tertinggi*.
+- **Flashcard Gacha & Rekomendasi Interaktif**: Fitur rekomendasi berbasis tumpukan kartu fisik bergaya UNO dengan animasi geser fisika pegas (*spring-physics swipe*) interaktif, rotasi dinamis, dan efek fling mulus menggunakan Compose native tanpa dependensi pihak ketiga. Akses cepat ditempatkan langsung di bawah bagian "RINGKASAN STATISTIK" pada Dasbor.
+- **Sistem Tiket Gacha Berkelanjutan**: Kuota mingguan 5 tiket dengan reset otomatis setiap Senin 00:00:00 (floor minimum 5 tiket, tiket tambahan dari hasil menonton tidak hangus), bonus +1 tiket instan untuk setiap episode yang ditonton di Library, dan tampilan *empty state* yang informatif saat tiket habis.
+- **Pembersihan Bersih DiscoverScreen**: Menghilangkan Smart Randomizer dan panel filter lama yang usang untuk menghasilkan alur penjelajahan katalog yang bersih, terfokus, dan bebas beban kode mati.
+- **Peningkatan Suite Pengujian Unit**: Menambah unit test untuk pengelompokan filmografi studio dan logika reset kuota mingguan (total 43 unit test lulus 100%).
+
+<details>
+<summary><b>Lihat Catatan Rilis Sebelumnya (v4.4.3)</b></summary>
 
 - **Optimasi Kinerja Metrik Layar Detail**: Menghilangkan latensi *waterfall* dengan eksekusi paralel konkuren (`async`) untuk permintaan metadata AniList dan MyAnimeList secara simultan.
 - **MyAnimeList (MAL) sebagai Sumber Rating Otoritatif**: Skor publik (`Rating MAL`) dan skor pengguna (`Rating Pribadi`) sepenuhnya bersumber dari API resmi MyAnimeList.
 - **Multi-Key In-Memory Caching (0 ms Load)**: Hasil penggabungan metadata tersimpan secara persisten pada memori lokal, memungkinkan layar detail terbuka secara instan tanpa delay atau flicker.
 - **Pre-Enriched Library Sync**: Sinkronisasi koleksi MAL pengguna langsung meminta dan menyimpan metrik skor publik (`node.mean`), popularitas, peringkat, dan anggota ke memori lokal sejak Frame 1.
 - **Decoupled Asynchronous Tracking**: Tampilan metrik publik dan visual detail anime tidak lagi tertahan oleh proses live tracking pengguna.
+
+</details>
 
 <details>
 <summary><b>Lihat Catatan Rilis Sebelumnya (v4.4.2)</b></summary>

@@ -454,17 +454,6 @@ object AniListClient {
             DiscoverCategory.STUDIO -> {
                 variables.put("sort", JSONArray().apply { put("POPULARITY_DESC") })
             }
-            DiscoverCategory.RANDOM_FILTER -> {
-                filter.genre?.takeIf { it.isNotBlank() }?.let { variables.put("genre", it) }
-                filter.format?.takeIf { it.isNotBlank() }?.let { variables.put("format", it) }
-                filter.year?.let { variables.put("seasonYear", it) }
-                filter.season?.takeIf { it.isNotBlank() }?.let { variables.put("season", it.uppercase()) }
-                filter.status?.takeIf { it.isNotBlank() }?.let { variables.put("status", it.uppercase()) }
-                filter.minScore?.let { variables.put("averageScore_greater", it * 10) }
-
-                val sortToUse = randomSort ?: "POPULARITY_DESC"
-                variables.put("sort", JSONArray().apply { put(sortToUse) })
-            }
         }
 
         val graphqlQuery = """
@@ -1216,6 +1205,9 @@ object AniListClient {
               Studio(id: ${'$'}id, search: ${'$'}search) {
                 id
                 name
+                isAnimationStudio
+                siteUrl
+                favourites
                 media(page: ${'$'}page, perPage: ${'$'}perPage, sort: POPULARITY_DESC, isMain: true) {
                   pageInfo {
                     total
@@ -1242,6 +1234,7 @@ object AniListClient {
                     episodes
                     chapters
                     averageScore
+                    popularity
                     genres
                     startDate {
                       year
@@ -1266,6 +1259,9 @@ object AniListClient {
             val studioObj = data.optJSONObject("Studio") ?: return@withContext null
             val resolvedStudioId = studioObj.optInt("id", studioId ?: 0)
             val resolvedStudioName = studioObj.optString("name", search ?: "Studio")
+            val isAnimationStudio = studioObj.optBoolean("isAnimationStudio", true)
+            val siteUrl = studioObj.optString("siteUrl", "").takeIf { it.isNotBlank() }
+            val favourites = studioObj.optInt("favourites", 0).takeIf { it > 0 }
 
             val mediaObj = studioObj.optJSONObject("media")
             val pageInfo = mediaObj?.optJSONObject("pageInfo")
@@ -1295,6 +1291,7 @@ object AniListClient {
                     val episodes = if (node.has("episodes") && !node.isNull("episodes")) node.optInt("episodes") else null
                     val chapters = if (node.has("chapters") && !node.isNull("chapters")) node.optInt("chapters") else null
                     val score = if (node.has("averageScore") && !node.isNull("averageScore")) node.optDouble("averageScore") / 10.0 else null
+                    val popularity = if (node.has("popularity") && !node.isNull("popularity")) node.optInt("popularity") else null
                     val genresList = mutableListOf<String>()
                     val genresArr = node.optJSONArray("genres")
                     if (genresArr != null) {
@@ -1323,7 +1320,8 @@ object AniListClient {
                             chapters = chapters,
                             genres = genresList,
                             year = year,
-                            studio = resolvedStudioName
+                            studio = resolvedStudioName,
+                            popularity = popularity
                         )
                     )
                 }
@@ -1335,7 +1333,10 @@ object AniListClient {
                 items = items,
                 hasNextPage = hasNextPage,
                 currentPage = currentPage,
-                total = total
+                total = total,
+                siteUrl = siteUrl,
+                favourites = favourites,
+                isAnimationStudio = isAnimationStudio
             )
             CacheManager.putStudioFilmography(resolvedStudioId, page, result)
             result

@@ -17,7 +17,10 @@ data class StudioFilmographyPage(
     val items: List<MediaItem>,
     val hasNextPage: Boolean,
     val currentPage: Int,
-    val total: Int = 0
+    val total: Int = 0,
+    val siteUrl: String? = null,
+    val favourites: Int? = null,
+    val isAnimationStudio: Boolean = true
 )
 
 data class CacheEntry<T>(

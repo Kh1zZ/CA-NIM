@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.canim.app.data.local.GachaCreditManager
 import com.canim.app.data.local.MalSecureStorage
 import com.canim.app.data.repository.CanimRepository
 import com.canim.app.data.repository.MalAuthManager
@@ -50,7 +51,8 @@ class MainActivity : ComponentActivity() {
         val secureStorage = MalSecureStorage(applicationContext)
         val malAuthManager = MalAuthManager(secureStorage = secureStorage)
         val repository = CanimRepository(malAuthManager = malAuthManager)
-        CanimViewModelFactory(repository)
+        val gachaCreditManager = GachaCreditManager.getInstance(applicationContext)
+        CanimViewModelFactory(repository, gachaCreditManager)
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
@@ -220,7 +222,8 @@ class MainActivity : ComponentActivity() {
                                     onNavigateTab = { viewModel.setTab(it) },
                                     onLoginMal = { viewModel.loginWithMal(context) },
                                     onSyncMal = { viewModel.syncWithMal() },
-                                    onOpenStats = { viewModel.openStats() }
+                                    onOpenStats = { viewModel.openStats() },
+                                    onOpenFlashcard = { viewModel.openFlashcard() }
                                 )
                             }
                             "library" -> {
@@ -253,8 +256,6 @@ class MainActivity : ComponentActivity() {
                                     onSelectCategory = { cat, filter -> viewModel.loadDiscoverCategory(cat, filter) },
                                     onAddMedia = { item, status -> viewModel.addFromCatalog(item, status) },
                                     onSelectItem = { item, type -> viewModel.openDetail(item, type) },
-                                    onRandomize = { filter -> viewModel.randomizeAnime(filter) },
-                                    onRandomizeManga = { filter -> viewModel.randomizeManga(filter) },
                                     onLoadMore = { viewModel.loadMoreDiscover() },
                                     onSaveAnime = { viewModel.saveAnime(it) },
                                     onSaveManga = { viewModel.saveManga(it) },
@@ -339,7 +340,22 @@ class MainActivity : ComponentActivity() {
                                     canLoadMore = uiState.canLoadMoreStudioFilmography,
                                     onLoadMore = { viewModel.loadMoreStudioFilmography() },
                                     onOpenDetail = { media, type -> viewModel.openDetail(media, type) },
-                                    onBack = { viewModel.popScreen() }
+                                    onBack = { viewModel.popScreen() },
+                                    bioInfo = uiState.studioFilmographyBio,
+                                    sort = uiState.studioFilmographySort,
+                                    onSortChanged = { viewModel.setStudioFilmographySort(it) }
+                                )
+                            }
+                            is ScreenRoute.Flashcard -> {
+                                FlashcardScreen(
+                                    deck = uiState.flashcardDeck,
+                                    credits = uiState.gachaCredits,
+                                    isLoading = uiState.isFlashcardLoading,
+                                    onBack = { viewModel.popScreen() },
+                                    onConsumeCredit = { viewModel.consumeGachaCredit() },
+                                    onSwipeCard = { viewModel.swipeDismissFlashcard(it) },
+                                    onOpenDetail = { media, type -> viewModel.openDetail(media, type) },
+                                    onRefreshDeck = { viewModel.loadFlashcardDeck() }
                                 )
                             }
                             is ScreenRoute.Stats -> {

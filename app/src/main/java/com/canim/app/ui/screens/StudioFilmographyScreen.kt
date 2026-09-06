@@ -1,5 +1,6 @@
 package com.canim.app.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,7 +14,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -29,6 +31,10 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.canim.app.data.model.MediaItem
 import com.canim.app.data.model.MediaType
+import com.canim.app.data.model.StudioBioInfo
+import com.canim.app.data.model.StudioFilmographySort
+import com.canim.app.data.model.StudioYearGroup
+import com.canim.app.data.model.groupAndSortFilmography
 import com.canim.app.ui.theme.*
 import kotlinx.coroutines.flow.distinctUntilChanged
 
@@ -44,6 +50,9 @@ fun StudioFilmographyScreen(
     onOpenDetail: (MediaItem, MediaType) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    bioInfo: StudioBioInfo? = null,
+    sort: StudioFilmographySort = StudioFilmographySort.YEAR_DESC,
+    onSortChanged: (StudioFilmographySort) -> Unit = {},
     totalEntries: Int = 0
 ) {
     val gridState = rememberLazyGridState()
@@ -61,6 +70,11 @@ fun StudioFilmographyScreen(
                 onLoadMore()
             }
         }
+    }
+
+    // Memoized grouping and sorting to completely avoid recomposition overhead
+    val groupedItems = remember(items, sort) {
+        groupAndSortFilmography(items, sort)
     }
 
     Box(
@@ -96,8 +110,8 @@ fun StudioFilmographyScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                // Header section
-                item(span = { GridItemSpan(maxLineSpan) }) {
+                // Header section: Studio Title & Total
+                item(span = { GridItemSpan(maxLineSpan) }, key = "studio_header") {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -125,20 +139,42 @@ fun StudioFilmographyScreen(
                     }
                 }
 
-                // Filmography items with bulletproof unique keys
-                itemsIndexed(
-                    items = items,
-                    key = { index, media -> "${media.malId ?: media.anilistId ?: media.title}_$index" }
-                ) { _, media ->
-                    StudioMediaCard(
-                        item = media,
-                        onClick = { onOpenDetail(media, MediaType.ANIME) }
+                // Studio Bio Card (Tugas 1)
+                item(span = { GridItemSpan(maxLineSpan) }, key = "studio_bio_card") {
+                    StudioBioCard(
+                        bioInfo = bioInfo,
+                        totalEntries = totalEntries
                     )
+                }
+
+                // Minimalist Sorting Controls (Tugas 3)
+                item(span = { GridItemSpan(maxLineSpan) }, key = "studio_sort_bar") {
+                    StudioSortBar(
+                        currentSort = sort,
+                        onSortChanged = onSortChanged
+                    )
+                }
+
+                // Grouped Filmography Sections (Tugas 2 & 3)
+                groupedItems.forEach { group ->
+                    item(span = { GridItemSpan(maxLineSpan) }, key = "year_header_${group.header}") {
+                        YearSectionHeader(header = group.header, count = group.items.size)
+                    }
+
+                    itemsIndexed(
+                        items = group.items,
+                        key = { index, media -> "${media.malId ?: media.anilistId ?: media.title}_${group.header}_$index" }
+                    ) { _, media ->
+                        StudioMediaCard(
+                            item = media,
+                            onClick = { onOpenDetail(media, MediaType.ANIME) }
+                        )
+                    }
                 }
 
                 // Loading more indicator
                 if (isLoadingMore) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
+                    item(span = { GridItemSpan(maxLineSpan) }, key = "studio_loading_more") {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -193,6 +229,264 @@ fun StudioFilmographyScreen(
 }
 
 @Composable
+private fun StudioBioCard(
+    bioInfo: StudioBioInfo?,
+    totalEntries: Int,
+    modifier: Modifier = Modifier
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .border(1.dp, CardBorder, RoundedCornerShape(14.dp)),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBg)
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Quick Facts Badges (Horizontal scroll / row)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Founded Year
+                bioInfo?.foundedYear?.let { year ->
+                    FactBadge(
+                        icon = Icons.Default.CalendarToday,
+                        text = "Est. $year"
+                    )
+                }
+
+                // Country
+                FactBadge(
+                    icon = Icons.Default.LocationOn,
+                    text = bioInfo?.country ?: "Jepang"
+                )
+
+                // Total Anime
+                val totalCount = bioInfo?.totalAnime ?: totalEntries
+                if (totalCount > 0) {
+                    FactBadge(
+                        icon = Icons.Default.Tv,
+                        text = "$totalCount Anime"
+                    )
+                }
+
+                // Favourites
+                bioInfo?.favourites?.takeIf { it > 0 }?.let { favs ->
+                    FactBadge(
+                        icon = Icons.Default.Favorite,
+                        text = "$favs",
+                        iconTint = Color(0xFFEC4899)
+                    )
+                }
+            }
+
+            // Narrative Bio with Expand/Collapse
+            bioInfo?.bio?.takeIf { it.isNotBlank() }?.let { bioText ->
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = bioText,
+                        color = TextSecondary,
+                        fontSize = 12.sp,
+                        lineHeight = 17.sp,
+                        maxLines = if (isExpanded) Int.MAX_VALUE else 3,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = if (isExpanded) "Lebih Sedikit" else "Selengkapnya...",
+                        color = AccentBlue,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.clickable { isExpanded = !isExpanded }
+                    )
+                }
+            }
+
+            // Official Website Link
+            bioInfo?.officialSite?.takeIf { it.isNotBlank() }?.let { siteUrl ->
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(CardElevated)
+                        .clickable {
+                            try { uriHandler.openUri(siteUrl) } catch (_: Exception) {}
+                        }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Language,
+                        contentDescription = null,
+                        tint = AccentBlue,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = siteUrl.removePrefix("https://").removePrefix("http://").removeSuffix("/"),
+                        color = AccentBlue,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FactBadge(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String,
+    iconTint: Color = AccentBlue
+) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = CardElevated,
+        border = BorderStroke(1.dp, CardBorder)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(12.dp)
+            )
+            Text(
+                text = text,
+                color = TextPrimary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+@Composable
+private fun StudioSortBar(
+    currentSort: StudioFilmographySort,
+    onSortChanged: (StudioFilmographySort) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "URUTKAN:",
+            color = TextSecondary,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 0.5.sp
+        )
+
+        Box {
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = CardBg,
+                border = BorderStroke(1.dp, CardBorder),
+                modifier = Modifier.clickable { expanded = true }
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Sort,
+                        contentDescription = null,
+                        tint = AccentBlue,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = currentSort.label,
+                        color = TextPrimary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Icon(
+                        imageVector = Icons.Default.ArrowDropDown,
+                        contentDescription = null,
+                        tint = TextSecondary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier
+                    .background(CardElevated)
+                    .border(1.dp, CardBorder, RoundedCornerShape(8.dp))
+            ) {
+                StudioFilmographySort.entries.forEach { sortOption ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = sortOption.label,
+                                color = if (currentSort == sortOption) AccentBlue else TextPrimary,
+                                fontSize = 12.sp,
+                                fontWeight = if (currentSort == sortOption) FontWeight.Bold else FontWeight.Normal
+                            )
+                        },
+                        onClick = {
+                            onSortChanged(sortOption)
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun YearSectionHeader(header: String, count: Int) {
+    val isTba = header.contains("TBA", ignoreCase = true)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 10.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 4.dp, height = 16.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(if (isTba) StarGold else AccentBlue)
+        )
+        Text(
+            text = header,
+            color = if (isTba) StarGold else TextPrimary,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.ExtraBold
+        )
+        Text(
+            text = "($count)",
+            color = TextMuted,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Normal
+        )
+    }
+}
+
+@Composable
 private fun StudioMediaCard(
     item: MediaItem,
     onClick: () -> Unit,
@@ -205,7 +499,7 @@ private fun StudioMediaCard(
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = CardBg),
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
+        border = BorderStroke(1.dp, CardBorder)
     ) {
         Column {
             Box(
@@ -238,7 +532,7 @@ private fun StudioMediaCard(
                             horizontalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Filled.Star,
+                                imageVector = Icons.Default.Star,
                                 contentDescription = null,
                                 tint = StarGold,
                                 modifier = Modifier.size(11.dp)
@@ -253,31 +547,21 @@ private fun StudioMediaCard(
                     }
                 }
 
-                // Format & Ep Badge
-                val subBadge = listOfNotNull(
-                    item.format?.uppercase(),
-                    if (item.episodes != null && item.episodes > 0) "${item.episodes} Ep" else null
-                ).joinToString(" • ")
-
-                if (subBadge.isNotEmpty()) {
+                // Format badge (bottom start of poster)
+                if (!item.format.isNullOrBlank()) {
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomStart)
-                            .fillMaxWidth()
-                            .background(
-                                Brush.verticalGradient(
-                                    colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.85f))
-                                )
-                            )
-                            .padding(horizontal = 6.dp, vertical = 4.dp)
+                            .padding(6.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color.Black.copy(alpha = 0.7f))
+                            .padding(horizontal = 5.dp, vertical = 1.dp)
                     ) {
                         Text(
-                            text = subBadge,
-                            color = TextSecondary,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            text = item.format,
+                            color = AccentBlue,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
@@ -290,20 +574,18 @@ private fun StudioMediaCard(
             ) {
                 Text(
                     text = item.title,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
                     color = TextPrimary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
                     maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    lineHeight = 16.sp
+                    overflow = TextOverflow.Ellipsis
                 )
-
                 if (item.genres.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = item.genres.take(2).joinToString(", "),
-                        fontSize = 11.sp,
-                        color = AccentBlue,
+                        color = TextMuted,
+                        fontSize = 10.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )

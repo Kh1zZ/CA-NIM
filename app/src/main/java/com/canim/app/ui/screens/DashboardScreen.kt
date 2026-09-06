@@ -58,6 +58,7 @@ fun DashboardScreen(
     onLoginMal: () -> Unit = {},
     onSyncMal: () -> Unit = {},
     onOpenStats: () -> Unit = {},
+    onOpenFlashcard: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -544,6 +545,98 @@ fun DashboardScreen(
                             modifier = Modifier.size(20.dp)
                         )
                     }
+                }
+            }
+        }
+
+        // Flashcard Gacha Entry Banner (Tugas 4)
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(
+                        1.dp,
+                        Brush.horizontalGradient(
+                            listOf(AccentBlue.copy(alpha = 0.6f), Color(0xFF8B5CF6).copy(alpha = 0.6f))
+                        ),
+                        RoundedCornerShape(14.dp)
+                    )
+                    .clickable(onClick = onOpenFlashcard),
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(
+                                    Brush.linearGradient(
+                                        listOf(AccentBlue.copy(alpha = 0.25f), Color(0xFF8B5CF6).copy(alpha = 0.25f))
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Style,
+                                contentDescription = null,
+                                tint = AccentBlue,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+
+                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "Flashcard Gacha",
+                                    color = TextPrimary,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(if (state.gachaCredits > 0) AccentBlue.copy(alpha = 0.15f) else Color.Red.copy(alpha = 0.15f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "${state.gachaCredits} Tiket",
+                                        color = if (state.gachaCredits > 0) AccentBlue else Color(0xFFEF4444),
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                            Text(
+                                text = if (state.gachaCredits > 0) "Tarik kartu rekomendasi anime pilihan" else "Tiket habis • Tonton episode untuk +1 tiket",
+                                color = TextMuted,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    Icon(
+                        imageVector = Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = AccentBlue,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
             }
         }

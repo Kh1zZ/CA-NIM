@@ -172,7 +172,8 @@ data class MediaItem(
     val season: String? = null,
     val genres: List<String> = emptyList(),
     val format: String? = null,
-    val studio: String? = null
+    val studio: String? = null,
+    val popularity: Int? = null
 ) {
     val id: String get() = malId?.let { "mal_$it" } ?: anilistId?.let { "ani_$it" } ?: title
     val identity: MediaRef get() = MediaRef(anilistId = anilistId, malId = malId)
@@ -288,8 +289,7 @@ enum class DiscoverCategory(val key: String, val label: String) {
     CURRENT_SEASON("season_now", "Musim Ini"),
     NEXT_SEASON("season_next", "Musim Depan"),
     UPCOMING("upcoming", "Akan Datang"),
-    TBA("tba", "TBA"),
-    RANDOM_FILTER("random", "Acak (Filter)")
+    TBA("tba", "TBA")
 }
 
 @Immutable

@@ -49,16 +49,12 @@ fun DiscoverScreen(
     onSelectCategory: (DiscoverCategory, DiscoverFilter) -> Unit,
     onAddMedia: (MediaItem, MediaStatus) -> Unit,
     onSelectItem: (Any, MediaType) -> Unit,
-    onRandomize: (DiscoverFilter) -> Unit,
-    onRandomizeManga: (DiscoverFilter) -> Unit = {},
     onLoadMore: () -> Unit = {},
     onSaveAnime: (UserMediaItem) -> Unit = {},
     onSaveManga: (UserMediaItem) -> Unit = {},
     onOpenStudio: ((studioId: Int, studioName: String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
-    var showFilterPanel by remember { mutableStateOf(false) }
-    var filterMediaType by remember { mutableStateOf(if (state.discoverFilter.format == "MANGA") MediaType.MANGA else MediaType.ANIME) }
     var selectedItemForAdd by remember { mutableStateOf<MediaItem?>(null) }
     var selectedItemForEdit by remember { mutableStateOf<MediaItem?>(null) }
     var showStudioPickerSheet by remember { mutableStateOf(false) }
@@ -77,57 +73,7 @@ fun DiscoverScreen(
     val libraryAnimeMalIds = remember(state.animeList) { state.animeList.map { it.malId }.toSet() }
     val libraryMangaMalIds = remember(state.mangaList) { state.mangaList.map { it.malId }.toSet() }
 
-    // Filter controls for Random by Filter
-    var filterGenre by remember { mutableStateOf(state.discoverFilter.genre) }
-    var filterFormat by remember { mutableStateOf(state.discoverFilter.format ?: "TV") }
-    var filterYear by remember { mutableStateOf(state.discoverFilter.year) }
-    var filterSeason by remember { mutableStateOf(state.discoverFilter.season) }
-    var filterMinScore by remember { mutableStateOf(state.discoverFilter.minScore) }
-
-    // Auto-apply debounced filter (350ms)
-    LaunchedEffect(filterGenre, filterFormat, filterYear, filterSeason, filterMinScore) {
-        kotlinx.coroutines.delay(350L)
-        val updatedFilter = DiscoverFilter(
-            genre = filterGenre,
-            format = filterFormat,
-            year = filterYear,
-            season = filterSeason,
-            minScore = filterMinScore
-        )
-        if (showFilterPanel || state.selectedDiscoverCategory == DiscoverCategory.RANDOM_FILTER) {
-            onSelectCategory(DiscoverCategory.RANDOM_FILTER, updatedFilter)
-        }
-    }
-
     val categories = DiscoverCategory.entries
-
-    // Expanded AniList genres (Request 4)
-    val genres = listOf(
-        "Semua", "Action", "Adventure", "Comedy", "Drama", "Ecchi",
-        "Fantasy", "Horror", "Mahou Shoujo", "Mecha", "Music", "Mystery",
-        "Psychological", "Romance", "Sci-Fi", "Slice of Life", "Sports",
-        "Supernatural", "Thriller"
-    )
-
-    // Expanded formats with ONA, OVA, Special (Request 4)
-    val formats = listOf(
-        "TV" to "TV Series",
-        "MOVIE" to "Movie",
-        "ONA" to "ONA",
-        "OVA" to "OVA",
-        "SPECIAL" to "Special"
-    )
-
-    // Expanded score options with 5+ and 6+ (Request 4)
-    val scores = listOf(
-        0 to "Semua Skor",
-        5 to "★ 5.0+",
-        6 to "★ 6.0+",
-        7 to "★ 7.0+",
-        8 to "★ 8.0+",
-        9 to "★ 9.0+"
-    )
-
     val listState = rememberLazyListState()
 
     // Smooth Pagination Trigger (Request 2)
@@ -174,20 +120,6 @@ fun DiscoverScreen(
                             fontSize = 12.sp
                         )
                     }
-
-                    IconButton(
-                        onClick = { showFilterPanel = !showFilterPanel },
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(CardBg)
-                            .border(1.dp, CardBorder, RoundedCornerShape(10.dp))
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Tune,
-                            contentDescription = "Filter Kustom",
-                            tint = AccentBlue
-                        )
-                    }
                 }
             }
 
@@ -206,14 +138,7 @@ fun DiscoverScreen(
                             if (isStudio) {
                                 showStudioPickerSheet = true
                             } else if (!isSelected) {
-                                val currentFilter = DiscoverFilter(
-                                    genre = filterGenre,
-                                    format = filterFormat,
-                                    year = filterYear,
-                                    season = filterSeason,
-                                    minScore = filterMinScore
-                                )
-                                onSelectCategory(category, currentFilter)
+                                onSelectCategory(category, DiscoverFilter())
                             }
                         },
                         leadingIcon = if (isStudio) {
@@ -247,177 +172,6 @@ fun DiscoverScreen(
                             selectedBorderColor = AccentBlue
                         )
                     )
-                }
-            }
-        }
-
-        // Expandable Filter Section
-        item {
-            AnimatedVisibility(visible = showFilterPanel || state.selectedDiscoverCategory == DiscoverCategory.RANDOM_FILTER) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, CardBorder, RoundedCornerShape(12.dp)),
-                    colors = CardDefaults.cardColors(containerColor = CardBg),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(
-                            text = "Kustomisasi Filter & Acak",
-                            color = TextPrimary,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-
-                        // 2-state Anime/Manga toggle
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(CardElevated)
-                                .padding(4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            listOf(MediaType.ANIME to "Anime", MediaType.MANGA to "Manga").forEach { (type, label) ->
-                                val isSelected = filterMediaType == type
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isSelected) (if (type == MediaType.ANIME) AccentBlue else MangaAccentDarkBlue) else Color.Transparent)
-                                        .clickable { 
-                                            filterMediaType = type
-                                            if (type == MediaType.MANGA) {
-                                                filterFormat = "MANGA"
-                                            } else if (filterFormat == "MANGA") {
-                                                filterFormat = "TV"
-                                            }
-                                        }
-                                        .padding(vertical = 8.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = label,
-                                        color = if (isSelected) Color.White else TextSecondary,
-                                        fontSize = 12.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                }
-                            }
-                        }
-
-                        // Format selector (Only shown for Anime, hidden for Manga)
-                        if (filterMediaType == MediaType.ANIME) {
-                            Text(text = "Tipe / Format:", color = TextSecondary, fontSize = 11.sp)
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                items(formats) { (key, label) ->
-                                    val isSelected = filterFormat == key
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(if (isSelected) AccentBlue else CardElevated)
-                                            .clickable { filterFormat = key }
-                                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                                    ) {
-                                        Text(
-                                            text = label,
-                                            color = if (isSelected) Color.White else TextPrimary,
-                                            fontSize = 11.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        // Genre selector
-                        Text(text = "Genre:", color = TextSecondary, fontSize = 11.sp)
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            items(genres) { g ->
-                                val isSelected = (g == "Semua" && filterGenre == null) || filterGenre == g
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isSelected) AccentBlue else CardElevated)
-                                        .clickable { filterGenre = if (g == "Semua") null else g }
-                                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                                ) {
-                                    Text(
-                                        text = g,
-                                        color = if (isSelected) Color.White else TextPrimary,
-                                        fontSize = 11.sp
-                                    )
-                                }
-                            }
-                        }
-
-                        // Score selector (Scrollable)
-                        Text(text = "Minimal Skor:", color = TextSecondary, fontSize = 11.sp)
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            items(scores) { (sc, label) ->
-                                val isSelected = (sc == 0 && filterMinScore == null) || filterMinScore == sc
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isSelected) StarGold else CardElevated)
-                                        .clickable { filterMinScore = if (sc == 0) null else sc }
-                                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                                ) {
-                                    Text(
-                                        text = label,
-                                        color = if (isSelected) BlackBg else TextPrimary,
-                                        fontSize = 11.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                                    )
-                                }
-                            }
-                        }
-
-                        // Single Acak Button
-                        Button(
-                            onClick = {
-                                if (filterMediaType == MediaType.ANIME) {
-                                    val activeFilter = DiscoverFilter(
-                                        genre = filterGenre,
-                                        format = if (filterFormat == "MANGA") "TV" else filterFormat,
-                                        year = filterYear,
-                                        season = filterSeason,
-                                        minScore = filterMinScore
-                                    )
-                                    onRandomize(activeFilter)
-                                } else {
-                                    val activeFilter = DiscoverFilter(
-                                        genre = filterGenre,
-                                        format = "MANGA",
-                                        year = filterYear,
-                                        season = filterSeason,
-                                        minScore = filterMinScore
-                                    )
-                                    onRandomizeManga(activeFilter)
-                                }
-                                showFilterPanel = false
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("discover_filter_randomize_btn"),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (filterMediaType == MediaType.ANIME) AccentBlue else MangaAccentDarkBlue,
-                                contentColor = Color.White
-                            ),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Icon(imageVector = Icons.Default.Shuffle, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = if (filterMediaType == MediaType.ANIME) "Acak Anime" else "Acak Manga",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
-                            )
-                        }
-                    }
                 }
             }
         }
