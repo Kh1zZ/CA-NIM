@@ -2,9 +2,10 @@ name: CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "debug", "dev" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -43,6 +44,7 @@ jobs:
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Validate Debug APK Output
+        id: apk_check
         run: |
           VERSION_NAME=$(grep -E '^\s*versionName\s*=\s*"([^"]+)"' app/build.gradle.kts | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')
           EXPECTED_APK="app/build/outputs/apk/debug/canim-debug-${VERSION_NAME}.apk"
@@ -52,4 +54,13 @@ jobs:
             ls -la app/build/outputs/apk/debug/ || true
             exit 1
           fi
+          echo "version_name=${VERSION_NAME}" >> "$GITHUB_OUTPUT"
           echo "Debug APK verified successfully: $(basename "$EXPECTED_APK") ($(wc -c < "$EXPECTED_APK") bytes)"
+
+      - name: Upload Debug APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: canim-debug-${{ steps.apk_check.outputs.version_name }}
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14

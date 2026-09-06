@@ -272,7 +272,7 @@ Bagi pengembang yang ingin memodifikasi atau mengompilasi APK secara mandiri:
 
 Mulai versi `v4.4.1`, seluruh berkas APK rilis resmi **CA'NIM** dikompilasi secara eksklusif dan otomatis oleh **GitHub Actions** (tidak dikompilasi manual di mesin lokal):
 
-- **CI Pipeline (`.github/workflows/ci.yml`)**: Berjalan pada setiap pull request dan push ke branch `main`, menjalankan unit test otomatis (`./gradlew testDebugUnitTest`) serta validasi build debug (`./gradlew assembleDebug`).
+- **CI Pipeline (`.github/workflows/ci.yml`)**: Berjalan pada setiap pull request dan push ke branch `main`, `debug`, maupun `dev`, menjalankan unit test otomatis (`./gradlew testDebugUnitTest`), kompilasi build debug (`./gradlew assembleDebug`), serta secara otomatis mengunggah APK Debug (`canim-debug-vX.Y.Z.apk`) ke **GitHub Actions Artifacts** sehingga dapat langsung diunduh dan diuji coba di HP sebelum di-merge ke `main`.
 - **Release Pipeline (`.github/workflows/release.yml`)**: Pipeline rilis multi-saluran yang dapat dipicu melalui push Git tag (`v*`), publikasi release di web GitHub, maupun dieksekusi secara manual via tombol **"Run workflow"** (`workflow_dispatch`) langsung dari tab Actions di web:
   1. Validasi kecocokan ketat antara target tag (`vX.Y.Z`) dan `versionName` serta `versionCode` pada `app/build.gradle.kts` (mencegah salah rilis/tag).
   2. Menjalankan seluruh 57 automated unit tests.
