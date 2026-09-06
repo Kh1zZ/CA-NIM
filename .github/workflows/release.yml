@@ -4,6 +4,14 @@ on:
   push:
     tags:
       - 'v*'
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name to release (defaults to Gradle versionName)'
+        required: false
+        default: ''
 
 concurrency:
   group: release-${{ github.ref }}
@@ -40,13 +48,22 @@ jobs:
       - name: Validate Tag, Version, and VersionCode
         id: version_check
         run: |
-          TAG_NAME="${GITHUB_REF_NAME}"
-          echo "Processing Git Tag: $TAG_NAME"
-
           # Extract versionName and versionCode from app/build.gradle.kts
           VERSION_NAME=$(grep -E '^\s*versionName\s*=\s*"([^"]+)"' app/build.gradle.kts | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')
           VERSION_CODE=$(grep -E '^\s*versionCode\s*=\s*([0-9]+)' app/build.gradle.kts | head -n1 | sed -E 's/.*=\s*([0-9]+).*/\1/')
 
+          TAG_NAME="${{ github.event.inputs.tag_name }}"
+          if [ -z "$TAG_NAME" ]; then
+            TAG_NAME="${{ github.event.release.tag_name }}"
+          fi
+          if [ -z "$TAG_NAME" ]; then
+            TAG_NAME="${GITHUB_REF_NAME}"
+          fi
+          if [ "$TAG_NAME" = "main" ] || [ -z "$TAG_NAME" ]; then
+            TAG_NAME="$VERSION_NAME"
+          fi
+
+          echo "Processing Target Tag: $TAG_NAME"
           echo "Gradle configured versionName: '$VERSION_NAME'"
           echo "Gradle configured versionCode: '$VERSION_CODE'"
 
@@ -58,7 +75,7 @@ jobs:
 
           # 2. Enforce strict match between git tag and Gradle versionName
           if [ "$TAG_NAME" != "$VERSION_NAME" ]; then
-            echo "::error::Tag mismatch! Git tag is '$TAG_NAME' but Gradle versionName is '$VERSION_NAME'. Release aborted."
+            echo "::error::Tag mismatch! Target is '$TAG_NAME' but Gradle versionName is '$VERSION_NAME'. Release aborted."
             exit 1
           fi
 
@@ -70,7 +87,7 @@ jobs:
 
           echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
           echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
-          echo "Version validation passed successfully: Tag '$TAG_NAME' matches versionName '$VERSION_NAME' with versionCode $VERSION_CODE."
+          echo "Version validation passed successfully: Target '$TAG_NAME' matches versionName '$VERSION_NAME' with versionCode $VERSION_CODE."
 
       - name: Run Unit Tests
         run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
@@ -127,13 +144,15 @@ jobs:
           cd ..
 
       - name: Generate Automated Release Notes
+        env:
+          TARGET_TAG: ${{ steps.version_check.outputs.version_name }}
         run: |
-          TAG_NAME="${GITHUB_REF_NAME}"
+          TAG_NAME="${TARGET_TAG}"
           python3 - << 'EOF'
           import subprocess
           import os
 
-          current_tag = os.environ.get("GITHUB_REF_NAME", "")
+          current_tag = os.environ.get("TARGET_TAG", "") or os.environ.get("GITHUB_REF_NAME", "")
           print(f"Generating release notes for tag: {current_tag}")
 
           # Retrieve list of version tags sorted by version
@@ -239,12 +258,21 @@ jobs:
       - name: Publish GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ steps.version_check.outputs.version_name }}
         run: |
-          TAG_NAME="${GITHUB_REF_NAME}"
           echo "Publishing GitHub Release for tag $TAG_NAME..."
-          gh release create "$TAG_NAME" \
-            "release-dist/canim-universal-release-${TAG_NAME}.apk" \
-            "release-dist/SHA256SUMS.txt" \
-            --title "CA'NIM $TAG_NAME" \
-            --notes-file release_notes.md
+          if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Release $TAG_NAME already exists, uploading release APK and checksum assets..."
+            gh release upload "$TAG_NAME" \
+              "release-dist/canim-universal-release-${TAG_NAME}.apk" \
+              "release-dist/SHA256SUMS.txt" \
+              --clobber
+          else
+            echo "Creating new GitHub Release for tag $TAG_NAME..."
+            gh release create "$TAG_NAME" \
+              "release-dist/canim-universal-release-${TAG_NAME}.apk" \
+              "release-dist/SHA256SUMS.txt" \
+              --title "CA'NIM $TAG_NAME" \
+              --notes-file release_notes.md
+          fi
           echo "GitHub Release published successfully with official APK assets."
