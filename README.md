@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases/latest"><img src="https://img.shields.io/badge/Download-APK%20(v6.0.0)-10B981.svg?style=for-the-badge&logo=android" alt="Download APK"></a>
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.0.0-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases/latest"><img src="https://img.shields.io/badge/Download-APK%20(v6.0.1)-10B981.svg?style=for-the-badge&logo=android" alt="Download APK"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.0.1-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#-fitur-utama"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#-arsitektur-dan-prinsip-desain"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
@@ -26,7 +26,7 @@ Dapatkan rilis resmi **CA'NIM** siap pasang langsung dari halaman rilis GitHub:
 
 | Berkas | Tipe | Arsitektur | Kebutuhan Minimum | Tautan |
 | :--- | :---: | :---: | :---: | :---: |
-| **`canim-universal-release-v6.0.0.apk`** | **Release** | **Universal** (`arm64-v8a`, `armeabi-v7a`, `x86_64`) | Android 7.0+ (API 24+) | [👉 Unduh APK Rilis](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
+| **`canim-universal-release-v6.0.1.apk`** | **Release** | **Universal** (`arm64-v8a`, `armeabi-v7a`, `x86_64`) | Android 7.0+ (API 24+) | [👉 Unduh APK Rilis](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
 | **`SHA256SUMS.txt`** | **Checksum** | — | — | [👉 Verifikasi Checksum](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
 
 > 💡 **Catatan Instalasi**: APK Release dikompilasi secara universal oleh GitHub Actions CI/CD, bebas dari bloatware/tracker, dan telah dioptimalkan secara penuh menggunakan R8 Minifier untuk pengalaman scrolling terbaik.
@@ -286,7 +286,19 @@ Mulai versi `v4.4.1`, seluruh berkas APK rilis resmi **CA'NIM** dikompilasi seca
 
 ---
 
-## 📝 Catatan Rilis Terbaru (v6.0.0)
+## 📝 Catatan Rilis Terbaru (v6.0.1)
+
+- **Rombak Total Arsitektur UI/UX (Invisible Continuity Overhaul)**: Menghilangkan dominasi kotak-kotak terisolasi (*cardification anti-pattern*) di seluruh aplikasi, menggantikannya dengan aliran informasi alami berorientasi konten (*content-first*) yang elegan, lapang, dan berdensitas tinggi.
+- **Hero Metrics Strip Terpadu pada Dasbor**: Mengeliminasi 4 kotak terpisah (`StatCard`) dan menyatukannya ke dalam satu bilah analitik mulus berlatar `CardBg` dengan pemisah vertikal halus (`DividerSubtle`), menampilkan angka metrik besar (`20.sp FontWeight.Black`) yang seketika terbaca jelas dengan efisiensi ruang 40% lebih ringkas.
+- **Dual Quick-Action Row**: Menyederhanakan banner Statistik dan Flashcard Gacha menjadi seksi aksi horizontal yang ramping, proporsional, dan seimbang sehingga konten utama (*Sedang Ditonton*) langsung terlihat tanpa scroll berlebih.
+- **Poster-First Media Carousel**: Mengubah kartu *Sedang Ditonton* dan *Sedang Dibaca* menjadi kartu poster-first di mana sampul visual anime/manga menjadi fokus utama, dilengkapi lencana skor, progres bar terintegrasi di dasar poster, serta tombol penambahan progres `+` yang menyatu alami.
+- **Integrated Score & Metric Bar pada Layar Detail**: Mengeliminasi 8 kotak metrik kecil terpisah (`MDLStatTile`). Menggantinya dengan satu panel skor terintegrasi yang menyatukan Skor Resmi MAL (⭐ 8.85), chip nilai pribadi, serta 3 kolom metrik ringkas (Peringkat, Popularitas, Anggota) yang mengalir rapi dengan pemisah hairline.
+- **Seamless Streaming-Style Tracker Rows pada Library & Discover**: Mengganti kartu anime/manga ber-padding tebal dengan baris media mulus berpemisah garis halus (`DividerSubtle`), menghadirkan pengalaman navigasi modern setara aplikasi streaming kelas dunia (Spotify, Apple TV, Crunchyroll).
+- **Palet Cyber Blue Tetap Terjaga**: Mempertahankan identitas warna **Electric Cyber Blue** (`#3B82F6`) untuk anime, **Deep Midnight Navy** (`#1D4ED8`) untuk manga, dan **AMOLED Black** (`#070B14`) yang hemat baterai.
+- **Preservasi Fungsionalitas & Test Suite 100%**: Seluruh 57 automated unit tests lulus 100% tanpa regresi logika.
+
+<details>
+<summary><b>Lihat Catatan Rilis Sebelumnya (v6.0.0)</b></summary>
 
 - **Arsitektur Visual Invisible Continuity**: Menghilangkan batasan kotak-kotak tebal (*cardification* dan *card-in-card anti-pattern*) yang memecah konsentrasi pengguna. Mengadopsi prinsip desain antarmuka kontemporer di mana konten mengalir alami melalui kedalaman kanvas (*elevation layering*), kontras tipografi hierarkis, dan pembatas mikro-subtle (`CardBorderSubtle` 12% alpha & `DividerSubtle` 8% alpha).
 - **Dasbor Seamless & Pemadatan Visual (Information Density)**:
@@ -305,6 +317,8 @@ Mulai versi `v4.4.1`, seluruh berkas APK rilis resmi **CA'NIM** dikompilasi seca
   - *Stats Screen*: Big Metric Cards dan diagram distribusi status mengadopsi border mikro-subtle.
   - *Floating Search Navigation*: Tombol pencarian navigasi bawah diperbarui agar selaras dengan estetika baru.
 - **Preservasi Fungsionalitas & Test Suite 100% (57 Unit Tests Lulus)**: Seluruh interaksi, test tags, quick actions, navigasi, dan integrasi API tetap bekerja sempurna tanpa regresi.
+
+</details>
 
 <details>
 <summary><b>Lihat Catatan Rilis Sebelumnya (v5.1.1)</b></summary>

@@ -842,21 +842,19 @@ fun DiscoverItemCard(
     onEditClick: (MediaItem) -> Unit = {}
 ) {
     val isManga = item.type == MediaType.MANGA
-    val itemBorder = if (isManga) MangaBorderStroke else AnimeBorderStroke
     val themeAccent = if (isManga) MangaAccentDarkBlue else AccentBlue
 
-    Card(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick(item) }
-            .testTag("discover_card_${item.malId}"),
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = ItemCardShape,
-        border = itemBorder
+            .testTag("discover_card_${item.malId}")
     ) {
         Row(
-            modifier = Modifier.padding(10.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             AsyncImage(
@@ -864,25 +862,24 @@ fun DiscoverItemCard(
                 contentDescription = item.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .size(width = 64.dp, height = 88.dp)
-                    .clip(ItemImageShape)
+                    .size(width = 62.dp, height = 88.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(CardElevated)
             )
 
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                // Title expanded to 2-3 lines (Request 3)
                 Text(
                     text = item.title,
                     color = TextPrimary,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 3,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // Retain rating, type, and studio (Request 3)
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -925,7 +922,6 @@ fun DiscoverItemCard(
                     }
                 }
 
-                // Retain genres (Request 3)
                 if (item.genres.isNotEmpty()) {
                     Text(
                         text = item.genresFormatted,
@@ -940,7 +936,7 @@ fun DiscoverItemCard(
             IconButton(
                 onClick = { if (isInLibrary) onEditClick(item) else onAddClick(item) },
                 modifier = Modifier
-                    .clip(ItemImageShape)
+                    .clip(RoundedCornerShape(8.dp))
                     .background(if (isInLibrary) AccentGreen.copy(alpha = 0.16f) else CardElevated)
                     .size(36.dp)
                     .testTag(if (isInLibrary) "discover_edit_btn_${item.malId}" else "discover_add_btn_${item.malId}")
@@ -948,10 +944,17 @@ fun DiscoverItemCard(
                 Icon(
                     imageVector = if (isInLibrary) Icons.Default.Edit else Icons.Default.Add,
                     contentDescription = if (isInLibrary) "Ubah Status" else "Tambah ke Koleksi",
-                    tint = if (isInLibrary) AccentGreen else themeAccent,
+                    tint = if (isInLibrary) AccentGreen else TextPrimary,
                     modifier = Modifier.size(18.dp)
                 )
             }
         }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(DividerSubtle)
+        )
     }
 }

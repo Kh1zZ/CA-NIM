@@ -347,18 +347,17 @@ fun AnimeLibraryCard(
     onQuickDecrement: (String) -> Unit = {},
     onClick: (UserMediaItem) -> Unit
 ) {
-    Card(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick(anime) }
-            .testTag("anime_card_${anime.id}"),
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = ItemCardShape,
-        border = ItemBorderStroke
+            .testTag("anime_card_${anime.id}")
     ) {
         Row(
-            modifier = Modifier.padding(10.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             AsyncImage(
@@ -366,13 +365,14 @@ fun AnimeLibraryCard(
                 contentDescription = anime.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .size(width = 64.dp, height = 88.dp)
-                    .clip(ItemImageShape)
+                    .size(width = 60.dp, height = 84.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(CardElevated)
             )
 
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                verticalArrangement = Arrangement.spacedBy(5.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -402,11 +402,11 @@ fun AnimeLibraryCard(
 
                 StatusPill(status = anime.status)
 
-                // Ultra lightweight progress bar without Canvas animation overhead
+                // Sleek progress bar
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(4.dp)
+                        .height(3.dp)
                         .clip(ProgressClipShape)
                         .background(CardElevated)
                 ) {
@@ -414,7 +414,7 @@ fun AnimeLibraryCard(
                         modifier = Modifier
                             .fillMaxWidth(fraction = anime.progressFrac)
                             .fillMaxHeight()
-                            .background(AccentGreen)
+                            .background(AccentBlue)
                     )
                 }
 
@@ -433,11 +433,11 @@ fun AnimeLibraryCard(
                     onClick = { onQuickDecrement(anime.id) },
                     enabled = anime.progress > 0,
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(30.dp)
                         .testTag("anime_decrement_btn_${anime.id}"),
                     colors = IconButtonDefaults.filledIconButtonColors(
                         containerColor = CardElevated,
-                        contentColor = AccentGreen,
+                        contentColor = AccentBlue,
                         disabledContainerColor = CardElevated.copy(alpha = 0.4f),
                         disabledContentColor = TextMuted.copy(alpha = 0.3f)
                     )
@@ -445,7 +445,7 @@ fun AnimeLibraryCard(
                     Icon(
                         imageVector = Icons.Default.Remove,
                         contentDescription = "Kurangi Progres",
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                 }
 
@@ -456,11 +456,11 @@ fun AnimeLibraryCard(
                     onClick = { onQuickAdd(anime.id) },
                     enabled = canIncrementAnime,
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(30.dp)
                         .testTag("anime_increment_btn_${anime.id}"),
                     colors = IconButtonDefaults.filledIconButtonColors(
                         containerColor = CardElevated,
-                        contentColor = AccentGreen,
+                        contentColor = AccentBlue,
                         disabledContainerColor = CardElevated.copy(alpha = 0.4f),
                         disabledContentColor = TextMuted.copy(alpha = 0.3f)
                     )
@@ -468,11 +468,18 @@ fun AnimeLibraryCard(
                     Icon(
                         imageVector = Icons.Default.Add,
                         contentDescription = "Tambah Progres",
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                 }
             }
         }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(DividerSubtle)
+        )
     }
 }
 
@@ -483,18 +490,17 @@ fun MangaLibraryCard(
     onQuickDecrement: (String) -> Unit = {},
     onClick: (UserMediaItem) -> Unit
 ) {
-    Card(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick(manga) }
-            .testTag("manga_card_${manga.id}"),
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = ItemCardShape,
-        border = ItemBorderStroke
+            .testTag("manga_card_${manga.id}")
     ) {
         Row(
-            modifier = Modifier.padding(10.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             AsyncImage(
@@ -502,13 +508,14 @@ fun MangaLibraryCard(
                 contentDescription = manga.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .size(width = 64.dp, height = 88.dp)
-                    .clip(ItemImageShape)
+                    .size(width = 60.dp, height = 84.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(CardElevated)
             )
 
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                verticalArrangement = Arrangement.spacedBy(5.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -538,11 +545,11 @@ fun MangaLibraryCard(
 
                 StatusPill(status = manga.status)
 
-                // Ultra lightweight progress bar without Canvas animation overhead
+                // Sleek progress bar
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(4.dp)
+                        .height(3.dp)
                         .clip(ProgressClipShape)
                         .background(CardElevated)
                 ) {
@@ -550,12 +557,12 @@ fun MangaLibraryCard(
                         modifier = Modifier
                             .fillMaxWidth(fraction = manga.progressChaptersFrac)
                             .fillMaxHeight()
-                            .background(Color(0xFF38BDF8))
+                            .background(MangaAccentDarkBlue)
                     )
                 }
 
                 Text(
-                    text = "Ch. ${manga.progressChapters}${if (manga.totalChapters > 0) "/${manga.totalChapters}" else ""}",
+                    text = "Ch. ${manga.progressChapters}/${if (manga.totalChapters > 0) manga.totalChapters else "?"}",
                     color = TextSecondary,
                     fontSize = 11.sp
                 )
@@ -569,11 +576,11 @@ fun MangaLibraryCard(
                     onClick = { onQuickDecrement(manga.id) },
                     enabled = manga.progressChapters > 0,
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(30.dp)
                         .testTag("manga_decrement_btn_${manga.id}"),
                     colors = IconButtonDefaults.filledIconButtonColors(
                         containerColor = CardElevated,
-                        contentColor = Color(0xFF38BDF8),
+                        contentColor = MangaAccentDarkBlue,
                         disabledContainerColor = CardElevated.copy(alpha = 0.4f),
                         disabledContentColor = TextMuted.copy(alpha = 0.3f)
                     )
@@ -581,7 +588,7 @@ fun MangaLibraryCard(
                     Icon(
                         imageVector = Icons.Default.Remove,
                         contentDescription = "Kurangi Progres",
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                 }
 
@@ -592,11 +599,11 @@ fun MangaLibraryCard(
                     onClick = { onQuickAdd(manga.id) },
                     enabled = canIncrementManga,
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(30.dp)
                         .testTag("manga_increment_btn_${manga.id}"),
                     colors = IconButtonDefaults.filledIconButtonColors(
                         containerColor = CardElevated,
-                        contentColor = Color(0xFF38BDF8),
+                        contentColor = MangaAccentDarkBlue,
                         disabledContainerColor = CardElevated.copy(alpha = 0.4f),
                         disabledContentColor = TextMuted.copy(alpha = 0.3f)
                     )
@@ -604,11 +611,18 @@ fun MangaLibraryCard(
                     Icon(
                         imageVector = Icons.Default.Add,
                         contentDescription = "Tambah Progres",
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(15.dp)
                     )
                 }
             }
         }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(DividerSubtle)
+        )
     }
 }
 
