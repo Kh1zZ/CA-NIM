@@ -38,7 +38,7 @@ private val ItemCardShape = RoundedCornerShape(12.dp)
 private val ItemImageShape = RoundedCornerShape(8.dp)
 private val ProgressClipShape = RoundedCornerShape(2.dp)
 private val PillShape = RoundedCornerShape(4.dp)
-private val ItemBorderStroke = BorderStroke(1.dp, CardBorder)
+private val ItemBorderStroke = BorderStroke(1.dp, CardBorderSubtle)
 
 @Composable
 fun LibraryScreen(
@@ -218,7 +218,7 @@ fun LibraryScreen(
                         border = FilterChipDefaults.filterChipBorder(
                             enabled = true,
                             selected = isSelected,
-                            borderColor = CardBorder,
+                            borderColor = CardBorderSubtle,
                             selectedBorderColor = AccentBlue
                         )
                     )
@@ -263,7 +263,7 @@ fun LibraryScreen(
                                 .background(if (isSelected) AccentBlue.copy(alpha = 0.2f) else CardBg)
                                 .border(
                                     1.dp,
-                                    if (isSelected) AccentBlue else CardBorder,
+                                    if (isSelected) AccentBlue else CardBorderSubtle,
                                     RoundedCornerShape(12.dp)
                                 )
                                 .clickable { onSelectSort(key) }

@@ -306,12 +306,10 @@ private fun StudioBioCard(
     var isExpanded by remember { mutableStateOf(false) }
     val uriHandler = LocalUriHandler.current
 
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .border(1.dp, CardBorder, RoundedCornerShape(14.dp)),
+    Surface(
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = CardBg)
+        color = CardBg
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -411,8 +409,7 @@ private fun FactBadge(
 ) {
     Surface(
         shape = RoundedCornerShape(8.dp),
-        color = CardElevated,
-        border = BorderStroke(1.dp, CardBorder)
+        color = CardElevated
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -561,7 +558,7 @@ private fun StudioMediaCard(
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = CardBg),
-        border = BorderStroke(1.dp, CardBorder)
+        border = BorderStroke(1.dp, CardBorderSubtle)
     ) {
         Column {
             Box(

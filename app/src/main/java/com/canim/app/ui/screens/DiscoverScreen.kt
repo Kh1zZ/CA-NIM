@@ -41,8 +41,8 @@ import com.canim.app.ui.viewmodel.CanimUiState
 
 private val ItemCardShape = RoundedCornerShape(12.dp)
 private val ItemImageShape = RoundedCornerShape(8.dp)
-private val AnimeBorderStroke = BorderStroke(1.dp, CardBorder)
-private val MangaBorderStroke = BorderStroke(1.dp, MangaCardBorder)
+private val AnimeBorderStroke = BorderStroke(1.dp, CardBorderSubtle)
+private val MangaBorderStroke = BorderStroke(1.dp, MangaCardBorder.copy(alpha = 0.45f))
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -171,7 +171,7 @@ fun DiscoverScreen(
                         border = FilterChipDefaults.filterChipBorder(
                             enabled = true,
                             selected = isSelected,
-                            borderColor = if (isStudio) AccentBlue.copy(alpha = 0.6f) else CardBorder,
+                            borderColor = if (isStudio) AccentBlue.copy(alpha = 0.4f) else CardBorderSubtle,
                             selectedBorderColor = AccentBlue
                         )
                     )

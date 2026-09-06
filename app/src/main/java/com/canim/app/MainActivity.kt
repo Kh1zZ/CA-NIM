@@ -173,7 +173,7 @@ class MainActivity : ComponentActivity() {
                                                     )
                                                     .border(
                                                         width = if (selected) 2.dp else 1.dp,
-                                                        color = if (selected) Color(0xFF60A5FA) else CardBorder,
+                                                        color = if (selected) Color(0xFF60A5FA) else CardBorderSubtle,
                                                         shape = CircleShape
                                                     ),
                                                 contentAlignment = Alignment.Center

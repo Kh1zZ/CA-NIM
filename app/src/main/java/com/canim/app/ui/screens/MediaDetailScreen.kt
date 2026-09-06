@@ -231,227 +231,203 @@ fun MediaDetailScreen(
                 }
             }
 
-            // Metrik & Statistik Utama (Rating MAL, Rating Pribadi, Peringkat, Popularitas, Anggota, Status Koleksi)
+            // Metrik & Statistik Utama (Seamless Continuous Metric Grid)
             item {
-                Card(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
-                        .offset(y = (-14).dp)
-                        .border(1.dp, CardBorder, RoundedCornerShape(16.dp)),
-                    colors = CardDefaults.cardColors(containerColor = CardBg),
-                    shape = RoundedCornerShape(16.dp)
+                        .offset(y = (-14).dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    Text(
+                        text = "METRIK & STATISTIK",
+                        color = TextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+
+                    // Baris 1: Rating MAL & Rating Pribadi
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            text = "METRIK & STATISTIK",
-                            color = TextSecondary,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp
+                        val effectiveScore = extendedDetail?.malScore
+                            ?: userItem?.metadata?.score
+                            ?: mediaItem?.score
+                        val scoreStr = if (effectiveScore != null && effectiveScore > 0) {
+                            String.format(java.util.Locale.US, "%.2f", effectiveScore)
+                        } else {
+                            "—"
+                        }
+                        MDLStatTile(
+                            icon = Icons.Default.Star,
+                            label = "Rating MAL",
+                            value = if (scoreStr == "—") scoreStr else "$scoreStr / 10",
+                            color = StarGold,
+                            modifier = Modifier.weight(1f)
                         )
 
-                        // Baris 1: Rating MAL & Rating Pribadi
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            val effectiveScore = extendedDetail?.malScore
-                                ?: userItem?.metadata?.score
-                                ?: mediaItem?.score
-                            val scoreStr = if (effectiveScore != null && effectiveScore > 0) {
-                                String.format(java.util.Locale.US, "%.2f", effectiveScore)
-                            } else {
-                                "—"
-                            }
-                            MDLStatTile(
-                                icon = Icons.Default.Star,
-                                label = "Rating MAL",
-                                value = if (scoreStr == "—") scoreStr else "$scoreStr / 10",
-                                color = StarGold,
-                                modifier = Modifier.weight(1f)
-                            )
+                        val userScore = userItem?.score ?: 0
+                        val userRatingStr = if (userScore > 0) "$userScore / 10" else "Belum Dinilai"
+                        MDLStatTile(
+                            icon = Icons.Default.Person,
+                            label = "Rating Pribadi",
+                            value = userRatingStr,
+                            color = if (userScore > 0) StarGold else TextMuted,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
 
-                            val userScore = userItem?.score ?: 0
-                            val userRatingStr = if (userScore > 0) "$userScore / 10" else "Belum Dinilai"
-                            MDLStatTile(
-                                icon = Icons.Default.Person,
-                                label = "Rating Pribadi",
-                                value = userRatingStr,
-                                color = if (userScore > 0) StarGold else TextMuted,
-                                modifier = Modifier.weight(1f)
-                            )
+                    // Baris 2: Peringkat & Popularitas
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val effectiveRank = extendedDetail?.malRank ?: extendedDetail?.rank
+                        val rankStr = if (effectiveRank != null && effectiveRank > 0) "#${formatCompactNumber(effectiveRank)}" else "—"
+                        MDLStatTile(
+                            icon = Icons.Default.EmojiEvents,
+                            label = "Peringkat",
+                            value = rankStr,
+                            color = AccentBlue,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        val effectivePopularity = extendedDetail?.malPopularity ?: extendedDetail?.popularity
+                        val popStr = if (effectivePopularity != null && effectivePopularity > 0) "#${formatCompactNumber(effectivePopularity)}" else "—"
+                        MDLStatTile(
+                            icon = Icons.AutoMirrored.Filled.TrendingUp,
+                            label = "Popularitas",
+                            value = popStr,
+                            color = AccentGreen,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    // Baris 3: Status Koleksi & Anggota
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val currentStatusName = if (userItem != null) {
+                            currentStatusOptions.firstOrNull { it.first == userItem.status }?.second ?: userItem.status
+                        } else {
+                            "Belum Ada di List"
                         }
+                        MDLStatTile(
+                            icon = Icons.Default.Bookmark,
+                            label = "Status Koleksi",
+                            value = currentStatusName,
+                            color = if (userItem != null) themeAccent else TextMuted,
+                            modifier = Modifier.weight(1f)
+                        )
 
-                        // Baris 2: Peringkat & Popularitas
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            val effectiveRank = extendedDetail?.malRank ?: extendedDetail?.rank
-                            val rankStr = if (effectiveRank != null && effectiveRank > 0) "#${formatCompactNumber(effectiveRank)}" else "—"
-                            MDLStatTile(
-                                icon = Icons.Default.EmojiEvents,
-                                label = "Peringkat",
-                                value = rankStr,
-                                color = AccentBlue,
-                                modifier = Modifier.weight(1f)
-                            )
-
-                            val effectivePopularity = extendedDetail?.malPopularity ?: extendedDetail?.popularity
-                            val popStr = if (effectivePopularity != null && effectivePopularity > 0) "#${formatCompactNumber(effectivePopularity)}" else "—"
-                            MDLStatTile(
-                                icon = Icons.AutoMirrored.Filled.TrendingUp,
-                                label = "Popularitas",
-                                value = popStr,
-                                color = AccentGreen,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-
-                        // Baris 3: Status Koleksi & Anggota
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            val currentStatusName = if (userItem != null) {
-                                currentStatusOptions.firstOrNull { it.first == userItem.status }?.second ?: userItem.status
-                            } else {
-                                "Belum Ada di List"
-                            }
-                            MDLStatTile(
-                                icon = Icons.Default.Bookmark,
-                                label = "Status Koleksi",
-                                value = currentStatusName,
-                                color = if (userItem != null) themeAccent else TextMuted,
-                                modifier = Modifier.weight(1f)
-                            )
-
-                            val effectiveMembers = extendedDetail?.malMembers ?: extendedDetail?.watchers
-                            val membersStr = if (effectiveMembers != null && effectiveMembers > 0) formatCompactNumber(effectiveMembers) else "—"
-                            MDLStatTile(
-                                icon = Icons.Default.People,
-                                label = "Anggota",
-                                value = membersStr,
-                                color = Color(0xFFA855F7),
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
+                        val effectiveMembers = extendedDetail?.malMembers ?: extendedDetail?.watchers
+                        val membersStr = if (effectiveMembers != null && effectiveMembers > 0) formatCompactNumber(effectiveMembers) else "—"
+                        MDLStatTile(
+                            icon = Icons.Default.People,
+                            label = "Anggota",
+                            value = membersStr,
+                            color = Color(0xFFA855F7),
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
             }
 
-            // Synopsis Card
+            // Synopsis Section (Continuous Flow without Cardification)
             item {
-                Card(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .border(1.dp, CardBorder, RoundedCornerShape(14.dp)),
-                    colors = CardDefaults.cardColors(containerColor = CardBg),
-                    shape = RoundedCornerShape(14.dp)
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
+                    Text(
+                        text = "SINOPSIS",
+                        color = TextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+
+                    Text(
+                        text = cleanSynopsis.ifBlank { "Sinopsis tidak tersedia." },
+                        color = TextPrimary,
+                        fontSize = 13.sp,
+                        lineHeight = 21.sp,
+                        maxLines = if (isSynopsisExpanded) Int.MAX_VALUE else 4,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    if (cleanSynopsis.length > 180) {
                         Text(
-                            text = "SINOPSIS",
-                            color = TextSecondary,
-                            fontSize = 11.sp,
+                            text = if (isSynopsisExpanded) "Tutup Sinopsis" else "Baca Selengkapnya...",
+                            color = themeAccent,
+                            fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp
+                            modifier = Modifier
+                                .clickable { isSynopsisExpanded = !isSynopsisExpanded }
+                                .padding(vertical = 4.dp)
                         )
-
-                        Text(
-                            text = cleanSynopsis.ifBlank { "Sinopsis tidak tersedia." },
-                            color = TextPrimary,
-                            fontSize = 13.sp,
-                            lineHeight = 20.sp,
-                            maxLines = if (isSynopsisExpanded) Int.MAX_VALUE else 4,
-                            overflow = TextOverflow.Ellipsis
-                        )
-
-                        if (cleanSynopsis.length > 180) {
-                            Text(
-                                text = if (isSynopsisExpanded) "Tutup Sinopsis" else "Baca Selengkapnya...",
-                                color = themeAccent,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier
-                                    .clickable { isSynopsisExpanded = !isSynopsisExpanded }
-                                    .padding(vertical = 4.dp)
-                            )
-                        }
                     }
                 }
             }
 
-            // Media Details Table Card
+            // Media Details Table Section (Continuous Key-Value Flow)
             item {
-                Spacer(modifier = Modifier.height(12.dp))
-                Card(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .border(1.dp, CardBorder, RoundedCornerShape(14.dp)),
-                    colors = CardDefaults.cardColors(containerColor = CardBg),
-                    shape = RoundedCornerShape(14.dp)
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = "INFORMASI DETAIL",
-                            color = TextSecondary,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp
+                    Text(
+                        text = "INFORMASI DETAIL",
+                        color = TextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+
+                    val studio = extendedDetail?.studio ?: userItem?.studio ?: mediaItem?.studio
+                    if (!studio.isNullOrBlank()) {
+                        val studioId = extendedDetail?.studioId
+                        val canOpenStudio = isAnime && studioId != null && onOpenStudio != null
+                        DetailRowItem(
+                            label = if (isAnime) "Studio" else "Penerbit/Author",
+                            value = studio,
+                            isClickable = canOpenStudio,
+                            onClick = if (canOpenStudio) { { onOpenStudio?.invoke(studioId!!, studio) } } else null
                         )
+                    }
 
-                        val studio = extendedDetail?.studio ?: userItem?.studio ?: mediaItem?.studio
-                        if (!studio.isNullOrBlank()) {
-                            val studioId = extendedDetail?.studioId
-                            val canOpenStudio = isAnime && studioId != null && onOpenStudio != null
-                            DetailRowItem(
-                                label = if (isAnime) "Studio" else "Penerbit/Author",
-                                value = studio,
-                                isClickable = canOpenStudio,
-                                onClick = if (canOpenStudio) { { onOpenStudio?.invoke(studioId!!, studio) } } else null
-                            )
-                        }
+                    val duration = extendedDetail?.durationMinutes
+                    if (duration != null && duration > 0) {
+                        DetailRowItem(label = "Durasi", value = "$duration Menit/Ep")
+                    }
 
-                        val duration = extendedDetail?.durationMinutes
-                        if (duration != null && duration > 0) {
-                            DetailRowItem(label = "Durasi", value = "$duration Menit/Ep")
-                        }
+                    val airingStatus = extendedDetail?.airingStatus ?: userItem?.airingStatus ?: mediaItem?.status
+                    if (!airingStatus.isNullOrBlank()) {
+                        DetailRowItem(label = "Status", value = airingStatus)
+                    }
 
-                        val airingStatus = extendedDetail?.airingStatus ?: userItem?.airingStatus ?: mediaItem?.status
-                        if (!airingStatus.isNullOrBlank()) {
-                            DetailRowItem(label = "Status", value = airingStatus)
-                        }
+                    val startDate = extendedDetail?.startDate ?: userItem?.metadata?.year?.toString()
+                    if (!startDate.isNullOrBlank()) {
+                        DetailRowItem(label = "Tanggal Rilis", value = startDate)
+                    }
 
-                        val startDate = extendedDetail?.startDate ?: userItem?.metadata?.year?.toString()
-                        if (!startDate.isNullOrBlank()) {
-                            DetailRowItem(label = "Tanggal Rilis", value = startDate)
-                        }
+                    val endDate = extendedDetail?.endDate
+                    if (!endDate.isNullOrBlank()) {
+                        DetailRowItem(label = "Tanggal Selesai", value = endDate)
+                    }
 
-                        val endDate = extendedDetail?.endDate
-                        if (!endDate.isNullOrBlank()) {
-                            DetailRowItem(label = "Tanggal Selesai", value = endDate)
-                        }
-
-                        val genres = extendedDetail?.genres?.takeIf { it.isNotEmpty() }
-                            ?: userItem?.metadata?.genres ?: mediaItem?.genres ?: emptyList()
-                        if (genres.isNotEmpty()) {
-                            DetailRowItem(label = "Genre", value = genres.joinToString(", "))
-                        }
+                    val genres = extendedDetail?.genres?.takeIf { it.isNotEmpty() }
+                        ?: userItem?.metadata?.genres ?: mediaItem?.genres ?: emptyList()
+                    if (genres.isNotEmpty()) {
+                        DetailRowItem(label = "Genre", value = genres.joinToString(", "))
                     }
                 }
             }
@@ -990,9 +966,8 @@ private fun MDLStatTile(
 ) {
     Surface(
         modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
-        color = CardElevated,
-        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
+        shape = RoundedCornerShape(10.dp),
+        color = CardBg
     ) {
         Row(
             modifier = Modifier

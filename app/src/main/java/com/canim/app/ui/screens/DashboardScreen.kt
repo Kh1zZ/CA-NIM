@@ -240,15 +240,15 @@ fun DashboardScreen(
 
         // MAL Sync Banner
         item {
-            Card(
+            Surface(
                 modifier = Modifier
                     .fillMaxWidth()
                     .border(
                         1.dp,
-                        if (state.malUser.isLoggedIn) Color(0xFF2E51A2).copy(alpha = 0.6f) else CardBorder,
+                        if (state.malUser.isLoggedIn) Color(0xFF2E51A2).copy(alpha = 0.35f) else CardBorderSubtle,
                         RoundedCornerShape(14.dp)
                     ),
-                colors = CardDefaults.cardColors(containerColor = CardBg),
+                color = CardBg,
                 shape = RoundedCornerShape(14.dp)
             ) {
                 if (state.malUser.isLoggedIn) {
@@ -416,9 +416,9 @@ fun DashboardScreen(
             }
         }
 
-        // Simplified Stats Overview (4 Metrics Only) & More Button
+        // Integrated Stats Overview (Seamless Continuous Metric Presentation)
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -452,7 +452,7 @@ fun DashboardScreen(
                     }
                 }
 
-                // 4-Metric Grid (2 rows x 2 columns)
+                // 4-Metric Grid with Seamless Continuity Surfaces
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -497,19 +497,19 @@ fun DashboardScreen(
                     )
                 }
 
-                // Full Details Action Banner
-                Card(
+                // Full Details Action Banner (Seamless Surface with subtle border)
+                Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
+                        .border(1.dp, CardBorderSubtle, RoundedCornerShape(12.dp))
                         .clickable(onClick = onOpenStats),
-                    colors = CardDefaults.cardColors(containerColor = CardBg),
+                    color = CardBg,
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                            .padding(horizontal = 14.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -557,7 +557,7 @@ fun DashboardScreen(
                     .border(
                         1.dp,
                         Brush.horizontalGradient(
-                            listOf(AccentBlue.copy(alpha = 0.6f), Color(0xFF8B5CF6).copy(alpha = 0.6f))
+                            listOf(AccentBlue.copy(alpha = 0.35f), Color(0xFF8B5CF6).copy(alpha = 0.35f))
                         ),
                         RoundedCornerShape(14.dp)
                     )
@@ -810,9 +810,9 @@ fun StatCard(
     iconColor: Color,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        modifier = modifier.border(1.dp, CardBorder, RoundedCornerShape(12.dp)),
-        colors = CardDefaults.cardColors(containerColor = CardBg),
+    Surface(
+        modifier = modifier,
+        color = CardBg,
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(
@@ -840,7 +840,7 @@ fun StatCard(
             Text(
                 text = value,
                 color = TextPrimary,
-                fontSize = 16.sp,
+                fontSize = 17.sp,
                 fontWeight = FontWeight.ExtraBold
             )
             Text(
@@ -864,7 +864,7 @@ fun WatchingCard(
     Card(
         modifier = Modifier
             .width(160.dp)
-            .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
+            .border(1.dp, CardBorderSubtle, RoundedCornerShape(12.dp))
             .clickable { onClick() }
             .testTag("watching_card_${anime.id}"),
         colors = CardDefaults.cardColors(containerColor = CardBg),
@@ -974,7 +974,7 @@ fun ReadingCard(
     Card(
         modifier = Modifier
             .width(160.dp)
-            .border(1.dp, MangaCardBorder, RoundedCornerShape(12.dp))
+            .border(1.dp, MangaCardBorder.copy(alpha = 0.45f), RoundedCornerShape(12.dp))
             .clickable { onClick() }
             .testTag("reading_card_${manga.id}"),
         colors = CardDefaults.cardColors(containerColor = CardBg),

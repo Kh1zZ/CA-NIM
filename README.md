@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases/latest"><img src="https://img.shields.io/badge/Download-APK%20(v5.1.1)-10B981.svg?style=for-the-badge&logo=android" alt="Download APK"></a>
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v5.1.1-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases/latest"><img src="https://img.shields.io/badge/Download-APK%20(v6.0.0)-10B981.svg?style=for-the-badge&logo=android" alt="Download APK"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.0.0-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#-fitur-utama"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#-arsitektur-dan-prinsip-desain"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
@@ -26,7 +26,7 @@ Dapatkan rilis resmi **CA'NIM** siap pasang langsung dari halaman rilis GitHub:
 
 | Berkas | Tipe | Arsitektur | Kebutuhan Minimum | Tautan |
 | :--- | :---: | :---: | :---: | :---: |
-| **`canim-universal-release-v5.1.1.apk`** | **Release** | **Universal** (`arm64-v8a`, `armeabi-v7a`, `x86_64`) | Android 7.0+ (API 24+) | [👉 Unduh APK Rilis](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
+| **`canim-universal-release-v6.0.0.apk`** | **Release** | **Universal** (`arm64-v8a`, `armeabi-v7a`, `x86_64`) | Android 7.0+ (API 24+) | [👉 Unduh APK Rilis](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
 | **`SHA256SUMS.txt`** | **Checksum** | — | — | [👉 Verifikasi Checksum](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
 
 > 💡 **Catatan Instalasi**: APK Release dikompilasi secara universal oleh GitHub Actions CI/CD, bebas dari bloatware/tracker, dan telah dioptimalkan secara penuh menggunakan R8 Minifier untuk pengalaman scrolling terbaik.
@@ -127,6 +127,40 @@ CA'NIM dibangun dengan arsitektur modern yang memisahkan tanggung jawab secara t
 2. **AniList GraphQL sebagai Sumber Metadata Utama**: Sinopsis lengkap, poster HD, studio animasi, genre, dan format serial diambil langsung via AniList GraphQL API secara efisien (*batching up to 50 items*).
 3. **MediaResolver Terpusat & Pemisahan ID (`MediaRef`)**: Memisahkan secara ketat namespace `anilistId` dan `malId` tanpa fabrikasi ID tiruan.
 4. **Optimistic UI dengan Garansi Rollback**: Tombol +1 episode/chapter langsung memperbarui tampilan antarmuka seketika (*50 ms perceived latency*). Jika terjadi kegagalan jaringan, status otomatis di-*rollback* ke kondisi semula disertai notifikasi jelas.
+
+---
+
+## 🌌 Arsitektur Visual: Invisible Continuity (v6.0.0)
+
+Mulai rilis **v6.0.0**, CA'NIM melakukan transformasi bahasa desain fundamental dari pendekatan **Containment-First** (kotak berbingkai kaku di setiap kelompok informasi) menuju **Continuity-First** berbasis filosofi:
+
+> **"Invisible by default, explicit by necessity."**
+
+Struktur antarmuka tidak lagi bergantung pada kontainer bersarang (*nested cards*) atau garis tepi eksplisit (*borders*) untuk memisahkan informasi, melainkan mengandalkan **proximity (jarak kedekatan), whitespace (ruang negatif), alignment (keselarasan tepi), tipografi kontras tinggi, dan hubungan permukaan tonal**.
+
+```text
+┌────────────────────────────────────────┐       ┌────────────────────────────────────────┐
+│        SEBELUM (Containment-First)     │       │     v6.0.0 (Invisible Continuity)      │
+├────────────────────────────────────────┤       ├────────────────────────────────────────┤
+│ ┌────────────────────────────────────┐ │       │ Poster   Judul Anime                   │
+│ │ Card: Ringkasan Informasi          │ │       │          Metadata                      │
+│ │ ┌─────────┐ ┌────────────────────┐ │ │       │                                        │
+│ │ │ Card 1  │ │ Card 2             │ │ │ ────► │ SINOPSIS                               │
+│ │ └─────────┘ └────────────────────┘ │ │       │ Sinopsis mengalir alami tanpa kotak... │
+│ └────────────────────────────────────┘ │       │                                        │
+│ ┌────────────────────────────────────┐ │       │ 8.7            24            Finished  │
+│ │ Card: Sinopsis                     │ │       │ Score          Episodes      Status    │
+│ └────────────────────────────────────┘ │       │                                        │
+│ (Borders & Cards everywhere)           │ │       │ (Seamless rhythm, explicit for actions)│
+└────────────────────────────────────────┘       └────────────────────────────────────────┘
+```
+
+### Prinsip Utama Sistem Visual:
+1. **Seamless Metric Flow**: Metrik statistik pada Dasbor dan Halaman Detail tidak lagi dipenjara dalam 4 kotak terpisah dengan border kaku, melainkan menyatu harmonis menggunakan tipografi angka tebal (*extra bold*) dan label jelas.
+2. **Eliminasi Card-in-Card**: Menghapus anti-pattern kartu di dalam kartu pada layar detail. Sinopsis, metadata, dan metrik mengalir alami membentuk ritme pembacaan yang tenang dan elegan.
+3. **Continuous Studio Identity**: Header studio dan kartu biografi dipadukan menjadi satu kesatuan visual yang mengalir dari poster hero banner hingga statistik fakta studio.
+4. **Selective Explicit Boxing**: Garis tepi eksplisit dan kartu fisik hanya dipertahankan pada elemen yang membutuhkan kejelasan affordance interaksi: tombol form, input field, chip filter, kartu media anime/manga katalog, dan modal dialog.
+5. **Subtle Design Tokens**: Memperkenalkan token permukaan halus `CardBorderSubtle` (`0x1F334155`), `DividerSubtle` (`0x1494A3B8`), dan `SurfaceSubtle` (`0x0CFFFFFF`) untuk mereduksi visual noise hingga 70%.
 
 ---
 
@@ -252,12 +286,35 @@ Mulai versi `v4.4.1`, seluruh berkas APK rilis resmi **CA'NIM** dikompilasi seca
 
 ---
 
-## 📝 Catatan Rilis Terbaru (v5.1.1)
+## 📝 Catatan Rilis Terbaru (v6.0.0)
+
+- **Arsitektur Visual Invisible Continuity**: Menghilangkan batasan kotak-kotak tebal (*cardification* dan *card-in-card anti-pattern*) yang memecah konsentrasi pengguna. Mengadopsi prinsip desain antarmuka kontemporer di mana konten mengalir alami melalui kedalaman kanvas (*elevation layering*), kontras tipografi hierarkis, dan pembatas mikro-subtle (`CardBorderSubtle` 12% alpha & `DividerSubtle` 8% alpha).
+- **Dasbor Seamless & Pemadatan Visual (Information Density)**:
+  - *Ringkasan Statistik*: Ditransformasikan dari 4 kotak terisolasi ber-border tebal menjadi blok metrik seamless yang tenang dan menyatu mulus dengan kanvas latar belakang.
+  - *MAL Sync Banner & Aksi Cepat*: Mengalir alami dengan aksen warna brand yang elegan tanpa outline tebal yang kaku.
+  - *Kartu Sedang Ditonton / Dibaca*: Transisi visual lembut dengan border mikro-subtle dan thumbnail tajam beraksen dinamis.
+- **Penyempurnaan Layar Detail Media (MediaDetailScreen)**:
+  - *Metrik & Skor*: Menghapus kontainer card pembungkus dan garis kotak kaku pada grid skor MAL, peringkat, dan popularitas. Metrik kini tersaji dalam grid kontinu berlatar belakang elevasi lembut.
+  - *Sinopsis Alami*: Teks sinopsis kini mengalir bebas di bawah judul seksi dengan tombol ekspansi "Baca Selengkapnya...", menghilangkan rasa sesak dari kotak tertutup.
+  - *Informasi Detail*: Metadata rilis disajikan dalam aliran key-value yang lapang dan terstruktur rapi.
+- **Studio Bio & Filmografi Kontemporer**:
+  - Kartu biografi studio dan lencana *quick facts* beralih ke surface seamless tanpa garis tepi tebal.
+  - Grid filmografi menggunakan kartu poster dengan pembatas mikro-subtle untuk memfokuskan pandangan pada visual seni anime.
+- **Harmonisasi Seluruh Antarmuka Aplikasi**:
+  - *Library & Discover Screen*: Filter chips, sort selector, dan kartu media anime/manga diperhalus dengan token visual Invisible Continuity.
+  - *Stats Screen*: Big Metric Cards dan diagram distribusi status mengadopsi border mikro-subtle.
+  - *Floating Search Navigation*: Tombol pencarian navigasi bawah diperbarui agar selaras dengan estetika baru.
+- **Preservasi Fungsionalitas & Test Suite 100% (57 Unit Tests Lulus)**: Seluruh interaksi, test tags, quick actions, navigasi, dan integrasi API tetap bekerja sempurna tanpa regresi.
+
+<details>
+<summary><b>Lihat Catatan Rilis Sebelumnya (v5.1.1)</b></summary>
 
 - **Pencarian Studio Dinamis (Live Studio Search AniList)**: Menghilangkan pembatasan 16 studio lokal pada menu Discover. Pengguna kini dapat mencari nama studio animasi apa pun di dunia secara langsung dari database global AniList (`Page.studios(search: $search)`). Dilengkapi pencarian lokal instan 0ms dari database kurasi `StudioBioRegistry` yang berpadu mulus dengan hasil kueri live AniList lengkap dengan poster karya terpopuler.
 - **Koreksi ID Resmi Studio AniList & Deteksi Karya A-1 Pictures**: Memperbaiki bug kritis di mana filmografi A-1 Pictures tidak terdeteksi (sebelumnya ID `56` yang tidak ada di AniList dan mengembalikan 404, kini diperbaiki ke ID resmi **`561`** dengan 500+ anime seperti *Solo Leveling*, *Sword Art Online*, *Kaguya-sama*, dan *86*). Juga mengoreksi ID resmi AniList untuk CloverWorks (**`6222`**), CoMix Wave Films (**`291`**), dan Kinema Citrus (**`290`**).
 - **Penghapusan Pembatasan `isMain: true` pada Filmografi**: Menghapus parameter restriktif `isMain: true` pada kueri GraphQL `getStudioFilmography` sehingga seluruh karya anime yang diproduksi maupun hasil kolaborasi (*co-production*) tampil utuh tanpa ada yang terlewat.
 - **Peningkatan Test Suite (Total 57 Unit Tests)**: Menambahkan unit test baru untuk verifikasi integritas ID studio dan bio kurasi pada `StudioRegistryAndSearchTest` (seluruh 57 automated unit test lulus 100%).
+
+</details>
 
 <details>
 <summary><b>Lihat Catatan Rilis Sebelumnya (v5.1.0)</b></summary>

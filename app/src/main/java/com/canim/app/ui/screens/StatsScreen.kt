@@ -487,7 +487,7 @@ private fun BigMetricCard(
     accentColor: Color
 ) {
     Card(
-        modifier = modifier.border(1.dp, CardBorder, RoundedCornerShape(14.dp)),
+        modifier = modifier.border(1.dp, CardBorderSubtle, RoundedCornerShape(14.dp)),
         colors = CardDefaults.cardColors(containerColor = CardBg),
         shape = RoundedCornerShape(14.dp)
     ) {
@@ -546,7 +546,7 @@ private fun StatusPieChartCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, CardBorder, RoundedCornerShape(16.dp)),
+            .border(1.dp, CardBorderSubtle, RoundedCornerShape(16.dp)),
         colors = CardDefaults.cardColors(containerColor = CardBg),
         shape = RoundedCornerShape(16.dp)
     ) {

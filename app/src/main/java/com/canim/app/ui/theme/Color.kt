@@ -7,6 +7,9 @@ val BlackBg = Color(0xFF070B14)
 val CardBg = Color(0xFF0F172A)
 val CardElevated = Color(0xFF1E293B)
 val CardBorder = Color(0xFF25334A)
+val CardBorderSubtle = Color(0x1F334155) // Refined subtle border for independent objects
+val DividerSubtle = Color(0x1494A3B8)    // Hairline divider for continuous content
+val SurfaceSubtle = Color(0x0CFFFFFF)    // Gentle tonal background for seamless metric blocks
 
 // Electric / Dodger Blue Primary Accent
 val AccentBlue = Color(0xFF3B82F6)
