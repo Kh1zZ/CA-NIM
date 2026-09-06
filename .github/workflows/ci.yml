@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -17,8 +17,10 @@ permissions:
 jobs:
   test-and-build-debug:
     name: Test & Build Debug
+    # Mencegah duplikasi: jika branch internal di repo yang sama sudah dipicu oleh event 'push', skip event 'pull_request'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
 
     steps:
       - name: Checkout Code
@@ -29,7 +31,11 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle'
+
+      - name: Setup Gradle Build Cache & Acceleration
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
 
       - name: Prepare Gradle Environment
         run: |
@@ -37,11 +43,8 @@ jobs:
           # Remove local developer machine JDK override if present
           sed -i '/org.gradle.java.home/d' gradle.properties
 
-      - name: Run Unit Tests
-        run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
-
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+      - name: Run Tests & Compile Debug APK (Parallel with Build Cache)
+        run: ./gradlew testDebugUnitTest assembleDebug --build-cache --parallel --stacktrace
 
       - name: Validate Debug APK Output
         id: apk_check
@@ -64,3 +67,4 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 14
+          compression-level: 1
