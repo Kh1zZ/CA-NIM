@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -18,7 +18,7 @@ jobs:
   test-and-build-debug:
     name: Test & Build Debug
     # Mencegah duplikasi: jika branch internal di repo yang sama sudah dipicu oleh event 'push', skip event 'pull_request'
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name != github.repository
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository)
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
@@ -71,24 +71,21 @@ jobs:
 
       - name: Publish Direct Debug APK Pre-release
         if: (github.ref_name == 'debug' || github.ref_name == 'dev') && github.repository == 'Kh1zZ/CA-NIM'
+        continue-on-error: true
+        uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG_NAME: "debug-build"
-        run: |
-          VERSION_NAME="${{ steps.apk_check.outputs.version_name }}"
-          APK_FILE="app/build/outputs/apk/debug/canim-debug-${VERSION_NAME}.apk"
+        with:
+          tag_name: debug-build
+          name: "CA'NIM Debug Build (${{ steps.apk_check.outputs.version_name }})"
+          prerelease: true
+          make_latest: false
+          target_commitish: ${{ github.sha }}
+          files: app/build/outputs/apk/debug/canim-debug-*.apk
+          body: |
+            ### 🧪 CA'NIM Rolling Debug Build (${{ steps.apk_check.outputs.version_name }})
 
-          echo "Publishing direct debug APK to GitHub Pre-release ($TAG_NAME)..."
-          gh release delete "$TAG_NAME" --cleanup-tag --yes 2>/dev/null || true
-          gh release create "$TAG_NAME" "$APK_FILE" \
-            --title "CA'NIM Debug Build (${VERSION_NAME})" \
-            --notes "### 🧪 CA'NIM Rolling Debug Build (${VERSION_NAME})
+            Branch: `${{ github.ref_name }}` • Commit: [`${{ github.sha }}`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
 
-Branch: \`${{ github.ref_name }}\` • Commit: [\`${{ github.sha }}\`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
-
-> [!TIP]
-> **Direct APK Download**: Klik langsung pada file **\`canim-debug-${VERSION_NAME}.apk\`** di bagian Assets bawah untuk mengunduh dan memasang di HP tanpa ekstrak zip!
-" \
-            --prerelease
-          echo "Direct Debug APK pre-release published successfully!"
+            > [!TIP]
+            > **Direct APK Download**: Unduh langsung file APK di bagian Assets bawah tanpa perlu mengekstrak zip!
