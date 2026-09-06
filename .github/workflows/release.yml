@@ -148,6 +148,13 @@ jobs:
           cat SHA256SUMS.txt
           cd ..
 
+      - name: Upload Release Assets Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: canim-universal-release-${{ steps.version_check.outputs.version_name }}
+          path: release-dist/
+          if-no-files-found: error
+
       - name: Generate Automated Release Notes
         env:
           TARGET_TAG: ${{ steps.version_check.outputs.version_name }}
@@ -263,6 +270,7 @@ jobs:
       - name: Publish GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ steps.version_check.outputs.version_name }}
         run: |
           echo "Publishing GitHub Release for tag $TAG_NAME..."
@@ -272,6 +280,8 @@ jobs:
               "release-dist/canim-universal-release-${TAG_NAME}.apk" \
               "release-dist/SHA256SUMS.txt" \
               --clobber
+            echo "Ensuring release is published (not draft)..."
+            gh release edit "$TAG_NAME" --draft=false || true
           else
             echo "Creating new GitHub Release for tag $TAG_NAME..."
             gh release create "$TAG_NAME" \
