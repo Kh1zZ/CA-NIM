@@ -70,6 +70,8 @@ Logo resmi **CA'NIM** (`art/logo.png`) adalah karya seni beresolusi tinggi (1254
 | **📊 Ekspor Statistik Multi-Rasio** | Ekspor infografis koleksi dengan pilihan rasio fleksibel (`9:16 Story`, `4:5`, `3:4`, `1:1`, `16:9 Landscape`), kartu cover anti-stretch (*center-crop*), profil MAL, dan Pie Chart resolusi tinggi. |
 | **🎯 Algoritma Filter Top 5 Non-Sekuel** | Algoritma pintar yang secara otomatis mendeteksi dan mengecualikan sekuel dari waralaba yang sama agar tidak mendominasi peringkat Top 5. |
 | **🔐 Login MAL via OAuth 2.0 PKCE** | Autentikasi aman tanpa menyimpan sandi pengguna. Token tersimpan aman terenkripsi menggunakan **Android Keystore** (`EncryptedSharedPreferences`). |
+| **🔄 Pengecek Pembaruan In-App** | Cek rilis terbaru langsung dari menu Pengaturan dengan opsi auto-check periodik (24 jam) terintegrasi GitHub Releases API dan semver parser. |
+| **🛡️ Guard Progres & Anti-Exploit** | Proteksi otomatis batas maksimal episode/chapter dan penonaktifan tombol progres saat selesai untuk mencegah farming kuota tiket gacha ilegal. |
 | **🧹 Pembersih Cache Cerdas** | Kelola pembersihan disk mandiri di Pengaturan: bersihkan cache gambar Coil, cache metadata GraphQL AniList, atau reset cache menyeluruh tanpa logout dari MAL. |
 
 ---
@@ -167,18 +169,18 @@ ca-nim ft gemini/
 │       │   │   ├── data/
 │       │   │   │   ├── cache/             # CacheManager (In-memory LRU + TTL)
 │       │   │   │   ├── local/             # MalSecureStorage (EncryptedSharedPreferences)
-│       │   │   │   ├── model/             # MediaModels, MalModels, GraphQL Models
-│       │   │   │   ├── remote/            # ApiClient, MalApiService, AniListClient
-│       │   │   │   ├── repository/        # CanimRepository, MalAuthManager
+│       │   │   │   ├── model/             # MediaModels, MalModels, StudioModels, GraphQL Models
+│       │   │   │   ├── remote/            # ApiClient, MalApiService, AniListClient, UpdateChecker
+│       │   │   │   ├── repository/        # CanimRepository, MalAuthManager, StudioBioRegistry, GachaCreditManager
 │       │   │   │   └── resolver/          # MediaResolver (Pemetaan AniList ↔ MAL ID)
 │       │   │   ├── ui/
-│       │   │   │   ├── screens/           # Dashboard, Library, Search, Discover, MediaDetail,
-│       │   │   │   │                      # CastCrewProfile, StudioFilmography, StatsScreen, StatsExporter
+│       │   │   │   ├── screens/           # Dashboard, Library, Search, Discover, MediaDetail, FlashcardScreen,
+│       │   │   │   │                      # CastCrewProfile, StudioFilmography, StatsScreen, StatsExporter, SettingsScreen
 │       │   │   │   ├── theme/             # Palet warna cyber dark, Tipografi, Shape
 │       │   │   │   └── viewmodel/         # CanimViewModel & Factory
 │       │   │   └── util/                  # AnimeFranchiseFilter, TextSanitizer
 │       │   └── res/                       # Vektor drawables (ic_app_logo), mipmap, values
-│       └── test/                          # 34 Automated unit tests (8 test suites)
+│       └── test/                          # 51 Automated unit tests (12 test suites)
 ├── art/
 │   └── logo.png                           # Aset visual master resolusi tinggi (1254x1254 px)
 ├── fastlane/                              # Metadata F-Droid standar (en-US title, desc, icon, changelog)
@@ -237,15 +239,16 @@ Bagi pengembang yang ingin memodifikasi atau mengompilasi APK secara mandiri:
 Mulai versi `v4.4.1`, seluruh berkas APK rilis resmi **CA'NIM** dikompilasi secara eksklusif dan otomatis oleh **GitHub Actions** (tidak dikompilasi manual di mesin lokal):
 
 - **CI Pipeline (`.github/workflows/ci.yml`)**: Berjalan pada setiap pull request dan push ke branch `main`, menjalankan unit test otomatis (`./gradlew testDebugUnitTest`) serta validasi build debug (`./gradlew assembleDebug`).
-- **Release Pipeline (`.github/workflows/release.yml`)**: Terpicu secara otomatis ketika sebuah Git tag rilis dibuat dan di-push (`v*`, contoh: `v4.4.1`, `v4.5.0`):
-  1. Validasi kecocokan ketat antara Git tag (`vX.Y.Z`) dan `versionName` serta `versionCode` pada `app/build.gradle.kts` (mencegah salah rilis/tag).
-  2. Menjalankan seluruh automated unit tests.
+- **Release Pipeline (`.github/workflows/release.yml`)**: Pipeline rilis multi-saluran yang dapat dipicu melalui push Git tag (`v*`), publikasi release di web GitHub, maupun dieksekusi secara manual via tombol **"Run workflow"** (`workflow_dispatch`) langsung dari tab Actions di web:
+  1. Validasi kecocokan ketat antara target tag (`vX.Y.Z`) dan `versionName` serta `versionCode` pada `app/build.gradle.kts` (mencegah salah rilis/tag).
+  2. Menjalankan seluruh 51 automated unit tests.
   3. Mengompilasi APK Release Universal (`canim-universal-release-vX.Y.Z.apk`).
   4. Menghasilkan ringkasan kriptografi `SHA256SUMS.txt`.
   5. Menghasilkan *release notes* otomatis terstruktur berdasarkan commit messages (`feat:`, `fix:`, `perf:`, `ui:`).
-  6. Memublikasikan GitHub Release beserta seluruh aset APK.
+  6. Mengunggah berkas APK dan Checksum ke **GitHub Actions Artifacts** sebagai cadangan instan.
+  7. Memublikasikan atau memperbarui GitHub Release secara otomatis beserta seluruh aset APK rilis.
 - **Distribusi & Keamanan**: Berkas APK murni didistribusikan melalui [GitHub Releases](https://github.com/Kh1zZ/CA-NIM/releases) dan **tidak pernah di-commit ke dalam Git history**.
-- **Konfigurasi Signing Produksi (Opsional)**: Saat ini release APK menggunakan konfigurasi signing bawaan Android debug key sehingga langsung siap dipasang. Untuk mengonfigurasi keystore rilis mandiri di masa depan, tambahkan GitHub Secrets `RELEASE_KEYSTORE_BASE64`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS`, dan `RELEASE_KEY_PASSWORD`.
+- **Konfigurasi Signing Produksi & Fallback**: Pipeline mendukung penandatanganan rilis dengan keystore produksi permanen berbasis GitHub Secrets (`RELEASE_KEYSTORE_BASE64`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD`), serta dilengkapi mekanisme fallback otomatis yang men-generate `debug.keystore` cadangan via `keytool` sehingga build release selalu 100% andal di segala kondisi.
 
 ---
 
