@@ -489,4 +489,8 @@ class CanimRepository(
     ): StudioFilmographyPage? {
         return AniListClient.getStudioFilmography(studioId, search, page, forceRefresh = forceRefresh)
     }
+
+    suspend fun searchStudios(query: String, page: Int = 1, perPage: Int = 20): List<StudioBioInfo> {
+        return AniListClient.searchStudios(query, page, perPage)
+    }
 }

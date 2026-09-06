@@ -9,13 +9,13 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases/latest"><img src="https://img.shields.io/badge/Download-APK%20(v5.1.0)-10B981.svg?style=for-the-badge&logo=android" alt="Download APK"></a>
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v5.1.0-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases/latest"><img src="https://img.shields.io/badge/Download-APK%20(v5.1.1)-10B981.svg?style=for-the-badge&logo=android" alt="Download APK"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v5.1.1-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#-fitur-utama"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#-arsitektur-dan-prinsip-desain"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
   <a href="#-kinerja-dan-optimasi"><img src="https://img.shields.io/badge/APK%20Size-~2.1%20MB-F59E0B.svg?style=for-the-badge" alt="Size"></a>
-  <a href="#-panduan-kompilasi-manual"><img src="https://img.shields.io/badge/Tests-51%20Passed-6366F1.svg?style=for-the-badge" alt="Tests"></a>
+  <a href="#-panduan-kompilasi-manual"><img src="https://img.shields.io/badge/Tests-57%20Passed-6366F1.svg?style=for-the-badge" alt="Tests"></a>
 </p>
 
 ---
@@ -26,7 +26,7 @@ Dapatkan rilis resmi **CA'NIM** siap pasang langsung dari halaman rilis GitHub:
 
 | Berkas | Tipe | Arsitektur | Kebutuhan Minimum | Tautan |
 | :--- | :---: | :---: | :---: | :---: |
-| **`canim-universal-release-v5.1.0.apk`** | **Release** | **Universal** (`arm64-v8a`, `armeabi-v7a`, `x86_64`) | Android 7.0+ (API 24+) | [👉 Unduh APK Rilis](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
+| **`canim-universal-release-v5.1.1.apk`** | **Release** | **Universal** (`arm64-v8a`, `armeabi-v7a`, `x86_64`) | Android 7.0+ (API 24+) | [👉 Unduh APK Rilis](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
 | **`SHA256SUMS.txt`** | **Checksum** | — | — | [👉 Verifikasi Checksum](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
 
 > 💡 **Catatan Instalasi**: APK Release dikompilasi secara universal oleh GitHub Actions CI/CD, bebas dari bloatware/tracker, dan telah dioptimalkan secara penuh menggunakan R8 Minifier untuk pengalaman scrolling terbaik.
@@ -241,7 +241,7 @@ Mulai versi `v4.4.1`, seluruh berkas APK rilis resmi **CA'NIM** dikompilasi seca
 - **CI Pipeline (`.github/workflows/ci.yml`)**: Berjalan pada setiap pull request dan push ke branch `main`, menjalankan unit test otomatis (`./gradlew testDebugUnitTest`) serta validasi build debug (`./gradlew assembleDebug`).
 - **Release Pipeline (`.github/workflows/release.yml`)**: Pipeline rilis multi-saluran yang dapat dipicu melalui push Git tag (`v*`), publikasi release di web GitHub, maupun dieksekusi secara manual via tombol **"Run workflow"** (`workflow_dispatch`) langsung dari tab Actions di web:
   1. Validasi kecocokan ketat antara target tag (`vX.Y.Z`) dan `versionName` serta `versionCode` pada `app/build.gradle.kts` (mencegah salah rilis/tag).
-  2. Menjalankan seluruh 51 automated unit tests.
+  2. Menjalankan seluruh 57 automated unit tests.
   3. Mengompilasi APK Release Universal (`canim-universal-release-vX.Y.Z.apk`).
   4. Menghasilkan ringkasan kriptografi `SHA256SUMS.txt`.
   5. Menghasilkan *release notes* otomatis terstruktur berdasarkan commit messages (`feat:`, `fix:`, `perf:`, `ui:`).
@@ -252,7 +252,15 @@ Mulai versi `v4.4.1`, seluruh berkas APK rilis resmi **CA'NIM** dikompilasi seca
 
 ---
 
-## 📝 Catatan Rilis Terbaru (v5.1.0)
+## 📝 Catatan Rilis Terbaru (v5.1.1)
+
+- **Pencarian Studio Dinamis (Live Studio Search AniList)**: Menghilangkan pembatasan 16 studio lokal pada menu Discover. Pengguna kini dapat mencari nama studio animasi apa pun di dunia secara langsung dari database global AniList (`Page.studios(search: $search)`). Dilengkapi pencarian lokal instan 0ms dari database kurasi `StudioBioRegistry` yang berpadu mulus dengan hasil kueri live AniList lengkap dengan poster karya terpopuler.
+- **Koreksi ID Resmi Studio AniList & Deteksi Karya A-1 Pictures**: Memperbaiki bug kritis di mana filmografi A-1 Pictures tidak terdeteksi (sebelumnya ID `56` yang tidak ada di AniList dan mengembalikan 404, kini diperbaiki ke ID resmi **`561`** dengan 500+ anime seperti *Solo Leveling*, *Sword Art Online*, *Kaguya-sama*, dan *86*). Juga mengoreksi ID resmi AniList untuk CloverWorks (**`6222`**), CoMix Wave Films (**`291`**), dan Kinema Citrus (**`290`**).
+- **Penghapusan Pembatasan `isMain: true` pada Filmografi**: Menghapus parameter restriktif `isMain: true` pada kueri GraphQL `getStudioFilmography` sehingga seluruh karya anime yang diproduksi maupun hasil kolaborasi (*co-production*) tampil utuh tanpa ada yang terlewat.
+- **Peningkatan Test Suite (Total 57 Unit Tests)**: Menambahkan unit test baru untuk verifikasi integritas ID studio dan bio kurasi pada `StudioRegistryAndSearchTest` (seluruh 57 automated unit test lulus 100%).
+
+<details>
+<summary><b>Lihat Catatan Rilis Sebelumnya (v5.1.0)</b></summary>
 
 - **Perbaikan Kritis Konflik Keystore Penandatanganan (Production Release Signing)**: Mengatasi error "App not installed" / konflik signature pembaruan dengan sistem penandatanganan keystore permanen via GitHub Actions Secrets (`RELEASE_KEYSTORE_BASE64` dll.). *Catatan Penting: Pengguna yang memperbarui dari versi <= v5.0.0 disarankan melakukan uninstall versi lama terlebih dahulu sebelum memasang v5.1.0 karena pergantian sertifikat debug acak ke release keystore permanen (data tracking tetap aman karena MAL adalah Single Source of Truth).*
 - **Penutupan Celah Farming Tiket Gacha & Guard Progres Episode**: Menambahkan proteksi validasi pada `quickIncrementAnime()` dan `quickIncrementManga()` agar progres tidak dapat melebihi batas total episode/chapter dan tidak memberi tiket gacha ilegal pada judul berstatus *Completed*. Tombol "+" pada Dasbor dan Library kini otomatis dinonaktifkan (berwarna abu-abu redup) saat target tercapai.

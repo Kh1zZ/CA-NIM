@@ -259,7 +259,8 @@ class MainActivity : ComponentActivity() {
                                     onLoadMore = { viewModel.loadMoreDiscover() },
                                     onSaveAnime = { viewModel.saveAnime(it) },
                                     onSaveManga = { viewModel.saveManga(it) },
-                                    onOpenStudio = { studioId, studioName -> viewModel.openStudio(studioId, studioName) }
+                                    onOpenStudio = { studioId, studioName -> viewModel.openStudio(studioId, studioName) },
+                                    onSearchStudio = { viewModel.searchStudios(it) }
                                 )
                             }
                             "settings" -> {

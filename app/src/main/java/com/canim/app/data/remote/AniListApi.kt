@@ -3,6 +3,7 @@ package com.canim.app.data.remote
 import com.canim.app.data.cache.CacheManager
 import com.canim.app.data.cache.StudioFilmographyPage
 import com.canim.app.data.model.*
+import com.canim.app.data.repository.StudioBioRegistry
 import com.canim.app.util.TextSanitizer
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
@@ -1210,7 +1211,7 @@ object AniListClient {
                 isAnimationStudio
                 siteUrl
                 favourites
-                media(page: ${'$'}page, perPage: ${'$'}perPage, sort: [START_DATE_DESC, POPULARITY_DESC], isMain: true) {
+                media(page: ${'$'}page, perPage: ${'$'}perPage, sort: [START_DATE_DESC, POPULARITY_DESC]) {
                   pageInfo {
                     total
                     perPage
@@ -1348,6 +1349,92 @@ object AniListClient {
             result
         } catch (_: Exception) {
             null
+        }
+    }
+
+    /**
+     * Searches studios dynamically across AniList's global database.
+     * Enriches results with curated metadata if available, extracts top anime cover,
+     * and saves to persistent cache.
+     */
+    suspend fun searchStudios(
+        query: String,
+        page: Int = 1,
+        perPage: Int = 20
+    ): List<StudioBioInfo> = withContext(Dispatchers.IO) {
+        if (query.isBlank()) return@withContext emptyList()
+
+        val graphqlQuery = """
+            query (${'$'}search: String, ${'$'}page: Int, ${'$'}perPage: Int) {
+              Page(page: ${'$'}page, perPage: ${'$'}perPage) {
+                studios(search: ${'$'}search) {
+                  id
+                  name
+                  isAnimationStudio
+                  favourites
+                  siteUrl
+                  media(page: 1, perPage: 1, sort: [POPULARITY_DESC]) {
+                    nodes {
+                      id
+                      coverImage {
+                        large
+                        extraLarge
+                      }
+                    }
+                  }
+                }
+              }
+            }
+        """.trimIndent()
+
+        val variables = JSONObject().apply {
+            put("search", query.trim())
+            put("page", page)
+            put("perPage", perPage)
+        }
+
+        val responseString = executeQuery(graphqlQuery, variables) ?: return@withContext emptyList()
+        try {
+            val root = JSONObject(responseString)
+            val data = root.optJSONObject("data") ?: return@withContext emptyList()
+            val pageObj = data.optJSONObject("Page") ?: return@withContext emptyList()
+            val studiosArray = pageObj.optJSONArray("studios") ?: return@withContext emptyList()
+
+            val results = mutableListOf<StudioBioInfo>()
+            for (i in 0 until studiosArray.length()) {
+                val sObj = studiosArray.optJSONObject(i) ?: continue
+                val sId = sObj.optInt("id")
+                val sName = sObj.optString("name", "")
+                if (sId <= 0 || sName.isBlank()) continue
+
+                val favs = sObj.optInt("favourites", 0).takeIf { it > 0 }
+                val siteUrl = sObj.optString("siteUrl", "").takeIf { it.isNotBlank() }
+
+                // Top popular anime cover
+                val mediaObj = sObj.optJSONObject("media")
+                val nodes = mediaObj?.optJSONArray("nodes")
+                val topCover = if (nodes != null && nodes.length() > 0) {
+                    val coverObj = nodes.optJSONObject(0)?.optJSONObject("coverImage")
+                    coverObj?.optString("large")?.takeIf { it.isNotBlank() }
+                        ?: coverObj?.optString("extraLarge")?.takeIf { it.isNotBlank() }
+                } else null
+
+                // Check curated in-memory registry or fallback
+                val info = StudioBioRegistry.getStudioInfo(sId, sName).let { base ->
+                    base.copy(
+                        studioId = sId,
+                        name = sName,
+                        coverUrl = base.coverUrl ?: topCover,
+                        favourites = base.favourites ?: favs,
+                        officialSite = base.officialSite ?: siteUrl
+                    )
+                }
+                StudioBioRegistry.saveToPersistentCache(info)
+                results.add(info)
+            }
+            results
+        } catch (_: Exception) {
+            emptyList()
         }
     }
 }

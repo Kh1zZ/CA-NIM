@@ -76,6 +76,8 @@ data class CanimUiState(
     val studioFilmographyPage: Int = 1,
     val studioFilmographyTotalEntries: Int = 0,
     val canLoadMoreStudioFilmography: Boolean = true,
+    val studioSearchResults: List<StudioBioInfo> = emptyList(),
+    val isSearchingStudios: Boolean = false,
 
     // Gacha Flashcard state
     val gachaCredits: Int = 5,
@@ -122,6 +124,7 @@ class CanimViewModel(
     private var discoverRequestToken = 0L
     private var detailJob: Job? = null
     private var studioJob: Job? = null
+    private var studioSearchJob: Job? = null
 
     init {
         // Cold-start instant cache-first load from disk/memory
@@ -1119,6 +1122,64 @@ class CanimViewModel(
 
     fun setStudioFilmographySort(sort: StudioFilmographySort) {
         _uiState.update { it.copy(studioFilmographySort = sort) }
+    }
+
+    // --- Studio Live Search (v5.1.1) ---
+    fun searchStudios(query: String) {
+        studioSearchJob?.cancel()
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) {
+            _uiState.update {
+                it.copy(
+                    studioSearchResults = emptyList(),
+                    isSearchingStudios = false
+                )
+            }
+            return
+        }
+
+        // 1. Instant 0ms local match from curated registry
+        val localMatches = try {
+            StudioBioRegistry.searchCuratedStudios(trimmed)
+        } catch (_: Exception) {
+            emptyList()
+        }
+        _uiState.update {
+            it.copy(
+                studioSearchResults = localMatches,
+                isSearchingStudios = true
+            )
+        }
+
+        // 2. Query global AniList database in background with light debounce
+        studioSearchJob = viewModelScope.launch(Dispatchers.IO) {
+            delay(250L)
+            val remoteResults = try {
+                repository.searchStudios(trimmed)
+            } catch (_: Exception) {
+                emptyList()
+            }
+
+            // Merge local and remote, deduplicated by studioId
+            val merged = (localMatches + remoteResults).distinctBy { it.studioId }
+
+            _uiState.update {
+                it.copy(
+                    studioSearchResults = merged,
+                    isSearchingStudios = false
+                )
+            }
+        }
+    }
+
+    fun clearStudioSearch() {
+        studioSearchJob?.cancel()
+        _uiState.update {
+            it.copy(
+                studioSearchResults = emptyList(),
+                isSearchingStudios = false
+            )
+        }
     }
 
     fun closeStudio() {

@@ -81,7 +81,7 @@ object StudioBioRegistry {
             bio = "Salah satu studio animasi paling bersejarah di Jepang yang melahirkan karya legendaris selama beberapa dekade, termasuk Death Note, Hunter x Hunter (2011), Monster, One Punch Man Season 1, dan kesuksesan modern Frieren: Beyond Journey's End."
         ),
         StudioBioInfo(
-            studioId = 6214,
+            studioId = 6222,
             name = "CloverWorks",
             coverUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx130003-5AOh4uhISnF1.png",
             foundedYear = 2018,
@@ -90,7 +90,7 @@ object StudioBioRegistry {
             bio = "Studio modern yang berkembang pesat dari bekas A-1 Pictures Koenji Studio. Terkenal dengan karakter ekspresif dan visual trendi seperti Bocchi the Rock!, The Promised Neverland, Spy x Family, My Dress-Up Darling, dan Horimiya."
         ),
         StudioBioInfo(
-            studioId = 56,
+            studioId = 561,
             name = "A-1 Pictures",
             coverUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx151807-6J8Fm84J16o9.png",
             foundedYear = 2005,
@@ -117,7 +117,7 @@ object StudioBioRegistry {
             bio = "Terkenal dengan gaya visual avant-garde, sudut kamera eksentrik, dan 'head tilt' yang menjadi ciri khas sutradara Akiyuki Shinbo. Karya terkenalnya meliputi Monogatari Series, Puella Magi Madoka Magica, Nisekoi, dan March Comes in Like a Lion."
         ),
         StudioBioInfo(
-            studioId = 290,
+            studioId = 291,
             name = "CoMix Wave Films",
             coverUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx21519-XIr3PecUjjfd.png",
             foundedYear = 2007,
@@ -227,7 +227,7 @@ object StudioBioRegistry {
             bio = "Studio joint-venture antara White Fox dan Egg Firm yang secara khusus didirikan untuk memproduksi adaptasi anime bertaraf tinggi Mushoku Tensei: Jobless Reincarnation."
         ),
         StudioBioInfo(
-            studioId = 296,
+            studioId = 290,
             name = "Kinema Citrus",
             foundedYear = 2008,
             country = "Jepang",
@@ -283,6 +283,24 @@ object StudioBioRegistry {
             bio = "Studio produktif anggota Ultra Super Pictures yang memproduksi Tokyo Revengers, Rurouni Kenshin (2023), Call of the Night, dan Yamada-kun and the Seven Witches."
         )
     ).associateBy { it.name.lowercase().trim() }
+
+    /**
+     * Returns all unique curated studios from in-memory registry.
+     */
+    fun getAllCuratedStudios(): List<StudioBioInfo> {
+        return curatedStudios.values.distinctBy { it.studioId }
+    }
+
+    /**
+     * Instant 0ms search matching query against curated studio names and bios.
+     */
+    fun searchCuratedStudios(query: String): List<StudioBioInfo> {
+        if (query.isBlank()) return getAllCuratedStudios()
+        val q = query.lowercase().trim()
+        return curatedStudios.values.distinctBy { it.studioId }.filter {
+            it.name.lowercase().contains(q) || it.bio?.lowercase()?.contains(q) == true
+        }
+    }
 
     /**
      * Resolves studio factual bio. First checks curated in-memory registry (0 ms),

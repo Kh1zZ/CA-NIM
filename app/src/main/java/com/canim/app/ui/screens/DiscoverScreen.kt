@@ -55,6 +55,7 @@ fun DiscoverScreen(
     onSaveAnime: (UserMediaItem) -> Unit = {},
     onSaveManga: (UserMediaItem) -> Unit = {},
     onOpenStudio: ((studioId: Int, studioName: String) -> Unit)? = null,
+    onSearchStudio: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var selectedItemForAdd by remember { mutableStateOf<MediaItem?>(null) }
@@ -467,7 +468,11 @@ fun DiscoverScreen(
     // Studio Picker Modal Bottom Sheet
     if (showStudioPickerSheet) {
         ModalBottomSheet(
-            onDismissRequest = { showStudioPickerSheet = false },
+            onDismissRequest = {
+                showStudioPickerSheet = false
+                studioSearchQuery = ""
+                onSearchStudio?.invoke("")
+            },
             containerColor = CardBg,
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         ) {
@@ -479,22 +484,17 @@ fun DiscoverScreen(
                     4 to "Bones",
                     858 to "Wit Studio",
                     11 to "Madhouse",
-                    6140 to "CloverWorks",
-                    56 to "A-1 Pictures",
+                    6222 to "CloverWorks",
+                    561 to "A-1 Pictures",
                     44 to "Shaft",
                     10 to "Production I.G",
                     803 to "Trigger",
                     7 to "J.C.Staff",
                     18 to "Toei Animation",
-                    290 to "CoMix Wave Films",
+                    291 to "CoMix Wave Films",
                     95 to "Doga Kobo",
                     287 to "David Production"
                 )
-            }
-
-            val filteredStudios = remember(studioSearchQuery) {
-                if (studioSearchQuery.isBlank()) popularStudios
-                else popularStudios.filter { it.second.contains(studioSearchQuery, ignoreCase = true) }
             }
 
             Column(
@@ -510,21 +510,27 @@ fun DiscoverScreen(
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "Pilih studio animasi ternama untuk melihat katalog karya yang diproduksi",
+                    text = "Cari atau pilih studio animasi untuk melihat katalog seluruh karya anime yang diproduksi",
                     color = TextSecondary,
                     fontSize = 12.sp
                 )
 
                 OutlinedTextField(
                     value = studioSearchQuery,
-                    onValueChange = { studioSearchQuery = it },
-                    placeholder = { Text("Cari nama studio...", color = TextMuted, fontSize = 13.sp) },
+                    onValueChange = {
+                        studioSearchQuery = it
+                        onSearchStudio?.invoke(it)
+                    },
+                    placeholder = { Text("Cari nama studio (misal: A-1 Pictures, Passione, Nexus)...", color = TextMuted, fontSize = 13.sp) },
                     leadingIcon = {
                         Icon(imageVector = Icons.Default.Search, contentDescription = null, tint = AccentBlue)
                     },
                     trailingIcon = if (studioSearchQuery.isNotEmpty()) {
                         {
-                            IconButton(onClick = { studioSearchQuery = "" }) {
+                            IconButton(onClick = {
+                                studioSearchQuery = ""
+                                onSearchStudio?.invoke("")
+                            }) {
                                 Icon(imageVector = Icons.Default.Close, contentDescription = null, tint = TextMuted)
                             }
                         }
@@ -540,94 +546,280 @@ fun DiscoverScreen(
                     shape = RoundedCornerShape(12.dp)
                 )
 
-                Text(
-                    text = "STUDIO POPULER",
-                    color = TextMuted,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
+                if (studioSearchQuery.isBlank()) {
+                    Text(
+                        text = "STUDIO POPULER",
+                        color = TextMuted,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
 
-                LazyVerticalGrid(
-                    columns = GridCells.Adaptive(minSize = 130.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = 350.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(filteredStudios) { (sId, sName) ->
-                        val studioInfo = remember(sId, sName) { StudioBioRegistry.getStudioInfo(sId, sName) }
-                        Card(
-                            onClick = {
-                                showStudioPickerSheet = false
-                                onOpenStudio?.invoke(sId, sName)
-                            },
-                            colors = CardDefaults.cardColors(containerColor = CardElevated),
-                            shape = RoundedCornerShape(12.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(88.dp)
-                        ) {
-                            Box(modifier = Modifier.fillMaxSize()) {
-                                if (!studioInfo.coverUrl.isNullOrBlank()) {
-                                    AsyncImage(
-                                        model = studioInfo.coverUrl,
-                                        contentDescription = sName,
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(
-                                            Brush.verticalGradient(
-                                                listOf(
-                                                    Color.Black.copy(alpha = 0.40f),
-                                                    Color.Black.copy(alpha = 0.88f)
-                                                )
-                                            )
-                                        )
-                                )
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .padding(horizontal = 10.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.Bottom,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(28.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(CardBg.copy(alpha = 0.9f))
-                                            .border(1.dp, AccentBlue.copy(alpha = 0.5f), RoundedCornerShape(8.dp)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = sName.take(1).uppercase(),
-                                            color = AccentBlue,
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.ExtraBold
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 130.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 350.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(popularStudios) { (sId, sName) ->
+                            val studioInfo = remember(sId, sName) { StudioBioRegistry.getStudioInfo(sId, sName) }
+                            Card(
+                                onClick = {
+                                    showStudioPickerSheet = false
+                                    studioSearchQuery = ""
+                                    onSearchStudio?.invoke("")
+                                    onOpenStudio?.invoke(sId, sName)
+                                },
+                                colors = CardDefaults.cardColors(containerColor = CardElevated),
+                                shape = RoundedCornerShape(12.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(88.dp)
+                            ) {
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    if (!studioInfo.coverUrl.isNullOrBlank()) {
+                                        AsyncImage(
+                                            model = studioInfo.coverUrl,
+                                            contentDescription = sName,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.fillMaxSize()
                                         )
                                     }
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = sName,
-                                            color = Color.White,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(
+                                                Brush.verticalGradient(
+                                                    listOf(
+                                                        Color.Black.copy(alpha = 0.40f),
+                                                        Color.Black.copy(alpha = 0.88f)
+                                                    )
+                                                )
+                                            )
+                                    )
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.Bottom,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(28.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(CardBg.copy(alpha = 0.9f))
+                                                .border(1.dp, AccentBlue.copy(alpha = 0.5f), RoundedCornerShape(8.dp)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = sName.take(1).uppercase(),
+                                                color = AccentBlue,
+                                                fontSize = 14.sp,
+                                                fontWeight = FontWeight.ExtraBold
+                                            )
+                                        }
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = sName,
+                                                color = Color.White,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = if (studioInfo.foundedYear != null) "Est. ${studioInfo.foundedYear}" else studioInfo.country,
+                                                color = TextSecondary,
+                                                fontSize = 10.sp,
+                                                maxLines = 1
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // Live Search Results View
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "HASIL PENCARIAN (${state.studioSearchResults.size})",
+                            color = TextMuted,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
+                        )
+                        if (state.isSearchingStudios) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(12.dp),
+                                    strokeWidth = 2.dp,
+                                    color = AccentBlue
+                                )
+                                Text(
+                                    text = "Mencari di AniList...",
+                                    color = AccentBlue,
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+                    }
+
+                    if (state.isSearchingStudios && state.studioSearchResults.isEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(32.dp),
+                                    strokeWidth = 2.5.dp,
+                                    color = AccentBlue
+                                )
+                                Text(
+                                    text = "Mencari studio di AniList...",
+                                    color = TextSecondary,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    } else if (state.studioSearchResults.isEmpty() && !state.isSearchingStudios) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(180.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = null,
+                                    tint = TextMuted,
+                                    modifier = Modifier.size(32.dp)
+                                )
+                                Text(
+                                    text = "Tidak ditemukan studio \"$studioSearchQuery\"",
+                                    color = TextPrimary,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Periksa ejaan nama studio dan coba lagi",
+                                    color = TextMuted,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                    } else {
+                        LazyVerticalGrid(
+                            columns = GridCells.Adaptive(minSize = 130.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 350.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(state.studioSearchResults, key = { it.studioId }) { studioInfo ->
+                                val sId = studioInfo.studioId
+                                val sName = studioInfo.name
+                                Card(
+                                    onClick = {
+                                        showStudioPickerSheet = false
+                                        studioSearchQuery = ""
+                                        onSearchStudio?.invoke("")
+                                        onOpenStudio?.invoke(sId, sName)
+                                    },
+                                    colors = CardDefaults.cardColors(containerColor = CardElevated),
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(88.dp)
+                                ) {
+                                    Box(modifier = Modifier.fillMaxSize()) {
+                                        if (!studioInfo.coverUrl.isNullOrBlank()) {
+                                            AsyncImage(
+                                                model = studioInfo.coverUrl,
+                                                contentDescription = sName,
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(
+                                                    Brush.verticalGradient(
+                                                        listOf(
+                                                            Color.Black.copy(alpha = 0.40f),
+                                                            Color.Black.copy(alpha = 0.88f)
+                                                        )
+                                                    )
+                                                )
                                         )
-                                        Text(
-                                            text = if (studioInfo.foundedYear != null) "Est. ${studioInfo.foundedYear}" else studioInfo.country,
-                                            color = TextSecondary,
-                                            fontSize = 10.sp,
-                                            maxLines = 1
-                                        )
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                                            verticalAlignment = Alignment.Bottom,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(28.dp)
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(CardBg.copy(alpha = 0.9f))
+                                                    .border(1.dp, AccentBlue.copy(alpha = 0.5f), RoundedCornerShape(8.dp)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = sName.take(1).uppercase(),
+                                                    color = AccentBlue,
+                                                    fontSize = 14.sp,
+                                                    fontWeight = FontWeight.ExtraBold
+                                                )
+                                            }
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = sName,
+                                                    color = Color.White,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                val subLabel = when {
+                                                    studioInfo.foundedYear != null -> "Est. ${studioInfo.foundedYear}"
+                                                    !studioInfo.country.isNullOrBlank() -> studioInfo.country
+                                                    else -> "Studio Animasi"
+                                                }
+                                                Text(
+                                                    text = subLabel,
+                                                    color = TextSecondary,
+                                                    fontSize = 10.sp,
+                                                    maxLines = 1
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
