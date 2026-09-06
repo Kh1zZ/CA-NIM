@@ -175,7 +175,7 @@ jobs:
           # Retrieve list of version tags sorted by version
           try:
               tags_output = subprocess.check_output(['git', 'tag', '--sort=-version:refname'], text=True)
-              tags = [t.strip() for t in tags_output.strip().split('\n') if t.strip()]
+              tags = [t.strip() for t in tags_output.strip().split('\n') if t.strip() and t.strip().startswith('v')]
           except Exception:
               tags = []
 
@@ -188,9 +188,9 @@ jobs:
           print(f"Previous tag detected: {prev_tag}")
 
           if prev_tag:
-              git_log_cmd = ['git', 'log', f'{prev_tag}..{current_tag}', '--pretty=format:%s (%h)']
+              git_log_cmd = ['git', 'log', f'{prev_tag}..HEAD', '--pretty=format:%s (%h)']
           else:
-              git_log_cmd = ['git', 'log', '-n', '50', current_tag, '--pretty=format:%s (%h)']
+              git_log_cmd = ['git', 'log', '-n', '50', 'HEAD', '--pretty=format:%s (%h)']
 
           try:
               log_output = subprocess.check_output(git_log_cmd, text=True)
@@ -293,6 +293,7 @@ jobs:
               "release-dist/canim-universal-release-${TAG_NAME}.apk" \
               "release-dist/SHA256SUMS.txt" \
               --title "CA'NIM $TAG_NAME" \
-              --notes-file release_notes.md
+              --notes-file release_notes.md \
+              --target "${{ github.sha }}"
           fi
           echo "GitHub Release published successfully with official APK assets."

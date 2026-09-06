@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [ "main", "debug", "dev" ]
+    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
   workflow_dispatch:
@@ -12,15 +12,13 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   test-and-build-debug:
     name: Test & Build Debug
-    # Mencegah duplikasi: jika branch internal di repo yang sama sudah dipicu oleh event 'push', skip event 'pull_request'
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout Code
@@ -68,24 +66,3 @@ jobs:
           if-no-files-found: error
           retention-days: 14
           compression-level: 1
-
-      - name: Publish Direct Debug APK Pre-release
-        if: (github.ref_name == 'debug' || github.ref_name == 'dev') && github.repository == 'Kh1zZ/CA-NIM'
-        continue-on-error: true
-        uses: softprops/action-gh-release@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: debug-build
-          name: "CA'NIM Debug Build (${{ steps.apk_check.outputs.version_name }})"
-          prerelease: true
-          make_latest: false
-          target_commitish: ${{ github.sha }}
-          files: app/build/outputs/apk/debug/canim-debug-*.apk
-          body: |
-            ### 🧪 CA'NIM Rolling Debug Build (${{ steps.apk_check.outputs.version_name }})
-
-            Branch: `${{ github.ref_name }}` • Commit: [`${{ github.sha }}`](https://github.com/${{ github.repository }}/commit/${{ github.sha }})
-
-            > [!TIP]
-            > **Direct APK Download**: Unduh langsung file APK di bagian Assets bawah tanpa perlu mengekstrak zip!
