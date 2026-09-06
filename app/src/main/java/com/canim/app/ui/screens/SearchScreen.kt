@@ -37,11 +37,17 @@ import coil.request.ImageRequest
 import com.canim.app.data.model.MediaItem
 import com.canim.app.data.model.MediaStatus
 import com.canim.app.data.model.MediaType
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.filled.FilterList
 import com.canim.app.data.model.UserMediaItem
 import com.canim.app.ui.theme.*
 import com.canim.app.ui.viewmodel.CanimUiState
 import kotlinx.coroutines.delay
 
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SearchScreen(
     state: CanimUiState,
@@ -50,6 +56,8 @@ fun SearchScreen(
     onSelectItem: (Any, MediaType) -> Unit,
     onSaveAnime: (UserMediaItem) -> Unit = {},
     onSaveManga: (UserMediaItem) -> Unit = {},
+    onApplyFilters: (genres: List<String>, year: Int?, format: String?) -> Unit = { _, _, _ -> },
+    onResetFilters: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var searchInput by remember { mutableStateOf(state.searchQuery) }
@@ -57,6 +65,23 @@ fun SearchScreen(
     val focusManager = LocalFocusManager.current
     var itemToAdd by remember { mutableStateOf<MediaItem?>(null) }
     var itemToEdit by remember { mutableStateOf<MediaItem?>(null) }
+    var showFilterSheet by remember { mutableStateOf(false) }
+    var tempGenres by remember(state.searchGenres) { mutableStateOf(state.searchGenres.toSet()) }
+    var tempYear by remember(state.searchYear) { mutableStateOf(state.searchYear) }
+    var tempFormat by remember(state.searchFormat) { mutableStateOf(state.searchFormat) }
+    val hasActiveFilters = state.searchGenres.isNotEmpty() || state.searchYear != null || state.searchFormat != null
+
+    val allGenres = remember {
+        listOf(
+            "Action", "Adventure", "Comedy", "Drama", "Fantasy",
+            "Horror", "Mystery", "Romance", "Sci-Fi", "Slice of Life",
+            "Sports", "Supernatural", "Thriller", "Mecha", "Music",
+            "Psychological", "Isekai", "Shounen", "Shoujo", "Seinen"
+        )
+    }
+    val animeFormats = remember { listOf("TV", "MOVIE", "ONA", "OVA", "SPECIAL", "MUSIC") }
+    val mangaFormats = remember { listOf("MANGA", "NOVEL", "ONE_SHOT") }
+    val yearPresets = remember { listOf(2026, 2025, 2024, 2023, 2022, 2020, 2015, 2010) }
 
     val libraryAnimeMalIds = remember(state.animeList) { state.animeList.map { it.malId }.toSet() }
     val libraryMangaMalIds = remember(state.mangaList) { state.mangaList.map { it.malId }.toSet() }
@@ -191,22 +216,119 @@ fun SearchScreen(
                     shape = RoundedCornerShape(12.dp)
                 )
 
+                // Filter Button
+                IconButton(
+                    onClick = {
+                        tempGenres = state.searchGenres.toSet()
+                        tempYear = state.searchYear
+                        tempFormat = state.searchFormat
+                        showFilterSheet = true
+                    },
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (hasActiveFilters) (if (searchType == MediaType.MANGA) MangaAccentDarkBlue else AccentBlue) else CardBg)
+                        .border(1.dp, if (hasActiveFilters) (if (searchType == MediaType.MANGA) MangaAccentDarkBlue else AccentBlue) else CardBorder, RoundedCornerShape(12.dp))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.FilterList,
+                        contentDescription = "Filter",
+                        tint = if (hasActiveFilters) Color.White else TextPrimary
+                    )
+                }
+
                 Button(
                     onClick = {
                         focusManager.clearFocus()
-                        if (searchInput.isNotBlank()) {
+                        if (searchInput.isNotBlank() || hasActiveFilters) {
                             onSearch(searchInput.trim(), searchType)
                         }
                     },
                     modifier = Modifier.testTag("search_submit_button"),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = AccentBlue,
+                        containerColor = if (searchType == MediaType.MANGA) MangaAccentDarkBlue else AccentBlue,
                         contentColor = Color.White
                     ),
                     shape = RoundedCornerShape(12.dp),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
                 ) {
                     Text(text = "Cari", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        }
+
+        // Active filters chip row
+        if (hasActiveFilters) {
+            item {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    item {
+                        Surface(
+                            onClick = {
+                                onResetFilters()
+                                onSearch(searchInput.trim(), searchType)
+                            },
+                            color = StatusDroppedColor.copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(Icons.Default.Close, contentDescription = "Reset", tint = StatusDroppedColor, modifier = Modifier.size(12.dp))
+                                Text("Reset", color = StatusDroppedColor, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                    if (state.searchFormat != null) {
+                        item {
+                            Surface(
+                                color = CardBg,
+                                shape = RoundedCornerShape(10.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
+                            ) {
+                                Text(
+                                    text = state.searchFormat,
+                                    color = TextSecondary,
+                                    fontSize = 11.sp,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                    if (state.searchYear != null) {
+                        item {
+                            Surface(
+                                color = CardBg,
+                                shape = RoundedCornerShape(10.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
+                            ) {
+                                Text(
+                                    text = "${state.searchYear}",
+                                    color = TextSecondary,
+                                    fontSize = 11.sp,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                    items(state.searchGenres) { g ->
+                        Surface(
+                            color = CardBg,
+                            shape = RoundedCornerShape(10.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
+                        ) {
+                            Text(
+                                text = g,
+                                color = TextSecondary,
+                                fontSize = 11.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -530,6 +652,194 @@ fun SearchScreen(
                 }
             }
         )
+    }
+
+    // Modal Filter Sheet (Bagian B.8: Type, 20 genres multi-select, Year, Format, Reset, Done)
+    if (showFilterSheet) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ModalBottomSheet(
+            onDismissRequest = { showFilterSheet = false },
+            sheetState = sheetState,
+            containerColor = CardElevated,
+            dragHandle = { BottomSheetDefaults.DragHandle(color = TextMuted) }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 10.dp)
+                    .padding(bottom = 32.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Filter Pencarian",
+                        color = TextPrimary,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (tempGenres.isNotEmpty() || tempYear != null || tempFormat != null) {
+                        TextButton(
+                            onClick = {
+                                tempGenres = emptySet()
+                                tempYear = null
+                                tempFormat = null
+                                onResetFilters()
+                            }
+                        ) {
+                            Text("Reset", color = StatusDroppedColor, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        }
+                    }
+                }
+
+                // Media Type Selector
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(text = "Tipe Media", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(CardBg)
+                            .padding(4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (searchType == MediaType.ANIME) AccentBlue else Color.Transparent)
+                                .clickable {
+                                    searchType = MediaType.ANIME
+                                    tempFormat = null
+                                }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Anime",
+                                color = if (searchType == MediaType.ANIME) Color.White else TextMuted,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (searchType == MediaType.MANGA) MangaAccentDarkBlue else Color.Transparent)
+                                .clickable {
+                                    searchType = MediaType.MANGA
+                                    tempFormat = null
+                                }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Manga",
+                                color = if (searchType == MediaType.MANGA) Color.White else TextMuted,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                // Format Selector
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(text = "Format", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    val formats = if (searchType == MediaType.ANIME) animeFormats else mangaFormats
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        formats.forEach { fmt ->
+                            val isSelected = tempFormat == fmt
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = {
+                                    tempFormat = if (isSelected) null else fmt
+                                },
+                                label = { Text(fmt, fontSize = 11.sp) },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = if (searchType == MediaType.MANGA) MangaAccentDarkBlue else AccentBlue,
+                                    selectedLabelColor = Color.White
+                                )
+                            )
+                        }
+                    }
+                }
+
+                // Year Selector
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(text = "Tahun Rilis", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        yearPresets.forEach { yr ->
+                            val isSelected = tempYear == yr
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = {
+                                    tempYear = if (isSelected) null else yr
+                                },
+                                label = { Text("$yr", fontSize = 11.sp) },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = if (searchType == MediaType.MANGA) MangaAccentDarkBlue else AccentBlue,
+                                    selectedLabelColor = Color.White
+                                )
+                            )
+                        }
+                    }
+                }
+
+                // 20 Genres Multi-Select
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(text = "Genre (${tempGenres.size} dipilih)", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        allGenres.forEach { genre ->
+                            val isSelected = tempGenres.contains(genre)
+                            FilterChip(
+                                selected = isSelected,
+                                onClick = {
+                                    tempGenres = if (isSelected) tempGenres - genre else tempGenres + genre
+                                },
+                                label = { Text(genre, fontSize = 11.sp) },
+                                shape = RoundedCornerShape(16.dp),
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = if (searchType == MediaType.MANGA) MangaAccentDarkBlue else AccentBlue,
+                                    selectedLabelColor = Color.White
+                                )
+                            )
+                        }
+                    }
+                }
+
+                // Bottom Done / Apply Button
+                Button(
+                    onClick = {
+                        onApplyFilters(tempGenres.toList(), tempYear, tempFormat)
+                        showFilterSheet = false
+                        onSearch(searchInput.trim(), searchType)
+                    },
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (searchType == MediaType.MANGA) MangaAccentDarkBlue else AccentBlue
+                    ),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Terapkan Filter", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                }
+            }
+        }
     }
 }
 

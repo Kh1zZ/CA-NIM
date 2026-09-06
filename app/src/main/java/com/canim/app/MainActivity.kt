@@ -7,6 +7,8 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -230,184 +232,213 @@ class MainActivity : ComponentActivity() {
                         val onQuickDecrementAnime: (String) -> Unit = remember { { viewModel.quickDecrementAnime(it) } }
                         val onQuickDecrementManga: (String) -> Unit = remember { { viewModel.quickDecrementManga(it) } }
 
-                        when (uiState.activeTab) {
-                            "dashboard" -> {
-                                DashboardScreen(
-                                    state = uiState,
-                                    onQuickAddEpisode = onQuickAddEpisode,
-                                    onQuickAddChapter = onQuickAddChapter,
-                                    onSelectItem = onSelectItem,
-                                    onLoadDemoData = onLoadDemoData,
-                                    onNavigateTab = onNavigateTab,
-                                    onLoginMal = onLoginMal,
-                                    onSyncMal = onSyncMal,
-                                    onOpenStats = onOpenStats,
-                                    onOpenFlashcard = onOpenFlashcard
-                                )
-                            }
-                            "library" -> {
-                                LibraryScreen(
-                                    state = uiState,
-                                    onSelectMediaType = onSelectMediaType,
-                                    onSelectStatusFilter = onSelectStatusFilter,
-                                    onSelectSort = onSelectSort,
-                                    onSearchQueryChange = onSearchQueryChange,
-                                    onQuickAddAnime = onQuickAddEpisode,
-                                    onQuickDecrementAnime = onQuickDecrementAnime,
-                                    onQuickAddManga = onQuickAddChapter,
-                                    onQuickDecrementManga = onQuickDecrementManga,
-                                    onSelectItem = onSelectItem
-                                )
-                            }
-                            "search" -> {
-                                SearchScreen(
-                                    state = uiState,
-                                    onSearch = { query, type -> viewModel.search(query, type) },
-                                    onAddMedia = { item, status -> viewModel.addFromCatalog(item, status) },
-                                    onSelectItem = { item, type -> viewModel.openDetail(item, type) },
-                                    onSaveAnime = { viewModel.saveAnime(it) },
-                                    onSaveManga = { viewModel.saveManga(it) }
-                                )
-                            }
-                            "discover" -> {
-                                DiscoverScreen(
-                                    state = uiState,
-                                    onSelectCategory = { cat, filter -> viewModel.loadDiscoverCategory(cat, filter) },
-                                    onAddMedia = { item, status -> viewModel.addFromCatalog(item, status) },
-                                    onSelectItem = { item, type -> viewModel.openDetail(item, type) },
-                                    onLoadMore = { viewModel.loadMoreDiscover() },
-                                    onSaveAnime = { viewModel.saveAnime(it) },
-                                    onSaveManga = { viewModel.saveManga(it) },
-                                    onOpenStudio = { studioId, studioName -> viewModel.openStudio(studioId, studioName) },
-                                    onSearchStudio = { viewModel.searchStudios(it) }
-                                )
-                            }
-                            "settings" -> {
-                                SettingsScreen(
-                                    state = uiState,
-                                    onLoginMal = { viewModel.loginWithMal(context) },
-                                    onSyncMal = { viewModel.syncWithMal() },
-                                    onLogoutMal = { viewModel.logoutMal() },
-                                    onSetAppMode = { viewModel.setAppMode(it) },
-                                    onLoadDemoData = { viewModel.loadDemoData() },
-                                    onClearAllData = { viewModel.clearAllData() },
-                                    onClearImageCache = { viewModel.clearImageCache(context) },
-                                    onClearMetadataCache = { viewModel.clearMetadataCache() },
-                                    onClearAllCache = { viewModel.clearAllCache(context) },
-                                    onCheckForUpdates = { viewModel.checkForUpdates(manual = true) },
-                                    onSetAutoUpdateCheck = { viewModel.setAutoUpdateCheck(it) },
-                                    onDismissUpdateDialog = { viewModel.dismissUpdateDialog() }
-                                )
-                            }
-                        }
-
-                        // Top-level modal/overlay stack rendering
-                        when (val currentScreen = screenStack.lastOrNull()) {
-                            is ScreenRoute.CastCrew -> {
-                                CastCrewProfileScreen(
-                                    profile = uiState.selectedCastCrewProfile,
-                                    isLoading = uiState.isLoadingCastCrewProfile,
-                                    onBack = { viewModel.popScreen() },
-                                    onSelectMedia = { mediaItem ->
-                                        viewModel.openDetail(mediaItem, mediaItem.type)
-                                    }
-                                )
-                            }
-                            is ScreenRoute.FullCastList -> {
-                                FullCastListScreen(
-                                    mediaTitle = currentScreen.mediaTitle,
-                                    castList = currentScreen.castList,
-                                    staffList = currentScreen.staffList,
-                                    isCrewInitial = currentScreen.isCrewInitial,
-                                    onBack = { viewModel.popScreen() },
-                                    onOpenCastCrew = { id, isStaff ->
-                                        viewModel.openCastCrewProfile(id, isStaff)
-                                    }
-                                )
-                            }
-                            is ScreenRoute.Detail -> {
-                                val detailItem = uiState.selectedDetailItem ?: currentScreen.item
-                                val detailTitle = (detailItem as? com.canim.app.data.model.UserMediaItem)?.title
-                                    ?: (detailItem as? com.canim.app.data.model.MediaItem)?.title
-                                    ?: ""
-                                MediaDetailScreen(
-                                    item = detailItem,
-                                    type = uiState.detailMediaType,
-                                    extendedDetail = uiState.extendedDetail,
-                                    isLoadingExtendedDetail = uiState.isLoadingExtendedDetail,
-                                    onSaveAnime = { viewModel.saveAnime(it) },
-                                    onSaveManga = { viewModel.saveManga(it) },
-                                    onDeleteAnime = { viewModel.deleteAnime(it) },
-                                    onDeleteManga = { viewModel.deleteManga(it) },
-                                    onOpenCastCrew = { id, isStaff -> viewModel.openCastCrewProfile(id, isStaff) },
-                                    onOpenFullCast = { isCrew ->
-                                        viewModel.openFullCastList(
-                                            mediaTitle = detailTitle,
-                                            castList = uiState.extendedDetail?.cast ?: emptyList(),
-                                            staffList = uiState.extendedDetail?.crew ?: emptyList(),
-                                            isCrewInitial = isCrew
-                                        )
-                                    },
-                                    onOpenStudio = { studioId, studioName -> viewModel.openStudio(studioId, studioName) },
-                                    onDismiss = { viewModel.popScreen() }
-                                )
-                            }
-                            is ScreenRoute.StudioFilmography -> {
-                                StudioFilmographyScreen(
-                                    studioId = currentScreen.studioId,
-                                    studioName = currentScreen.studioName,
-                                    items = uiState.studioFilmographyItems,
-                                    totalEntries = uiState.studioFilmographyTotalEntries,
-                                    isLoading = uiState.isStudioFilmographyLoading,
-                                    isLoadingMore = uiState.isStudioFilmographyLoadingMore,
-                                    canLoadMore = uiState.canLoadMoreStudioFilmography,
-                                    onLoadMore = { viewModel.loadMoreStudioFilmography() },
-                                    onOpenDetail = { media, type -> viewModel.openDetail(media, type) },
-                                    onBack = { viewModel.popScreen() },
-                                    bioInfo = uiState.studioFilmographyBio,
-                                    sort = uiState.studioFilmographySort,
-                                    onSortChanged = { viewModel.setStudioFilmographySort(it) }
-                                )
-                            }
-                            is ScreenRoute.Flashcard -> {
-                                FlashcardScreen(
-                                    deck = uiState.flashcardDeck,
-                                    credits = uiState.gachaCredits,
-                                    isLoading = uiState.isFlashcardLoading,
-                                    onBack = { viewModel.popScreen() },
-                                    onConsumeCredit = { viewModel.consumeGachaCredit() },
-                                    onSwipeCard = { viewModel.swipeDismissFlashcard(it) },
-                                    onOpenDetail = { media, type -> viewModel.openDetail(media, type) },
-                                    onRefreshDeck = { viewModel.loadFlashcardDeck() },
-                                    onSavePlanToWatch = { media, cb -> viewModel.saveFlashcardPlanToWatch(media, cb) }
-                                )
-                            }
-                            is ScreenRoute.Stats -> {
-                                StatsScreen(
-                                    state = uiState,
-                                    onBack = { viewModel.popScreen() },
-                                    onSelectItem = { item, type -> viewModel.openDetail(item, type) }
-                                )
-                            }
-                            is ScreenRoute.AddTitleSheet -> {
-                                ModalBottomSheet(
-                                    onDismissRequest = { viewModel.popScreen() },
-                                    containerColor = BlackBg,
-                                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-                                    dragHandle = { BottomSheetDefaults.DragHandle(color = CardBorder) },
-                                    modifier = Modifier.fillMaxHeight(0.92f)
-                                ) {
+                        AnimatedContent(
+                            targetState = uiState.activeTab,
+                            transitionSpec = {
+                                fadeIn(animationSpec = tween(180)).togetherWith(fadeOut(animationSpec = tween(180)))
+                            },
+                            label = "TabContent"
+                        ) { activeTab ->
+                            when (activeTab) {
+                                "dashboard" -> {
+                                    DashboardScreen(
+                                        state = uiState,
+                                        onQuickAddEpisode = onQuickAddEpisode,
+                                        onQuickAddChapter = onQuickAddChapter,
+                                        onSelectItem = onSelectItem,
+                                        onLoadDemoData = onLoadDemoData,
+                                        onNavigateTab = onNavigateTab,
+                                        onLoginMal = onLoginMal,
+                                        onSyncMal = onSyncMal,
+                                        onOpenStats = onOpenStats,
+                                        onOpenFlashcard = onOpenFlashcard
+                                    )
+                                }
+                                "library" -> {
+                                    LibraryScreen(
+                                        state = uiState,
+                                        onSelectMediaType = onSelectMediaType,
+                                        onSelectStatusFilter = onSelectStatusFilter,
+                                        onSelectSort = onSelectSort,
+                                        onSearchQueryChange = onSearchQueryChange,
+                                        onQuickAddAnime = onQuickAddEpisode,
+                                        onQuickDecrementAnime = onQuickDecrementAnime,
+                                        onQuickAddManga = onQuickAddChapter,
+                                        onQuickDecrementManga = onQuickDecrementManga,
+                                        onSelectItem = onSelectItem
+                                    )
+                                }
+                                "search" -> {
                                     SearchScreen(
                                         state = uiState,
                                         onSearch = { query, type -> viewModel.search(query, type) },
                                         onAddMedia = { item, status -> viewModel.addFromCatalog(item, status) },
                                         onSelectItem = { item, type -> viewModel.openDetail(item, type) },
                                         onSaveAnime = { viewModel.saveAnime(it) },
-                                        onSaveManga = { viewModel.saveManga(it) }
+                                        onSaveManga = { viewModel.saveManga(it) },
+                                        onApplyFilters = { genres, year, format -> viewModel.applySearchFilters(genres, year, format) },
+                                        onResetFilters = { viewModel.resetSearchFilters() }
+                                    )
+                                }
+                                "discover" -> {
+                                    DiscoverScreen(
+                                        state = uiState,
+                                        onSelectCategory = { cat, filter -> viewModel.loadDiscoverCategory(cat, filter) },
+                                        onAddMedia = { item, status -> viewModel.addFromCatalog(item, status) },
+                                        onSelectItem = { item, type -> viewModel.openDetail(item, type) },
+                                        onLoadMore = { viewModel.loadMoreDiscover() },
+                                        onSaveAnime = { viewModel.saveAnime(it) },
+                                        onSaveManga = { viewModel.saveManga(it) },
+                                        onOpenStudio = { studioId, studioName -> viewModel.openStudio(studioId, studioName) },
+                                        onSearchStudio = { viewModel.searchStudios(it) }
+                                    )
+                                }
+                                "settings" -> {
+                                    SettingsScreen(
+                                        state = uiState,
+                                        onLoginMal = { viewModel.loginWithMal(context) },
+                                        onSyncMal = { viewModel.syncWithMal() },
+                                        onLogoutMal = { viewModel.logoutMal() },
+                                        onSetAppMode = { viewModel.setAppMode(it) },
+                                        onLoadDemoData = { viewModel.loadDemoData() },
+                                        onClearAllData = { viewModel.clearAllData() },
+                                        onClearImageCache = { viewModel.clearImageCache(context) },
+                                        onClearMetadataCache = { viewModel.clearMetadataCache() },
+                                        onClearAllCache = { viewModel.clearAllCache(context) },
+                                        onCheckForUpdates = { viewModel.checkForUpdates(manual = true) },
+                                        onSetAutoUpdateCheck = { viewModel.setAutoUpdateCheck(it) },
+                                        onDismissUpdateDialog = { viewModel.dismissUpdateDialog() }
                                     )
                                 }
                             }
-                            null -> { /* No overlay active */ }
+                        }
+
+                        // Top-level modal/overlay stack rendering with Pop-out Transition for Detail
+                        AnimatedContent(
+                            targetState = screenStack.lastOrNull(),
+                            transitionSpec = {
+                                if (targetState is ScreenRoute.Detail) {
+                                    (scaleIn(initialScale = 0.92f, animationSpec = tween(220)) + fadeIn(animationSpec = tween(220)))
+                                        .togetherWith(scaleOut(targetScale = 0.92f, animationSpec = tween(180)) + fadeOut(animationSpec = tween(180)))
+                                } else if (initialState is ScreenRoute.Detail) {
+                                    (scaleIn(initialScale = 0.92f, animationSpec = tween(180)) + fadeIn(animationSpec = tween(180)))
+                                        .togetherWith(scaleOut(targetScale = 0.92f, animationSpec = tween(180)) + fadeOut(animationSpec = tween(180)))
+                                } else {
+                                    fadeIn(animationSpec = tween(180)).togetherWith(fadeOut(animationSpec = tween(180)))
+                                }
+                            },
+                            label = "ScreenOverlayTransition"
+                        ) { currentScreen ->
+                            when (currentScreen) {
+                                is ScreenRoute.CastCrew -> {
+                                    CastCrewProfileScreen(
+                                        profile = uiState.selectedCastCrewProfile,
+                                        isLoading = uiState.isLoadingCastCrewProfile,
+                                        onBack = { viewModel.popScreen() },
+                                        onSelectMedia = { mediaItem ->
+                                            viewModel.openDetail(mediaItem, mediaItem.type)
+                                        }
+                                    )
+                                }
+                                is ScreenRoute.FullCastList -> {
+                                    FullCastListScreen(
+                                        mediaTitle = currentScreen.mediaTitle,
+                                        castList = currentScreen.castList,
+                                        staffList = currentScreen.staffList,
+                                        isCrewInitial = currentScreen.isCrewInitial,
+                                        onBack = { viewModel.popScreen() },
+                                        onOpenCastCrew = { id, isStaff ->
+                                            viewModel.openCastCrewProfile(id, isStaff)
+                                        }
+                                    )
+                                }
+                                is ScreenRoute.Detail -> {
+                                    val detailItem = uiState.selectedDetailItem ?: currentScreen.item
+                                    val detailTitle = (detailItem as? com.canim.app.data.model.UserMediaItem)?.title
+                                        ?: (detailItem as? com.canim.app.data.model.MediaItem)?.title
+                                        ?: ""
+                                    MediaDetailScreen(
+                                        item = detailItem,
+                                        type = uiState.detailMediaType,
+                                        extendedDetail = uiState.extendedDetail,
+                                        isLoadingExtendedDetail = uiState.isLoadingExtendedDetail,
+                                        onSaveAnime = { viewModel.saveAnime(it) },
+                                        onSaveManga = { viewModel.saveManga(it) },
+                                        onDeleteAnime = { viewModel.deleteAnime(it) },
+                                        onDeleteManga = { viewModel.deleteManga(it) },
+                                        onOpenCastCrew = { id, isStaff -> viewModel.openCastCrewProfile(id, isStaff) },
+                                        onOpenFullCast = { isCrew ->
+                                            viewModel.openFullCastList(
+                                                mediaTitle = detailTitle,
+                                                castList = uiState.extendedDetail?.cast ?: emptyList(),
+                                                staffList = uiState.extendedDetail?.crew ?: emptyList(),
+                                                isCrewInitial = isCrew
+                                            )
+                                        },
+                                        onOpenStudio = { studioId, studioName -> viewModel.openStudio(studioId, studioName) },
+                                        onOpenMediaDetail = { media, mediaType -> viewModel.openDetail(media, mediaType) },
+                                        onDismiss = { viewModel.popScreen() }
+                                    )
+                                }
+                                is ScreenRoute.StudioFilmography -> {
+                                    StudioFilmographyScreen(
+                                        studioId = currentScreen.studioId,
+                                        studioName = currentScreen.studioName,
+                                        items = uiState.studioFilmographyItems,
+                                        totalEntries = uiState.studioFilmographyTotalEntries,
+                                        isLoading = uiState.isStudioFilmographyLoading,
+                                        isLoadingMore = uiState.isStudioFilmographyLoadingMore,
+                                        canLoadMore = uiState.canLoadMoreStudioFilmography,
+                                        onLoadMore = { viewModel.loadMoreStudioFilmography() },
+                                        onOpenDetail = { media, type -> viewModel.openDetail(media, type) },
+                                        onBack = { viewModel.popScreen() },
+                                        bioInfo = uiState.studioFilmographyBio,
+                                        sort = uiState.studioFilmographySort,
+                                        onSortChanged = { viewModel.setStudioFilmographySort(it) }
+                                    )
+                                }
+                                is ScreenRoute.Flashcard -> {
+                                    FlashcardScreen(
+                                        deck = uiState.flashcardDeck,
+                                        credits = uiState.gachaCredits,
+                                        isLoading = uiState.isFlashcardLoading,
+                                        onBack = { viewModel.popScreen() },
+                                        onConsumeCredit = { viewModel.consumeGachaCredit() },
+                                        onSwipeCard = { viewModel.swipeDismissFlashcard(it) },
+                                        onOpenDetail = { media, type -> viewModel.openDetail(media, type) },
+                                        onRefreshDeck = { viewModel.loadFlashcardDeck() },
+                                        onSavePlanToWatch = { media, cb -> viewModel.saveFlashcardPlanToWatch(media, cb) }
+                                    )
+                                }
+                                is ScreenRoute.Stats -> {
+                                    StatsScreen(
+                                        state = uiState,
+                                        onBack = { viewModel.popScreen() },
+                                        onSelectItem = { item, type -> viewModel.openDetail(item, type) }
+                                    )
+                                }
+                                is ScreenRoute.AddTitleSheet -> {
+                                    ModalBottomSheet(
+                                        onDismissRequest = { viewModel.popScreen() },
+                                        containerColor = BlackBg,
+                                        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                                        dragHandle = { BottomSheetDefaults.DragHandle(color = CardBorder) },
+                                        modifier = Modifier.fillMaxHeight(0.92f)
+                                    ) {
+                                        SearchScreen(
+                                            state = uiState,
+                                            onSearch = { query, type -> viewModel.search(query, type) },
+                                            onAddMedia = { item, status -> viewModel.addFromCatalog(item, status) },
+                                            onSelectItem = { item, type -> viewModel.openDetail(item, type) },
+                                            onSaveAnime = { viewModel.saveAnime(it) },
+                                            onSaveManga = { viewModel.saveManga(it) },
+                                            onApplyFilters = { genres, year, format -> viewModel.applySearchFilters(genres, year, format) },
+                                            onResetFilters = { viewModel.resetSearchFilters() }
+                                        )
+                                    }
+                                }
+                                null -> { /* No overlay active */ }
+                            }
                         }
                     }
                 }

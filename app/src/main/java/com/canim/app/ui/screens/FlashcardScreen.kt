@@ -141,17 +141,60 @@ fun FlashcardScreen(
             contentAlignment = Alignment.Center
         ) {
             when {
+                // A.1: "Mengacak kartu" loading state with staggered face-down stacking & locked user interaction
                 isLoading -> {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .pointerInput(Unit) {
+                                // Block all touch gestures during shuffle
+                            },
+                        contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(color = AccentBlue)
-                        Text(
-                            text = "Menyiapkan tumpukan kartu...",
-                            color = TextSecondary,
-                            fontSize = 13.sp
-                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(0.88f)
+                                .fillMaxHeight(0.90f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            for (i in 2 downTo 0) {
+                                val scale = 1f - (i * 0.05f)
+                                val verticalOffset = (i * 14).dp
+                                CardBack(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .offset(y = verticalOffset)
+                                        .scale(scale)
+                                        .graphicsLayer { alpha = 1f - (i * 0.25f) }
+                                )
+                            }
+
+                            // Shuffling overlay pill
+                            Surface(
+                                color = Color.Black.copy(alpha = 0.85f),
+                                shape = RoundedCornerShape(16.dp),
+                                border = BorderStroke(1.dp, AccentBlue.copy(alpha = 0.5f)),
+                                modifier = Modifier.padding(24.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        strokeWidth = 2.5.dp,
+                                        color = AccentBlue
+                                    )
+                                    Text(
+                                        text = "Mengacak kartu...",
+                                        color = TextPrimary,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
                 credits <= 0 -> {
@@ -164,12 +207,28 @@ fun FlashcardScreen(
                     val topCard = deck.first()
                     val backgroundCards = deck.drop(1).take(2)
 
+                    // Card Flip State for current topCard
+                    var isCardFlipped by remember(topCard.id) { mutableStateOf(false) }
+                    val flipRotation = remember(topCard.id) { Animatable(0f) }
+
+                    val flipToFront: () -> Unit = {
+                        if (!isCardFlipped) {
+                            coroutineScope.launch {
+                                flipRotation.animateTo(
+                                    targetValue = 180f,
+                                    animationSpec = tween(durationMillis = 400)
+                                )
+                                isCardFlipped = true
+                            }
+                        }
+                    }
+
                     Column(
                         modifier = Modifier.fillMaxSize(),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.SpaceBetween
                     ) {
-                        // Card Stack Container (UNO style)
+                        // Card Stack Container (Face-Down Stack -> Tap to Flip 180°)
                         Box(
                             modifier = Modifier
                                 .weight(1f)
@@ -177,30 +236,26 @@ fun FlashcardScreen(
                                 .padding(vertical = 12.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            // Render stacked background cards (reverse order so topCard renders in front)
-                            backgroundCards.asReversed().forEachIndexed { index, card ->
+                            // Background cards render face-down
+                            backgroundCards.asReversed().forEachIndexed { index, _ ->
                                 val depth = backgroundCards.size - index
                                 val scale = 1f - (depth * 0.05f)
                                 val verticalOffset = (depth * 14).dp
 
-                                PhysicalCard(
-                                    item = card,
+                                CardBack(
                                     modifier = Modifier
                                         .fillMaxWidth(0.88f)
                                         .fillMaxHeight(0.90f)
                                         .offset(y = verticalOffset)
                                         .scale(scale)
-                                        .graphicsLayer { alpha = 1f - (depth * 0.25f) },
-                                    isInteractive = false,
-                                    onClick = {}
+                                        .graphicsLayer { alpha = 1f - (depth * 0.25f) }
                                 )
                             }
 
-                            // Top Interactive Card with Spring Physics
-                            val rotation = (offsetX.value / screenWidthPx) * 20f
+                            // Top Card with Flip & Drag Physics
+                            val rotationZ = (offsetX.value / screenWidthPx) * 20f
 
-                            PhysicalCard(
-                                item = topCard,
+                            Box(
                                 modifier = Modifier
                                     .fillMaxWidth(0.88f)
                                     .fillMaxHeight(0.90f)
@@ -209,73 +264,97 @@ fun FlashcardScreen(
                                         y = with(density) { offsetY.value.toDp() }
                                     )
                                     .graphicsLayer {
-                                        rotationZ = rotation
+                                        this.rotationZ = rotationZ
+                                        this.rotationY = flipRotation.value
+                                        cameraDistance = 12f * density.density
                                     }
-                                    .pointerInput(topCard.id) {
-                                        detectDragGestures(
-                                            onDragStart = { isSwiping = true },
-                                            onDragEnd = {
-                                                isSwiping = false
-                                                coroutineScope.launch {
-                                                    if (kotlin.math.abs(offsetX.value) > swipeThreshold) {
-                                                        // Animate fling off screen
-                                                        val targetX = if (offsetX.value > 0) screenWidthPx * 1.5f else -screenWidthPx * 1.5f
-                                                        offsetX.animateTo(
-                                                            targetValue = targetX,
-                                                            animationSpec = tween(220)
-                                                        )
-                                                        if (onConsumeCredit()) {
-                                                            onSwipeCard(topCard)
-                                                        }
-                                                        offsetX.snapTo(0f)
-                                                        offsetY.snapTo(0f)
-                                                    } else {
-                                                        // Spring snap back
-                                                        launch {
-                                                            offsetX.animateTo(
-                                                                0f,
-                                                                spring(
-                                                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                                                    stiffness = Spring.StiffnessMediumLow
+                                    .then(
+                                        if (isCardFlipped) {
+                                            Modifier.pointerInput(topCard.id) {
+                                                detectDragGestures(
+                                                    onDragStart = { isSwiping = true },
+                                                    onDragEnd = {
+                                                        isSwiping = false
+                                                        coroutineScope.launch {
+                                                            if (kotlin.math.abs(offsetX.value) > swipeThreshold) {
+                                                                val targetX = if (offsetX.value > 0) screenWidthPx * 1.5f else -screenWidthPx * 1.5f
+                                                                offsetX.animateTo(
+                                                                    targetValue = targetX,
+                                                                    animationSpec = tween(220)
                                                                 )
-                                                            )
+                                                                onSwipeCard(topCard)
+                                                                offsetX.snapTo(0f)
+                                                                offsetY.snapTo(0f)
+                                                                isCardFlipped = false
+                                                                flipRotation.snapTo(0f)
+                                                            } else {
+                                                                launch {
+                                                                    offsetX.animateTo(
+                                                                        0f,
+                                                                        spring(
+                                                                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                                            stiffness = Spring.StiffnessMediumLow
+                                                                        )
+                                                                    )
+                                                                }
+                                                                launch {
+                                                                    offsetY.animateTo(
+                                                                        0f,
+                                                                        spring(
+                                                                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                                            stiffness = Spring.StiffnessMediumLow
+                                                                        )
+                                                                    )
+                                                                }
+                                                            }
                                                         }
-                                                        launch {
-                                                            offsetY.animateTo(
-                                                                0f,
-                                                                spring(
-                                                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                                                    stiffness = Spring.StiffnessMediumLow
-                                                                )
-                                                            )
+                                                    },
+                                                    onDragCancel = {
+                                                        isSwiping = false
+                                                        coroutineScope.launch {
+                                                            offsetX.snapTo(0f)
+                                                            offsetY.snapTo(0f)
+                                                        }
+                                                    },
+                                                    onDrag = { change, dragAmount ->
+                                                        change.consume()
+                                                        coroutineScope.launch {
+                                                            offsetX.snapTo(offsetX.value + dragAmount.x)
+                                                            offsetY.snapTo(offsetY.value + dragAmount.y * 0.35f)
                                                         }
                                                     }
-                                                }
-                                            },
-                                            onDragCancel = {
-                                                isSwiping = false
-                                                coroutineScope.launch {
-                                                    offsetX.snapTo(0f)
-                                                    offsetY.snapTo(0f)
-                                                }
-                                            },
-                                            onDrag = { change, dragAmount ->
-                                                change.consume()
-                                                coroutineScope.launch {
-                                                    offsetX.snapTo(offsetX.value + dragAmount.x)
-                                                    offsetY.snapTo(offsetY.value + dragAmount.y * 0.35f)
-                                                }
+                                                )
                                             }
+                                        } else {
+                                            Modifier.clickable { flipToFront() }
+                                        }
+                                    )
+                            ) {
+                                if (flipRotation.value <= 90f) {
+                                    CardBack(
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
+                                    // Face-up card: counter-rotated Y to avoid mirroring
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .graphicsLayer {
+                                                this.rotationY = 180f
+                                            }
+                                    ) {
+                                        PhysicalCard(
+                                            item = topCard,
+                                            modifier = Modifier.fillMaxSize(),
+                                            isInteractive = false,
+                                            onClick = { /* Body tap must NOT open detail! */ }
                                         )
-                                    },
-                                isInteractive = true,
-                                onClick = {
-                                    onOpenDetail(topCard, topCard.type)
+                                    }
                                 }
-                            )
+                            }
                         }
 
-                        // Bottom Control Buttons
+                        // Bottom Control Buttons (A.2: Trash, Info, Plus)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -283,56 +362,60 @@ fun FlashcardScreen(
                             horizontalArrangement = Arrangement.SpaceEvenly,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Skip / Lewati button
+                            // 1. Trash / Lewati Button (DeleteOutline)
                             IconButton(
                                 onClick = {
+                                    if (!isCardFlipped) return@IconButton
                                     coroutineScope.launch {
                                         offsetX.animateTo(-screenWidthPx * 1.5f, tween(250))
-                                        if (onConsumeCredit()) {
-                                            onSwipeCard(topCard)
-                                        }
+                                        onSwipeCard(topCard)
                                         offsetX.snapTo(0f)
                                         offsetY.snapTo(0f)
+                                        isCardFlipped = false
+                                        flipRotation.snapTo(0f)
                                     }
                                 },
+                                enabled = isCardFlipped,
                                 modifier = Modifier
                                     .size(56.dp)
                                     .clip(CircleShape)
-                                    .background(CardElevated)
-                                    .border(1.dp, CardBorder, CircleShape)
+                                    .background(if (isCardFlipped) CardElevated else CardElevated.copy(alpha = 0.35f))
+                                    .border(1.dp, if (isCardFlipped) Color(0xFFEF4444).copy(alpha = 0.5f) else CardBorderSubtle, CircleShape)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Close,
-                                    contentDescription = "Lewati",
-                                    tint = Color(0xFFEF4444),
+                                    imageVector = Icons.Default.DeleteOutline,
+                                    contentDescription = "Lewati Kartu",
+                                    tint = if (isCardFlipped) Color(0xFFEF4444) else TextMuted,
                                     modifier = Modifier.size(26.dp)
                                 )
                             }
 
-                            // Info / Detail button
+                            // 2. Info Button (Info - Sole navigation path to detail)
                             IconButton(
                                 onClick = {
+                                    if (!isCardFlipped) return@IconButton
                                     onOpenDetail(topCard, topCard.type)
                                 },
+                                enabled = isCardFlipped,
                                 modifier = Modifier
-                                    .size(46.dp)
+                                    .size(48.dp)
                                     .clip(CircleShape)
-                                    .background(CardElevated)
-                                    .border(1.dp, CardBorder, CircleShape)
+                                    .background(if (isCardFlipped) CardElevated else CardElevated.copy(alpha = 0.35f))
+                                    .border(1.dp, if (isCardFlipped) AccentBlue.copy(alpha = 0.5f) else CardBorderSubtle, CircleShape)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Info,
-                                    contentDescription = "Detail",
-                                    tint = AccentBlue,
-                                    modifier = Modifier.size(22.dp)
+                                    contentDescription = "Lihat Detail Anime",
+                                    tint = if (isCardFlipped) AccentBlue else TextMuted,
+                                    modifier = Modifier.size(24.dp)
                                 )
                             }
 
-                            // Accept / Simpan ke Library button
+                            // 3. Plus Button (Add - Add to Library as "Rencana" & consume 1 credit)
                             var isSavingCard by remember { mutableStateOf(false) }
                             IconButton(
                                 onClick = {
-                                    if (isSavingCard) return@IconButton
+                                    if (!isCardFlipped || isSavingCard) return@IconButton
                                     isSavingCard = true
                                     onSavePlanToWatch(topCard) { success ->
                                         isSavingCard = false
@@ -344,24 +427,144 @@ fun FlashcardScreen(
                                                 }
                                                 offsetX.snapTo(0f)
                                                 offsetY.snapTo(0f)
+                                                isCardFlipped = false
+                                                flipRotation.snapTo(0f)
                                             }
                                         }
                                     }
                                 },
+                                enabled = isCardFlipped && !isSavingCard,
                                 modifier = Modifier
                                     .size(56.dp)
                                     .clip(CircleShape)
-                                    .background(AccentBlue)
-                                    .border(1.dp, AccentBlue.copy(alpha = 0.8f), CircleShape)
+                                    .background(if (isCardFlipped) AccentBlue else AccentBlue.copy(alpha = 0.35f))
+                                    .border(1.dp, if (isCardFlipped) AccentBlue.copy(alpha = 0.8f) else Color.Transparent, CircleShape)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = "Simpan ke Rencana Ditonton",
-                                    tint = Color.White,
+                                    imageVector = Icons.Default.Add,
+                                    contentDescription = "Tambah ke Rencana",
+                                    tint = if (isCardFlipped) Color.White else TextMuted,
                                     modifier = Modifier.size(28.dp)
                                 )
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Cyber/Neon Card Back for Face-Down Gacha Stacking
+ */
+@Composable
+private fun CardBack(
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier
+            .border(
+                width = 1.8.dp,
+                brush = Brush.linearGradient(
+                    listOf(
+                        AccentBlue.copy(alpha = 0.9f),
+                        Color(0xFF8B5CF6).copy(alpha = 0.7f),
+                        AccentBlue.copy(alpha = 0.9f)
+                    )
+                ),
+                shape = PhysicalCardShape
+            )
+            .clip(PhysicalCardShape),
+        shape = PhysicalCardShape,
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            Color(0xFF1E293B),
+                            Color(0xFF0F172A),
+                            Color(0xFF020617)
+                        )
+                    )
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(24.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(86.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.sweepGradient(
+                                listOf(
+                                    AccentBlue.copy(alpha = 0.25f),
+                                    Color(0xFF8B5CF6).copy(alpha = 0.35f),
+                                    AccentBlue.copy(alpha = 0.25f)
+                                )
+                            )
+                        )
+                        .border(2.dp, AccentBlue.copy(alpha = 0.6f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        tint = AccentBlue,
+                        modifier = Modifier.size(42.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                Text(
+                    text = "CA'NIM",
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 4.sp
+                )
+
+                Text(
+                    text = "GACHA CARD",
+                    color = AccentBlue,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 2.sp
+                )
+
+                Spacer(modifier = Modifier.height(26.dp))
+
+                Surface(
+                    color = CardElevated.copy(alpha = 0.85f),
+                    shape = RoundedCornerShape(20.dp),
+                    border = BorderStroke(1.dp, CardBorderSubtle)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.TouchApp,
+                            contentDescription = null,
+                            tint = StarGold,
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Text(
+                            text = "Ketuk untuk membuka",
+                            color = TextSecondary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 }
             }

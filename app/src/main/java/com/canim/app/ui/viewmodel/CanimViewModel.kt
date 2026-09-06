@@ -49,6 +49,9 @@ data class CanimUiState(
     val searchType: MediaType = MediaType.ANIME,
     val searchResults: List<MediaItem> = emptyList(),
     val isSearching: Boolean = false,
+    val searchGenres: List<String> = emptyList(),
+    val searchYear: Int? = null,
+    val searchFormat: String? = null,
 
     // Detail & Extended details state
     val selectedDetailItem: Any? = null,
@@ -152,18 +155,19 @@ class CanimViewModel(
         viewModelScope.launch {
             _searchQueryFlow
                 .debounce(300L)
-                .distinctUntilChanged()
                 .flatMapLatest { (query, type) ->
                     flow {
                         val trimmed = query.trim()
-                        if (trimmed.length < 2) {
+                        val state = _uiState.value
+                        val hasFilters = state.searchGenres.isNotEmpty() || state.searchYear != null || state.searchFormat != null
+                        if (trimmed.length < 2 && !hasFilters) {
                             emit(emptyList<MediaItem>())
                         } else {
                             _uiState.update { it.copy(isSearching = true) }
                             val results = if (type == MediaType.ANIME) {
-                                repository.searchAnime(trimmed)
+                                repository.searchAnime(trimmed, state.searchGenres, state.searchYear, state.searchFormat)
                             } else {
-                                repository.searchManga(trimmed)
+                                repository.searchManga(trimmed, state.searchGenres, state.searchYear, state.searchFormat)
                             }
                             emit(results)
                         }
@@ -250,6 +254,10 @@ class CanimViewModel(
             val reading = mangas.filter { it.status == "reading" }
             val completedAnimeIds = animes.filter { it.status == "completed" }.mapNotNull { it.malId }.toSet()
             val completedMangaIds = mangas.filter { it.status == "completed" }.mapNotNull { it.malId }.toSet()
+
+            val gachaMgr = gachaCreditManager ?: try { GachaCreditManager.getInstance(CanimApplication.instance) } catch (_: Exception) { null }
+            animes.forEach { gachaMgr?.initBaselineProgress(it.id, it.progress) }
+            mangas.forEach { gachaMgr?.initBaselineProgress(it.id, it.progress) }
 
             val totalEp = animes.sumOf { it.progress }
             val totalCh = mangas.sumOf { it.progressChapters }
@@ -340,10 +348,14 @@ class CanimViewModel(
         val optimisticList = currentList.map { if (it.id == item.id) updatedItem else it }
         updateLibraryData(optimisticList, _uiState.value.mangaList)
         val gachaMgr = gachaCreditManager ?: try { GachaCreditManager.getInstance(CanimApplication.instance) } catch (_: Exception) { null }
-        gachaMgr?.addCredit(1)?.let { newBal ->
+        val awarded = gachaMgr?.recordProgressAndAwardCredits(item.id, updatedItem.tracking.progress) ?: 0
+        if (awarded > 0) {
+            val newBal = gachaMgr?.getCredits() ?: _uiState.value.gachaCredits
             _uiState.update { it.copy(gachaCredits = newBal) }
+            showSnackbar("+1 Episode ditambahkan! (+$awarded Tiket Gacha)")
+        } else {
+            showSnackbar("+1 Episode ditambahkan!")
         }
-        showSnackbar("+1 Episode ditambahkan! (+1 Tiket Gacha)")
 
         // 2. Dispatch to MAL API if logged in
         if (item.malId != null && _uiState.value.malUser.isLoggedIn) {
@@ -569,13 +581,11 @@ class CanimViewModel(
         } else {
             currentList + item
         }
-        val oldItem = currentList.firstOrNull { it.id == item.id }
-        val progressDiff = if (oldItem != null) item.tracking.progress - oldItem.tracking.progress else item.tracking.progress
-        if (progressDiff > 0) {
-            val gachaMgr = gachaCreditManager ?: try { GachaCreditManager.getInstance(CanimApplication.instance) } catch (_: Exception) { null }
-            gachaMgr?.addCredit(progressDiff)?.let { newBal ->
-                _uiState.update { it.copy(gachaCredits = newBal) }
-            }
+        val gachaMgr = gachaCreditManager ?: try { GachaCreditManager.getInstance(CanimApplication.instance) } catch (_: Exception) { null }
+        val awarded = gachaMgr?.recordProgressAndAwardCredits(item.id, item.tracking.progress) ?: 0
+        if (awarded > 0) {
+            val newBal = gachaMgr?.getCredits() ?: _uiState.value.gachaCredits
+            _uiState.update { it.copy(gachaCredits = newBal) }
         }
         updateLibraryData(optimisticList, _uiState.value.mangaList)
         closeDetail()
@@ -599,6 +609,12 @@ class CanimViewModel(
             currentList.map { if (it.id == item.id) item else it }
         } else {
             currentList + item
+        }
+        val gachaMgr = gachaCreditManager ?: try { GachaCreditManager.getInstance(CanimApplication.instance) } catch (_: Exception) { null }
+        val awarded = gachaMgr?.recordProgressAndAwardCredits(item.id, item.tracking.progress) ?: 0
+        if (awarded > 0) {
+            val newBal = gachaMgr?.getCredits() ?: _uiState.value.gachaCredits
+            _uiState.update { it.copy(gachaCredits = newBal) }
         }
         updateLibraryData(_uiState.value.animeList, optimisticList)
         closeDetail()
@@ -726,6 +742,28 @@ class CanimViewModel(
 
     fun search(query: String, type: MediaType) {
         onSearchQueryChange(query, type)
+    }
+
+    fun applySearchFilters(genres: List<String>, year: Int?, format: String?) {
+        _uiState.update {
+            it.copy(
+                searchGenres = genres,
+                searchYear = year,
+                searchFormat = format
+            )
+        }
+        _searchQueryFlow.value = Pair(_uiState.value.searchQuery, _uiState.value.searchType)
+    }
+
+    fun resetSearchFilters() {
+        _uiState.update {
+            it.copy(
+                searchGenres = emptyList(),
+                searchYear = null,
+                searchFormat = null
+            )
+        }
+        _searchQueryFlow.value = Pair(_uiState.value.searchQuery, _uiState.value.searchType)
     }
 
     // --- Discover & Fixed Race-Safe Randomizer ---
@@ -913,7 +951,7 @@ class CanimViewModel(
                         source = resolvedItem.format,
                         airingStatus = resolvedItem.status,
                         genres = resolvedItem.genres,
-                        malScore = resolvedItem.score?.toDouble(),
+                        malScore = null,
                         averageScore = resolvedItem.score?.toDouble()
                     )
                     else -> null
@@ -1173,6 +1211,11 @@ class CanimViewModel(
 
     fun setStudioFilmographySort(sort: StudioFilmographySort) {
         _uiState.update { it.copy(studioFilmographySort = sort) }
+        val sId = _uiState.value.studioFilmographyStudioId
+        val sName = _uiState.value.studioFilmographyStudioName
+        if (sId != null) {
+            loadStudioFilmography(sId, sName, page = 1)
+        }
     }
 
     // --- Studio Live Search (v5.1.1) ---
@@ -1276,7 +1319,8 @@ class CanimViewModel(
         }
 
         studioJob = viewModelScope.launch(Dispatchers.IO) {
-            val pageResult = repository.getStudioFilmography(studioId = studioId, page = page)
+            val sort = _uiState.value.studioFilmographySort
+            val pageResult = repository.getStudioFilmography(studioId = studioId, page = page, sort = sort)
             _uiState.update { currentState ->
                 val newItems = if (page == 1) {
                     pageResult?.items ?: emptyList()

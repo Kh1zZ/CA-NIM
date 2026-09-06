@@ -124,4 +124,22 @@ interface MalApiService {
         @Path("manga_id") mangaId: Int,
         @Query("fields") fields: String = "id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_chapters,num_volumes,status,genres,my_list_status,authors"
     ): Response<MalMangaNode>
+
+    @GET("anime/ranking")
+    suspend fun getAnimeRanking(
+        @Header("X-MAL-CLIENT-ID") clientId: String,
+        @Query("ranking_type") rankingType: String = "all",
+        @Query("limit") limit: Int = 50,
+        @Query("offset") offset: Int = 0,
+        @Query("fields") fields: String = "id,title,main_picture,mean,rank,popularity,num_list_users,num_episodes,status,genres"
+    ): Response<MalAnimeListResponse>
+
+    @GET("manga/ranking")
+    suspend fun getMangaRanking(
+        @Header("X-MAL-CLIENT-ID") clientId: String,
+        @Query("ranking_type") rankingType: String = "all",
+        @Query("limit") limit: Int = 50,
+        @Query("offset") offset: Int = 0,
+        @Query("fields") fields: String = "id,title,main_picture,mean,rank,popularity,num_list_users,num_chapters,num_volumes,status,genres"
+    ): Response<MalMangaListResponse>
 }

@@ -76,7 +76,39 @@ fun DiscoverScreen(
     val libraryAnimeMalIds = remember(state.animeList) { state.animeList.map { it.malId }.toSet() }
     val libraryMangaMalIds = remember(state.mangaList) { state.mangaList.map { it.malId }.toSet() }
 
-    val categories = DiscoverCategory.entries
+    val animeCategories = remember {
+        listOf(
+            DiscoverCategory.CURRENT_SEASON,
+            DiscoverCategory.NEXT_SEASON,
+            DiscoverCategory.STUDIO,
+            DiscoverCategory.TOP_ANIME,
+            DiscoverCategory.TRENDING_NOW,
+            DiscoverCategory.UPCOMING,
+            DiscoverCategory.TBA
+        )
+    }
+
+    val mangaCategories = remember {
+        listOf(
+            DiscoverCategory.TRENDING_NOW,
+            DiscoverCategory.TOP_MANGA,
+            DiscoverCategory.RECENTLY_DONE_MANGA,
+            DiscoverCategory.NEWLY_ADDED_MANGA
+        )
+    }
+
+    var discoverMediaType by remember {
+        mutableStateOf(
+            if (state.selectedDiscoverCategory in mangaCategories && state.selectedDiscoverCategory !in animeCategories) {
+                MediaType.MANGA
+            } else {
+                MediaType.ANIME
+            }
+        )
+    }
+
+    val currentCategories = if (discoverMediaType == MediaType.ANIME) animeCategories else mangaCategories
+    val currentAccent = if (discoverMediaType == MediaType.MANGA) MangaAccentDarkBlue else AccentBlue
     val listState = rememberLazyListState()
 
     // Smooth Pagination Trigger (Request 2)
@@ -126,58 +158,113 @@ fun DiscoverScreen(
                 }
             }
 
-            // Horizontal Category Chips
+            // 2-State Media Mode Toggle (Anime / Manga)
             item {
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(vertical = 4.dp)
-            ) {
-                items(categories, key = { it.name }, contentType = { "category_chip" }) { category ->
-                    val isStudio = category == DiscoverCategory.STUDIO
-                    val isSelected = state.selectedDiscoverCategory == category
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = {
-                            if (isStudio) {
-                                showStudioPickerSheet = true
-                            } else if (!isSelected) {
-                                onSelectCategory(category, DiscoverFilter())
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(CardBg)
+                        .padding(4.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (discoverMediaType == MediaType.ANIME) AccentBlue else Color.Transparent)
+                            .clickable {
+                                if (discoverMediaType != MediaType.ANIME) {
+                                    discoverMediaType = MediaType.ANIME
+                                    onSelectCategory(DiscoverCategory.CURRENT_SEASON, DiscoverFilter())
+                                }
                             }
-                        },
-                        leadingIcon = if (isStudio) {
-                            {
-                                Icon(
-                                    imageVector = Icons.Default.Movie,
-                                    contentDescription = null,
-                                    tint = if (isSelected) Color.White else AccentBlue,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            }
-                        } else null,
-                        label = {
-                            Text(
-                                text = category.label,
-                                fontSize = 12.sp,
-                                fontWeight = if (isSelected || isStudio) FontWeight.Bold else FontWeight.Normal
-                            )
-                        },
-                        shape = RoundedCornerShape(20.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AccentBlue,
-                            selectedLabelColor = Color.White,
-                            containerColor = if (isStudio) AccentBlue.copy(alpha = 0.18f) else CardBg,
-                            labelColor = if (isStudio) AccentBlue else TextSecondary
-                        ),
-                        border = FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = isSelected,
-                            borderColor = if (isStudio) AccentBlue.copy(alpha = 0.4f) else CardBorderSubtle,
-                            selectedBorderColor = AccentBlue
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Anime",
+                            color = if (discoverMediaType == MediaType.ANIME) Color.White else TextMuted,
+                            fontSize = 13.sp,
+                            fontWeight = if (discoverMediaType == MediaType.ANIME) FontWeight.Bold else FontWeight.Medium
                         )
-                    )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (discoverMediaType == MediaType.MANGA) MangaAccentDarkBlue else Color.Transparent)
+                            .clickable {
+                                if (discoverMediaType != MediaType.MANGA) {
+                                    discoverMediaType = MediaType.MANGA
+                                    onSelectCategory(DiscoverCategory.TRENDING_NOW, DiscoverFilter())
+                                }
+                            }
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Manga",
+                            color = if (discoverMediaType == MediaType.MANGA) Color.White else TextMuted,
+                            fontSize = 13.sp,
+                            fontWeight = if (discoverMediaType == MediaType.MANGA) FontWeight.Bold else FontWeight.Medium
+                        )
+                    }
                 }
             }
-        }
+
+            // Horizontal Category Chips
+            item {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(vertical = 4.dp)
+                ) {
+                    items(currentCategories, key = { it.name }, contentType = { "category_chip" }) { category ->
+                        val isStudio = category == DiscoverCategory.STUDIO
+                        val isSelected = state.selectedDiscoverCategory == category
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = {
+                                if (isStudio) {
+                                    showStudioPickerSheet = true
+                                } else if (!isSelected) {
+                                    onSelectCategory(category, DiscoverFilter())
+                                }
+                            },
+                            leadingIcon = if (isStudio) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.Movie,
+                                        contentDescription = null,
+                                        tint = if (isSelected) Color.White else AccentBlue,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            } else null,
+                            label = {
+                                Text(
+                                    text = category.label,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected || isStudio) FontWeight.Bold else FontWeight.Normal
+                                )
+                            },
+                            shape = RoundedCornerShape(20.dp),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = currentAccent,
+                                selectedLabelColor = Color.White,
+                                containerColor = if (isStudio) AccentBlue.copy(alpha = 0.18f) else CardBg,
+                                labelColor = if (isStudio) AccentBlue else TextSecondary
+                            ),
+                            border = FilterChipDefaults.filterChipBorder(
+                                enabled = true,
+                                selected = isSelected,
+                                borderColor = if (isStudio) AccentBlue.copy(alpha = 0.4f) else CardBorderSubtle,
+                                selectedBorderColor = currentAccent
+                            )
+                        )
+                    }
+                }
+            }
 
         if (state.isDiscoverLoading) {
             item {

@@ -241,6 +241,19 @@ data class CastCrewProfile(
 )
 
 @Immutable
+data class MediaRelationItem(
+    val id: Int,
+    val malId: Int? = null,
+    val title: String,
+    val titleEnglish: String? = null,
+    val imageUrl: String? = null,
+    val relationType: String = "", // "PREQUEL", "SEQUEL", "SOURCE", "SPIN_OFF", "ALTERNATIVE"
+    val type: MediaType = MediaType.ANIME,
+    val format: String? = null,
+    val status: String? = null
+)
+
+@Immutable
 data class ExtendedMediaDetail(
     val anilistId: Int? = null,
     val malId: Int? = null,
@@ -264,7 +277,7 @@ data class ExtendedMediaDetail(
     val endings: List<String> = emptyList(),
     val cast: List<CharacterCastItem> = emptyList(),
     val crew: List<StaffMemberItem> = emptyList(),
-    val relations: List<String> = emptyList(),
+    val relations: List<MediaRelationItem> = emptyList(),
     val averageScore: Double? = null,
     val malScore: Double? = null,
     val malRank: Int? = null,
@@ -286,11 +299,16 @@ fun formatCompactNumber(value: Int): String {
 }
 
 enum class DiscoverCategory(val key: String, val label: String) {
-    STUDIO("studio", "Studio"),
     CURRENT_SEASON("season_now", "Musim Ini"),
     NEXT_SEASON("season_next", "Musim Depan"),
+    STUDIO("studio", "Studio"),
+    TOP_ANIME("top_anime", "Top Anime"),
+    TRENDING_NOW("trending_now", "Trending Now"),
     UPCOMING("upcoming", "Akan Datang"),
-    TBA("tba", "TBA")
+    TBA("tba", "TBA"),
+    TOP_MANGA("top_manga", "Top Manga"),
+    RECENTLY_DONE_MANGA("recently_done_manga", "Recently Done"),
+    NEWLY_ADDED_MANGA("newly_added_manga", "Newly Added")
 }
 
 @Immutable

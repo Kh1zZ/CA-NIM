@@ -12,6 +12,7 @@ class GachaCreditManager(context: Context) {
         private const val PREFS_NAME = "canim_gacha_prefs"
         private const val KEY_CREDITS = "gacha_credits"
         private const val KEY_LAST_RESET_WEEK = "last_reset_week"
+        private const val KEY_HIGHEST_PROGRESS_PREFIX = "highest_prog_"
 
         const val BASE_WEEKLY_CREDITS = 5
         const val CREDIT_PER_EPISODE = 1
@@ -85,6 +86,43 @@ class GachaCreditManager(context: Context) {
                 .putInt(KEY_CREDITS, newCredits)
                 .putLong(KEY_LAST_RESET_WEEK, currentWeekStart)
                 .apply()
+        }
+    }
+
+    @Synchronized
+    fun getHighestProgress(mediaId: String): Int {
+        val sanitized = mediaId.replace(":", "_").replace("/", "_")
+        return prefs.getInt(KEY_HIGHEST_PROGRESS_PREFIX + sanitized, 0)
+    }
+
+    @Synchronized
+    fun initBaselineProgress(mediaId: String, currentProgress: Int) {
+        val sanitized = mediaId.replace(":", "_").replace("/", "_")
+        val key = KEY_HIGHEST_PROGRESS_PREFIX + sanitized
+        if (!prefs.contains(key)) {
+            prefs.edit().putInt(key, maxOf(0, currentProgress)).apply()
+        }
+    }
+
+    /**
+     * Anti-abuse: Awards credits ONLY for genuinely new progress (strictly exceeding highest recorded progress).
+     * Lowering and raising progress to or below the recorded peak yields 0 new credits.
+     * Returns the number of credits awarded.
+     */
+    @Synchronized
+    fun recordProgressAndAwardCredits(mediaId: String, newProgress: Int): Int {
+        if (mediaId.isBlank() || newProgress <= 0) return 0
+        val sanitized = mediaId.replace(":", "_").replace("/", "_")
+        val key = KEY_HIGHEST_PROGRESS_PREFIX + sanitized
+        val highestRecorded = prefs.getInt(key, 0)
+
+        return if (newProgress > highestRecorded) {
+            val netIncrease = newProgress - highestRecorded
+            prefs.edit().putInt(key, newProgress).apply()
+            addCredit(netIncrease * CREDIT_PER_EPISODE)
+            netIncrease
+        } else {
+            0
         }
     }
 }

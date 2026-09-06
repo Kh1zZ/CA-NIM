@@ -58,7 +58,18 @@ data class AniListMedia(
     val recommendations: AniListRecommendations?,
     val studios: AniListStudios?,
     val characters: AniListCharacters?,
-    val staff: AniListStaff?
+    val staff: AniListStaff?,
+    val relations: AniListRelations? = null,
+    val type: String? = null
+)
+
+data class AniListRelations(
+    val edges: List<AniListRelationEdge>?
+)
+
+data class AniListRelationEdge(
+    val relationType: String?,
+    val node: AniListMedia?
 )
 
 data class AniListRanking(
@@ -196,12 +207,12 @@ object AniListClient {
             ?.replace("&amp;", "&")
 
         val statusStr = when (m.status) {
-            "RELEASING" -> if (fallbackType == MediaType.ANIME) "Currently Airing" else "Publishing"
-            "FINISHED" -> if (fallbackType == MediaType.ANIME) "Finished Airing" else "Finished"
-            "NOT_YET_RELEASED" -> "Not yet aired"
-            "CANCELLED" -> "Cancelled"
-            "HIATUS" -> "On Hiatus"
-            else -> m.status ?: "Finished"
+            "RELEASING" -> if (fallbackType == MediaType.ANIME) "AIRING" else "PUBLISHING"
+            "FINISHED" -> if (fallbackType == MediaType.ANIME) "AIRED" else "FINISHED"
+            "NOT_YET_RELEASED" -> "NOT YET AIRED"
+            "CANCELLED" -> "CANCELLED"
+            "HIATUS" -> "ON HIATUS"
+            else -> m.status?.uppercase() ?: "AIRED"
         }
 
         val studioName = m.studios?.nodes?.firstOrNull()?.name
@@ -345,14 +356,22 @@ object AniListClient {
     /**
      * Search Anime or Manga using AniList GraphQL.
      */
-    suspend fun searchMedia(query: String, type: MediaType): List<MediaItem> = withContext(Dispatchers.IO) {
-        val cached = CacheManager.getSearch(query, type.name)
+    suspend fun searchMedia(
+        query: String,
+        type: MediaType,
+        genres: List<String>? = null,
+        year: Int? = null,
+        format: String? = null
+    ): List<MediaItem> = withContext(Dispatchers.IO) {
+        val cacheKey = "${query}_${type.name}_${genres?.joinToString(",")}_${year}_${format}"
+        val cached = CacheManager.getSearch(cacheKey, type.name)
         if (cached != null) return@withContext cached
 
+        val hasSearch = query.isNotBlank()
         val graphqlQuery = """
-            query (${'$'}search: String, ${'$'}type: MediaType) {
-              Page(page: 1, perPage: 25) {
-                media(search: ${'$'}search, type: ${'$'}type, sort: POPULARITY_DESC) {
+            query (${'$'}search: String, ${'$'}type: MediaType, ${'$'}genres: [String], ${'$'}seasonYear: Int, ${'$'}format: MediaFormat) {
+              Page(page: 1, perPage: 30) {
+                media(${if (hasSearch) "search: \$search, " else ""}type: ${'$'}type, genre_in: ${'$'}genres, seasonYear: ${'$'}seasonYear, format: ${'$'}format, sort: POPULARITY_DESC) {
                   id
                   idMal
                   title {
@@ -385,8 +404,17 @@ object AniListClient {
         """.trimIndent()
 
         val variables = JSONObject().apply {
-            put("search", query)
+            if (hasSearch) put("search", query.trim())
             put("type", if (type == MediaType.ANIME) "ANIME" else "MANGA")
+            if (!genres.isNullOrEmpty()) {
+                put("genres", JSONArray(genres))
+            }
+            if (year != null && year > 1900) {
+                put("seasonYear", year)
+            }
+            if (!format.isNullOrBlank()) {
+                put("format", format)
+            }
         }
 
         val responseString = executeQuery(graphqlQuery, variables) ?: return@withContext emptyList()
@@ -395,7 +423,7 @@ object AniListClient {
 
         val items = mediaList.map { mapAniListMediaToItem(it, type) }
         if (items.isNotEmpty()) {
-            CacheManager.putSearch(query, type.name, items)
+            CacheManager.putSearch(cacheKey, type.name, items)
         }
         items
     }
@@ -456,6 +484,25 @@ object AniListClient {
             }
             DiscoverCategory.STUDIO -> {
                 variables.put("sort", JSONArray().apply { put("POPULARITY_DESC") })
+            }
+            DiscoverCategory.TOP_ANIME -> {
+                variables.put("sort", JSONArray().apply { put("SCORE_DESC") })
+            }
+            DiscoverCategory.TRENDING_NOW -> {
+                variables.put("sort", JSONArray().apply { put("TRENDING_DESC") })
+            }
+            DiscoverCategory.TOP_MANGA -> {
+                variables.put("type", "MANGA")
+                variables.put("sort", JSONArray().apply { put("SCORE_DESC") })
+            }
+            DiscoverCategory.RECENTLY_DONE_MANGA -> {
+                variables.put("type", "MANGA")
+                variables.put("status", "FINISHED")
+                variables.put("sort", JSONArray().apply { put("END_DATE_DESC") })
+            }
+            DiscoverCategory.NEWLY_ADDED_MANGA -> {
+                variables.put("type", "MANGA")
+                variables.put("sort", JSONArray().apply { put("ID_DESC") })
             }
         }
 
@@ -641,6 +688,26 @@ object AniListClient {
                         }
                       }
                     }
+                    relations {
+                      edges {
+                        relationType
+                        node {
+                          id
+                          idMal
+                          title {
+                            romaji
+                            english
+                          }
+                          coverImage {
+                            large
+                            medium
+                          }
+                          type
+                          format
+                          status
+                        }
+                      }
+                    }
                   }
                 }
             """.trimIndent()
@@ -743,6 +810,26 @@ object AniListClient {
                         }
                       }
                     }
+                    relations {
+                      edges {
+                        relationType
+                        node {
+                          id
+                          idMal
+                          title {
+                            romaji
+                            english
+                          }
+                          coverImage {
+                            large
+                            medium
+                          }
+                          type
+                          format
+                          status
+                        }
+                      }
+                    }
                   }
                 }
             """.trimIndent()
@@ -803,6 +890,22 @@ object AniListClient {
             mapAniListMediaToItem(rec, if (rec.format == "MANGA") MediaType.MANGA else MediaType.ANIME)
         } ?: emptyList()
 
+        val relationsList = media.relations?.edges?.mapNotNull { edge ->
+            val node = edge.node ?: return@mapNotNull null
+            val relType = edge.relationType ?: "RELATED"
+            MediaRelationItem(
+                id = node.id,
+                malId = node.idMal,
+                title = node.title?.romaji ?: node.title?.english ?: "Unknown",
+                titleEnglish = node.title?.english,
+                imageUrl = node.coverImage?.large ?: node.coverImage?.medium,
+                relationType = relType,
+                type = if (node.type == "MANGA") MediaType.MANGA else MediaType.ANIME,
+                format = node.format,
+                status = node.status
+            )
+        } ?: emptyList()
+
         val avgScore = if (media.averageScore != null && media.averageScore > 0) media.averageScore / 10.0 else null
         val rankValue = media.rankings?.firstOrNull { it.allTime == true }?.rank ?: media.rankings?.firstOrNull()?.rank
 
@@ -822,6 +925,7 @@ object AniListClient {
             durationMinutes = media.duration,
             cast = castList,
             crew = staffList,
+            relations = relationsList,
             averageScore = avgScore,
             popularity = media.popularity,
             rank = rankValue,
@@ -1195,6 +1299,7 @@ object AniListClient {
         search: String? = null,
         page: Int = 1,
         perPage: Int = 24,
+        sort: StudioFilmographySort = StudioFilmographySort.YEAR_DESC,
         forceRefresh: Boolean = false
     ): StudioFilmographyPage? = withContext(Dispatchers.IO) {
         if (studioId == null && search.isNullOrBlank()) return@withContext null
@@ -1204,14 +1309,14 @@ object AniListClient {
         }
 
         val query = """
-            query (${'$'}id: Int, ${'$'}search: String, ${'$'}page: Int, ${'$'}perPage: Int) {
+            query (${'$'}id: Int, ${'$'}search: String, ${'$'}page: Int, ${'$'}perPage: Int, ${'$'}sort: [MediaSort]) {
               Studio(id: ${'$'}id, search: ${'$'}search) {
                 id
                 name
                 isAnimationStudio
                 siteUrl
                 favourites
-                media(page: ${'$'}page, perPage: ${'$'}perPage, sort: [START_DATE_DESC, POPULARITY_DESC]) {
+                media(page: ${'$'}page, perPage: ${'$'}perPage, sort: ${'$'}sort) {
                   pageInfo {
                     total
                     perPage
@@ -1249,11 +1354,32 @@ object AniListClient {
             }
         """.trimIndent()
 
+        val sortArray = JSONArray().apply {
+            when (sort) {
+                StudioFilmographySort.YEAR_DESC -> {
+                    put("START_DATE_DESC")
+                    put("POPULARITY_DESC")
+                }
+                StudioFilmographySort.YEAR_ASC -> {
+                    put("START_DATE")
+                    put("POPULARITY_DESC")
+                }
+                StudioFilmographySort.SCORE_DESC -> {
+                    put("SCORE_DESC")
+                    put("POPULARITY_DESC")
+                }
+                StudioFilmographySort.POPULARITY_DESC -> {
+                    put("POPULARITY_DESC")
+                }
+            }
+        }
+
         val variables = JSONObject().apply {
             if (studioId != null) put("id", studioId)
             if (!search.isNullOrBlank()) put("search", search)
             put("page", page)
             put("perPage", perPage)
+            put("sort", sortArray)
         }
 
         val responseString = executeQuery(query, variables) ?: return@withContext null

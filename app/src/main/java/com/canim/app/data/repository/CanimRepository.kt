@@ -4,6 +4,7 @@ import android.content.Context
 import com.canim.app.data.cache.CacheManager
 import com.canim.app.data.model.*
 import com.canim.app.data.cache.StudioFilmographyPage
+import com.canim.app.data.remote.ApiClient
 import com.canim.app.data.remote.AniListClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -159,16 +160,22 @@ class CanimRepository(
         malAuthManager.deleteMangaTracking(malId)
 
     // --- Search with AniList as Primary & Offline Fallback ---
-    suspend fun searchAnime(query: String): List<MediaItem> = withContext(Dispatchers.IO) {
+    suspend fun searchAnime(
+        query: String,
+        genres: List<String>? = null,
+        year: Int? = null,
+        format: String? = null
+    ): List<MediaItem> = withContext(Dispatchers.IO) {
         val trimmed = query.trim()
-        if (trimmed.isEmpty()) return@withContext emptyList()
+        val filterKey = "${trimmed}_${genres?.sorted()?.joinToString(",")}_${year}_${format}"
+        if (trimmed.isEmpty() && genres.isNullOrEmpty() && year == null && format == null) return@withContext emptyList()
 
-        val cached = CacheManager.getSearch(trimmed, "ANIME")
+        val cached = CacheManager.getSearch(filterKey, "ANIME")
         if (cached != null) return@withContext cached
 
-        var result = AniListClient.searchMedia(trimmed, MediaType.ANIME)
+        var result = AniListClient.searchMedia(trimmed, MediaType.ANIME, genres, year, format)
 
-        if (result.isEmpty()) {
+        if (result.isEmpty() && genres.isNullOrEmpty() && year == null && format == null) {
             val localMatches = fallbackAnime().filter {
                 it.title.contains(trimmed, ignoreCase = true) ||
                 (it.titleEnglish?.contains(trimmed, ignoreCase = true) == true)
@@ -179,21 +186,27 @@ class CanimRepository(
         }
 
         if (result.isNotEmpty()) {
-            CacheManager.putSearch(trimmed, "ANIME", result)
+            CacheManager.putSearch(filterKey, "ANIME", result)
         }
         result
     }
 
-    suspend fun searchManga(query: String): List<MediaItem> = withContext(Dispatchers.IO) {
+    suspend fun searchManga(
+        query: String,
+        genres: List<String>? = null,
+        year: Int? = null,
+        format: String? = null
+    ): List<MediaItem> = withContext(Dispatchers.IO) {
         val trimmed = query.trim()
-        if (trimmed.isEmpty()) return@withContext emptyList()
+        val filterKey = "${trimmed}_${genres?.sorted()?.joinToString(",")}_${year}_${format}"
+        if (trimmed.isEmpty() && genres.isNullOrEmpty() && year == null && format == null) return@withContext emptyList()
 
-        val cached = CacheManager.getSearch(trimmed, "MANGA")
+        val cached = CacheManager.getSearch(filterKey, "MANGA")
         if (cached != null) return@withContext cached
 
-        var result = AniListClient.searchMedia(trimmed, MediaType.MANGA)
+        var result = AniListClient.searchMedia(trimmed, MediaType.MANGA, genres, year, format)
 
-        if (result.isEmpty()) {
+        if (result.isEmpty() && genres.isNullOrEmpty() && year == null && format == null) {
             val localMatches = fallbackManga().filter {
                 it.title.contains(trimmed, ignoreCase = true) ||
                 (it.titleEnglish?.contains(trimmed, ignoreCase = true) == true)
@@ -204,7 +217,7 @@ class CanimRepository(
         }
 
         if (result.isNotEmpty()) {
-            CacheManager.putSearch(trimmed, "MANGA", result)
+            CacheManager.putSearch(filterKey, "MANGA", result)
         }
         result
     }
@@ -221,6 +234,79 @@ class CanimRepository(
         if (!forceRefresh) {
             val cached = CacheManager.getDiscover(cacheKey)
             if (cached != null) return@withContext cached
+        }
+
+        // B.4: Top Anime exclusively based on MAL API ranking
+        if (category == DiscoverCategory.TOP_ANIME) {
+            try {
+                val limit = 25
+                val offset = (page - 1) * limit
+                val resp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "all", limit, offset)
+                if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
+                    val malNodes = resp.body()!!.data.map { it.node }
+                    val malIds = malNodes.map { it.id }
+                    val aniMap = runCatching { AniListClient.getMediaBatchByMalIds(malIds, MediaType.ANIME) }.getOrDefault(emptyMap())
+                    val items = malNodes.map { node ->
+                        val ani = aniMap[node.id]
+                        MediaItem(
+                            malId = node.id,
+                            anilistId = ani?.anilistId ?: node.id,
+                            title = ani?.title ?: node.title,
+                            titleEnglish = ani?.titleEnglish ?: node.title,
+                            imageUrl = ani?.imageUrl?.ifBlank { node.mainPicture?.large ?: node.mainPicture?.medium ?: "" } ?: (node.mainPicture?.large ?: node.mainPicture?.medium ?: ""),
+                            type = MediaType.ANIME,
+                            score = node.mean,
+                            synopsis = ani?.synopsis ?: node.synopsis ?: "",
+                            episodes = ani?.episodes ?: node.numEpisodes,
+                            chapters = null,
+                            volumes = null,
+                            status = ani?.status ?: node.status ?: "AIRED",
+                            year = ani?.year,
+                            season = ani?.season,
+                            genres = if (!ani?.genres.isNullOrEmpty()) ani!!.genres else (node.genres?.map { it.name } ?: emptyList()),
+                            format = ani?.format ?: "TV",
+                            studio = ani?.studio
+                        )
+                    }
+                    CacheManager.putDiscover(cacheKey, items)
+                    return@withContext items
+                }
+            } catch (_: Exception) {}
+        } else if (category == DiscoverCategory.TOP_MANGA) {
+            try {
+                val limit = 25
+                val offset = (page - 1) * limit
+                val resp = ApiClient.malApi.getMangaRanking(MalAuthManager.CLIENT_ID, "all", limit, offset)
+                if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
+                    val malNodes = resp.body()!!.data.map { it.node }
+                    val malIds = malNodes.map { it.id }
+                    val aniMap = runCatching { AniListClient.getMediaBatchByMalIds(malIds, MediaType.MANGA) }.getOrDefault(emptyMap())
+                    val items = malNodes.map { node ->
+                        val ani = aniMap[node.id]
+                        MediaItem(
+                            malId = node.id,
+                            anilistId = ani?.anilistId ?: node.id,
+                            title = ani?.title ?: node.title,
+                            titleEnglish = ani?.titleEnglish ?: node.title,
+                            imageUrl = ani?.imageUrl?.ifBlank { node.mainPicture?.large ?: node.mainPicture?.medium ?: "" } ?: (node.mainPicture?.large ?: node.mainPicture?.medium ?: ""),
+                            type = MediaType.MANGA,
+                            score = node.mean,
+                            synopsis = ani?.synopsis ?: node.synopsis ?: "",
+                            episodes = null,
+                            chapters = ani?.chapters ?: node.numChapters,
+                            volumes = ani?.volumes ?: node.numVolumes,
+                            status = ani?.status ?: node.status ?: "AIRED",
+                            year = ani?.year,
+                            season = null,
+                            genres = if (!ani?.genres.isNullOrEmpty()) ani!!.genres else (node.genres?.map { it.name } ?: emptyList()),
+                            format = ani?.format ?: "MANGA",
+                            studio = null
+                        )
+                    }
+                    CacheManager.putDiscover(cacheKey, items)
+                    return@withContext items
+                }
+            } catch (_: Exception) {}
         }
 
         var results = AniListClient.getDiscoverMedia(
@@ -485,9 +571,10 @@ class CanimRepository(
         studioId: Int?,
         search: String? = null,
         page: Int = 1,
-        forceRefresh: Boolean = false
+        forceRefresh: Boolean = false,
+        sort: StudioFilmographySort = StudioFilmographySort.YEAR_DESC
     ): StudioFilmographyPage? {
-        return AniListClient.getStudioFilmography(studioId, search, page, forceRefresh = forceRefresh)
+        return AniListClient.getStudioFilmography(studioId, search, page, forceRefresh = forceRefresh, sort = sort)
     }
 
     suspend fun searchStudios(query: String, page: Int = 1, perPage: Int = 20): List<StudioBioInfo> {

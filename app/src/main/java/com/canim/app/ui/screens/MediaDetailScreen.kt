@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.canim.app.data.model.*
 import com.canim.app.ui.theme.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import com.canim.app.util.TextSanitizer
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -48,6 +50,7 @@ fun MediaDetailScreen(
     onOpenCastCrew: (Int, Boolean) -> Unit,
     onOpenFullCast: (isCrew: Boolean) -> Unit,
     onOpenStudio: ((studioId: Int, studioName: String) -> Unit)? = null,
+    onOpenMediaDetail: ((MediaItem, MediaType) -> Unit)? = null,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -79,21 +82,21 @@ fun MediaDetailScreen(
     var trackingProgress by remember { mutableIntStateOf(userItem?.progress ?: 0) }
     var trackingNotes by remember { mutableStateOf(userItem?.notes ?: "") }
 
-    var isSynopsisExpanded by remember { mutableStateOf(false) }
+    var showFullTitleSynopsisSheet by remember { mutableStateOf(false) }
 
     val animeStatusOptions = listOf(
         "watching" to "Ditonton",
         "completed" to "Selesai",
         "on_hold" to "Ditunda",
         "dropped" to "Ditinggalkan",
-        "plan_to_watch" to "Rencana Tonton"
+        "plan_to_watch" to "Rencana"
     )
     val mangaStatusOptions = listOf(
         "reading" to "Dibaca",
         "completed" to "Selesai",
         "on_hold" to "Ditunda",
         "dropped" to "Ditinggalkan",
-        "plan_to_read" to "Rencana Baca"
+        "plan_to_read" to "Rencana"
     )
     val currentStatusOptions = if (isAnime) animeStatusOptions else mangaStatusOptions
 
@@ -102,7 +105,7 @@ fun MediaDetailScreen(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 90.dp)
         ) {
-            // Header Backdrop Image with Gradient Overlay (Optimized 220dp)
+            // Header Backdrop Image with Gradient Overlay & Back Button
             item {
                 Box(
                     modifier = Modifier
@@ -123,17 +126,34 @@ fun MediaDetailScreen(
                             .background(
                                 Brush.verticalGradient(
                                     colors = listOf(
-                                        Color.Black.copy(alpha = 0.35f),
+                                        Color.Black.copy(alpha = 0.45f),
                                         Color.Black.copy(alpha = 0.85f),
                                         BlackBg
                                     )
                                 )
                             )
                     )
+                    // Back button on backdrop banner
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .statusBarsPadding()
+                            .padding(start = 12.dp, top = 8.dp)
+                            .size(38.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.55f))
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Kembali",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
 
-            // MDL-Style Overlapping Info Section
+            // MDL-Style Overlapping Info Section (Sesuai Referensi Gambar)
             item {
                 Row(
                     modifier = Modifier
@@ -154,21 +174,42 @@ fun MediaDetailScreen(
                         contentScale = ContentScale.Crop
                     )
 
-                    // Titles & Metadata
+                    // Titles, Expand Icon & Truncated Synopsis
                     Column(
                         modifier = Modifier
                             .weight(1f)
                             .padding(top = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text(
-                            text = title,
-                            color = TextPrimary,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        // Title & Expand Diagonal Icon Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Text(
+                                text = title,
+                                color = TextPrimary,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(
+                                onClick = { showFullTitleSynopsisSheet = true },
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .padding(start = 4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.OpenInFull,
+                                    contentDescription = "Lihat Detail Judul & Sinopsis",
+                                    tint = TextSecondary,
+                                    modifier = Modifier.size(17.dp)
+                                )
+                            }
+                        }
 
                         if (!titleEnglish.isNullOrBlank() && titleEnglish != title) {
                             Text(
@@ -180,17 +221,20 @@ fun MediaDetailScreen(
                             )
                         }
 
-                        if (!titleNative.isNullOrBlank()) {
+                        // Naturally truncated synopsis directly under title
+                        if (cleanSynopsis.isNotBlank()) {
                             Text(
-                                text = titleNative,
-                                color = TextMuted,
-                                fontSize = 11.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                text = cleanSynopsis,
+                                color = TextSecondary,
+                                fontSize = 12.sp,
+                                lineHeight = 16.sp,
+                                maxLines = 4,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.padding(top = 2.dp)
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(2.dp))
 
                         // Type & Format Badge
                         Row(
@@ -234,12 +278,11 @@ fun MediaDetailScreen(
             // Metrik & Skor Terintegrasi (Invisible Continuity High-Density Metric Flow)
             item {
                 val effectiveScore = extendedDetail?.malScore
-                    ?: userItem?.metadata?.score
-                    ?: mediaItem?.score
-                val scoreStr = if (effectiveScore != null && effectiveScore > 0) {
-                    String.format(java.util.Locale.US, "%.2f", effectiveScore)
-                } else {
-                    "—"
+                val scoreStr = when {
+                    effectiveScore != null && effectiveScore > 0 ->
+                        String.format(java.util.Locale.US, "%.2f", effectiveScore)
+                    isLoadingExtendedDetail -> "..."
+                    else -> "—"
                 }
                 val userScore = userItem?.score ?: 0
                 val effectiveRank = extendedDetail?.malRank ?: extendedDetail?.rank
@@ -435,44 +478,6 @@ fun MediaDetailScreen(
                 }
             }
 
-            // Synopsis Section (Continuous Flow without Cardification)
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "SINOPSIS",
-                        color = TextSecondary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
-                    )
-
-                    Text(
-                        text = cleanSynopsis.ifBlank { "Sinopsis tidak tersedia." },
-                        color = TextPrimary,
-                        fontSize = 13.sp,
-                        lineHeight = 21.sp,
-                        maxLines = if (isSynopsisExpanded) Int.MAX_VALUE else 4,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    if (cleanSynopsis.length > 180) {
-                        Text(
-                            text = if (isSynopsisExpanded) "Tutup Sinopsis" else "Baca Selengkapnya...",
-                            color = themeAccent,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier
-                                .clickable { isSynopsisExpanded = !isSynopsisExpanded }
-                                .padding(vertical = 4.dp)
-                        )
-                    }
-                }
-            }
 
             // Media Details Table Section (Continuous Key-Value Flow)
             item {
@@ -549,15 +554,13 @@ fun MediaDetailScreen(
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp
                         )
-                        if (castList.size > 6) {
-                            Text(
-                                text = "Lihat Semua",
-                                color = themeAccent,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.clickable { onOpenFullCast(false) }
-                            )
-                        }
+                        Text(
+                            text = "Lihat Semua",
+                            color = themeAccent,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clickable { onOpenFullCast(false) }
+                        )
                     }
 
                     LazyRow(
@@ -603,15 +606,13 @@ fun MediaDetailScreen(
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp
                         )
-                        if (staffList.size > 6) {
-                            Text(
-                                text = "Lihat Semua",
-                                color = themeAccent,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.clickable { onOpenFullCast(true) }
-                            )
-                        }
+                        Text(
+                            text = "Lihat Semua",
+                            color = themeAccent,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clickable { onOpenFullCast(true) }
+                        )
                     }
 
                     LazyRow(
@@ -630,6 +631,49 @@ fun MediaDetailScreen(
                                     if (targetId > 0) {
                                         onOpenCastCrew(targetId, true)
                                     }
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Relations Section (Prekuel, Sekuel, Adaptasi, dsb)
+            val relationsList: List<MediaRelationItem> = extendedDetail?.relations ?: emptyList()
+            if (relationsList.isNotEmpty()) {
+                item {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text(
+                        text = "RELASI & ADAPTASI (${relationsList.size})",
+                        color = TextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(
+                            relationsList,
+                            key = { "${it.id}_${it.relationType}_${it.title}" },
+                            contentType = { "relation_item" }
+                        ) { rel ->
+                            RelationCardItem(
+                                relation = rel,
+                                onClick = {
+                                    val relMedia = MediaItem(
+                                        malId = rel.malId,
+                                        anilistId = rel.id,
+                                        title = rel.title,
+                                        imageUrl = rel.imageUrl ?: "",
+                                        type = rel.type,
+                                        format = rel.format,
+                                        status = rel.status
+                                    )
+                                    onOpenMediaDetail?.invoke(relMedia, rel.type)
                                 }
                             )
                         }
@@ -660,7 +704,12 @@ fun MediaDetailScreen(
                             key = { "${it.type}_${it.malId}_${it.anilistId}_${it.title}" },
                             contentType = { "rec_item" }
                         ) { rec ->
-                            MediaItemMiniCard(item = rec, onClick = {})
+                            MediaItemMiniCard(
+                                item = rec,
+                                onClick = {
+                                    onOpenMediaDetail?.invoke(rec, rec.type)
+                                }
+                            )
                         }
                     }
                 }
@@ -686,8 +735,10 @@ fun MediaDetailScreen(
 
         // Bottom Sheet: Track Progress Dialog (Bagian 3.1: 2-Baris tanpa side-scroll)
         if (showTrackingSheet) {
+            val trackingSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
             ModalBottomSheet(
                 onDismissRequest = { showTrackingSheet = false },
+                sheetState = trackingSheetState,
                 containerColor = CardElevated,
                 dragHandle = { BottomSheetDefaults.DragHandle(color = TextMuted) }
             ) {
@@ -954,6 +1005,60 @@ fun MediaDetailScreen(
             }
         }
 
+        // Full Title & Synopsis Modal Bottom Sheet (Expand Icon Triggered)
+        if (showFullTitleSynopsisSheet) {
+            val fullSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            ModalBottomSheet(
+                onDismissRequest = { showFullTitleSynopsisSheet = false },
+                sheetState = fullSheetState,
+                containerColor = CardElevated,
+                dragHandle = { BottomSheetDefaults.DragHandle(color = TextMuted) }
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 10.dp)
+                        .padding(bottom = 32.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = title,
+                        color = TextPrimary,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    if (!titleEnglish.isNullOrBlank() && titleEnglish != title) {
+                        Text(
+                            text = "English: $titleEnglish",
+                            color = TextSecondary,
+                            fontSize = 13.sp
+                        )
+                    }
+                    if (!titleNative.isNullOrBlank() && titleNative != title) {
+                        Text(
+                            text = "Native: $titleNative",
+                            color = TextMuted,
+                            fontSize = 13.sp
+                        )
+                    }
+                    HorizontalDivider(color = CardBorder, thickness = 1.dp)
+                    Text(
+                        text = "Sinopsis Lengkap",
+                        color = TextPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = cleanSynopsis.ifBlank { "Tidak ada sinopsis tersedia." },
+                        color = TextSecondary,
+                        fontSize = 13.sp,
+                        lineHeight = 20.sp
+                    )
+                }
+            }
+        }
+
         // Top Gradient Scrim for Persistent Floating Action Buttons
         Box(
             modifier = Modifier
@@ -1127,42 +1232,69 @@ private fun CastAvatarItem(
     cast: CharacterCastItem,
     onClick: () -> Unit
 ) {
+    val imgUrl = cast.characterImage?.takeIf { it.isNotBlank() } ?: (cast.actorImage ?: "")
+    val roleText = (cast.role ?: "character").lowercase()
+
     Column(
         modifier = Modifier
-            .width(92.dp)
-            .clickable(onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+            .width(105.dp)
+            .height(160.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFF242228))
+            .clickable(onClick = onClick)
     ) {
-        val imgUrl = cast.characterImage?.takeIf { it.isNotBlank() } ?: (cast.actorImage ?: "")
-        AsyncImage(
-            model = imgUrl,
-            contentDescription = cast.characterName,
+        Box(
             modifier = Modifier
-                .size(60.dp)
-                .clip(CircleShape)
-                .background(CardElevated, CircleShape)
-                .border(2.dp, AccentBlue, CircleShape),
-            contentScale = ContentScale.Crop
-        )
+                .fillMaxWidth()
+                .weight(0.68f)
+        ) {
+            AsyncImage(
+                model = imgUrl,
+                contentDescription = cast.characterName,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
 
-        Text(
-            text = cast.characterName,
-            color = TextPrimary,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 2,
-            lineHeight = 14.sp,
-            textAlign = TextAlign.Center,
-            overflow = TextOverflow.Ellipsis
-        )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.75f),
+                                Color.Black.copy(alpha = 0.9f)
+                            )
+                        )
+                    )
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = roleText,
+                    color = Color.White.copy(alpha = 0.9f),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Normal,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
 
-        val subText = (cast.actorName ?: "").ifBlank { cast.role ?: "" }
-        if (subText.isNotBlank()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(0.32f)
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+            contentAlignment = Alignment.Center
+        ) {
             Text(
-                text = subText,
-                color = TextMuted,
-                fontSize = 10.sp,
+                text = cast.characterName,
+                color = Color.White,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
                 maxLines = 2,
                 lineHeight = 13.sp,
                 textAlign = TextAlign.Center,
@@ -1177,44 +1309,160 @@ private fun StaffAvatarItem(
     staff: StaffMemberItem,
     onClick: () -> Unit
 ) {
+    val roleText = staff.role.lowercase()
+
     Column(
         modifier = Modifier
-            .width(92.dp)
-            .clickable(onClick = onClick),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+            .width(105.dp)
+            .height(160.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFF242228))
+            .clickable(onClick = onClick)
     ) {
-        AsyncImage(
-            model = staff.image ?: "",
-            contentDescription = staff.name,
+        Box(
             modifier = Modifier
-                .size(60.dp)
-                .clip(CircleShape)
-                .background(CardElevated, CircleShape)
-                .border(2.dp, MangaAccentDarkBlue, CircleShape),
-            contentScale = ContentScale.Crop
-        )
+                .fillMaxWidth()
+                .weight(0.68f)
+        ) {
+            AsyncImage(
+                model = staff.image ?: "",
+                contentDescription = staff.name,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
 
-        Text(
-            text = staff.name,
-            color = TextPrimary,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 2,
-            lineHeight = 14.sp,
-            textAlign = TextAlign.Center,
-            overflow = TextOverflow.Ellipsis
-        )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.75f),
+                                Color.Black.copy(alpha = 0.9f)
+                            )
+                        )
+                    )
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = roleText,
+                    color = Color.White.copy(alpha = 0.9f),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Normal,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
 
-        Text(
-            text = staff.role,
-            color = TextMuted,
-            fontSize = 10.sp,
-            maxLines = 2,
-            lineHeight = 13.sp,
-            textAlign = TextAlign.Center,
-            overflow = TextOverflow.Ellipsis
-        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(0.32f)
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = staff.name,
+                color = Color.White,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 2,
+                lineHeight = 13.sp,
+                textAlign = TextAlign.Center,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun RelationCardItem(
+    relation: MediaRelationItem,
+    onClick: () -> Unit
+) {
+    val relationLabel = when (relation.relationType.uppercase()) {
+        "PREQUEL" -> "Prekuel"
+        "SEQUEL" -> "Sekuel"
+        "SOURCE" -> "Sumber"
+        "SPIN_OFF" -> "Spin-off"
+        "SIDE_STORY" -> "Side Story"
+        "ALTERNATIVE" -> "Alternatif"
+        "CHARACTER" -> "Karakter"
+        "SUMMARY" -> "Ringkasan"
+        else -> relation.relationType.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() }
+    }
+
+    Column(
+        modifier = Modifier
+            .width(105.dp)
+            .height(160.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFF242228))
+            .clickable(onClick = onClick)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(0.68f)
+        ) {
+            AsyncImage(
+                model = relation.imageUrl ?: "",
+                contentDescription = relation.title,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.BottomCenter)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.75f),
+                                Color.Black.copy(alpha = 0.9f)
+                            )
+                        )
+                    )
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = relationLabel.lowercase(),
+                    color = Color.White.copy(alpha = 0.9f),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Normal,
+                    textAlign = TextAlign.Center,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(0.32f)
+                .padding(horizontal = 6.dp, vertical = 4.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = relation.title,
+                color = Color.White,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 2,
+                lineHeight = 13.sp,
+                textAlign = TextAlign.Center,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 
