@@ -110,7 +110,12 @@ jobs:
             echo "CANIM_KEY_PASSWORD=$RELEASE_KEY_PASSWORD" >> $GITHUB_ENV
             echo "Production release keystore configured successfully."
           else
-            echo "::warning::RELEASE_KEYSTORE_BASE64 secret not configured. Build will use fallback signing."
+            echo "::warning::RELEASE_KEYSTORE_BASE64 secret not configured. Build will use fallback debug signing."
+            mkdir -p ~/.android
+            if [ ! -f ~/.android/debug.keystore ]; then
+              echo "Generating debug.keystore for fallback signing..."
+              keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+            fi
           fi
 
       - name: Build Official Release APK

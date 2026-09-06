@@ -32,13 +32,6 @@ android {
                     ?: System.getenv("CANIM_KEY_ALIAS") ?: ""
                 keyPassword = project.findProperty("CANIM_KEY_PASSWORD") as? String
                     ?: System.getenv("CANIM_KEY_PASSWORD") ?: ""
-            } else {
-                // Safe fallback to debug signing for local test/dev builds without keystore secrets
-                val debugConfig = signingConfigs.getByName("debug")
-                storeFile = debugConfig.storeFile
-                storePassword = debugConfig.storePassword
-                keyAlias = debugConfig.keyAlias
-                keyPassword = debugConfig.keyPassword
             }
         }
     }
@@ -62,7 +55,13 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("release")
+            val keystorePath = project.findProperty("CANIM_KEYSTORE_FILE") as? String
+                ?: System.getenv("CANIM_KEYSTORE_FILE")
+            signingConfig = if (!keystorePath.isNullOrBlank() && file(keystorePath).exists()) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
