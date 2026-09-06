@@ -273,7 +273,10 @@ class MainActivity : ComponentActivity() {
                                     onClearAllData = { viewModel.clearAllData() },
                                     onClearImageCache = { viewModel.clearImageCache(context) },
                                     onClearMetadataCache = { viewModel.clearMetadataCache() },
-                                    onClearAllCache = { viewModel.clearAllCache(context) }
+                                    onClearAllCache = { viewModel.clearAllCache(context) },
+                                    onCheckForUpdates = { viewModel.checkForUpdates(manual = true) },
+                                    onSetAutoUpdateCheck = { viewModel.setAutoUpdateCheck(it) },
+                                    onDismissUpdateDialog = { viewModel.dismissUpdateDialog() }
                                 )
                             }
                         }
@@ -355,7 +358,8 @@ class MainActivity : ComponentActivity() {
                                     onConsumeCredit = { viewModel.consumeGachaCredit() },
                                     onSwipeCard = { viewModel.swipeDismissFlashcard(it) },
                                     onOpenDetail = { media, type -> viewModel.openDetail(media, type) },
-                                    onRefreshDeck = { viewModel.loadFlashcardDeck() }
+                                    onRefreshDeck = { viewModel.loadFlashcardDeck() },
+                                    onSavePlanToWatch = { media, cb -> viewModel.saveFlashcardPlanToWatch(media, cb) }
                                 )
                             }
                             is ScreenRoute.Stats -> {

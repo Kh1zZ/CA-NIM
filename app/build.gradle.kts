@@ -11,12 +11,35 @@ android {
         applicationId = "com.canim.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 12
-        versionName = "v5.0.0"
+        versionCode = 13
+        versionName = "v5.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
+        }
+    }
+
+    signingConfigs {
+        create("release") {
+            val keystorePath = project.findProperty("CANIM_KEYSTORE_FILE") as? String
+                ?: System.getenv("CANIM_KEYSTORE_FILE")
+            if (!keystorePath.isNullOrBlank() && file(keystorePath).exists()) {
+                storeFile = file(keystorePath)
+                storePassword = project.findProperty("CANIM_KEYSTORE_PASSWORD") as? String
+                    ?: System.getenv("CANIM_KEYSTORE_PASSWORD") ?: ""
+                keyAlias = project.findProperty("CANIM_KEY_ALIAS") as? String
+                    ?: System.getenv("CANIM_KEY_ALIAS") ?: ""
+                keyPassword = project.findProperty("CANIM_KEY_PASSWORD") as? String
+                    ?: System.getenv("CANIM_KEY_PASSWORD") ?: ""
+            } else {
+                // Safe fallback to debug signing for local test/dev builds without keystore secrets
+                val debugConfig = signingConfigs.getByName("debug")
+                storeFile = debugConfig.storeFile
+                storePassword = debugConfig.storePassword
+                keyAlias = debugConfig.keyAlias
+                keyPassword = debugConfig.keyPassword
+            }
         }
     }
 
@@ -39,7 +62,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

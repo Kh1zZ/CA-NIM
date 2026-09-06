@@ -186,6 +186,7 @@ object AniListClient {
         val primaryTitle = m.title?.romaji ?: m.title?.english ?: "Unknown Title"
         val englishTitle = m.title?.english
         val img = m.coverImage?.large ?: m.coverImage?.extraLarge ?: m.coverImage?.medium ?: ""
+        val imgHd = m.coverImage?.extraLarge ?: m.coverImage?.large ?: m.coverImage?.medium
         val score = if (m.averageScore != null && m.averageScore > 0) m.averageScore / 10.0 else null
         val cleanDescription = m.description
             ?.replace(Regex("<[^>]*>"), "")
@@ -226,7 +227,8 @@ object AniListClient {
             season = m.season,
             genres = m.genres ?: emptyList(),
             format = m.format,
-            studio = studioName
+            studio = studioName,
+            imageUrlHd = imgHd
         )
     }
 
@@ -1208,7 +1210,7 @@ object AniListClient {
                 isAnimationStudio
                 siteUrl
                 favourites
-                media(page: ${'$'}page, perPage: ${'$'}perPage, sort: POPULARITY_DESC, isMain: true) {
+                media(page: ${'$'}page, perPage: ${'$'}perPage, sort: [START_DATE_DESC, POPULARITY_DESC], isMain: true) {
                   pageInfo {
                     total
                     perPage
@@ -1225,6 +1227,7 @@ object AniListClient {
                       native
                     }
                     coverImage {
+                      extraLarge
                       large
                       medium
                     }
@@ -1285,18 +1288,20 @@ object AniListClient {
                     val tEng = titleObj?.optString("english")
                     val coverObj = node.optJSONObject("coverImage")
                     val cover = coverObj?.optString("large") ?: coverObj?.optString("medium") ?: ""
+                    val coverHd = coverObj?.optString("extraLarge")?.takeIf { it.isNotBlank() } ?: cover
                     val fmt = node.optString("format")
                     val mType = if (node.optString("type") == "MANGA") MediaType.MANGA else MediaType.ANIME
                     val status = node.optString("status")
                     val episodes = if (node.has("episodes") && !node.isNull("episodes")) node.optInt("episodes") else null
                     val chapters = if (node.has("chapters") && !node.isNull("chapters")) node.optInt("chapters") else null
-                    val score = if (node.has("averageScore") && !node.isNull("averageScore")) node.optDouble("averageScore") / 10.0 else null
+                    val avgScore = if (node.has("averageScore") && !node.isNull("averageScore")) node.optInt("averageScore") else null
+                    val score = if (avgScore != null && avgScore > 0) avgScore / 10.0 else null
                     val popularity = if (node.has("popularity") && !node.isNull("popularity")) node.optInt("popularity") else null
+                    val genresArray = node.optJSONArray("genres")
                     val genresList = mutableListOf<String>()
-                    val genresArr = node.optJSONArray("genres")
-                    if (genresArr != null) {
-                        for (g in 0 until genresArr.length()) {
-                            genresList.add(genresArr.optString(g))
+                    if (genresArray != null) {
+                        for (g in 0 until genresArray.length()) {
+                            genresList.add(genresArray.optString(g))
                         }
                     }
                     val year = node.optJSONObject("startDate")?.optInt("year", 0)?.takeIf { it > 0 }
@@ -1321,7 +1326,8 @@ object AniListClient {
                             genres = genresList,
                             year = year,
                             studio = resolvedStudioName,
-                            popularity = popularity
+                            popularity = popularity,
+                            imageUrlHd = coverHd
                         )
                     )
                 }

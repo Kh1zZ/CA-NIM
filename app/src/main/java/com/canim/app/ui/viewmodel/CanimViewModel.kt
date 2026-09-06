@@ -11,6 +11,9 @@ import com.canim.app.CanimApplication
 import com.canim.app.data.local.GachaCreditManager
 import com.canim.app.data.repository.StudioBioRegistry
 import com.canim.app.ui.navigation.ScreenRoute
+import com.canim.app.BuildConfig
+import com.canim.app.data.remote.UpdateChecker
+import com.canim.app.data.remote.UpdateInfo
 import androidx.compose.runtime.Immutable
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -79,6 +82,11 @@ data class CanimUiState(
     val flashcardDeck: List<MediaItem> = emptyList(),
     val isFlashcardLoading: Boolean = false,
 
+    // App Update state
+    val isCheckingUpdate: Boolean = false,
+    val updateInfo: UpdateInfo? = null,
+    val isAutoUpdateCheckEnabled: Boolean = true,
+
     // App & Auth state
     val syncStatus: SyncStatus = SyncStatus.IDLE,
     val snackbarMessage: String? = null,
@@ -127,6 +135,9 @@ class CanimViewModel(
         val gachaMgr = gachaCreditManager ?: try { GachaCreditManager.getInstance(CanimApplication.instance) } catch (_: Exception) { null }
         val currentCredits = gachaMgr?.getCredits() ?: 5
         _uiState.update { it.copy(gachaCredits = currentCredits) }
+
+        // Initialize Update Preferences & Auto-check
+        initUpdateChecker()
 
         // Load discovery category
         loadDiscoverCategory(_uiState.value.selectedDiscoverCategory, _uiState.value.discoverFilter)
@@ -310,6 +321,12 @@ class CanimViewModel(
     fun quickIncrementAnime(identifier: Any) {
         val currentList = _uiState.value.animeList
         val item = findAnimeItem(identifier) ?: return
+        // Guard: Prevent increment & exploit if anime is completed or already at max episodes
+        val isCompleted = item.tracking.status.equals("completed", ignoreCase = true)
+        val totalEp = item.metadata.totalEpisodes ?: 0
+        val isMaxProgress = totalEp > 0 && item.tracking.progress >= totalEp
+        if (isCompleted || isMaxProgress) return
+
         val updatedItem = item.copy(
             tracking = item.tracking.copy(
                 progress = item.tracking.progress + 1,
@@ -366,6 +383,12 @@ class CanimViewModel(
     fun quickIncrementManga(identifier: Any) {
         val currentList = _uiState.value.mangaList
         val item = findMangaItem(identifier) ?: return
+        // Guard: Prevent increment if manga is completed or already at max chapters
+        val isCompleted = item.tracking.status.equals("completed", ignoreCase = true)
+        val totalCh = item.metadata.totalChapters ?: 0
+        val isMaxProgress = totalCh > 0 && item.tracking.progress >= totalCh
+        if (isCompleted || isMaxProgress) return
+
         val updatedItem = item.copy(
             tracking = item.tracking.copy(
                 progress = item.tracking.progress + 1,
@@ -410,6 +433,129 @@ class CanimViewModel(
                 }
             }
         }
+    }
+
+
+    // --- Flashcard Plan to Watch Save Flow ---
+    fun saveFlashcardPlanToWatch(item: MediaItem, onResult: (Boolean) -> Unit) {
+        val currentList = _uiState.value.animeList
+        val isAlreadyInList = currentList.any { it.id == item.id }
+        if (isAlreadyInList) {
+            showSnackbar("\"${item.title}\" sudah ada di Library!")
+            onResult(true)
+            return
+        }
+
+        val identity = MediaRef(
+            anilistId = item.anilistId,
+            malId = item.malId
+        )
+        val metadata = MediaMetadata(
+            title = item.title,
+            titleEnglish = item.titleEnglish,
+            titleNative = null,
+            imageUrl = item.imageUrl,
+            type = item.type,
+            score = item.score,
+            synopsis = item.synopsis,
+            totalEpisodes = item.episodes ?: 0,
+            totalChapters = item.chapters ?: 0,
+            totalVolumes = item.volumes ?: 0,
+            status = item.status ?: "Finished",
+            year = item.year,
+            season = item.season,
+            genres = item.genres,
+            format = item.format,
+            studio = item.studio
+        )
+        val tracking = MalTracking(
+            status = "plan_to_watch",
+            score = 0,
+            progress = 0,
+            comments = "",
+            updatedAt = System.currentTimeMillis()
+        )
+        val userItem = UserMediaItem(identity = identity, metadata = metadata, tracking = tracking)
+
+        val optimisticList = currentList + userItem
+        updateLibraryData(optimisticList, _uiState.value.mangaList)
+        showSnackbar("Ditambahkan ke Rencana Ditonton")
+
+        if (item.malId != null && _uiState.value.malUser.isLoggedIn) {
+            viewModelScope.launch {
+                val result = repository.updateAnimeTracking(item.malId, tracking)
+                if (result.isFailure) {
+                    updateLibraryData(currentList, _uiState.value.mangaList)
+                    showSnackbar("Gagal menyimpan ke MAL: ${result.exceptionOrNull()?.message ?: "Kesalahan jaringan"}")
+                    onResult(false)
+                } else {
+                    onResult(true)
+                }
+            }
+        } else {
+            onResult(true)
+        }
+    }
+
+    // --- In-App Update Checker Methods ---
+    private fun initUpdateChecker() {
+        val prefs = try {
+            CanimApplication.instance.getSharedPreferences("canim_update_prefs", Context.MODE_PRIVATE)
+        } catch (_: Exception) { null }
+        val isAutoEnabled = prefs?.getBoolean("auto_check_updates", true) ?: true
+        _uiState.update { it.copy(isAutoUpdateCheckEnabled = isAutoEnabled) }
+
+        if (isAutoEnabled) {
+            val lastCheck = prefs?.getLong("last_update_check_time", 0L) ?: 0L
+            val oneDayMs = 24L * 60L * 60L * 1000L
+            if (System.currentTimeMillis() - lastCheck > oneDayMs) {
+                checkForUpdates(manual = false)
+            }
+        }
+    }
+
+    fun setAutoUpdateCheck(enabled: Boolean) {
+        try {
+            val prefs = CanimApplication.instance.getSharedPreferences("canim_update_prefs", Context.MODE_PRIVATE)
+            prefs?.edit()?.putBoolean("auto_check_updates", enabled)?.apply()
+        } catch (_: Exception) {}
+        _uiState.update { it.copy(isAutoUpdateCheckEnabled = enabled) }
+    }
+
+    fun checkForUpdates(manual: Boolean = true) {
+        if (_uiState.value.isCheckingUpdate) return
+        _uiState.update { it.copy(isCheckingUpdate = true) }
+        viewModelScope.launch {
+            val result = UpdateChecker.checkLatestRelease(BuildConfig.VERSION_NAME)
+            val info = result.getOrNull()
+            if (info != null) {
+                try {
+                    val prefs = CanimApplication.instance.getSharedPreferences("canim_update_prefs", Context.MODE_PRIVATE)
+                    prefs?.edit()?.putLong("last_update_check_time", System.currentTimeMillis())?.apply()
+                } catch (_: Exception) {}
+
+                if (info.isUpdateAvailable) {
+                    _uiState.update { it.copy(updateInfo = info, isCheckingUpdate = false) }
+                    if (manual) {
+                        showSnackbar("Pembaruan tersedia: ${info.latestVersion}!")
+                    }
+                } else {
+                    _uiState.update { it.copy(isCheckingUpdate = false) }
+                    if (manual) {
+                        showSnackbar("CA\'NIM sudah versi terbaru (${BuildConfig.VERSION_NAME})")
+                    }
+                }
+            } else {
+                _uiState.update { it.copy(isCheckingUpdate = false) }
+                if (manual) {
+                    showSnackbar("Gagal memeriksa pembaruan: ${result.exceptionOrNull()?.message ?: "Jaringan bermasalah"}")
+                }
+            }
+        }
+    }
+
+    fun dismissUpdateDialog() {
+        _uiState.update { it.copy(updateInfo = null) }
     }
 
     fun saveAnime(item: UserMediaItem) {

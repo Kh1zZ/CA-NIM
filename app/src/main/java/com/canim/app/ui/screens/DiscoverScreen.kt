@@ -34,6 +34,8 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import com.canim.app.data.model.*
+import com.canim.app.data.repository.StudioBioRegistry
+import androidx.compose.ui.graphics.Brush
 import com.canim.app.ui.theme.*
 import com.canim.app.ui.viewmodel.CanimUiState
 
@@ -555,37 +557,79 @@ fun DiscoverScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(filteredStudios) { (sId, sName) ->
-                        Surface(
+                        val studioInfo = remember(sId, sName) { StudioBioRegistry.getStudioInfo(sId, sName) }
+                        Card(
                             onClick = {
                                 showStudioPickerSheet = false
                                 onOpenStudio?.invoke(sId, sName)
                             },
-                            color = CardElevated,
-                            shape = RoundedCornerShape(10.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
+                            colors = CardDefaults.cardColors(containerColor = CardElevated),
+                            shape = RoundedCornerShape(12.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(88.dp)
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = sName,
-                                    color = TextPrimary,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f)
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                if (!studioInfo.coverUrl.isNullOrBlank()) {
+                                    AsyncImage(
+                                        model = studioInfo.coverUrl,
+                                        contentDescription = sName,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.verticalGradient(
+                                                listOf(
+                                                    Color.Black.copy(alpha = 0.40f),
+                                                    Color.Black.copy(alpha = 0.88f)
+                                                )
+                                            )
+                                        )
                                 )
-                                Icon(
-                                    imageVector = Icons.Default.ChevronRight,
-                                    contentDescription = null,
-                                    tint = AccentBlue,
-                                    modifier = Modifier.size(16.dp)
-                                )
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.Bottom,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(28.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(CardBg.copy(alpha = 0.9f))
+                                            .border(1.dp, AccentBlue.copy(alpha = 0.5f), RoundedCornerShape(8.dp)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = sName.take(1).uppercase(),
+                                            color = AccentBlue,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.ExtraBold
+                                        )
+                                    }
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = sName,
+                                            color = Color.White,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            text = if (studioInfo.foundedYear != null) "Est. ${studioInfo.foundedYear}" else studioInfo.country,
+                                            color = TextSecondary,
+                                            fontSize = 10.sp,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
                             }
                         }
                     }

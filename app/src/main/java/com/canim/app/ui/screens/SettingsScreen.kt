@@ -30,6 +30,8 @@ import coil.compose.AsyncImage
 import com.canim.app.R
 import com.canim.app.ui.theme.*
 import com.canim.app.ui.viewmodel.CanimUiState
+import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Refresh
 
 @Composable
 fun SettingsScreen(
@@ -43,6 +45,9 @@ fun SettingsScreen(
     onClearImageCache: () -> Unit,
     onClearMetadataCache: () -> Unit,
     onClearAllCache: () -> Unit,
+    onCheckForUpdates: () -> Unit = {},
+    onSetAutoUpdateCheck: (Boolean) -> Unit = {},
+    onDismissUpdateDialog: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -382,6 +387,126 @@ fun SettingsScreen(
             }
         }
 
+        // Pembaruan Aplikasi (Revisi 6)
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, CardBorder, RoundedCornerShape(12.dp)),
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SystemUpdate,
+                            contentDescription = null,
+                            tint = AccentBlue,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "Pembaruan Aplikasi",
+                            color = TextPrimary,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    // Versi terpasang & tombol cek
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Versi Terpasang",
+                                color = TextPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "CA\'NIM ${com.canim.app.BuildConfig.VERSION_NAME} (Production)",
+                                color = TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
+
+                        Button(
+                            onClick = onCheckForUpdates,
+                            enabled = !state.isCheckingUpdate,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = AccentBlue,
+                                contentColor = Color.White,
+                                disabledContainerColor = CardElevated,
+                                disabledContentColor = TextMuted
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        ) {
+                            if (state.isCheckingUpdate) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(14.dp),
+                                    strokeWidth = 2.dp,
+                                    color = AccentBlue
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Memeriksa...", fontSize = 11.sp)
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Refresh,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Cek Update", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    Divider(color = CardBorder)
+
+                    // Toggle Cek Update Otomatis
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Cek Update Otomatis",
+                                color = TextPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = "Pengecekan versi baru saat aplikasi dibuka (1x per 24 jam)",
+                                color = TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
+
+                        Switch(
+                            checked = state.isAutoUpdateCheckEnabled,
+                            onCheckedChange = onSetAutoUpdateCheck,
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = AccentBlue,
+                                uncheckedThumbColor = TextMuted,
+                                uncheckedTrackColor = CardElevated
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
         // PART 30 - Developer Credit & About
         item {
             Card(
@@ -524,6 +649,72 @@ fun SettingsScreen(
             dismissButton = {
                 TextButton(onClick = { showClearDataDialog = false }) {
                     Text("Batal", color = TextSecondary)
+                }
+            }
+        )
+    }
+
+    // Dialog Pembaruan Tersedia
+    if (state.updateInfo != null && state.updateInfo.isUpdateAvailable) {
+        AlertDialog(
+            onDismissRequest = onDismissUpdateDialog,
+            containerColor = CardElevated,
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.SystemUpdate,
+                        contentDescription = null,
+                        tint = AccentBlue
+                    )
+                    Text(
+                        text = "Pembaruan Tersedia!",
+                        color = TextPrimary,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Versi baru ${state.updateInfo.latestVersion} telah dirilis di GitHub (Versi saat ini: ${com.canim.app.BuildConfig.VERSION_NAME}).",
+                        color = TextSecondary,
+                        fontSize = 13.sp
+                    )
+                    if (state.updateInfo.releaseNotes.isNotBlank()) {
+                        Text(
+                            text = "Catatan Rilis:\n" + state.updateInfo.releaseNotes.take(300) + if (state.updateInfo.releaseNotes.length > 300) "..." else "",
+                            color = TextMuted,
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp
+                        )
+                    }
+                    Text(
+                        text = "Unduh APK rilis resmi terbaru langsung dari halaman rilis GitHub.",
+                        color = AccentBlue,
+                        fontSize = 11.sp
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(state.updateInfo.htmlUrl))
+                        context.startActivity(intent)
+                        onDismissUpdateDialog()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentBlue, contentColor = Color.White),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Unduh di GitHub", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismissUpdateDialog) {
+                    Text("Nanti Saja", color = TextSecondary, fontSize = 12.sp)
                 }
             }
         )

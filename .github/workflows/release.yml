@@ -75,6 +75,27 @@ jobs:
       - name: Run Unit Tests
         run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
 
+      - name: Configure Production Signing Keystore
+        id: setup_signing
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          if [ -n "$RELEASE_KEYSTORE_BASE64" ]; then
+            echo "Decoding persistent production release keystore from secrets..."
+            mkdir -p /tmp/keystore
+            echo "$RELEASE_KEYSTORE_BASE64" | base64 -d > /tmp/keystore/release.jks
+            echo "CANIM_KEYSTORE_FILE=/tmp/keystore/release.jks" >> $GITHUB_ENV
+            echo "CANIM_KEYSTORE_PASSWORD=$RELEASE_KEYSTORE_PASSWORD" >> $GITHUB_ENV
+            echo "CANIM_KEY_ALIAS=$RELEASE_KEY_ALIAS" >> $GITHUB_ENV
+            echo "CANIM_KEY_PASSWORD=$RELEASE_KEY_PASSWORD" >> $GITHUB_ENV
+            echo "Production release keystore configured successfully."
+          else
+            echo "::warning::RELEASE_KEYSTORE_BASE64 secret not configured. Build will use fallback signing."
+          fi
+
       - name: Build Official Release APK
         run: ./gradlew assembleRelease --no-daemon --stacktrace
 

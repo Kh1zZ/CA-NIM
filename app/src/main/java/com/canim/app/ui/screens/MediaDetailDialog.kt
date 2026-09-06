@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -95,11 +96,146 @@ fun MediaDetailDialog(
             shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = CardElevated)
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(18.dp)
-            ) {
+            Scaffold(
+                containerColor = Color.Transparent,
+                bottomBar = {
+                    Surface(
+                        color = CardElevated,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 18.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (userItem != null) {
+                                OutlinedButton(
+                                    onClick = {
+                                        val id = userItem.id
+                                        if (id.isNotBlank()) {
+                                            if (isAnime) onDeleteAnime(id)
+                                            else onDeleteManga(id)
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .weight(0.9f)
+                                        .testTag("dialog_delete_button"),
+                                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = StatusDroppedColor),
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.ui.graphics.SolidColor(StatusDroppedColor))
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Delete,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "Hapus",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
+                            }
+
+                            Button(
+                                onClick = {
+                                    val finalProgress = if (status == "completed" && total > 0 && progress < total) {
+                                        total
+                                    } else if (total > 0 && progress > total) {
+                                        total
+                                    } else {
+                                        progress
+                                    }
+
+                                    val updatedItem = if (userItem != null) {
+                                        userItem.copy(
+                                            tracking = userItem.tracking.copy(
+                                                status = status,
+                                                score = score,
+                                                progress = finalProgress,
+                                                comments = notes,
+                                                updatedAt = System.currentTimeMillis()
+                                            )
+                                        )
+                                    } else if (mediaItem != null) {
+                                        val identity = MediaRef(
+                                            anilistId = mediaItem.anilistId,
+                                            malId = mediaItem.malId
+                                        )
+                                        val metadata = MediaMetadata(
+                                            title = mediaItem.title,
+                                            titleEnglish = mediaItem.titleEnglish,
+                                            titleNative = null,
+                                            imageUrl = mediaItem.imageUrl,
+                                            type = type,
+                                            score = mediaItem.score,
+                                            synopsis = mediaItem.synopsis,
+                                            totalEpisodes = mediaItem.episodes,
+                                            totalChapters = mediaItem.chapters,
+                                            totalVolumes = mediaItem.volumes,
+                                            status = mediaItem.status,
+                                            year = mediaItem.year,
+                                            season = mediaItem.season,
+                                            genres = mediaItem.genres,
+                                            format = mediaItem.format,
+                                            studio = mediaItem.studio
+                                        )
+                                        val tracking = MalTracking(
+                                            status = status,
+                                            score = score,
+                                            progress = finalProgress,
+                                            comments = notes,
+                                            updatedAt = System.currentTimeMillis()
+                                        )
+                                        UserMediaItem(identity = identity, metadata = metadata, tracking = tracking)
+                                    } else null
+
+                                    if (updatedItem != null) {
+                                        if (isAnime) onSaveAnime(updatedItem)
+                                        else onSaveManga(updatedItem)
+                                    }
+                                },
+                                modifier = Modifier
+                                    .then(if (userItem != null) Modifier.weight(2.1f) else Modifier.fillMaxWidth())
+                                    .testTag("dialog_save_button"),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = themeAccent,
+                                    contentColor = Color.White
+                                ),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (userItem != null) "Simpan Perubahan" else "Tambah ke Library",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
+                        }
+                    }
+                }
+            ) { scaffoldPadding ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(scaffoldPadding)
+                        .padding(horizontal = 18.dp)
+                        .padding(top = 18.dp)
+                ) {
                 // Header (Close & Title)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -673,118 +809,7 @@ fun MediaDetailDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Bottom Actions (Delete & Save)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = {
-                            val id = userItem?.id ?: mediaItem?.malId?.let { "mal_$it" } ?: mediaItem?.anilistId?.let { "ani_$it" } ?: ""
-                            if (id.isNotBlank()) {
-                                if (isAnime) onDeleteAnime(id)
-                                else onDeleteManga(id)
-                            }
-                        },
-                        modifier = Modifier
-                            .weight(0.9f)
-                            .testTag("dialog_delete_button"),
-                        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 10.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = StatusDroppedColor),
-                        shape = RoundedCornerShape(10.dp),
-                        border = ButtonDefaults.outlinedButtonBorder.copy(brush = androidx.compose.ui.graphics.SolidColor(StatusDroppedColor))
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = null,
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Hapus",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            softWrap = false
-                        )
-                    }
-
-                    Button(
-                        onClick = {
-                            val finalProgress = if (status == "completed" && total > 0 && progress < total) total else progress
-                            val updatedItem = if (userItem != null) {
-                                userItem.copy(
-                                    tracking = userItem.tracking.copy(
-                                        status = status,
-                                        score = score,
-                                        progress = finalProgress,
-                                        comments = notes,
-                                        updatedAt = System.currentTimeMillis()
-                                    )
-                                )
-                            } else if (mediaItem != null) {
-                                val identity = MediaRef(
-                                    anilistId = mediaItem.anilistId,
-                                    malId = mediaItem.malId
-                                )
-                                val metadata = MediaMetadata(
-                                    title = mediaItem.title,
-                                    titleEnglish = mediaItem.titleEnglish,
-                                    titleNative = null,
-                                    imageUrl = mediaItem.imageUrl,
-                                    type = type,
-                                    score = mediaItem.score,
-                                    synopsis = mediaItem.synopsis,
-                                    totalEpisodes = mediaItem.episodes,
-                                    totalChapters = mediaItem.chapters,
-                                    totalVolumes = mediaItem.volumes,
-                                    status = mediaItem.status,
-                                    year = mediaItem.year,
-                                    season = mediaItem.season,
-                                    genres = mediaItem.genres,
-                                    format = mediaItem.format,
-                                    studio = mediaItem.studio
-                                )
-                                val tracking = MalTracking(
-                                    status = status,
-                                    score = score,
-                                    progress = finalProgress,
-                                    comments = notes,
-                                    updatedAt = System.currentTimeMillis()
-                                )
-                                UserMediaItem(identity = identity, metadata = metadata, tracking = tracking)
-                            } else null
-
-                            if (updatedItem != null) {
-                                if (isAnime) onSaveAnime(updatedItem)
-                                else onSaveManga(updatedItem)
-                            }
-                        },
-                        modifier = Modifier
-                            .weight(2.1f)
-                            .testTag("dialog_save_button"),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = themeAccent,
-                            contentColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Simpan Perubahan",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp,
-                            maxLines = 1,
-                            softWrap = false
-                        )
-                    }
-                }
+            }
             }
         }
     }

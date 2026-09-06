@@ -29,6 +29,7 @@ object StudioBioRegistry {
         StudioBioInfo(
             studioId = 569,
             name = "MAPPA",
+            coverUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx113415-bbBWj4pEFScM.jpg",
             foundedYear = 2011,
             country = "Jepang",
             officialSite = "http://www.mappa.co.jp/",
@@ -37,6 +38,7 @@ object StudioBioRegistry {
         StudioBioInfo(
             studioId = 43,
             name = "ufotable",
+            coverUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx101922-PEn1CTDYxTrn.jpg",
             foundedYear = 2000,
             country = "Jepang",
             officialSite = "http://www.ufotable.com/",
@@ -45,6 +47,7 @@ object StudioBioRegistry {
         StudioBioInfo(
             studioId = 2,
             name = "Kyoto Animation",
+            coverUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx21827-0faS4Z57llzk.png",
             foundedYear = 1981,
             country = "Jepang",
             officialSite = "http://www.kyotoanimation.co.jp/",
@@ -53,6 +56,7 @@ object StudioBioRegistry {
         StudioBioInfo(
             studioId = 4,
             name = "Bones",
+            coverUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx5114-1zG0yg6i564A.jpg",
             foundedYear = 1998,
             country = "Jepang",
             officialSite = "http://www.bones.co.jp/",
@@ -61,6 +65,7 @@ object StudioBioRegistry {
         StudioBioInfo(
             studioId = 858,
             name = "Wit Studio",
+            coverUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx140960-YrkIPy5BQSlg.png",
             foundedYear = 2012,
             country = "Jepang",
             officialSite = "http://www.witstudio.co.jp/",
@@ -69,6 +74,7 @@ object StudioBioRegistry {
         StudioBioInfo(
             studioId = 11,
             name = "Madhouse",
+            coverUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx154587-gviZLiAdymSc.jpg",
             foundedYear = 1972,
             country = "Jepang",
             officialSite = "http://www.madhouse.co.jp/",
@@ -77,6 +83,7 @@ object StudioBioRegistry {
         StudioBioInfo(
             studioId = 6214,
             name = "CloverWorks",
+            coverUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx130003-5AOh4uhISnF1.png",
             foundedYear = 2018,
             country = "Jepang",
             officialSite = "https://cloverworks.co.jp/",
@@ -85,6 +92,7 @@ object StudioBioRegistry {
         StudioBioInfo(
             studioId = 56,
             name = "A-1 Pictures",
+            coverUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx151807-6J8Fm84J16o9.png",
             foundedYear = 2005,
             country = "Jepang",
             officialSite = "http://www.a1p.jp/",
@@ -93,6 +101,7 @@ object StudioBioRegistry {
         StudioBioInfo(
             studioId = 10,
             name = "Production I.G",
+            coverUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx20464-J43gUvP6Bcmx.jpg",
             foundedYear = 1987,
             country = "Jepang",
             officialSite = "http://www.production-ig.co.jp/",
@@ -101,6 +110,7 @@ object StudioBioRegistry {
         StudioBioInfo(
             studioId = 44,
             name = "Shaft",
+            coverUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx5081-L9A1FwzX70Ym.jpg",
             foundedYear = 1975,
             country = "Jepang",
             officialSite = "http://www.shaft-web.co.jp/",
@@ -109,6 +119,7 @@ object StudioBioRegistry {
         StudioBioInfo(
             studioId = 290,
             name = "CoMix Wave Films",
+            coverUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx21519-XIr3PecUjjfd.png",
             foundedYear = 2007,
             country = "Jepang",
             officialSite = "http://www.cwfilms.jp/",
@@ -117,6 +128,7 @@ object StudioBioRegistry {
         StudioBioInfo(
             studioId = 18,
             name = "Toei Animation",
+            coverUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx21-YCDoj1EkAxFn.jpg",
             foundedYear = 1948,
             country = "Jepang",
             officialSite = "http://www.toei-anim.co.jp/",
@@ -141,6 +153,7 @@ object StudioBioRegistry {
         StudioBioInfo(
             studioId = 287,
             name = "David Production",
+            coverUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx14719-i9Jb4PecUjfd.jpg",
             foundedYear = 2007,
             country = "Jepang",
             officialSite = "http://davidproduction.jp/",
@@ -149,6 +162,7 @@ object StudioBioRegistry {
         StudioBioInfo(
             studioId = 803,
             name = "Trigger",
+            coverUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx120377-pPddQcaP2WjJ.jpg",
             foundedYear = 2011,
             country = "Jepang",
             officialSite = "http://www.st-trigger.co.jp/",
@@ -157,6 +171,7 @@ object StudioBioRegistry {
         StudioBioInfo(
             studioId = 95,
             name = "Doga Kobo",
+            coverUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx150672-8q31bSjJq9U1.png",
             foundedYear = 1973,
             country = "Jepang",
             officialSite = "http://www.dogakobo.com/",
@@ -173,6 +188,7 @@ object StudioBioRegistry {
         StudioBioInfo(
             studioId = 7,
             name = "J.C.Staff",
+            coverUrl = "https://s4.anilist.co/file/anilistcdn/media/anime/cover/large/bx4224-34N9S7aP2WjJ.jpg",
             foundedYear = 1986,
             country = "Jepang",
             officialSite = "http://www.jcstaff.co.jp/",
@@ -316,6 +332,8 @@ object StudioBioRegistry {
                 put("bio", info.bio ?: JSONObject.NULL)
                 put("totalAnime", info.totalAnime ?: JSONObject.NULL)
                 put("favourites", info.favourites ?: JSONObject.NULL)
+                put("logoUrl", info.logoUrl ?: JSONObject.NULL)
+                put("coverUrl", info.coverUrl ?: JSONObject.NULL)
                 put("timestamp", System.currentTimeMillis())
             }
             p.edit().putString(KEY_PREFIX + info.studioId, json.toString()).apply()
@@ -340,7 +358,9 @@ object StudioBioRegistry {
                 officialSite = if (json.has("officialSite") && !json.isNull("officialSite")) json.optString("officialSite") else null,
                 bio = if (json.has("bio") && !json.isNull("bio")) json.optString("bio") else null,
                 totalAnime = if (json.has("totalAnime") && !json.isNull("totalAnime")) json.optInt("totalAnime") else null,
-                favourites = if (json.has("favourites") && !json.isNull("favourites")) json.optInt("favourites") else null
+                favourites = if (json.has("favourites") && !json.isNull("favourites")) json.optInt("favourites") else null,
+                logoUrl = if (json.has("logoUrl") && !json.isNull("logoUrl")) json.optString("logoUrl") else null,
+                coverUrl = if (json.has("coverUrl") && !json.isNull("coverUrl")) json.optString("coverUrl") else null
             )
         } catch (_: Exception) {
             null

@@ -173,7 +173,8 @@ data class MediaItem(
     val genres: List<String> = emptyList(),
     val format: String? = null,
     val studio: String? = null,
-    val popularity: Int? = null
+    val popularity: Int? = null,
+    val imageUrlHd: String? = null
 ) {
     val id: String get() = malId?.let { "mal_$it" } ?: anilistId?.let { "ani_$it" } ?: title
     val identity: MediaRef get() = MediaRef(anilistId = anilistId, malId = malId)

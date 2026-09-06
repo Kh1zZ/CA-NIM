@@ -9,13 +9,13 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases/latest"><img src="https://img.shields.io/badge/Download-APK%20(v5.0.0)-10B981.svg?style=for-the-badge&logo=android" alt="Download APK"></a>
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v5.0.0-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases/latest"><img src="https://img.shields.io/badge/Download-APK%20(v5.1.0)-10B981.svg?style=for-the-badge&logo=android" alt="Download APK"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v5.1.0-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#-fitur-utama"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#-arsitektur-dan-prinsip-desain"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
   <a href="#-kinerja-dan-optimasi"><img src="https://img.shields.io/badge/APK%20Size-~2.1%20MB-F59E0B.svg?style=for-the-badge" alt="Size"></a>
-  <a href="#-panduan-kompilasi-manual"><img src="https://img.shields.io/badge/Tests-43%20Passed-6366F1.svg?style=for-the-badge" alt="Tests"></a>
+  <a href="#-panduan-kompilasi-manual"><img src="https://img.shields.io/badge/Tests-51%20Passed-6366F1.svg?style=for-the-badge" alt="Tests"></a>
 </p>
 
 ---
@@ -26,7 +26,7 @@ Dapatkan rilis resmi **CA'NIM** siap pasang langsung dari halaman rilis GitHub:
 
 | Berkas | Tipe | Arsitektur | Kebutuhan Minimum | Tautan |
 | :--- | :---: | :---: | :---: | :---: |
-| **`canim-universal-release-v5.0.0.apk`** | **Release** | **Universal** (`arm64-v8a`, `armeabi-v7a`, `x86_64`) | Android 7.0+ (API 24+) | [👉 Unduh APK Rilis](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
+| **`canim-universal-release-v5.1.0.apk`** | **Release** | **Universal** (`arm64-v8a`, `armeabi-v7a`, `x86_64`) | Android 7.0+ (API 24+) | [👉 Unduh APK Rilis](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
 | **`SHA256SUMS.txt`** | **Checksum** | — | — | [👉 Verifikasi Checksum](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
 
 > 💡 **Catatan Instalasi**: APK Release dikompilasi secara universal oleh GitHub Actions CI/CD, bebas dari bloatware/tracker, dan telah dioptimalkan secara penuh menggunakan R8 Minifier untuk pengalaman scrolling terbaik.
@@ -249,7 +249,20 @@ Mulai versi `v4.4.1`, seluruh berkas APK rilis resmi **CA'NIM** dikompilasi seca
 
 ---
 
-## 📝 Catatan Rilis Terbaru (v5.0.0)
+## 📝 Catatan Rilis Terbaru (v5.1.0)
+
+- **Perbaikan Kritis Konflik Keystore Penandatanganan (Production Release Signing)**: Mengatasi error "App not installed" / konflik signature pembaruan dengan sistem penandatanganan keystore permanen via GitHub Actions Secrets (`RELEASE_KEYSTORE_BASE64` dll.). *Catatan Penting: Pengguna yang memperbarui dari versi <= v5.0.0 disarankan melakukan uninstall versi lama terlebih dahulu sebelum memasang v5.1.0 karena pergantian sertifikat debug acak ke release keystore permanen (data tracking tetap aman karena MAL adalah Single Source of Truth).*
+- **Penutupan Celah Farming Tiket Gacha & Guard Progres Episode**: Menambahkan proteksi validasi pada `quickIncrementAnime()` dan `quickIncrementManga()` agar progres tidak dapat melebihi batas total episode/chapter dan tidak memberi tiket gacha ilegal pada judul berstatus *Completed*. Tombol "+" pada Dasbor dan Library kini otomatis dinonaktifkan (berwarna abu-abu redup) saat target tercapai.
+- **Simpan Langsung ke Library dari Flashcard (`plan_to_watch`)**: Tombol ceklis pada kartu flashcard kini otomatis menyimpan anime ke library dengan status "Rencana Ditonton", menampilkan notifikasi konfirmasi Snackbar ("Ditambahkan ke Rencana Ditonton"), mengonsumsi 1 tiket kredit gacha, dan melanjutkan ke kartu berikutnya dengan animasi geser mulus. Jika proses simpan gagal, kartu tidak akan berpindah agar pengguna dapat mencoba kembali.
+- **Penyesuaian Tata Letak MediaDetailDialog (Full Alignment)**: Dialog tambah/edit anime kini menggunakan struktur `Scaffold` dengan `bottomBar` terisolasi sehingga tombol "Simpan" dan "Hapus" selalu terlihat penuh tanpa perlu scroll di semua ukuran layar dan split-screen. Pada alur tambah judul baru, tombol "Hapus" disembunyikan dan tombol "Simpan" melebar penuh dengan label "Tambah ke Library".
+- **Redesain Studio Picker & Visual Header Studio Filmography**: Modal Studio Picker kini menampilkan kartu bergaya poster anime dengan latar belakang karya terpopuler, gradasi gelap bawah, inisial monogram/logo studio, dan tipografi jelas. Header `StudioFilmographyScreen` kini menghitung padding atas dinamis berbasis `WindowInsets.statusBars` untuk menghindari tabrakan dengan tombol kembali/notch kamera, serta menghapus lencana love non-interaktif.
+- **Penyertaan Otomatis Anime TBA / Belum Rilis pada Filmografi Studio**: Query GraphQL AniList kini menggunakan pengurutan `[START_DATE_DESC, POPULARITY_DESC]` sehingga proyek masa depan dan anime berstatus `NOT_YET_RELEASED` langsung termuat di halaman awal dan terkelompok pada seksi "Akan Datang / TBA".
+- **Pengecekan Pembaruan Versi di Pengaturan (In-App Update Checker)**: Menambahkan seksi "Pembaruan Aplikasi" pada layar Pengaturan dengan tombol manual "Cek Update" dan opsi toggle "Cek Update Otomatis" (berjalan sekali setiap 24 jam) yang terhubung langsung ke GitHub Releases API via komparasi semver cerdas.
+- **Kualitas Gambar HD Khusus Flashcard**: Penambahan field `imageUrlHd` yang memprioritaskan aset resolusi `extraLarge` dari AniList khusus untuk kartu flashcard layar penuh tanpa membebani memori thumbnail di daftar library.
+- **Peningkatan Test Suite**: Menambah pengujian unit baru untuk pengecekan versi semver dan proteksi guard increment progres (total 51 unit test lulus 100%).
+
+<details>
+<summary><b>Lihat Catatan Rilis Sebelumnya (v5.0.0)</b></summary>
 
 - **Studio Details & Bio Komprehensif**: Bio naratif studio animasi dan *quick facts* terverifikasi (tahun berdiri, negara asal, jumlah anime tercatat, tautan situs resmi) dengan rendering progresif instan 0ms dari database kurasi 35+ studio legendaris (Ufotable, MAPPA, Kyoto Animation, Bones, Wit Studio, Madhouse, CloverWorks, dll.) serta cache persisten 30 hari di penyimpanan lokal.
 - **Pengelompokan Filmografi Berdasarkan Tahun (Year Grouping)**: Katalog filmografi studio kini dikelompokkan secara rapi per tahun rilis, dengan judul yang belum tayang / TBA ("Akan Datang / TBA") otomatis berada di posisi teratas. Komputasi grouping di-*memoize* murni untuk menjamin bebas dari recomposition overhead.
@@ -258,6 +271,8 @@ Mulai versi `v4.4.1`, seluruh berkas APK rilis resmi **CA'NIM** dikompilasi seca
 - **Sistem Tiket Gacha Berkelanjutan**: Kuota mingguan 5 tiket dengan reset otomatis setiap Senin 00:00:00 (floor minimum 5 tiket, tiket tambahan dari hasil menonton tidak hangus), bonus +1 tiket instan untuk setiap episode yang ditonton di Library, dan tampilan *empty state* yang informatif saat tiket habis.
 - **Pembersihan Bersih DiscoverScreen**: Menghilangkan Smart Randomizer dan panel filter lama yang usang untuk menghasilkan alur penjelajahan katalog yang bersih, terfokus, dan bebas beban kode mati.
 - **Peningkatan Suite Pengujian Unit**: Menambah unit test untuk pengelompokan filmografi studio dan logika reset kuota mingguan (total 43 unit test lulus 100%).
+
+</details>
 
 <details>
 <summary><b>Lihat Catatan Rilis Sebelumnya (v4.4.3)</b></summary>

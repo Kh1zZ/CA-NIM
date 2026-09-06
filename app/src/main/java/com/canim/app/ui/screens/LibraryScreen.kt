@@ -449,14 +449,20 @@ fun AnimeLibraryCard(
                     )
                 }
 
+                val canIncrementAnime = !anime.status.equals("completed", ignoreCase = true) &&
+                    (anime.totalEpisodes <= 0 || anime.progress < anime.totalEpisodes)
+
                 FilledIconButton(
                     onClick = { onQuickAdd(anime.id) },
+                    enabled = canIncrementAnime,
                     modifier = Modifier
                         .size(32.dp)
                         .testTag("anime_increment_btn_${anime.id}"),
                     colors = IconButtonDefaults.filledIconButtonColors(
                         containerColor = CardElevated,
-                        contentColor = AccentGreen
+                        contentColor = AccentGreen,
+                        disabledContainerColor = CardElevated.copy(alpha = 0.4f),
+                        disabledContentColor = TextMuted.copy(alpha = 0.3f)
                     )
                 ) {
                     Icon(
@@ -579,14 +585,20 @@ fun MangaLibraryCard(
                     )
                 }
 
+                val canIncrementManga = !manga.status.equals("completed", ignoreCase = true) &&
+                    (manga.totalChapters <= 0 || manga.progressChapters < manga.totalChapters)
+
                 FilledIconButton(
                     onClick = { onQuickAdd(manga.id) },
+                    enabled = canIncrementManga,
                     modifier = Modifier
                         .size(32.dp)
                         .testTag("manga_increment_btn_${manga.id}"),
                     colors = IconButtonDefaults.filledIconButtonColors(
                         containerColor = CardElevated,
-                        contentColor = Color(0xFF38BDF8)
+                        contentColor = Color(0xFF38BDF8),
+                        disabledContainerColor = CardElevated.copy(alpha = 0.4f),
+                        disabledContentColor = TextMuted.copy(alpha = 0.3f)
                     )
                 ) {
                     Icon(

@@ -11,7 +11,9 @@ data class StudioBioInfo(
     val officialSite: String? = null,
     val bio: String? = null,
     val totalAnime: Int? = null,
-    val favourites: Int? = null
+    val favourites: Int? = null,
+    val logoUrl: String? = null,
+    val coverUrl: String? = null
 )
 
 enum class StudioFilmographySort(val label: String) {

@@ -937,14 +937,20 @@ fun WatchingCard(
                         fontSize = 11.sp
                     )
 
+                    val canIncrementAnime = !anime.status.equals("completed", ignoreCase = true) &&
+                        (anime.totalEpisodes <= 0 || anime.progress < anime.totalEpisodes)
+
                     FilledIconButton(
                         onClick = onQuickAdd,
+                        enabled = canIncrementAnime,
                         modifier = Modifier
                             .size(28.dp)
                             .testTag("quick_add_${anime.id}"),
                         colors = IconButtonDefaults.filledIconButtonColors(
                             containerColor = AccentBlue,
-                            contentColor = Color.White
+                            contentColor = Color.White,
+                            disabledContainerColor = CardElevated.copy(alpha = 0.4f),
+                            disabledContentColor = TextMuted.copy(alpha = 0.3f)
                         )
                     ) {
                         Icon(
@@ -1041,14 +1047,20 @@ fun ReadingCard(
                         fontSize = 11.sp
                     )
 
+                    val canIncrementManga = !manga.status.equals("completed", ignoreCase = true) &&
+                        (manga.totalChapters <= 0 || manga.progressChapters < manga.totalChapters)
+
                     FilledIconButton(
                         onClick = onQuickAdd,
+                        enabled = canIncrementManga,
                         modifier = Modifier
                             .size(28.dp)
                             .testTag("quick_add_manga_${manga.id}"),
                         colors = IconButtonDefaults.filledIconButtonColors(
                             containerColor = MangaAccentDarkBlue,
-                            contentColor = Color.White
+                            contentColor = Color.White,
+                            disabledContainerColor = CardElevated.copy(alpha = 0.4f),
+                            disabledContentColor = TextMuted.copy(alpha = 0.3f)
                         )
                     ) {
                         Icon(

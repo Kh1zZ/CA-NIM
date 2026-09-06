@@ -97,11 +97,14 @@ fun StudioFilmographyScreen(
                 }
             }
         } else {
+            val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+            val dynamicGridTopPadding = statusBarTop + 42.dp + 16.dp
+
             LazyVerticalGrid(
                 state = gridState,
                 columns = GridCells.Adaptive(minSize = 150.dp),
                 contentPadding = PaddingValues(
-                    top = 88.dp,
+                    top = dynamicGridTopPadding,
                     start = 16.dp,
                     end = 16.dp,
                     bottom = 32.dp
@@ -110,32 +113,98 @@ fun StudioFilmographyScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                // Header section: Studio Title & Total
+                // Header section: Studio Title & Hero Banner (Tugas 3c)
                 item(span = { GridItemSpan(maxLineSpan) }, key = "studio_header") {
-                    Column(
+                    val heroCover = bioInfo?.coverUrl ?: items.firstOrNull()?.imageUrlHd ?: items.firstOrNull()?.imageUrl
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(bottom = 8.dp)
+                            .padding(bottom = 8.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = CardElevated)
                     ) {
-                        Text(
-                            text = studioName,
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextPrimary
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        val countLabel = when {
-                            totalEntries >= 500 -> "500+ judul"
-                            totalEntries > 0 -> "$totalEntries judul"
-                            items.isNotEmpty() -> "${items.size} judul"
-                            else -> ""
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(120.dp)
+                        ) {
+                            if (!heroCover.isNullOrBlank()) {
+                                AsyncImage(
+                                    model = heroCover,
+                                    contentDescription = studioName,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        Brush.verticalGradient(
+                                            listOf(
+                                                Color.Black.copy(alpha = 0.45f),
+                                                Color.Black.copy(alpha = 0.90f)
+                                            )
+                                        )
+                                    )
+                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.Bottom,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                // Studio Logo / Monogram
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(CardBg)
+                                        .border(1.dp, AccentBlue.copy(alpha = 0.6f), RoundedCornerShape(12.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (!bioInfo?.logoUrl.isNullOrBlank()) {
+                                        AsyncImage(
+                                            model = bioInfo!!.logoUrl,
+                                            contentDescription = studioName,
+                                            contentScale = ContentScale.Fit,
+                                            modifier = Modifier.size(36.dp)
+                                        )
+                                    } else {
+                                        Text(
+                                            text = studioName.take(1).uppercase(),
+                                            color = AccentBlue,
+                                            fontSize = 22.sp,
+                                            fontWeight = FontWeight.ExtraBold
+                                        )
+                                    }
+                                }
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = studioName,
+                                        fontSize = 20.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    val countLabel = when {
+                                        totalEntries >= 500 -> "500+ judul"
+                                        totalEntries > 0 -> "$totalEntries judul"
+                                        items.isNotEmpty() -> "${items.size} judul"
+                                        else -> ""
+                                    }
+                                    Text(
+                                        text = if (countLabel.isNotEmpty()) "Katalog Produksi • $countLabel" else "Katalog Produksi",
+                                        fontSize = 12.sp,
+                                        color = AccentBlue,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
                         }
-                        Text(
-                            text = if (countLabel.isNotEmpty()) "Filmografi & Katalog Produksi ($countLabel)" else "Filmografi & Katalog Produksi",
-                            fontSize = 13.sp,
-                            color = AccentBlue,
-                            fontWeight = FontWeight.Medium
-                        )
                     }
                 }
 
@@ -277,14 +346,7 @@ private fun StudioBioCard(
                     )
                 }
 
-                // Favourites
-                bioInfo?.favourites?.takeIf { it > 0 }?.let { favs ->
-                    FactBadge(
-                        icon = Icons.Default.Favorite,
-                        text = "$favs",
-                        iconTint = Color(0xFFEC4899)
-                    )
-                }
+
             }
 
             // Narrative Bio with Expand/Collapse

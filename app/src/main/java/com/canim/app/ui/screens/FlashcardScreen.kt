@@ -53,6 +53,7 @@ fun FlashcardScreen(
     onSwipeCard: (MediaItem) -> Unit,
     onOpenDetail: (MediaItem, MediaType) -> Unit,
     onRefreshDeck: () -> Unit,
+    onSavePlanToWatch: (MediaItem, (Boolean) -> Unit) -> Unit = { _, cb -> cb(true) },
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -322,17 +323,24 @@ fun FlashcardScreen(
                                 )
                             }
 
-                            // Accept / Tambah button
+                            // Accept / Simpan ke Library button
+                            var isSavingCard by remember { mutableStateOf(false) }
                             IconButton(
                                 onClick = {
-                                    coroutineScope.launch {
-                                        offsetX.animateTo(screenWidthPx * 1.5f, tween(250))
-                                        if (onConsumeCredit()) {
-                                            onSwipeCard(topCard)
+                                    if (isSavingCard) return@IconButton
+                                    isSavingCard = true
+                                    onSavePlanToWatch(topCard) { success ->
+                                        isSavingCard = false
+                                        if (success) {
+                                            coroutineScope.launch {
+                                                offsetX.animateTo(screenWidthPx * 1.5f, tween(250))
+                                                if (onConsumeCredit()) {
+                                                    onSwipeCard(topCard)
+                                                }
+                                                offsetX.snapTo(0f)
+                                                offsetY.snapTo(0f)
+                                            }
                                         }
-                                        offsetX.snapTo(0f)
-                                        offsetY.snapTo(0f)
-                                        onOpenDetail(topCard, topCard.type)
                                     }
                                 },
                                 modifier = Modifier
@@ -343,7 +351,7 @@ fun FlashcardScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Check,
-                                    contentDescription = "Buka & Simpan",
+                                    contentDescription = "Simpan ke Rencana Ditonton",
                                     tint = Color.White,
                                     modifier = Modifier.size(28.dp)
                                 )
@@ -379,9 +387,9 @@ private fun PhysicalCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            // High-resolution Cover Poster
+            // High-resolution Cover Poster (HD preferred on Flashcards)
             AsyncImage(
-                model = item.imageUrl,
+                model = item.imageUrlHd ?: item.imageUrl,
                 contentDescription = item.title,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize()
