@@ -8,7 +8,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.animation.*
+import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -371,38 +375,50 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        // Top-level modal/overlay stack rendering with smooth vertical entry & directional push/pop
+                        // Top-level modal/overlay stack rendering with smooth popout entry & directional push/pop
                         AnimatedContent(
                             targetState = screenStack.lastOrNull(),
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
                             transitionSpec = {
-                                val isTargetDetail = targetState is ScreenRoute.Detail
-                                val isInitialDetail = initialState is ScreenRoute.Detail
+                                val noClipSizeTransform = SizeTransform(clip = false)
 
-                                if (isTargetDetail && isInitialDetail) {
-                                    // Detail-to-Detail transition (relation/recommendation)
+                                if (initialState != null && targetState != null) {
+                                    // Stack-to-Stack transition (e.g. Detail to relation Detail, CastCrew, Studio, etc.)
                                     if (isStackPush) {
-                                        (slideInHorizontally(initialOffsetX = { it / 2 }, animationSpec = tween(240, easing = FastOutSlowInEasing)) + fadeIn(animationSpec = tween(220)))
-                                            .togetherWith(slideOutHorizontally(targetOffsetX = { -it / 3 }, animationSpec = tween(200, easing = FastOutSlowInEasing)) + fadeOut(animationSpec = tween(180)))
+                                        (slideInHorizontally(initialOffsetX = { it / 2 }, animationSpec = tween(260, easing = FastOutSlowInEasing)) + fadeIn(animationSpec = tween(220)))
+                                            .togetherWith(slideOutHorizontally(targetOffsetX = { -it / 3 }, animationSpec = tween(220, easing = FastOutSlowInEasing)) + fadeOut(animationSpec = tween(180)))
+                                            .using(noClipSizeTransform)
                                     } else {
-                                        (slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = tween(200, easing = FastOutSlowInEasing)) + fadeIn(animationSpec = tween(200)))
-                                            .togetherWith(slideOutHorizontally(targetOffsetX = { it / 2 }, animationSpec = tween(240, easing = FastOutSlowInEasing)) + fadeOut(animationSpec = tween(180)))
+                                        (slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = tween(220, easing = FastOutSlowInEasing)) + fadeIn(animationSpec = tween(200)))
+                                            .togetherWith(slideOutHorizontally(targetOffsetX = { it / 2 }, animationSpec = tween(260, easing = FastOutSlowInEasing)) + fadeOut(animationSpec = tween(180)))
+                                            .using(noClipSizeTransform)
                                     }
-                                } else if (isTargetDetail) {
-                                    // Opening detail from base tab: clean vertical slide up + scale
-                                    (slideInVertically(initialOffsetY = { (it * 0.15f).toInt() }, animationSpec = tween(260, easing = FastOutSlowInEasing)) +
-                                     scaleIn(initialScale = 0.95f, animationSpec = tween(260, easing = FastOutSlowInEasing)) +
-                                     fadeIn(animationSpec = tween(220)))
+                                } else if (targetState != null) {
+                                    // Opening overlay from base tab: smooth spring-based popout zoom entry
+                                    (scaleIn(
+                                        initialScale = 0.88f,
+                                        animationSpec = spring(
+                                            dampingRatio = 0.82f,
+                                            stiffness = Spring.StiffnessMediumLow
+                                        )
+                                    ) + fadeIn(animationSpec = tween(220, easing = LinearOutSlowInEasing)))
                                         .togetherWith(fadeOut(animationSpec = tween(180)))
-                                } else if (isInitialDetail) {
-                                    // Popping detail back to base tab: settle down + scale out
+                                        .using(noClipSizeTransform)
+                                } else if (initialState != null) {
+                                    // Popping overlay back to base tab: smooth popout zoom exit
                                     fadeIn(animationSpec = tween(180))
                                         .togetherWith(
-                                            slideOutVertically(targetOffsetY = { (it * 0.15f).toInt() }, animationSpec = tween(220, easing = FastOutSlowInEasing)) +
-                                            scaleOut(targetScale = 0.95f, animationSpec = tween(220, easing = FastOutSlowInEasing)) +
-                                            fadeOut(animationSpec = tween(180))
+                                            scaleOut(
+                                                targetScale = 0.88f,
+                                                animationSpec = tween(200, easing = FastOutLinearInEasing)
+                                            ) + fadeOut(animationSpec = tween(180))
                                         )
+                                        .using(noClipSizeTransform)
                                 } else {
-                                    fadeIn(animationSpec = tween(180)).togetherWith(fadeOut(animationSpec = tween(180)))
+                                    (fadeIn(animationSpec = tween(180)))
+                                        .togetherWith(fadeOut(animationSpec = tween(180)))
+                                        .using(noClipSizeTransform)
                                 }
                             },
                             label = "ScreenOverlayTransition"
@@ -517,7 +533,9 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                 }
-                                null -> { /* No overlay active */ }
+                                null -> {
+                                    Spacer(modifier = Modifier.fillMaxSize())
+                                }
                             }
                         }
                     }

@@ -1,6 +1,8 @@
 package com.canim.app.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,6 +24,7 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -195,6 +198,7 @@ fun DiscoverScreen(
                             Box(
                                 Modifier
                                     .tabIndicatorOffset(tabPositions[selectedCatIndex])
+                                    .zIndex(-1f)
                                     .fillMaxHeight()
                                     .padding(vertical = 4.dp, horizontal = 2.dp)
                                     .clip(RoundedCornerShape(20.dp))
@@ -204,9 +208,14 @@ fun DiscoverScreen(
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    currentCategories.forEachIndexed { index, category ->
+                    currentCategories.forEach { category ->
                         val isStudio = category == DiscoverCategory.STUDIO
                         val isSelected = state.selectedDiscoverCategory == category
+                        val textColor by animateColorAsState(
+                            targetValue = if (isSelected) Color.White else TextSecondary,
+                            animationSpec = tween(180),
+                            label = "discover_tab_text_color"
+                        )
                         Tab(
                             selected = isSelected,
                             onClick = {
@@ -217,13 +226,17 @@ fun DiscoverScreen(
                                 }
                             },
                             modifier = Modifier
+                                .zIndex(1f)
                                 .height(42.dp)
                                 .clip(RoundedCornerShape(20.dp))
                                 .padding(horizontal = 4.dp),
+                            selectedContentColor = Color.White,
+                            unselectedContentColor = TextSecondary,
                             text = {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp),
+                                    modifier = Modifier.zIndex(2f)
                                 ) {
                                     if (isStudio) {
                                         Icon(
@@ -236,8 +249,8 @@ fun DiscoverScreen(
                                     Text(
                                         text = category.label,
                                         fontSize = 12.sp,
-                                        fontWeight = if (isSelected || isStudio) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (isSelected) Color.White else TextSecondary
+                                        fontWeight = if (isSelected) FontWeight.ExtraBold else if (isStudio) FontWeight.Bold else FontWeight.Medium,
+                                        color = textColor
                                     )
                                 }
                             }
