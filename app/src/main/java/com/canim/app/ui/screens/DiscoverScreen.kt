@@ -78,9 +78,9 @@ fun DiscoverScreen(
 
     val animeCategories = remember {
         listOf(
+            DiscoverCategory.STUDIO,
             DiscoverCategory.CURRENT_SEASON,
             DiscoverCategory.NEXT_SEASON,
-            DiscoverCategory.STUDIO,
             DiscoverCategory.TOP_ANIME,
             DiscoverCategory.TRENDING_NOW,
             DiscoverCategory.UPCOMING,
@@ -601,6 +601,33 @@ fun DiscoverScreen(
                     color = TextSecondary,
                     fontSize = 12.sp
                 )
+
+                // AniList API Status Warning Banner
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = Color(0xFFF59E0B).copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.5f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.WarningAmber,
+                            contentDescription = null,
+                            tint = Color(0xFFF59E0B),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "Server AniList saat ini sedang mengalami gangguan/down. Menampilkan studio populer terkurasi secara offline.",
+                            color = Color(0xFFFDE68A),
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp
+                        )
+                    }
+                }
 
                 OutlinedTextField(
                     value = studioSearchQuery,

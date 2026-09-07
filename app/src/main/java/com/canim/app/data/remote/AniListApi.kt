@@ -382,10 +382,21 @@ object AniListClient {
                 mediaParams.add("genre_in: ${'$'}genres")
                 put("genres", JSONArray(genres))
             }
-            if (year != null && year > 1900) {
-                queryDefParams.add("${'$'}seasonYear: Int")
-                mediaParams.add("seasonYear: ${'$'}seasonYear")
-                put("seasonYear", year)
+            if (year != null) {
+                if (type == MediaType.ANIME && year >= 1917) {
+                    queryDefParams.add("${'$'}seasonYear: Int")
+                    mediaParams.add("seasonYear: ${'$'}seasonYear")
+                    put("seasonYear", year)
+                } else if (type == MediaType.MANGA && year >= 1874) {
+                    val start = year * 10000
+                    val end = (year + 1) * 10000
+                    queryDefParams.add("${'$'}startDateGreater: FuzzyDateInt")
+                    queryDefParams.add("${'$'}startDateLesser: FuzzyDateInt")
+                    mediaParams.add("startDate_greater: ${'$'}startDateGreater")
+                    mediaParams.add("startDate_lesser: ${'$'}startDateLesser")
+                    put("startDateGreater", start)
+                    put("startDateLesser", end)
+                }
             }
             if (!format.isNullOrBlank()) {
                 queryDefParams.add("${'$'}format: MediaFormat")

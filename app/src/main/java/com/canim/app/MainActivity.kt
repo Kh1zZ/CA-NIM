@@ -307,7 +307,9 @@ class MainActivity : ComponentActivity() {
                                         onClearAllCache = { viewModel.clearAllCache(context) },
                                         onCheckForUpdates = { viewModel.checkForUpdates(manual = true) },
                                         onSetAutoUpdateCheck = { viewModel.setAutoUpdateCheck(it) },
-                                        onDismissUpdateDialog = { viewModel.dismissUpdateDialog() }
+                                        onDismissUpdateDialog = { viewModel.dismissUpdateDialog() },
+                                        onStartDownloadUpdate = { viewModel.startDownloadUpdate(context) },
+                                        onInstallDownloadedUpdate = { viewModel.installDownloadedUpdate(context) }
                                     )
                                 }
                             }
@@ -318,11 +320,11 @@ class MainActivity : ComponentActivity() {
                             targetState = screenStack.lastOrNull(),
                             transitionSpec = {
                                 if (targetState is ScreenRoute.Detail) {
-                                    (scaleIn(initialScale = 0.92f, animationSpec = tween(220)) + fadeIn(animationSpec = tween(220)))
-                                        .togetherWith(scaleOut(targetScale = 0.92f, animationSpec = tween(180)) + fadeOut(animationSpec = tween(180)))
+                                    (scaleIn(initialScale = 0.95f, animationSpec = tween(220)) + fadeIn(animationSpec = tween(220)))
+                                        .togetherWith(scaleOut(targetScale = 0.95f, animationSpec = tween(180)) + fadeOut(animationSpec = tween(180)))
                                 } else if (initialState is ScreenRoute.Detail) {
-                                    (scaleIn(initialScale = 0.92f, animationSpec = tween(180)) + fadeIn(animationSpec = tween(180)))
-                                        .togetherWith(scaleOut(targetScale = 0.92f, animationSpec = tween(180)) + fadeOut(animationSpec = tween(180)))
+                                    (scaleIn(initialScale = 0.95f, animationSpec = tween(180)) + fadeIn(animationSpec = tween(180)))
+                                        .togetherWith(scaleOut(targetScale = 0.95f, animationSpec = tween(180)) + fadeOut(animationSpec = tween(180)))
                                 } else {
                                     fadeIn(animationSpec = tween(180)).togetherWith(fadeOut(animationSpec = tween(180)))
                                 }

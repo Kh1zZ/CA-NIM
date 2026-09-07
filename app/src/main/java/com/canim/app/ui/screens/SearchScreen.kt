@@ -68,15 +68,17 @@ fun SearchScreen(
     var showFilterSheet by remember { mutableStateOf(false) }
     var tempGenres by remember(state.searchGenres) { mutableStateOf(state.searchGenres.toSet()) }
     var tempYear by remember(state.searchYear) { mutableStateOf(state.searchYear) }
+    var typedYearText by remember(state.searchYear) { mutableStateOf(state.searchYear?.toString() ?: "") }
     var tempFormat by remember(state.searchFormat) { mutableStateOf(state.searchFormat) }
     val hasActiveFilters = state.searchGenres.isNotEmpty() || state.searchYear != null || state.searchFormat != null
 
     val allGenres = remember {
         listOf(
-            "Action", "Adventure", "Comedy", "Drama", "Fantasy",
-            "Horror", "Mystery", "Romance", "Sci-Fi", "Slice of Life",
-            "Sports", "Supernatural", "Thriller", "Mecha", "Music",
-            "Psychological", "Isekai", "Shounen", "Shoujo", "Seinen"
+            "Action", "Adventure", "Award Winning", "Comedy", "Drama",
+            "Ecchi", "Fantasy", "Harem", "Horror", "Isekai",
+            "Josei", "Mahou Shoujo", "Mecha", "Music", "Mystery",
+            "Psychological", "Romance", "Sci-Fi", "Seinen", "Shoujo",
+            "Shounen", "Slice of Life", "Sports", "Supernatural", "Suspense", "Thriller"
         )
     }
     val animeFormats = remember { listOf("TV", "MOVIE", "ONA", "OVA", "SPECIAL", "MUSIC") }
@@ -682,11 +684,12 @@ fun SearchScreen(
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    if (tempGenres.isNotEmpty() || tempYear != null || tempFormat != null) {
+                    if (tempGenres.isNotEmpty() || tempYear != null || tempFormat != null || typedYearText.isNotEmpty()) {
                         TextButton(
                             onClick = {
                                 tempGenres = emptySet()
                                 tempYear = null
+                                typedYearText = ""
                                 tempFormat = null
                                 onResetFilters()
                             }
@@ -773,9 +776,85 @@ fun SearchScreen(
                     }
                 }
 
-                // Year Selector
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(text = "Tahun Rilis", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                // Year Selector with direct typed input and validation
+                val minYear = if (searchType == MediaType.ANIME) 1917 else 1874
+                val maxYear = java.util.Calendar.getInstance().get(java.util.Calendar.YEAR) + 2
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = "Tahun Rilis", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        if (tempYear != null) {
+                            Text(
+                                text = "Dipilih: $tempYear",
+                                color = if (searchType == MediaType.MANGA) Color(0xFF64B5F6) else AccentBlue,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    // Direct typed year input with validation (1917 for anime, 1874 for manga)
+                    OutlinedTextField(
+                        value = typedYearText,
+                        onValueChange = { input ->
+                            val digits = input.filter { it.isDigit() }.take(4)
+                            typedYearText = digits
+                            val parsed = digits.toIntOrNull()
+                            if (parsed != null && parsed in minYear..maxYear) {
+                                tempYear = parsed
+                            } else if (digits.isEmpty()) {
+                                tempYear = null
+                            }
+                        },
+                        placeholder = {
+                            Text("Ketik tahun ($minYear - $maxYear)...", fontSize = 12.sp, color = TextMuted)
+                        },
+                        trailingIcon = {
+                            if (typedYearText.isNotEmpty()) {
+                                IconButton(
+                                    onClick = {
+                                        typedYearText = ""
+                                        tempYear = null
+                                    },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(Icons.Default.Close, contentDescription = "Hapus Tahun", tint = TextMuted, modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                            imeAction = ImeAction.Done
+                        ),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = if (searchType == MediaType.MANGA) MangaAccentDarkBlue else AccentBlue,
+                            unfocusedBorderColor = CardBorder,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            cursorColor = if (searchType == MediaType.MANGA) MangaAccentDarkBlue else AccentBlue,
+                            focusedContainerColor = CardBg,
+                            unfocusedContainerColor = CardBg
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        supportingText = {
+                            val parsed = typedYearText.toIntOrNull()
+                            if (typedYearText.isNotEmpty() && (parsed == null || parsed !in minYear..maxYear)) {
+                                Text(
+                                    text = "Rentang tahun valid: $minYear - $maxYear",
+                                    color = StatusDroppedColor,
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+                    )
+
+                    // Quick presets chips
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -785,7 +864,13 @@ fun SearchScreen(
                             FilterChip(
                                 selected = isSelected,
                                 onClick = {
-                                    tempYear = if (isSelected) null else yr
+                                    if (isSelected) {
+                                        tempYear = null
+                                        typedYearText = ""
+                                    } else {
+                                        tempYear = yr
+                                        typedYearText = "$yr"
+                                    }
                                 },
                                 label = { Text("$yr", fontSize = 11.sp) },
                                 shape = RoundedCornerShape(16.dp),
@@ -798,7 +883,7 @@ fun SearchScreen(
                     }
                 }
 
-                // 20 Genres Multi-Select
+                // Genres Multi-Select
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(text = "Genre (${tempGenres.size} dipilih)", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     FlowRow(
@@ -826,7 +911,9 @@ fun SearchScreen(
                 // Bottom Done / Apply Button
                 Button(
                     onClick = {
-                        onApplyFilters(tempGenres.toList(), tempYear, tempFormat)
+                        val parsed = typedYearText.toIntOrNull()
+                        val finalYear = if (parsed != null && parsed in minYear..maxYear) parsed else tempYear
+                        onApplyFilters(tempGenres.toList(), finalYear, tempFormat)
                         showFilterSheet = false
                         onSearch(searchInput.trim(), searchType)
                     },

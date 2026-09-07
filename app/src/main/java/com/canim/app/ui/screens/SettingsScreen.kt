@@ -2,6 +2,7 @@ package com.canim.app.ui.screens
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -48,6 +49,8 @@ fun SettingsScreen(
     onCheckForUpdates: () -> Unit = {},
     onSetAutoUpdateCheck: (Boolean) -> Unit = {},
     onDismissUpdateDialog: () -> Unit = {},
+    onStartDownloadUpdate: () -> Unit = {},
+    onInstallDownloadedUpdate: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -692,29 +695,80 @@ fun SettingsScreen(
                             lineHeight = 15.sp
                         )
                     }
-                    Text(
-                        text = "Unduh APK rilis resmi terbaru langsung dari halaman rilis GitHub.",
-                        color = AccentBlue,
-                        fontSize = 11.sp
-                    )
+                    if (state.isDownloadingUpdate) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.padding(top = 4.dp)
+                        ) {
+                            Text(
+                                text = "Mengunduh file pembaruan... ${(state.updateDownloadProgress * 100).toInt()}%",
+                                color = AccentBlue,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            LinearProgressIndicator(
+                                progress = { state.updateDownloadProgress },
+                                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                                color = AccentBlue,
+                                trackColor = CardBg
+                            )
+                        }
+                    } else if (state.downloadedApkFile != null) {
+                        Text(
+                            text = "✓ File update berhasil diunduh. Tekan 'Pasang Sekarang' untuk menginstal.",
+                            color = AccentGreen,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    } else {
+                        Text(
+                            text = "Unduh dan pasang pembaruan resmi secara otomatis di dalam aplikasi.",
+                            color = AccentBlue,
+                            fontSize = 11.sp
+                        )
+                    }
                 }
             },
             confirmButton = {
-                Button(
-                    onClick = {
-                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(state.updateInfo.htmlUrl))
-                        context.startActivity(intent)
-                        onDismissUpdateDialog()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = AccentBlue, contentColor = Color.White),
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("Unduh di GitHub", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (state.downloadedApkFile != null) {
+                        Button(
+                            onClick = onInstallDownloadedUpdate,
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentGreen, contentColor = Color.White),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Pasang Sekarang", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    } else if (state.updateInfo.apkDownloadUrl != null && !state.isDownloadingUpdate) {
+                        Button(
+                            onClick = onStartDownloadUpdate,
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentBlue, contentColor = Color.White),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Unduh & Pasang", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        }
+                    }
+
+                    if (!state.isDownloadingUpdate) {
+                        OutlinedButton(
+                            onClick = {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(state.updateInfo.htmlUrl))
+                                context.startActivity(intent)
+                                onDismissUpdateDialog()
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            border = BorderStroke(1.dp, CardBorder)
+                        ) {
+                            Text("Buka GitHub", color = TextSecondary, fontSize = 12.sp)
+                        }
+                    }
                 }
             },
             dismissButton = {
-                TextButton(onClick = onDismissUpdateDialog) {
-                    Text("Nanti Saja", color = TextSecondary, fontSize = 12.sp)
+                if (!state.isDownloadingUpdate) {
+                    TextButton(onClick = onDismissUpdateDialog) {
+                        Text("Nanti Saja", color = TextSecondary, fontSize = 12.sp)
+                    }
                 }
             }
         )

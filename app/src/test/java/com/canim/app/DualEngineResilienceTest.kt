@@ -126,8 +126,15 @@ class DualEngineResilienceTest {
     }
 
     @Test
-    fun testVersionBumpV611() {
-        assertEquals("v6.1.1", BuildConfig.VERSION_NAME)
-        assertEquals(20, BuildConfig.VERSION_CODE)
+    fun testVersionBumpV612() {
+        assertEquals("v6.1.2", BuildConfig.VERSION_NAME)
+        assertEquals(21, BuildConfig.VERSION_CODE)
+    }
+
+    @Test
+    fun testSemverComparison() {
+        assertEquals(1, com.canim.app.data.remote.UpdateChecker.compareSemver("v6.1.1", "v6.1.2"))
+        assertEquals(-1, com.canim.app.data.remote.UpdateChecker.compareSemver("v6.1.2", "v6.1.1"))
+        assertEquals(0, com.canim.app.data.remote.UpdateChecker.compareSemver("v6.1.2", "v6.1.2"))
     }
 }

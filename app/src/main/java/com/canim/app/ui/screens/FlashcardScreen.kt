@@ -62,6 +62,22 @@ fun FlashcardScreen(
     val screenWidthPx = with(density) { screenWidth.toPx() }
     val swipeThreshold = screenWidthPx * 0.35f
 
+    val context = androidx.compose.ui.platform.LocalContext.current
+    LaunchedEffect(deck) {
+        val imageLoader = coil.Coil.imageLoader(context)
+        deck.take(5).forEach { item ->
+            val url = item.imageUrlHd ?: item.imageUrl
+            if (url.isNotBlank()) {
+                val req = coil.request.ImageRequest.Builder(context)
+                    .data(url)
+                    .memoryCachePolicy(coil.request.CachePolicy.ENABLED)
+                    .diskCachePolicy(coil.request.CachePolicy.ENABLED)
+                    .build()
+                imageLoader.enqueue(req)
+            }
+        }
+    }
+
     // Animated translation and rotation for the top card
     val offsetX = remember { Animatable(0f) }
     val offsetY = remember { Animatable(0f) }
@@ -228,16 +244,25 @@ fun FlashcardScreen(
 
                     // Card Flip State for current topCard
                     var isCardFlipped by remember(topCard.id) { mutableStateOf(false) }
+                    var isFlipping by remember(topCard.id) { mutableStateOf(false) }
+                    var isAnimating by remember(topCard.id) { mutableStateOf(false) }
                     val flipRotation = remember(topCard.id) { Animatable(0f) }
 
                     val flipToFront: () -> Unit = {
-                        if (!isCardFlipped) {
-                            coroutineScope.launch {
-                                flipRotation.animateTo(
-                                    targetValue = 180f,
-                                    animationSpec = tween(durationMillis = 400)
-                                )
-                                isCardFlipped = true
+                        if (!isCardFlipped && !isFlipping && !isAnimating && credits > 0) {
+                            val consumed = onConsumeCredit()
+                            if (consumed) {
+                                isFlipping = true
+                                isAnimating = true
+                                coroutineScope.launch {
+                                    flipRotation.animateTo(
+                                        targetValue = 180f,
+                                        animationSpec = tween(durationMillis = 380, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                                    )
+                                    isCardFlipped = true
+                                    isFlipping = false
+                                    isAnimating = false
+                                }
                             }
                         }
                     }
@@ -282,56 +307,52 @@ fun FlashcardScreen(
                                         x = with(density) { offsetX.value.toDp() },
                                         y = with(density) { offsetY.value.toDp() }
                                     )
-                                    .graphicsLayer {
-                                        this.rotationZ = rotationZ
-                                        this.rotationY = flipRotation.value
-                                        cameraDistance = 12f * density.density
-                                    }
                                     .then(
-                                        if (isCardFlipped) {
+                                        if (isCardFlipped && !isAnimating) {
                                             Modifier.pointerInput(topCard.id) {
                                                 detectDragGestures(
                                                     onDragStart = { isSwiping = true },
                                                     onDragEnd = {
                                                         isSwiping = false
+                                                        if (isAnimating) return@detectDragGestures
                                                         coroutineScope.launch {
                                                             if (kotlin.math.abs(offsetX.value) > swipeThreshold) {
                                                                 val isRight = offsetX.value > 0
+                                                                isAnimating = true
                                                                 if (isRight) {
                                                                     onSavePlanToWatch(topCard) { success ->
-                                                                        if (success) {
-                                                                            coroutineScope.launch {
-                                                                                offsetX.animateTo(screenWidthPx * 1.5f, tween(220))
-                                                                                if (onConsumeCredit()) {
-                                                                                    onSwipeCard(topCard)
-                                                                                }
+                                                                        coroutineScope.launch {
+                                                                            if (success) {
+                                                                                offsetX.animateTo(screenWidthPx * 1.5f, tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+                                                                                onSwipeCard(topCard)
                                                                                 offsetX.snapTo(0f)
                                                                                 offsetY.snapTo(0f)
                                                                                 isCardFlipped = false
                                                                                 flipRotation.snapTo(0f)
+                                                                            } else {
+                                                                                offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium))
+                                                                                offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMedium))
                                                                             }
-                                                                        } else {
-                                                                            coroutineScope.launch {
-                                                                                offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
-                                                                                offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
-                                                                            }
+                                                                            isAnimating = false
                                                                         }
                                                                     }
                                                                 } else {
-                                                                    offsetX.animateTo(-screenWidthPx * 1.5f, tween(220))
+                                                                    // Swipe Left = Lewati / Discard (hanya dismiss, tidak pernah masuk library!)
+                                                                    offsetX.animateTo(-screenWidthPx * 1.5f, tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing))
                                                                     onSwipeCard(topCard)
                                                                     offsetX.snapTo(0f)
                                                                     offsetY.snapTo(0f)
                                                                     isCardFlipped = false
                                                                     flipRotation.snapTo(0f)
+                                                                    isAnimating = false
                                                                 }
                                                             } else {
                                                                 launch {
                                                                     offsetX.animateTo(
                                                                         0f,
                                                                         spring(
-                                                                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                                                                            stiffness = Spring.StiffnessMediumLow
+                                                                            dampingRatio = Spring.DampingRatioLowBouncy,
+                                                                            stiffness = Spring.StiffnessMedium
                                                                         )
                                                                     )
                                                                 }
@@ -339,8 +360,8 @@ fun FlashcardScreen(
                                                                     offsetY.animateTo(
                                                                         0f,
                                                                         spring(
-                                                                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                                                                            stiffness = Spring.StiffnessMediumLow
+                                                                            dampingRatio = Spring.DampingRatioLowBouncy,
+                                                                            stiffness = Spring.StiffnessMedium
                                                                         )
                                                                     )
                                                                 }
@@ -350,11 +371,12 @@ fun FlashcardScreen(
                                                     onDragCancel = {
                                                         isSwiping = false
                                                         coroutineScope.launch {
-                                                            offsetX.snapTo(0f)
-                                                            offsetY.snapTo(0f)
+                                                            offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioLowBouncy))
+                                                            offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioLowBouncy))
                                                         }
                                                     },
                                                     onDrag = { change, dragAmount ->
+                                                        if (isAnimating) return@detectDragGestures
                                                         change.consume()
                                                         coroutineScope.launch {
                                                             offsetX.snapTo(offsetX.value + dragAmount.x)
@@ -363,10 +385,17 @@ fun FlashcardScreen(
                                                     }
                                                 )
                                             }
-                                        } else {
+                                        } else if (!isCardFlipped && !isAnimating) {
                                             Modifier.clickable { flipToFront() }
+                                        } else {
+                                            Modifier
                                         }
                                     )
+                                    .graphicsLayer {
+                                        this.rotationZ = rotationZ
+                                        this.rotationY = flipRotation.value
+                                        cameraDistance = 12f * density.density
+                                    }
                             ) {
                                 if (flipRotation.value <= 90f) {
                                     CardBack(
@@ -438,13 +467,16 @@ fun FlashcardScreen(
                                 // 1. Trash / Lewati Button (DeleteOutline)
                                 IconButton(
                                     onClick = {
+                                        if (isAnimating) return@IconButton
+                                        isAnimating = true
                                         coroutineScope.launch {
-                                            offsetX.animateTo(-screenWidthPx * 1.5f, tween(250))
+                                            offsetX.animateTo(-screenWidthPx * 1.5f, tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing))
                                             onSwipeCard(topCard)
                                             offsetX.snapTo(0f)
                                             offsetY.snapTo(0f)
                                             isCardFlipped = false
                                             flipRotation.snapTo(0f)
+                                            isAnimating = false
                                         }
                                     },
                                     modifier = Modifier
@@ -464,6 +496,7 @@ fun FlashcardScreen(
                                 // 2. Info Button (Info - Sole navigation path to detail)
                                 IconButton(
                                     onClick = {
+                                        if (isAnimating) return@IconButton
                                         onOpenDetail(topCard, topCard.type)
                                     },
                                     modifier = Modifier
@@ -480,29 +513,31 @@ fun FlashcardScreen(
                                     )
                                 }
 
-                                // 3. Plus Button (Add - Add to Library as "Rencana" & consume 1 credit)
+                                // 3. Plus Button (Add - Add to Library as "Rencana")
                                 var isSavingCard by remember { mutableStateOf(false) }
                                 IconButton(
                                     onClick = {
-                                        if (isSavingCard) return@IconButton
+                                        if (isSavingCard || isAnimating) return@IconButton
                                         isSavingCard = true
+                                        isAnimating = true
                                         onSavePlanToWatch(topCard) { success ->
                                             isSavingCard = false
                                             if (success) {
                                                 coroutineScope.launch {
-                                                    offsetX.animateTo(screenWidthPx * 1.5f, tween(250))
-                                                    if (onConsumeCredit()) {
-                                                        onSwipeCard(topCard)
-                                                    }
+                                                    offsetX.animateTo(screenWidthPx * 1.5f, tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+                                                    onSwipeCard(topCard)
                                                     offsetX.snapTo(0f)
                                                     offsetY.snapTo(0f)
                                                     isCardFlipped = false
                                                     flipRotation.snapTo(0f)
+                                                    isAnimating = false
                                                 }
+                                            } else {
+                                                isAnimating = false
                                             }
                                         }
                                     },
-                                    enabled = !isSavingCard,
+                                    enabled = !isSavingCard && !isAnimating,
                                     modifier = Modifier
                                         .size(56.dp)
                                         .clip(CircleShape)

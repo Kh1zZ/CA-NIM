@@ -233,28 +233,59 @@ class CanimRepository(
         }.getOrDefault(emptyList())
 
         // Fallback to MyAnimeList Search API v2 if AniList is down / empty
-        if (result.isEmpty() && trimmed.isNotBlank()) {
+        if (result.isEmpty()) {
             try {
-                val malResp = ApiClient.malApi.searchAnime(MalAuthManager.CLIENT_ID, trimmed, limit = 30)
-                if (malResp.isSuccessful && malResp.body()?.data?.isNotEmpty() == true) {
-                    var malItems = malResp.body()!!.data.map { mapMalAnimeNodeToMediaItem(it.node) }
+                val malItems = if (trimmed.isNotBlank()) {
+                    val malResp = ApiClient.malApi.searchAnime(MalAuthManager.CLIENT_ID, trimmed, limit = 50)
+                    if (malResp.isSuccessful && malResp.body()?.data?.isNotEmpty() == true) {
+                        malResp.body()!!.data.map { mapMalAnimeNodeToMediaItem(it.node) }
+                    } else emptyList()
+                } else if (!genres.isNullOrEmpty() || year != null || !format.isNullOrBlank()) {
+                    val malResp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "all", limit = 50)
+                    if (malResp.isSuccessful && malResp.body()?.data?.isNotEmpty() == true) {
+                        malResp.body()!!.data.map { mapMalAnimeNodeToMediaItem(it.node) }
+                    } else emptyList()
+                } else emptyList()
+
+                if (malItems.isNotEmpty()) {
+                    var filtered = malItems
                     if (!genres.isNullOrEmpty()) {
-                        malItems = malItems.filter { item -> item.genres.any { g -> genres.contains(g) } }
+                        filtered = filtered.filter { item ->
+                            item.genres.any { g -> genres.any { sel -> g.contains(sel, ignoreCase = true) } }
+                        }
                     }
                     if (year != null) {
-                        malItems = malItems.filter { item -> item.year == year }
+                        filtered = filtered.filter { item -> item.year == year }
                     }
-                    if (malItems.isNotEmpty()) {
-                        result = malItems
+                    if (!format.isNullOrBlank()) {
+                        filtered = filtered.filter { item -> item.format.equals(format, ignoreCase = true) }
+                    }
+                    if (filtered.isNotEmpty()) {
+                        result = filtered
                     }
                 }
             } catch (_: Exception) {}
         }
 
-        if (result.isEmpty() && genres.isNullOrEmpty() && year == null && format == null) {
-            val localMatches = fallbackAnime().filter {
-                it.title.contains(trimmed, ignoreCase = true) ||
-                (it.titleEnglish?.contains(trimmed, ignoreCase = true) == true)
+        if (result.isEmpty()) {
+            val baseList = fallbackAnime()
+            var localMatches = baseList
+            if (trimmed.isNotBlank()) {
+                localMatches = localMatches.filter {
+                    it.title.contains(trimmed, ignoreCase = true) ||
+                    (it.titleEnglish?.contains(trimmed, ignoreCase = true) == true)
+                }
+            }
+            if (!genres.isNullOrEmpty()) {
+                localMatches = localMatches.filter { item ->
+                    item.genres.any { g -> genres.any { sel -> g.contains(sel, ignoreCase = true) } }
+                }
+            }
+            if (year != null) {
+                localMatches = localMatches.filter { item -> item.year == year }
+            }
+            if (!format.isNullOrBlank()) {
+                localMatches = localMatches.filter { item -> item.format.equals(format, ignoreCase = true) }
             }
             if (localMatches.isNotEmpty()) {
                 result = localMatches
@@ -285,28 +316,59 @@ class CanimRepository(
         }.getOrDefault(emptyList())
 
         // Fallback to MyAnimeList Search API v2 if AniList is down / empty
-        if (result.isEmpty() && trimmed.isNotBlank()) {
+        if (result.isEmpty()) {
             try {
-                val malResp = ApiClient.malApi.searchManga(MalAuthManager.CLIENT_ID, trimmed, limit = 30)
-                if (malResp.isSuccessful && malResp.body()?.data?.isNotEmpty() == true) {
-                    var malItems = malResp.body()!!.data.map { mapMalMangaNodeToMediaItem(it.node) }
+                val malItems = if (trimmed.isNotBlank()) {
+                    val malResp = ApiClient.malApi.searchManga(MalAuthManager.CLIENT_ID, trimmed, limit = 50)
+                    if (malResp.isSuccessful && malResp.body()?.data?.isNotEmpty() == true) {
+                        malResp.body()!!.data.map { mapMalMangaNodeToMediaItem(it.node) }
+                    } else emptyList()
+                } else if (!genres.isNullOrEmpty() || year != null || !format.isNullOrBlank()) {
+                    val malResp = ApiClient.malApi.getMangaRanking(MalAuthManager.CLIENT_ID, "all", limit = 50)
+                    if (malResp.isSuccessful && malResp.body()?.data?.isNotEmpty() == true) {
+                        malResp.body()!!.data.map { mapMalMangaNodeToMediaItem(it.node) }
+                    } else emptyList()
+                } else emptyList()
+
+                if (malItems.isNotEmpty()) {
+                    var filtered = malItems
                     if (!genres.isNullOrEmpty()) {
-                        malItems = malItems.filter { item -> item.genres.any { g -> genres.contains(g) } }
+                        filtered = filtered.filter { item ->
+                            item.genres.any { g -> genres.any { sel -> g.contains(sel, ignoreCase = true) } }
+                        }
                     }
                     if (year != null) {
-                        malItems = malItems.filter { item -> item.year == year }
+                        filtered = filtered.filter { item -> item.year == year }
                     }
-                    if (malItems.isNotEmpty()) {
-                        result = malItems
+                    if (!format.isNullOrBlank()) {
+                        filtered = filtered.filter { item -> item.format.equals(format, ignoreCase = true) }
+                    }
+                    if (filtered.isNotEmpty()) {
+                        result = filtered
                     }
                 }
             } catch (_: Exception) {}
         }
 
-        if (result.isEmpty() && genres.isNullOrEmpty() && year == null && format == null) {
-            val localMatches = fallbackManga().filter {
-                it.title.contains(trimmed, ignoreCase = true) ||
-                (it.titleEnglish?.contains(trimmed, ignoreCase = true) == true)
+        if (result.isEmpty()) {
+            val baseList = fallbackManga()
+            var localMatches = baseList
+            if (trimmed.isNotBlank()) {
+                localMatches = localMatches.filter {
+                    it.title.contains(trimmed, ignoreCase = true) ||
+                    (it.titleEnglish?.contains(trimmed, ignoreCase = true) == true)
+                }
+            }
+            if (!genres.isNullOrEmpty()) {
+                localMatches = localMatches.filter { item ->
+                    item.genres.any { g -> genres.any { sel -> g.contains(sel, ignoreCase = true) } }
+                }
+            }
+            if (year != null) {
+                localMatches = localMatches.filter { item -> item.year == year }
+            }
+            if (!format.isNullOrBlank()) {
+                localMatches = localMatches.filter { item -> item.format.equals(format, ignoreCase = true) }
             }
             if (localMatches.isNotEmpty()) {
                 result = localMatches

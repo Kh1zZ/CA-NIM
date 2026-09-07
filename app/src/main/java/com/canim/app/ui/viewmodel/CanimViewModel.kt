@@ -91,6 +91,9 @@ data class CanimUiState(
     val isCheckingUpdate: Boolean = false,
     val updateInfo: UpdateInfo? = null,
     val isAutoUpdateCheckEnabled: Boolean = true,
+    val isDownloadingUpdate: Boolean = false,
+    val updateDownloadProgress: Float = 0f,
+    val downloadedApkFile: java.io.File? = null,
 
     // App & Auth state
     val syncStatus: SyncStatus = SyncStatus.IDLE,
@@ -120,8 +123,13 @@ class CanimViewModel(
     private val _screenStack = MutableStateFlow<List<ScreenRoute>>(emptyList())
     val screenStack: StateFlow<List<ScreenRoute>> = _screenStack.asStateFlow()
 
-    // Reactive search flow
-    private val _searchQueryFlow = MutableStateFlow(Pair("", MediaType.ANIME))
+    // Reactive search flow with unique trigger token to avoid StateFlow conflation on filter changes
+    data class SearchTrigger(
+        val query: String,
+        val type: MediaType,
+        val token: Long = System.nanoTime()
+    )
+    private val _searchQueryFlow = MutableStateFlow(SearchTrigger("", MediaType.ANIME))
 
     private var discoverJob: Job? = null
     private var discoverRequestToken = 0L
@@ -155,9 +163,10 @@ class CanimViewModel(
         viewModelScope.launch {
             _searchQueryFlow
                 .debounce(300L)
-                .flatMapLatest { (query, type) ->
+                .flatMapLatest { trigger ->
                     flow {
-                        val trimmed = query.trim()
+                        val trimmed = trigger.query.trim()
+                        val type = trigger.type
                         val state = _uiState.value
                         val hasFilters = state.searchGenres.isNotEmpty() || state.searchYear != null || state.searchFormat != null
                         if (trimmed.length < 2 && !hasFilters) {
@@ -570,7 +579,65 @@ class CanimViewModel(
     }
 
     fun dismissUpdateDialog() {
-        _uiState.update { it.copy(updateInfo = null) }
+        _uiState.update { it.copy(updateInfo = null, isDownloadingUpdate = false, downloadedApkFile = null) }
+    }
+
+    fun startDownloadUpdate(context: Context) {
+        val info = _uiState.value.updateInfo ?: return
+        val downloadUrl = info.apkDownloadUrl ?: info.htmlUrl
+        val apkName = info.apkName ?: "canim-release-${info.latestVersion}.apk"
+
+        if (_uiState.value.isDownloadingUpdate) return
+
+        _uiState.update {
+            it.copy(
+                isDownloadingUpdate = true,
+                updateDownloadProgress = 0f,
+                downloadedApkFile = null
+            )
+        }
+
+        viewModelScope.launch {
+            val result = UpdateChecker.downloadApk(
+                context = context,
+                downloadUrl = downloadUrl,
+                fileName = apkName,
+                onProgress = { progress ->
+                    _uiState.update { it.copy(updateDownloadProgress = progress) }
+                }
+            )
+
+            result.fold(
+                onSuccess = { file ->
+                    _uiState.update {
+                        it.copy(
+                            isDownloadingUpdate = false,
+                            updateDownloadProgress = 1f,
+                            downloadedApkFile = file
+                        )
+                    }
+                    showSnackbar("Update berhasil diunduh! Membuka installer...")
+                    installDownloadedUpdate(context)
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(
+                            isDownloadingUpdate = false,
+                            updateDownloadProgress = 0f
+                        )
+                    }
+                    showSnackbar("Gagal mengunduh update: ${error.message}")
+                }
+            )
+        }
+    }
+
+    fun installDownloadedUpdate(context: Context) {
+        val file = _uiState.value.downloadedApkFile ?: return
+        val result = UpdateChecker.installApk(context, file)
+        if (result.isFailure) {
+            showSnackbar("Gagal membuka installer APK: ${result.exceptionOrNull()?.message}")
+        }
     }
 
     fun saveAnime(item: UserMediaItem) {
@@ -737,7 +804,7 @@ class CanimViewModel(
     // --- Search ---
     fun onSearchQueryChange(query: String, type: MediaType) {
         _uiState.update { it.copy(searchQuery = query, searchType = type) }
-        _searchQueryFlow.value = Pair(query, type)
+        _searchQueryFlow.value = SearchTrigger(query, type)
     }
 
     fun search(query: String, type: MediaType) {
@@ -752,7 +819,7 @@ class CanimViewModel(
                 searchFormat = format
             )
         }
-        _searchQueryFlow.value = Pair(_uiState.value.searchQuery, _uiState.value.searchType)
+        _searchQueryFlow.value = SearchTrigger(_uiState.value.searchQuery, _uiState.value.searchType)
     }
 
     fun resetSearchFilters() {
@@ -763,7 +830,7 @@ class CanimViewModel(
                 searchFormat = null
             )
         }
-        _searchQueryFlow.value = Pair(_uiState.value.searchQuery, _uiState.value.searchType)
+        _searchQueryFlow.value = SearchTrigger(_uiState.value.searchQuery, _uiState.value.searchType)
     }
 
     // --- Discover & Fixed Race-Safe Randomizer ---
@@ -1151,9 +1218,7 @@ class CanimViewModel(
                 studioJob?.cancel()
                 _uiState.update {
                     it.copy(
-                        selectedDetailItem = null,
                         isDetailOpen = false,
-                        extendedDetail = null,
                         isLoadingExtendedDetail = false,
                         selectedCastCrewProfile = null,
                         isLoadingCastCrewProfile = false,

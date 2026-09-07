@@ -174,64 +174,68 @@ fun MediaDetailScreen(
                         contentScale = ContentScale.Crop
                     )
 
-                    // Titles, Expand Icon & Truncated Synopsis
+                    // Titles, Expand Icon & Truncated Synopsis & Badges
                     Column(
                         modifier = Modifier
                             .weight(1f)
                             .padding(top = 10.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        // Title & Expand Diagonal Icon Row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.Top
+                        // Clickable area for Title + English Title + Synopsis
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { showFullTitleSynopsisSheet = true },
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Text(
-                                text = title,
-                                color = TextPrimary,
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
-                            IconButton(
-                                onClick = { showFullTitleSynopsisSheet = true },
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .padding(start = 4.dp)
+                            // Title & Expand Diagonal Icon Row
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.Top
                             ) {
+                                Text(
+                                    text = title,
+                                    color = TextPrimary,
+                                    fontSize = 17.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
                                 Icon(
                                     imageVector = Icons.Default.OpenInFull,
                                     contentDescription = "Lihat Detail Judul & Sinopsis",
                                     tint = TextSecondary,
-                                    modifier = Modifier.size(17.dp)
+                                    modifier = Modifier
+                                        .padding(start = 4.dp, top = 2.dp)
+                                        .size(17.dp)
                                 )
                             }
-                        }
 
-                        if (!titleEnglish.isNullOrBlank() && titleEnglish != title) {
-                            Text(
-                                text = titleEnglish,
-                                color = TextSecondary,
-                                fontSize = 12.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
+                            if (!titleEnglish.isNullOrBlank() && titleEnglish != title) {
+                                Text(
+                                    text = titleEnglish,
+                                    color = TextSecondary,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
 
-                        // Naturally truncated synopsis directly under title
-                        if (cleanSynopsis.isNotBlank()) {
-                            Text(
-                                text = cleanSynopsis,
-                                color = TextSecondary,
-                                fontSize = 12.sp,
-                                lineHeight = 16.sp,
-                                maxLines = 4,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(top = 2.dp)
-                            )
+                            // Naturally truncated synopsis directly under title
+                            if (cleanSynopsis.isNotBlank()) {
+                                Text(
+                                    text = cleanSynopsis,
+                                    color = TextSecondary,
+                                    fontSize = 12.sp,
+                                    lineHeight = 16.sp,
+                                    maxLines = 4,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(2.dp))

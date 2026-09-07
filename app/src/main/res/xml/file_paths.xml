@@ -1,6 +1,7 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <cache-path name="shared_stats" path="stats/" />
+    <cache-path name="cache_updates" path="updates/" />
     <external-cache-path name="ext_shared_stats" path="stats/" />
     <external-files-path name="ext_files" path="." />
 </paths>
