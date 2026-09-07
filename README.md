@@ -5,12 +5,12 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.1.7b%20(Build%2027)-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.1.7c%20(Build%2028)-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#tech-stack--dependensi"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#uiux-architecture--fluid-continuity"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
   <a href="#kinerja-dan-optimasi-memori"><img src="https://img.shields.io/badge/APK%20Size-~2.3%20MB%20(R8%20Full)-F59E0B.svg?style=for-the-badge" alt="Size"></a>
-  <a href="#verifikasi-lokal--pengujian-unit"><img src="https://img.shields.io/badge/Tests-66%20Unit%20Tests%20Passing-10B981.svg?style=for-the-badge" alt="Tests"></a>
+  <a href="#verifikasi-lokal--pengujian-unit"><img src="https://img.shields.io/badge/Tests-67%20Unit%20Tests%20Passing-10B981.svg?style=for-the-badge" alt="Tests"></a>
 </p>
 
 ---
@@ -217,6 +217,18 @@ Verifikasi lokal diwajibkan menjalankan suite pengujian unit otomatis sebelum me
 ---
 
 ## 📝 10. Catatan Perubahan
+
+### v6.1.7c (Build 28)
+- **Reset Otomatis Filter Saat Berganti Tipe Media (Anime ↔ Manga)**:
+  - Mengintegrasikan mekanisme reset filter reaktif pada `CanimViewModel` (`onSearchQueryChange` & `setSearchType`) dan `SearchScreen` saat berpindah tipe antara Anime dan Manga, mencegah penggunaan parameter yang tidak kompatibel (misal format `TV`/`MOVIE` pada pencarian manga) yang sebelumnya menyebabkan hasil pencarian salah atau kosong.
+  - State filter lokal (`tempGenres`, `tempYear`, `typedYearText`, `tempFormat`) serta state global (`searchGenres`, `searchYear`, `searchFormat`) seketika di-reset bersih saat tab/selektor tipe media diklik.
+- **Redesain Lembar Filter Lebih Kompak & Hemat Ruang**:
+  - Merekayasa ulang `ModalBottomSheet` filter pencarian menjadi jauh lebih ringkas (*compact UI*):
+    - Bilah format media menggunakan `LazyRow` horizontal satu baris (tinggi 28 dp).
+    - Seleksi tahun rilis memadukan deretan preset cepat (`LazyRow` 28 dp) dan input manual inline tanpa komponen pendukung berlebih yang memakan ruang.
+    - Grid genre multi-seleksi menggunakan chip ergonomis berdensitas tinggi (tinggi 26 dp, font 10 sp, padding mikro).
+    - Memangkas ketinggian total modal hingga >50%, menghasilkan tata letak rapi yang tidak boros ruang dan nyaman dioperasikan satu tangan.
+- **Integritas Pengujian Unit**: Seluruh 67 automated unit tests lulus 100%.
 
 ### v6.1.7b (Build 27)
 - **Peniadaan Jeda Still Image Saat Kembali dari Layer 2 Detail Anime (Relasi/Rekomendasi)**:

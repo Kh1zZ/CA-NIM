@@ -917,8 +917,35 @@ class CanimViewModel(
 
     // --- Search ---
     fun onSearchQueryChange(query: String, type: MediaType) {
-        _uiState.update { it.copy(searchQuery = query, searchType = type) }
+        val typeChanged = _uiState.value.searchType != type
+        _uiState.update {
+            if (typeChanged) {
+                it.copy(
+                    searchQuery = query,
+                    searchType = type,
+                    searchGenres = emptyList(),
+                    searchYear = null,
+                    searchFormat = null
+                )
+            } else {
+                it.copy(searchQuery = query, searchType = type)
+            }
+        }
         _searchQueryFlow.value = SearchTrigger(query, type)
+    }
+
+    fun setSearchType(type: MediaType) {
+        if (_uiState.value.searchType != type) {
+            _uiState.update {
+                it.copy(
+                    searchType = type,
+                    searchGenres = emptyList(),
+                    searchYear = null,
+                    searchFormat = null
+                )
+            }
+            _searchQueryFlow.value = SearchTrigger(_uiState.value.searchQuery, type)
+        }
     }
 
     fun search(query: String, type: MediaType) {

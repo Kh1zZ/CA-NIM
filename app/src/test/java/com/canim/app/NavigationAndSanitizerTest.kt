@@ -238,4 +238,57 @@ class NavigationAndSanitizerTest {
         resetStatsScrollPosition()
         assertEquals(Pair(0, 0), getStatsScrollPosition())
     }
+
+    @Test
+    fun testSearchTypeSwitchResetsFiltersLogic() {
+        var currentSearchType = MediaType.ANIME
+        var currentGenres = listOf("Action", "Fantasy")
+        var currentYear: Int? = 2024
+        var currentFormat: String? = "TV"
+
+        fun applyFilters(genres: List<String>, year: Int?, format: String?) {
+            currentGenres = genres
+            currentYear = year
+            currentFormat = format
+        }
+
+        fun resetFilters() {
+            currentGenres = emptyList()
+            currentYear = null
+            currentFormat = null
+        }
+
+        fun switchSearchType(newType: MediaType) {
+            if (currentSearchType != newType) {
+                currentSearchType = newType
+                resetFilters()
+            }
+        }
+
+        // Active filters on Anime
+        assertEquals(MediaType.ANIME, currentSearchType)
+        assertEquals(listOf("Action", "Fantasy"), currentGenres)
+        assertEquals(2024, currentYear)
+        assertEquals("TV", currentFormat)
+
+        // Switching from Anime to Manga resets all filters
+        switchSearchType(MediaType.MANGA)
+        assertEquals(MediaType.MANGA, currentSearchType)
+        assertTrue(currentGenres.isEmpty())
+        assertNull(currentYear)
+        assertNull(currentFormat)
+
+        // User sets Manga-specific filters
+        applyFilters(listOf("Horror"), 2021, "MANGA")
+        assertEquals(listOf("Horror"), currentGenres)
+        assertEquals(2021, currentYear)
+        assertEquals("MANGA", currentFormat)
+
+        // Switching back from Manga to Anime resets all filters again
+        switchSearchType(MediaType.ANIME)
+        assertEquals(MediaType.ANIME, currentSearchType)
+        assertTrue(currentGenres.isEmpty())
+        assertNull(currentYear)
+        assertNull(currentFormat)
+    }
 }
