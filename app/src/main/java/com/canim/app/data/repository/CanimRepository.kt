@@ -241,7 +241,7 @@ class CanimRepository(
                         malResp.body()!!.data.map { mapMalAnimeNodeToMediaItem(it.node) }
                     } else emptyList()
                 } else if (!genres.isNullOrEmpty() || year != null || !format.isNullOrBlank()) {
-                    val malResp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "all", limit = 50)
+                    val malResp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "bypopularity", limit = 100)
                     if (malResp.isSuccessful && malResp.body()?.data?.isNotEmpty() == true) {
                         malResp.body()!!.data.map { mapMalAnimeNodeToMediaItem(it.node) }
                     } else emptyList()
@@ -260,9 +260,7 @@ class CanimRepository(
                     if (!format.isNullOrBlank()) {
                         filtered = filtered.filter { item -> item.format.equals(format, ignoreCase = true) }
                     }
-                    if (filtered.isNotEmpty()) {
-                        result = filtered
-                    }
+                    result = if (filtered.isNotEmpty()) filtered else malItems.take(30)
                 }
             } catch (_: Exception) {}
         }
@@ -324,7 +322,7 @@ class CanimRepository(
                         malResp.body()!!.data.map { mapMalMangaNodeToMediaItem(it.node) }
                     } else emptyList()
                 } else if (!genres.isNullOrEmpty() || year != null || !format.isNullOrBlank()) {
-                    val malResp = ApiClient.malApi.getMangaRanking(MalAuthManager.CLIENT_ID, "all", limit = 50)
+                    val malResp = ApiClient.malApi.getMangaRanking(MalAuthManager.CLIENT_ID, "bypopularity", limit = 100)
                     if (malResp.isSuccessful && malResp.body()?.data?.isNotEmpty() == true) {
                         malResp.body()!!.data.map { mapMalMangaNodeToMediaItem(it.node) }
                     } else emptyList()
@@ -343,9 +341,7 @@ class CanimRepository(
                     if (!format.isNullOrBlank()) {
                         filtered = filtered.filter { item -> item.format.equals(format, ignoreCase = true) }
                     }
-                    if (filtered.isNotEmpty()) {
-                        result = filtered
-                    }
+                    result = if (filtered.isNotEmpty()) filtered else malItems.take(30)
                 }
             } catch (_: Exception) {}
         }
@@ -593,6 +589,23 @@ class CanimRepository(
             }
 
             merged
+        }
+    }
+
+    suspend fun isAniListUnavailable(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            !AniListClient.pingHealth()
+        } catch (_: Exception) {
+            true
+        }
+    }
+
+    suspend fun isMalUnavailable(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val resp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "all", limit = 1)
+            !resp.isSuccessful
+        } catch (_: Exception) {
+            true
         }
     }
 

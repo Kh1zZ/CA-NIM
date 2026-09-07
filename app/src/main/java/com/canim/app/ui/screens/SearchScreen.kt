@@ -94,7 +94,7 @@ fun SearchScreen(
         if (trimmed.length >= 2 && trimmed != state.searchQuery) {
             delay(350)
             onSearch(trimmed, searchType)
-        } else if (trimmed.isEmpty() && state.searchResults.isNotEmpty()) {
+        } else if (trimmed.isEmpty() && state.searchResults.isNotEmpty() && !hasActiveFilters) {
             onSearch("", searchType)
         }
     }
@@ -128,34 +128,23 @@ fun SearchScreen(
             )
         }
 
-        // Media Type Selector (Anime / Manga)
+        // Media Type Selector (Anime / Manga) with Smooth Sliding Indicator
         item {
-            Row(
+            com.canim.app.ui.components.SmoothSegmentedSelector(
+                options = listOf(MediaType.ANIME, MediaType.MANGA),
+                selectedOption = searchType,
+                onOptionSelected = { selected ->
+                    searchType = selected
+                    if (searchInput.isNotBlank() || hasActiveFilters) {
+                        onSearch(searchInput.trim(), selected)
+                    }
+                },
+                labelProvider = { type -> if (type == MediaType.ANIME) "Cari Anime" else "Cari Manga" },
+                highlightColor = if (searchType == MediaType.ANIME) AccentBlue else MangaAccentDarkBlue,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(CardBg)
-                    .padding(4.dp)
-            ) {
-                SearchTabButton(
-                    selected = searchType == MediaType.ANIME,
-                    text = "Cari Anime",
-                    onClick = {
-                        searchType = MediaType.ANIME
-                        if (searchInput.isNotBlank()) onSearch(searchInput.trim(), MediaType.ANIME)
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-                SearchTabButton(
-                    selected = searchType == MediaType.MANGA,
-                    text = "Cari Manga",
-                    onClick = {
-                        searchType = MediaType.MANGA
-                        if (searchInput.isNotBlank()) onSearch(searchInput.trim(), MediaType.MANGA)
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-            }
+                    .height(44.dp)
+            )
         }
 
         // Search Bar with Tactile Clear & Submit
@@ -203,7 +192,7 @@ fun SearchScreen(
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = {
                         focusManager.clearFocus()
-                        if (searchInput.isNotBlank()) {
+                        if (searchInput.isNotBlank() || hasActiveFilters) {
                             onSearch(searchInput.trim(), searchType)
                         }
                     }),

@@ -41,11 +41,11 @@ enum class ExportAspectRatio(
     val height: Int,
     val isLandscape: Boolean
 ) {
-    STORY_9_16("9:16 (Story)", 1080, 1920, false),
+    STORY_9_16("9:16", 1080, 1920, false),
     PORTRAIT_4_5("4:5", 1080, 1350, false),
     PORTRAIT_3_4("3:4", 1080, 1440, false),
     SQUARE_1_1("1:1", 1080, 1080, false),
-    LANDSCAPE_16_9("16:9 (Landscape)", 1920, 1080, true)
+    LANDSCAPE_16_9("16:9", 1920, 1080, true)
 }
 
 private data class CanvasPieSlice(val label: String, val count: Int, val color: Int)

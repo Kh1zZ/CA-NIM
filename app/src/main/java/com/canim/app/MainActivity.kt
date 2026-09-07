@@ -11,6 +11,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -144,66 +145,115 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     bottomBar = {
-                        NavigationBar(
-                            containerColor = CardBg,
+                        val activeIndex = navItems.indexOfFirst { it.route == uiState.activeTab }.coerceAtLeast(0)
+
+                        Surface(
+                            color = CardBg,
                             contentColor = TextPrimary,
                             tonalElevation = 8.dp,
                             modifier = Modifier
+                                .fillMaxWidth()
                                 .height(64.dp)
                                 .testTag("main_bottom_nav")
                         ) {
-                            navItems.forEach { item ->
-                                val selected = uiState.activeTab == item.route
-                                val isSearch = item.route == "search"
+                            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                                val count = navItems.size
+                                val itemWidth = maxWidth / count
+                                val indicatorOffset by androidx.compose.animation.core.animateDpAsState(
+                                    targetValue = itemWidth * activeIndex,
+                                    animationSpec = androidx.compose.animation.core.spring(
+                                        dampingRatio = 0.8f,
+                                        stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+                                    ),
+                                    label = "nav_indicator_offset"
+                                )
 
-                                NavigationBarItem(
-                                    selected = selected,
-                                    onClick = { viewModel.setTab(item.route) },
-                                    alwaysShowLabel = false,
-                                    icon = {
-                                        if (isSearch) {
-                                            // Unique Cyber Floating Search Button
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(46.dp)
-                                                    .clip(CircleShape)
-                                                    .background(
-                                                        if (selected) {
-                                                            Brush.linearGradient(listOf(AccentBlue, Color(0xFF1D4ED8)))
-                                                        } else {
-                                                            Brush.linearGradient(listOf(Color(0xFF1E293B), Color(0xFF0F172A)))
-                                                        }
+                                // Sliding Highlight Pill
+                                Box(
+                                    modifier = Modifier
+                                        .offset(x = indicatorOffset)
+                                        .width(itemWidth)
+                                        .fillMaxHeight(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (activeIndex == 2) {
+                                        // Center search tab glowing aura
+                                        Box(
+                                            modifier = Modifier
+                                                .size(48.dp)
+                                                .clip(CircleShape)
+                                                .background(AccentBlue.copy(alpha = 0.2f))
+                                        )
+                                    } else {
+                                        Box(
+                                            modifier = Modifier
+                                                .height(36.dp)
+                                                .width(54.dp)
+                                                .clip(RoundedCornerShape(18.dp))
+                                                .background(AccentBlue.copy(alpha = 0.16f))
+                                                .border(1.dp, AccentBlue.copy(alpha = 0.35f), RoundedCornerShape(18.dp))
+                                        )
+                                    }
+                                }
+
+                                // Interactive Tab Items Row
+                                Row(
+                                    modifier = Modifier.fillMaxSize(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    navItems.forEachIndexed { _, item ->
+                                        val selected = uiState.activeTab == item.route
+                                        val isSearch = item.route == "search"
+
+                                        Box(
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .fillMaxHeight()
+                                                .clickable(
+                                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                                    indication = null
+                                                ) { viewModel.setTab(item.route) }
+                                                .testTag("nav_tab_${item.route}"),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            if (isSearch) {
+                                                // Unique Cyber Floating Search Button
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(46.dp)
+                                                        .clip(CircleShape)
+                                                        .background(
+                                                            if (selected) {
+                                                                Brush.linearGradient(listOf(AccentBlue, Color(0xFF1D4ED8)))
+                                                            } else {
+                                                                Brush.linearGradient(listOf(Color(0xFF1E293B), Color(0xFF0F172A)))
+                                                            }
+                                                        )
+                                                        .border(
+                                                            width = if (selected) 2.dp else 1.dp,
+                                                            color = if (selected) Color(0xFF60A5FA) else CardBorderSubtle,
+                                                            shape = CircleShape
+                                                        ),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Filled.Search,
+                                                        contentDescription = "Cari",
+                                                        tint = if (selected) Color.White else AccentBlueLight,
+                                                        modifier = Modifier.size(22.dp)
                                                     )
-                                                    .border(
-                                                        width = if (selected) 2.dp else 1.dp,
-                                                        color = if (selected) Color(0xFF60A5FA) else CardBorderSubtle,
-                                                        shape = CircleShape
-                                                    ),
-                                                contentAlignment = Alignment.Center
-                                            ) {
+                                                }
+                                            } else {
                                                 Icon(
-                                                    imageVector = Icons.Filled.Search,
-                                                    contentDescription = "Cari",
-                                                    tint = if (selected) Color.White else AccentBlueLight,
-                                                    modifier = Modifier.size(22.dp)
+                                                    imageVector = if (selected) item.selectedIcon else item.unselectedIcon,
+                                                    contentDescription = item.title,
+                                                    tint = if (selected) AccentBlue else TextMuted,
+                                                    modifier = Modifier.size(24.dp)
                                                 )
                                             }
-                                        } else {
-                                            Icon(
-                                                imageVector = if (selected) item.selectedIcon else item.unselectedIcon,
-                                                contentDescription = item.title,
-                                                tint = if (selected) AccentBlue else TextMuted,
-                                                modifier = Modifier.size(24.dp)
-                                            )
                                         }
-                                    },
-                                    colors = NavigationBarItemDefaults.colors(
-                                        indicatorColor = if (isSearch) Color.Transparent else AccentBlue.copy(alpha = 0.16f),
-                                        selectedIconColor = AccentBlue,
-                                        unselectedIconColor = TextMuted
-                                    ),
-                                    modifier = Modifier.testTag("nav_tab_${item.route}")
-                                )
+                                    }
+                                }
                             }
                         }
                     }
@@ -319,12 +369,21 @@ class MainActivity : ComponentActivity() {
                         AnimatedContent(
                             targetState = screenStack.lastOrNull(),
                             transitionSpec = {
-                                if (targetState is ScreenRoute.Detail) {
-                                    (scaleIn(initialScale = 0.95f, animationSpec = tween(220)) + fadeIn(animationSpec = tween(220)))
-                                        .togetherWith(scaleOut(targetScale = 0.95f, animationSpec = tween(180)) + fadeOut(animationSpec = tween(180)))
-                                } else if (initialState is ScreenRoute.Detail) {
-                                    (scaleIn(initialScale = 0.95f, animationSpec = tween(180)) + fadeIn(animationSpec = tween(180)))
-                                        .togetherWith(scaleOut(targetScale = 0.95f, animationSpec = tween(180)) + fadeOut(animationSpec = tween(180)))
+                                val isTargetDetail = targetState is ScreenRoute.Detail
+                                val isInitialDetail = initialState is ScreenRoute.Detail
+
+                                if (isTargetDetail && isInitialDetail) {
+                                    // Detail-to-Detail transition (relation/recommendation): smooth directional slide
+                                    (slideInHorizontally(initialOffsetX = { it / 3 }, animationSpec = tween(220)) + fadeIn(animationSpec = tween(220)))
+                                        .togetherWith(slideOutHorizontally(targetOffsetX = { -it / 3 }, animationSpec = tween(180)) + fadeOut(animationSpec = tween(180)))
+                                } else if (isTargetDetail) {
+                                    // Opening detail from base tab
+                                    (slideInHorizontally(initialOffsetX = { it / 3 }, animationSpec = tween(220)) + fadeIn(animationSpec = tween(220)))
+                                        .togetherWith(scaleOut(targetScale = 0.96f, animationSpec = tween(180)) + fadeOut(animationSpec = tween(180)))
+                                } else if (isInitialDetail) {
+                                    // Popping detail back to base tab
+                                    (scaleIn(initialScale = 0.96f, animationSpec = tween(180)) + fadeIn(animationSpec = tween(180)))
+                                        .togetherWith(slideOutHorizontally(targetOffsetX = { it / 3 }, animationSpec = tween(180)) + fadeOut(animationSpec = tween(180)))
                                 } else {
                                     fadeIn(animationSpec = tween(180)).togetherWith(fadeOut(animationSpec = tween(180)))
                                 }
@@ -379,6 +438,8 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onOpenStudio = { studioId, studioName -> viewModel.openStudio(studioId, studioName) },
                                         onOpenMediaDetail = { media, mediaType -> viewModel.openDetail(media, mediaType) },
+                                        onSaveScrollPosition = { key, index, offset -> viewModel.saveDetailScrollPosition(key, index, offset) },
+                                        onGetScrollPosition = { key -> viewModel.getDetailScrollPosition(key) },
                                         onDismiss = { viewModel.popScreen() }
                                     )
                                 }

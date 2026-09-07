@@ -250,19 +250,16 @@ fun FlashcardScreen(
 
                     val flipToFront: () -> Unit = {
                         if (!isCardFlipped && !isFlipping && !isAnimating && credits > 0) {
-                            val consumed = onConsumeCredit()
-                            if (consumed) {
-                                isFlipping = true
-                                isAnimating = true
-                                coroutineScope.launch {
-                                    flipRotation.animateTo(
-                                        targetValue = 180f,
-                                        animationSpec = tween(durationMillis = 380, easing = androidx.compose.animation.core.FastOutSlowInEasing)
-                                    )
-                                    isCardFlipped = true
-                                    isFlipping = false
-                                    isAnimating = false
-                                }
+                            isFlipping = true
+                            isAnimating = true
+                            coroutineScope.launch {
+                                flipRotation.animateTo(
+                                    targetValue = 180f,
+                                    animationSpec = tween(durationMillis = 380, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                                )
+                                isCardFlipped = true
+                                isFlipping = false
+                                isAnimating = false
                             }
                         }
                     }
@@ -323,6 +320,7 @@ fun FlashcardScreen(
                                                                     onSavePlanToWatch(topCard) { success ->
                                                                         coroutineScope.launch {
                                                                             if (success) {
+                                                                                onConsumeCredit()
                                                                                 offsetX.animateTo(screenWidthPx * 1.5f, tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing))
                                                                                 onSwipeCard(topCard)
                                                                                 offsetX.snapTo(0f)
@@ -337,7 +335,8 @@ fun FlashcardScreen(
                                                                         }
                                                                     }
                                                                 } else {
-                                                                    // Swipe Left = Lewati / Discard (hanya dismiss, tidak pernah masuk library!)
+                                                                    // Swipe Left = Lewati / Discard (hanya dismiss, kurangi 1 tiket gacha)
+                                                                    onConsumeCredit()
                                                                     offsetX.animateTo(-screenWidthPx * 1.5f, tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing))
                                                                     onSwipeCard(topCard)
                                                                     offsetX.snapTo(0f)
@@ -470,6 +469,7 @@ fun FlashcardScreen(
                                         if (isAnimating) return@IconButton
                                         isAnimating = true
                                         coroutineScope.launch {
+                                            onConsumeCredit()
                                             offsetX.animateTo(-screenWidthPx * 1.5f, tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing))
                                             onSwipeCard(topCard)
                                             offsetX.snapTo(0f)
@@ -524,6 +524,7 @@ fun FlashcardScreen(
                                             isSavingCard = false
                                             if (success) {
                                                 coroutineScope.launch {
+                                                    onConsumeCredit()
                                                     offsetX.animateTo(screenWidthPx * 1.5f, tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing))
                                                     onSwipeCard(topCard)
                                                     offsetX.snapTo(0f)

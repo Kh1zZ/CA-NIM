@@ -102,7 +102,9 @@ data class CanimUiState(
     val malUser: MalUser = MalUser(),
     val isSyncingMal: Boolean = false,
     val isExchangingToken: Boolean = false,
-    val isLoadingLibrary: Boolean = false
+    val isLoadingLibrary: Boolean = false,
+    val isAniListDown: Boolean = false,
+    val isMalDown: Boolean = false
 )
 
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
@@ -136,6 +138,26 @@ class CanimViewModel(
     private var detailJob: Job? = null
     private var studioJob: Job? = null
     private var studioSearchJob: Job? = null
+
+    // Scroll Position Registry & Detail Cache for Seamless Detail-to-Detail Navigation
+    private val detailScrollPositions = mutableMapOf<String, Pair<Int, Int>>()
+    private val detailCache = mutableMapOf<String, ExtendedMediaDetail>()
+
+    fun saveDetailScrollPosition(key: String, index: Int, offset: Int) {
+        detailScrollPositions[key] = Pair(index, offset)
+    }
+
+    fun getDetailScrollPosition(key: String): Pair<Int, Int> {
+        return detailScrollPositions[key] ?: Pair(0, 0)
+    }
+
+    fun getMediaKey(item: Any): String {
+        return when (item) {
+            is UserMediaItem -> item.anilistId?.toString() ?: item.malId?.toString() ?: item.title
+            is MediaItem -> item.anilistId?.toString() ?: item.malId?.toString() ?: item.title
+            else -> item.toString()
+        }
+    }
 
     init {
         // Cold-start instant cache-first load from disk/memory
@@ -194,6 +216,17 @@ class CanimViewModel(
                 delay(15 * 60 * 1000L)
                 CacheManager.pruneExpired()
             }
+        }
+
+        // Real-time API outage check (AniList & MAL)
+        checkApiHealth()
+    }
+
+    fun checkApiHealth() {
+        viewModelScope.launch(Dispatchers.IO) {
+            val aniDown = repository.isAniListUnavailable()
+            val malDown = repository.isMalUnavailable()
+            _uiState.update { it.copy(isAniListDown = aniDown, isMalDown = malDown) }
         }
     }
 
@@ -1017,9 +1050,12 @@ class CanimViewModel(
                     else -> null
                 }
 
+                val mediaKey = getMediaKey(resolvedItem)
+                val inMemoryDetail = detailCache[mediaKey]
                 val resolvedAniListId = anilistId ?: (malId?.let { CacheManager.getAniListIdForMalId(it) })
                 val resolvedMalId = malId ?: (resolvedAniListId?.let { CacheManager.getMalIdForAniListId(it) })
-                val cachedDetail = CacheManager.getDetail(CacheManager.detailKey(resolvedAniListId, resolvedMalId))
+                val cachedDetail = inMemoryDetail
+                    ?: CacheManager.getDetail(CacheManager.detailKey(resolvedAniListId, resolvedMalId))
                     ?: (resolvedAniListId?.let { CacheManager.getDetail(CacheManager.detailKey(it, null)) })
                     ?: (resolvedMalId?.let { CacheManager.getDetail(CacheManager.detailKey(null, it)) })
 
@@ -1080,6 +1116,7 @@ class CanimViewModel(
                                 malScore = currentExt?.malScore ?: aniDetail.malScore,
                                 malRank = currentExt?.malRank ?: aniDetail.rank
                             )
+                            detailCache[mediaKey] = mergedFast
                             current.copy(
                                 extendedDetail = mergedFast,
                                 isLoadingExtendedDetail = false
@@ -1093,6 +1130,7 @@ class CanimViewModel(
 
                     // Final merge with authoritative MAL metrics
                     if (detail != null) {
+                        detailCache[mediaKey] = detail
                         _uiState.update {
                             it.copy(
                                 extendedDetail = detail,

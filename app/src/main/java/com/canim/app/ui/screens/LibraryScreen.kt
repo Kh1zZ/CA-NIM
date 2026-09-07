@@ -120,28 +120,20 @@ fun LibraryScreen(
         contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // Media Type Selector (Anime vs Manga)
+        // Media Type Selector (Anime vs Manga) with Smooth Sliding Indicator
         item {
-            Row(
+            com.canim.app.ui.components.SmoothSegmentedSelector(
+                options = listOf(MediaType.ANIME, MediaType.MANGA),
+                selectedOption = state.libraryFilterType,
+                onOptionSelected = { onSelectMediaType(it) },
+                labelProvider = { type ->
+                    if (type == MediaType.ANIME) "Anime (${state.animeList.size})" else "Manga (${state.mangaList.size})"
+                },
+                highlightColor = if (state.libraryFilterType == MediaType.ANIME) AccentBlue else MangaAccentDarkBlue,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(CardBg)
-                    .padding(4.dp)
-            ) {
-                TabButton(
-                    selected = isAnime,
-                    text = "Anime (${state.animeList.size})",
-                    onClick = { onSelectMediaType(MediaType.ANIME) },
-                    modifier = Modifier.weight(1f)
-                )
-                TabButton(
-                    selected = !isAnime,
-                    text = "Manga (${state.mangaList.size})",
-                    onClick = { onSelectMediaType(MediaType.MANGA) },
-                    modifier = Modifier.weight(1f)
-                )
-            }
+                    .height(44.dp)
+            )
         }
 
         // Search Bar in Library

@@ -194,6 +194,16 @@ object AniListClient {
         }
     }
 
+    suspend fun pingHealth(): Boolean = withContext(Dispatchers.IO) {
+        try {
+            val query = "query { Media(id: 1) { id } }"
+            val res = executeQuery(query, JSONObject())
+            res != null && res.contains("\"id\":1")
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     private fun mapAniListMediaToItem(m: AniListMedia, fallbackType: MediaType): MediaItem {
         val primaryTitle = m.title?.romaji ?: m.title?.english ?: "Unknown Title"
         val englishTitle = m.title?.english

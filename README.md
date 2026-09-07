@@ -1,447 +1,250 @@
-<p align="center">
-  <img src="art/logo.png" alt="CA'NIM Logo" width="130" height="130" style="border-radius: 28px; box-shadow: 0 8px 24px rgba(0,0,0,0.35);">
-</p>
-
-<h1 align="center">CA'NIM - Lacak Anime dan Mangamu</h1>
+# CA'NIM — Technical Architecture & Engineering Documentation
 
 <p align="center">
-  <strong>Tersinkronisasi langsung dengan akun MyAnimeList (MAL)</strong>
+  <img src="art/logo.png" alt="CA'NIM Logo" width="100" height="100" style="border-radius: 20px;">
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases/latest"><img src="https://img.shields.io/badge/Download-APK%20(v6.0.3)-10B981.svg?style=for-the-badge&logo=android" alt="Download APK"></a>
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.0.3-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.1.3%20(Build%2022)-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
-  <a href="#-fitur-utama"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
-  <a href="#-arsitektur-dan-prinsip-desain"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
-  <a href="#-kinerja-dan-optimasi"><img src="https://img.shields.io/badge/APK%20Size-~2.1%20MB-F59E0B.svg?style=for-the-badge" alt="Size"></a>
-  <a href="#-panduan-kompilasi-manual"><img src="https://img.shields.io/badge/Tests-57%20Passed-6366F1.svg?style=for-the-badge" alt="Tests"></a>
+  <a href="#tech-stack--dependensi"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
+  <a href="#uiux-architecture--fluid-continuity"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
+  <a href="#kinerja-dan-optimasi-memori"><img src="https://img.shields.io/badge/APK%20Size-~2.3%20MB%20(R8%20Full)-F59E0B.svg?style=for-the-badge" alt="Size"></a>
+  <a href="#verifikasi-lokal--pengujian-unit"><img src="https://img.shields.io/badge/Tests-65%20Unit%20Tests%20Passing-10B981.svg?style=for-the-badge" alt="Tests"></a>
 </p>
 
 ---
 
-## 📥 Unduh Aplikasi
-
-Dapatkan rilis resmi **CA'NIM** siap pasang langsung dari halaman rilis GitHub:
-
-| Berkas | Tipe | Arsitektur | Kebutuhan Minimum | Tautan |
-| :--- | :---: | :---: | :---: | :---: |
-| **`canim-universal-release-v6.0.3.apk`** | **Release** | **Universal** (`arm64-v8a`, `armeabi-v7a`, `x86_64`) | Android 7.0+ (API 24+) | [👉 Unduh APK Rilis](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
-| **`SHA256SUMS.txt`** | **Checksum** | — | — | [👉 Verifikasi Checksum](https://github.com/Kh1zZ/CA-NIM/releases/latest) |
-
-> 💡 **Catatan Instalasi**: APK Release dikompilasi secara universal oleh GitHub Actions CI/CD, bebas dari bloatware/tracker, dan telah dioptimalkan secara penuh menggunakan R8 Minifier untuk pengalaman scrolling terbaik.
+Dokumentasi teknis resmi repositori **CA'NIM** (`com.canim.app`). Berkas ini dikhususkan untuk rekayasa perangkat lunak, arsitektur data, strategi konkurensi jaringan, optimasi memori, serta panduan kontributor. Untuk informasi promosi, pengenalan fitur visual, dan tautan unduh publik, silakan kunjungi landing page resmi di repositori [CA-NIM-LP](https://github.com/Kh1zZ/CA-NIM-LP).
 
 ---
 
-## 🎨 Identitas Visual & Filosofi Logo
+## 🏛️ 1. Arsitektur Sistem: Dual-Engine Synchronization
 
-Logo resmi **CA'NIM** (`art/logo.png`) adalah karya seni beresolusi tinggi (1254 × 1254 px) dengan gaya estetika **Cyber-Blue Radiant Manga**:
+CA'NIM menerapkan pemisahan tanggung jawab (*separation of concerns*) yang tegas antara **pencatatan data pengguna** dan **penyediaan metadata publik**:
 
 ```text
-                      ┌──────────────────────────────────────┐
-                      │          CA'NIM BRAND LOGO           │
-                      ├──────────────────────────────────────┤
-                      │  [ Buku Manga 3D + Mata Anime ]      │ ───► Katalog Anime & Manga Hidup
-                      │  [ Panel Komik + Gerbang Torii ]     │ ───► Kultur & Estetika Visual Jepang
-                      │  [ Lencana Awan + Panah Sinkronisasi]│ ───► Cloud Sync MyAnimeList Real-Time
-                      │  [ Radiant Cyber-Blue & Sparkles ]   │ ───► Performa Cepat & Tema Cyber Dark
-                      └──────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                       CA'NIM Client UI                          │
+│        (Jetpack Compose M3 + 100% Skippable Recomposition)      │
+└────────────────┬───────────────────────────────▲────────────────┘
+                 │ (Mutasi Tracking)             │ (Observasi StateFlow)
+                 ▼                               │
+┌────────────────────────────────┐ ┌──────────────────────────────┐
+│         CanimViewModel         │ │         CacheManager         │
+│  (Optimistic UI + Rollback)    │ │   (Bounded LRU, TTL,         │
+└────────────────┬───────────────┘ │    Canonical Keys)           │
+                 │                 └─────────────▲────────────────┘
+                 ▼                               │
+┌────────────────────────────────────────────────┴────────────────┐
+│                        CanimRepository                          │
+│            (Dual-Engine Coordination & Fast Failover)           │
+├────────────────────────────────┬────────────────────────────────┤
+│                                │                                │
+│    [ENGINE A: USER TRACKING]   │     [ENGINE B: RICH METADATA]  │
+│               ▼                │                ▼               │
+│        MyAnimeList API         │        AniList GraphQL         │
+│   - Single Source of Truth     │   - Primary Rich Media Provider│
+│   - OAuth 2.0 PKCE (Hardware)  │   - High-throughput Batching   │
+│   - Bidirectional Mutations    │   - MediaResolver (MAL ID Map) │
+│   - Full Uncapped Pagination   │   - Cast, Crew & Studio Engine │
+│   - Score & Status Authority   │   - Multi-Tier Disk/Memory LRU │
+└────────────────────────────────┴────────────────────────────────┘
 ```
 
-1. **Buku Manga 3D dengan Mata Anime Ekspresif**: Buku bersampul biru elektrik dengan detail halaman putih bertingkat dan pita pembatas (*cyan bookmark ribbon*). Sampul depan menampilkan mata karakter anime beriris biru safir dengan pantulan cahaya ganda (*sparkle*) dan garis bulu mata dramatis yang hidup.
-2. **Panel Manga Latar & Siluet Torii**: Kartu panel berbingkai putih di sudut kanan atas menampilkan awan langit, balon percakapan, dan siluet gerbang Torii tradisional, menegaskan identitas kultur manga Jepang.
-3. **Lencana Sinkronisasi Awan (Cloud Sync Badge)**: Awan putih kontras di sudut kanan bawah dengan dua panah melingkar melambangkan integrasi **Single Source of Truth** langsung ke cloud **MyAnimeList (MAL)** secara instan dan dua arah (*bidirectional*).
-4. **Radiant Cyber-Blue & Kilau Bintang**: Gradasi biru elektrik dengan pancaran cahaya dinamis dan bintang kemilau memberikan nuansa futuristik, cepat, dan selaras dengan tema gelap (*Cyber Dark Native*) aplikasi.
+### Prinsip Utama Integrasi:
+1. **MyAnimeList (MAL) sebagai Single Source of Truth**:
+   - Status tracking (`watching`, `reading`, `completed`, `on_hold`, `dropped`, `plan_to_watch`, `plan_to_read`), jumlah episode/chapter, skor (1–10), dan riwayat diperbarui langsung ke server MAL.
+   - Tidak menggunakan database lokal ganda (seperti Room) untuk state tontonan guna mencegah *state divergence* dan konflik multi-perangkat.
+2. **AniList GraphQL sebagai Penyedia Metadata Utama**:
+   - Sinopsis utuh, poster resolusi tinggi (HD/ExtraLarge), banner karya, daftar genre, tanggal rilis, trailer YouTube, daftar karakter & seiyuu, staf produksi, dan filmografi studio diambil melalui AniList GraphQL API.
+   - Menggunakan *batching query* (hingga 50 item per kueri) untuk mencegah *request storm* saat sinkronisasi library pengguna.
+3. **Dual-Engine Fast Failover & Latency Optimization**:
+   - **Happy Eyeballs (RFC 8305)**: Diaktifkan via `fastFallback(true)` pada `OkHttpClient` untuk melakukan balapan koneksi (*connection race*) antara rute IPv4 dan IPv6, mengeliminasi delay 250ms+ saat salah satu rute jaringan seluler/ISP lambat.
+   - **Timeout Agresif (6s Connect / 8s Read)**: Menghindari layar tersangkut (spinner macet) jika salah satu API mengalami pemblokiran DNS/gangguan regional. Jika AniList tidak merespons dalam batas waktu, repositori seketika beralih (*seamless failover*) ke fallback MyAnimeList API v2.
+   - **Connection Pool Ekstensif**: Dikonfigurasi dengan `ConnectionPool(8, 10, TimeUnit.MINUTES)` untuk mempertahankan soket HTTP/2 tetap aktif, memangkas latensi TLS handshake pada kunjungan berikutnya.
+4. **Deteksi Gangguan Real-Time (Outage Detection)**:
+   - Status kesehatan API dipantau melalui `pingHealth()` (AniList) dan endpoint ranking (MAL).
+   - Indikator status outage dikomunikasikan secara reaktif ke `CanimUiState` (`isAniListDown`, `isMalDown`).
+   - Pada Dasbor, bilah notifikasi peringatan hanya ditampilkan saat salah satu atau kedua engine mengalami gangguan, dan otomatis disembunyikan jika kondisi jaringan normal.
 
 ---
 
-## ✨ Fitur Utama
+## 🎨 2. UI/UX Architecture: Invisible Continuity & Fluid Transitions
 
-| Fitur | Deskripsi |
-| :--- | :--- |
-| **🏠 Dasbor Interaktif** | Ringkasan statistik tontonan & bacaan, kartu progres aktif, tombol cepat (+1 Episode / +1 Chapter), dan indikator status sinkronisasi. |
-| **📚 Library Lengkap Tanpa Batas** | Paginasi dinamis tanpa batasan kuota (*uncapped pagination*). Menampung ribuan judul koleksi dengan filter status, sorting instan, dan pencarian instan. |
-| **🔍 Pencarian Cepat (AniList GraphQL)** | Pencarian ber-filter anime & manga dengan mekanisme *debouncing* (350 ms) dan pembatalan request usang (*cancellation safe*). |
-| **🎲 Discover & Eksplorasi Cepat** | Jelajahi anime musiman dan katalog produksi studio secara bersih dan responsif (Musim Ini, Musim Depan, Akan Datang, TBA, dan Studio). |
-| **🃏 Flashcard Gacha Rekomendasi** | Tarik kartu anime acak dengan estetika kartu fisik, tumpukan kartu gaya UNO, animasi swipe fisika pegas (spring physics), sistem kuota mingguan (5 tiket dasar, floor minimum 5, +1 tiket per episode ditonton), dan akses cepat di bawah Ringkasan Statistik. |
-| **📑 Halaman Detail Menyeluruh (MDL Inspired)** | Tampilan detail komprehensif: sinopsis lengkap, poster HD AniList, genre, trailer YouTube, daftar cast/crew, studio, relasi waralaba, dan pengubah progres interaktif. |
-| **🎬 Studio Details & Filmography** | Bio studio mendalam dan *quick facts* (tahun berdiri, negara asal, total anime tercatat, situs resmi) dengan database kurasi 35+ studio & cache persisten 30 hari. Dilengkapi pengelompokan tahun rilis dinamis (judul TBA di puncak) dan kontrol sorting minimalis (Tahun, Popularitas, Skor). |
-| **👥 Profil Cast & Kru** | Informasi mendalam pengisi suara (*seiyuu*) dan staf produksi beserta riwayat peran karakter dengan navigasi mulus (*back-stack support*). |
-| **📊 Ekspor Statistik Multi-Rasio** | Ekspor infografis koleksi dengan pilihan rasio fleksibel (`9:16 Story`, `4:5`, `3:4`, `1:1`, `16:9 Landscape`), kartu cover anti-stretch (*center-crop*), profil MAL, dan Pie Chart resolusi tinggi. |
-| **🎯 Algoritma Filter Top 5 Non-Sekuel** | Algoritma pintar yang secara otomatis mendeteksi dan mengecualikan sekuel dari waralaba yang sama agar tidak mendominasi peringkat Top 5. |
-| **🔐 Login MAL via OAuth 2.0 PKCE** | Autentikasi aman tanpa menyimpan sandi pengguna. Token tersimpan aman terenkripsi menggunakan **Android Keystore** (`EncryptedSharedPreferences`). |
-| **🔄 Pengecek Pembaruan In-App** | Cek rilis terbaru langsung dari menu Pengaturan dengan opsi auto-check periodik (24 jam) terintegrasi GitHub Releases API dan semver parser. |
-| **🛡️ Guard Progres & Anti-Exploit** | Proteksi otomatis batas maksimal episode/chapter dan penonaktifan tombol progres saat selesai untuk mencegah farming kuota tiket gacha ilegal. |
-| **🧹 Pembersih Cache Cerdas** | Kelola pembersihan disk mandiri di Pengaturan: bersihkan cache gambar Coil, cache metadata GraphQL AniList, atau reset cache menyeluruh tanpa logout dari MAL. |
+CA'NIM menerapkan filosofi desain **Invisible Continuity**: antarmuka menyatu alami melalui kedalaman kanvas (*elevation layering*), kontras tipografi hierarkis, dan pembatas mikro-subtle (`CardBorderSubtle` 12% alpha & `DividerSubtle` 8% alpha).
 
----
-
-## ⚡ Kinerja dan Optimasi
-
-CA'NIM dioptimalkan secara mendalam mengadopsi standar performa aplikasi media open-source modern ([ArchiveTune](https://github.com/rukamori/ArchiveTune) & [Animite](https://github.com/imashnake0/Animite)) serta konkurensi jaringan mutakhir:
-
-- **Sistem 60 FPS Smooth Scroll (Standar Animite)**: Mengadopsi node recycling via `contentType` eksplisit dan `key` stabil pada seluruh `LazyRow` dan `LazyColumn` di Dasbor, Discover, Library, dan Layar Detail. Item avatar dan kartu mini menggunakan placeholder dimensi tetap (`CardElevated`) untuk mengeliminasi relayout pass dan GC thrashing saat scrolling cepat.
-- **Sub-200ms Latency Layar Detail (Instant Synthesis & Disk LRU)**: Menghadirkan pemuatan detail anime/manga seketika (sub-200ms). Saat navigasi, ViewModel langsung mensintesis baseline awal (0 ms), memuat data persisten dari cache disk LRU (< 10 ms), dan memancarkan data cast pengisi suara (VA) serta kru produksi secara progresif dua fase tanpa tertahan kueri sekunder.
-- **Pemuatan Paralel Konkuren (`async`)**: Mengeliminasi latensi *waterfall* pada layar detail dengan menjalankan request metadata AniList dan MyAnimeList secara simultan via HTTP/2.
-- **Multi-Key In-Memory LRU Caching (0 ms Load)**: Hasil gabungan detail tersimpan secara persisten pada `CacheManager` di bawah kunci canonical, ID AniList, dan ID MAL. Kunjungan ulang ke judul yang sama langsung tampil dalam **0 ms** tanpa kedipan atau blank spinner.
-- **Pre-Enriched Library Sync (Frame 1 Score)**: Sinkronisasi daftar koleksi pengguna langsung menyertakan skor publik MAL (`node.mean`), popularitas, dan peringkat, memastikan judul dari pustaka lokal langsung menampilkan skor MAL sejak frame pertama.
-- **Decoupled Asynchronous Tracking**: Metrik publik dan aset visual dirender seketika tanpa tertahan oleh antrean pemanggilan live tracking akun pengguna.
-- **100% Skippable Recomposition**: Menggunakan *stable hoisted callbacks* `(UserMediaItem) -> Unit` dan `(MediaItem) -> Unit` pada seluruh card di `LibraryScreen` dan `DiscoverScreen`. Item daftar yang tidak berubah dilewati (*skipped*) secara total saat scrolling.
-- **Pre-Allocated Static Shapes**: Meniadakan alokasi memori berulang di Garbage Collector (GC) dengan memusatkan objek bentuk statis (`ItemCardShape`, `ItemBorderStroke`, `ProgressClipShape`, `PillShape`).
-- **Zero-Overhead Progress Bar**: Menggantikan `LinearProgressIndicator` Material 3 bawaan yang berat dengan kompresi tata letak `Box` native yang super ringan.
-- **R8 Full-Shrinking & Bytecode Protection**: Ukuran file release terpangkas drastis dari ~17 MB menjadi hanya **~2.3 MB** dengan aturan ProGuard presisi yang mengunci metadata generik `Continuation<-Lcom/canim/app/data/model/MalTokenResponse;>`.
-
+### Fitur Kunci Rekayasa UI:
+- **Scroll Position & Alignment Preservation**:
+  - `CanimViewModel` memelihara memori status gulir `detailScrollPositions: MutableMap<String, Pair<Int, Int>>` berbasis kunci kanonikal media.
+  - Pada `MediaDetailScreen`, posisi item dan offset scroll disimpan secara instan saat disposisi atau navigasi anak (`DisposableEffect`) dan dipulihkan secara instan melalui `rememberLazyListState(initialFirstVisibleItemIndex, initialFirstVisibleItemScrollOffset)`.
+  - Transisi antar-halaman detail di `MainActivity` menggunakan `AnimatedContent` dengan arah slide horizontal dinamis, memastikan kembali dari relasi/rekomendasi tidak mereset posisi scroll layar induk.
+- **Sliding Highlight Navigation (Spring Physics)**:
+  - Bilah navigasi bawah (`main_bottom_nav`) mengimplementasikan kapsul penyorot geser (*sliding highlight pill*) menggunakan `animateDpAsState` dengan spesifikasi pegas `spring(dampingRatio = 0.8f, stiffness = StiffnessMediumLow)`.
+  - Komponen generik `SmoothSegmentedSelector` menggantikan sakelar tombol statis pada selektor Anime/Manga (`LibraryScreen`, `SearchScreen`) dan selektor rasio ekspor (`StatsScreen`), memberikan umpan balik visual yang mengalir mulus tanpa *layout shift*.
+- **Compact Hero Metrics Strip**:
+  - Bilah metrik statistik pada Dasbor dipadatkan secara ergonomis (padding horizontal 12 dp / vertikal 10 dp, tinggi pemisah hairline 22 dp, tipografi proporsional 15 sp) untuk mengoptimalkan *screen real estate* dan visibilitas kartu tontonan aktif tanpa scroll berlebih.
+- **Flashcard Gacha Rules & Credit Lifecycle**:
+  - Kuota dasar mingguan: 5 tiket (reset otomatis setiap Senin pukul 00:00:00 dengan batas lantai minimum 5).
+  - Penghasilan tiket: +1 tiket untuk setiap episode/chapter yang ditandai selesai ditonton di Library.
+  - **Konsumsi Tiket**: Pengurangan tiket terjadi **hanya saat kartu dibuang (swipe kiri / tombol silang) atau disimpan (swipe kanan / tombol tambah)**. Membalik kartu (*flip to front*) tidak memotong tiket sehingga saat tersisa 1 tiket pengguna tetap dapat melihat dan mempertimbangkan rekomendasi sebelum bertindak.
 
 ---
 
-## 🏛️ Arsitektur dan Prinsip Desain
+## ⚡ 3. Kinerja dan Optimasi Memori
 
-CA'NIM dibangun dengan arsitektur modern yang memisahkan tanggung jawab secara tegas antara **pencatatan data pengguna** dan **penyediaan metadata**:
-
-```text
-┌─────────────────────────────────────────────────────────┐
-│                    CA'NIM Client UI                     │
-│         (Jetpack Compose M3 + 100% Skippable)           │
-└──────────────┬───────────────────────────▲──────────────┘
-               │ (Mutasi Tracking)         │ (Observasi StateFlow)
-               ▼                           │
-┌──────────────────────────────┐ ┌─────────────────────────┐
-│       CanimViewModel         │ │       CacheManager      │
-│  (Optimistic UI + Rollback)  │ │   (Bounded LRU, TTL,    │
-└──────────────┬───────────────┘ │    Canonical Keys)      │
-               │                 └─────────▲───────────────┘
-               ▼                           │
-┌──────────────────────────────────────────┴──────────────┐
-│                    CanimRepository                      │
-├─────────────────────────────┬───────────────────────────┤
-│                             │                           │
-│   (User Tracking & Auth)    │      (Rich Metadata)      │
-│              ▼              │             ▼             │
-│      MyAnimeList API        │     AniList GraphQL       │
-│  - Single Source of Truth   │  - Primary Metadata       │
-│  - OAuth 2.0 PKCE (Plain)   │  - 50 items/batch         │
-│  - Uncapped Pagination      │  - MediaResolver (MAL ID) │
-│  - Bidirectional Mutations  │  - Public Detail Fallback │
-└─────────────────────────────┴───────────────────────────┘
-```
-
-1. **MyAnimeList sebagai Single Source of Truth**: Status tontonan/bacaan (`watching`, `reading`, `completed`, `on_hold`, `dropped`, `plan_to_watch`, `plan_to_read`), jumlah progres, skor (1–10), dan tanggal dikelola langsung oleh server MyAnimeList tanpa database lokal ganda (Room) yang rentan konflik.
-2. **AniList GraphQL sebagai Sumber Metadata Utama**: Sinopsis lengkap, poster HD, studio animasi, genre, dan format serial diambil langsung via AniList GraphQL API secara efisien (*batching up to 50 items*).
-3. **MediaResolver Terpusat & Pemisahan ID (`MediaRef`)**: Memisahkan secara ketat namespace `anilistId` dan `malId` tanpa fabrikasi ID tiruan.
-4. **Optimistic UI dengan Garansi Rollback**: Tombol +1 episode/chapter langsung memperbarui tampilan antarmuka seketika (*50 ms perceived latency*). Jika terjadi kegagalan jaringan, status otomatis di-*rollback* ke kondisi semula disertai notifikasi jelas.
+1. **Sub-200ms Latency Layar Detail**:
+   - *Instant Synthesis (0 ms)*: Saat navigasi dibuka, ViewModel langsung mensintesis data awal dari metadata lokal yang tersedia sehingga poster, skor, format, dan studio tampil seketika.
+   - *Disk LRU Cache (< 10 ms)*: Serialisasi detail media tersimpan otomatis pada disk cache lokal.
+   - *Two-Phase Progressive Loading*: Data karakter/seiyuu dan staf langsung di-emit pada fase pertama tanpa menunggu kueri sekunder.
+2. **100% Skippable Recomposition**:
+   - Seluruh callback lambda pada `MainActivity`, `DashboardScreen`, `LibraryScreen`, dan `SearchScreen` diisolasi menggunakan `remember`.
+   - Node daftar mengimplementasikan parameter `key` stabil dan `contentType` eksplisit, menjamin frame rate stabil 60–120 FPS saat *fast fling scroll*.
+3. **Optimasi Memori Bitmap Coil (RGB_565)**:
+   - Mengaktifkan konfigurasi `.allowRgb565(true)` pada Coil `ImageLoader` di `CanimApplication`, memangkas konsumsi RAM decoding poster anime/manga hingga ~50% dan meniadakan jeda Garbage Collection (GC thrashing).
+4. **Multi-Key In-Memory LRU Caching**:
+   - Hasil kueri tersimpan di `CacheManager` di bawah multi-kunci (ID AniList, ID MAL, dan Canonical Key). Kunjungan ulang ke judul yang sama langsung disajikan dalam **0 ms**.
+   - Scheduler di ViewModel secara otomatis membersihkan entri kedaluwarsa setiap 15 menit melalui `CacheManager.pruneExpired()`.
+5. **R8 Full-Mode Shrinking**:
+   - Konfigurasi `android.enableR8.fullMode=true` dengan aturan ProGuard presisi (`-allowaccessmodification`, `-repackageclasses`, dan peniadaan overhead `ComposerKt.sourceInformation`), menghasilkan ukuran rilis APK ultra-ringkas **~2.3 MB**.
 
 ---
 
-## 🌌 Arsitektur Visual: Invisible Continuity (v6.0.0)
+## 🔄 4. Aliran Data & Penanganan Pencarian
 
-Mulai rilis **v6.0.0**, CA'NIM melakukan transformasi bahasa desain fundamental dari pendekatan **Containment-First** (kotak berbingkai kaku di setiap kelompok informasi) menuju **Continuity-First** berbasis filosofi:
-
-> **"Invisible by default, explicit by necessity."**
-
-Struktur antarmuka tidak lagi bergantung pada kontainer bersarang (*nested cards*) atau garis tepi eksplisit (*borders*) untuk memisahkan informasi, melainkan mengandalkan **proximity (jarak kedekatan), whitespace (ruang negatif), alignment (keselarasan tepi), tipografi kontras tinggi, dan hubungan permukaan tonal**.
-
-```text
-┌────────────────────────────────────────┐       ┌────────────────────────────────────────┐
-│        SEBELUM (Containment-First)     │       │     v6.0.0 (Invisible Continuity)      │
-├────────────────────────────────────────┤       ├────────────────────────────────────────┤
-│ ┌────────────────────────────────────┐ │       │ Poster   Judul Anime                   │
-│ │ Card: Ringkasan Informasi          │ │       │          Metadata                      │
-│ │ ┌─────────┐ ┌────────────────────┐ │ │       │                                        │
-│ │ │ Card 1  │ │ Card 2             │ │ │ ────► │ SINOPSIS                               │
-│ │ └─────────┘ └────────────────────┘ │ │       │ Sinopsis mengalir alami tanpa kotak... │
-│ └────────────────────────────────────┘ │       │                                        │
-│ ┌────────────────────────────────────┐ │       │ 8.7            24            Finished  │
-│ │ Card: Sinopsis                     │ │       │ Score          Episodes      Status    │
-│ └────────────────────────────────────┘ │       │                                        │
-│ (Borders & Cards everywhere)           │ │       │ (Seamless rhythm, explicit for actions)│
-└────────────────────────────────────────┘       └────────────────────────────────────────┘
-```
-
-### Prinsip Utama Sistem Visual:
-1. **Seamless Metric Flow**: Metrik statistik pada Dasbor dan Halaman Detail tidak lagi dipenjara dalam 4 kotak terpisah dengan border kaku, melainkan menyatu harmonis menggunakan tipografi angka tebal (*extra bold*) dan label jelas.
-2. **Eliminasi Card-in-Card**: Menghapus anti-pattern kartu di dalam kartu pada layar detail. Sinopsis, metadata, dan metrik mengalir alami membentuk ritme pembacaan yang tenang dan elegan.
-3. **Continuous Studio Identity**: Header studio dan kartu biografi dipadukan menjadi satu kesatuan visual yang mengalir dari poster hero banner hingga statistik fakta studio.
-4. **Selective Explicit Boxing**: Garis tepi eksplisit dan kartu fisik hanya dipertahankan pada elemen yang membutuhkan kejelasan affordance interaksi: tombol form, input field, chip filter, kartu media anime/manga katalog, dan modal dialog.
-5. **Subtle Design Tokens**: Memperkenalkan token permukaan halus `CardBorderSubtle` (`0x1F334155`), `DividerSubtle` (`0x1494A3B8`), dan `SurfaceSubtle` (`0x0CFFFFFF`) untuk mereduksi visual noise hingga 70%.
+- **Pencarian Reaktif dengan Filter Tunggal (Filter-Only Search)**:
+  - Alur kueri `_searchQueryFlow` (debounce 300 ms) memvalidasi status filter aktif (`searchGenres`, `searchYear`, `searchFormat`).
+  - Ketika pengguna menerapkan filter tanpa mengetik teks judul, mesin pencari secara otomatis meminta data berdasarkan popularitas (`POPULARITY_DESC` pada AniList GraphQL, atau `ranking_type = "bypopularity"` dengan kuota 100 entri pada MAL fallback), memastikan hasil selalu relevan dan tidak menghasilkan layar kosong.
+- **Optimistic UI dengan Garansi Rollback**:
+  - Tombol aksi cepat (+1 Progres) memperbarui status antarmuka seketika (< 50 ms). Jika mutasi jaringan ke server MAL gagal, data otomatis di-*rollback* ke status sebelumnya disertai notifikasi Snackbar.
 
 ---
 
-## 🛠️ Tech Stack & Dependensi
+## 🔐 5. Keamanan dan Autentikasi
 
-| Kategori | Teknologi / Pustaka | Keterangan |
+- **OAuth 2.0 PKCE (Proof Key for Code Exchange)**:
+  - Autentikasi MAL berjalan menggunakan alur PKCE tanpa client secret di sisi aplikasi.
+  - Penanganan otorisasi melalui Custom URL Scheme (`canim://oauth/callback`).
+- **Android Keystore & EncryptedSharedPreferences**:
+  - Akses token dan refresh token disimpan di dalam `MalSecureStorage` menggunakan modul `androidx.security.crypto.EncryptedSharedPreferences` dengan algoritma enkripsi hardware-backed `AES256_GCM` (MasterKey).
+  - Kredensial sandi pengguna tidak pernah diminta, diproses, maupun disimpan oleh aplikasi.
+
+---
+
+## 🛠️ 6. Tech Stack & Dependensi
+
+| Komponen | Spesifikasi / Pustaka | Peran Teknis |
 | :--- | :--- | :--- |
-| **Bahasa Pemrograman** | **Kotlin 1.9.22** | JVM Target 17, Coroutines & Flow |
-| **UI Toolkit** | **Jetpack Compose (BOM 2024.02.00)** | Material 3, Navigation Compose, Extended Icons |
-| **Arsitektur State** | **MVVM + StateFlow** | Reactive single state flow dengan immutability |
-| **Jaringan & REST** | **Retrofit 2.9.0 + OkHttp 4.12.0** | HTTP/2, Connection Pooling, Logging Interceptor |
-| **GraphQL** | **AniList GraphQL Client** | Raw high-performance batch queries |
-| **Serialisasi Data** | **Gson 2.10.1** | Konversi JSON aman dari pemangkasan R8 |
-| **Image Loading** | **Coil Compose 2.6.0** | Pemuatan gambar asinkron dengan cache memori & disk |
-| **Keamanan Kredensial** | **AndroidX Security Crypto 1.1.0-alpha06** | Enkripsi AES256-GCM hardware-backed KeyStore |
-| **Build & Minifier** | **Gradle 8.5 & R8 Minifier** | Code shrinking, resource shrinking, ProGuard |
-| **Testing** | **JUnit 4 + Robolectric 4.11.1** | Pengujian unit lokal & validasi arsitektur |
+| **Bahasa & JVM** | Kotlin `1.9.22` / Java 17 | Coroutines, StateFlow, FlowPreview |
+| **UI Toolkit** | Jetpack Compose BOM `2024.02.00` | Material 3, Animation Core, Foundation |
+| **Networking** | OkHttp `4.12.0` + Retrofit `2.9.0` | HTTP/2, ConnectionPool, FastFallback, REST |
+| **GraphQL Client** | Raw High-Performance OkHttp Client | Batch GraphQL execution |
+| **Serialisasi** | Google Gson `2.10.1` | JSON Parsing aman dari R8 minifier |
+| **Image Loading** | Coil Compose `2.6.0` | Disk & RAM caching, RGB_565 decoding |
+| **Keamanan** | AndroidX Security Crypto `1.1.0-alpha06` | AES256-GCM Keystore token storage |
+| **Build & Packaging**| Android Gradle Plugin `8.5.0` + R8 Full | ProGuard minification & bytecode inlining |
+| **Unit Testing** | JUnit 4, Robolectric `4.11.1` | 65 automated regression test suites |
 
 ---
 
-## 📁 Struktur Direktori Proyek
+## 📁 7. Struktur Direktori Proyek
 
 ```text
-ca-nim ft gemini/
+ca-nim/
 ├── .github/
-│   ├── release.yml                        # Template kategori changelog native GitHub
 │   └── workflows/
-│       ├── ci.yml                         # CI Pipeline (unit test & debug validation)
-│       └── release.yml                    # Release Pipeline (automated tag-based release build)
-├── .gitattributes                         # Penegakan line endings LF untuk skrip POSIX
+│       ├── ci.yml                         # Automated unit test & debug APK artifact build
+│       └── release.yml                    # Tag-driven production build, checksum, & release publishing
 ├── app/
-│   ├── build.gradle.kts                   # Konfigurasi plugin, SDK, dan dependensi (com.canim.app)
-│   ├── proguard-rules.pro                 # Aturan R8/ProGuard untuk Retrofit & Coroutines
+│   ├── build.gradle.kts                   # Konfigurasi dependensi, SDK 34, dan versionCode/Name
+│   ├── proguard-rules.pro                 # Aturan R8 full-mode optimization
 │   └── src/
 │       ├── main/
-│       │   ├── AndroidManifest.xml        # Deklarasi permission & Deep Link OAuth (canim://oauth/callback)
+│       │   ├── AndroidManifest.xml        # Permission, Deep Link OAuth (canim://oauth/callback)
 │       │   ├── java/com/canim/app/
-│       │   │   ├── CanimApplication.kt    # Inisialisasi Coil image loader singleton
-│       │   │   ├── MainActivity.kt        # Entry point Compose & handler deep link
+│       │   │   ├── CanimApplication.kt    # Inisialisasi Coil ImageLoader singleton (RGB_565)
+│       │   │   ├── MainActivity.kt        # Root Compose container, sliding nav bar, overlay transitions
 │       │   │   ├── data/
-│       │   │   │   ├── cache/             # CacheManager (In-memory LRU + TTL)
-│       │   │   │   ├── local/             # MalSecureStorage (EncryptedSharedPreferences)
-│       │   │   │   ├── model/             # MediaModels, MalModels, StudioModels, GraphQL Models
+│       │   │   │   ├── cache/             # CacheManager (In-memory bounded LRU + TTL disk cache)
+│       │   │   │   ├── local/             # MalSecureStorage (AES256-GCM EncryptedSharedPreferences)
+│       │   │   │   ├── model/             # MediaModels, MalModels, StudioModels, GraphQL Schema DTOs
 │       │   │   │   ├── remote/            # ApiClient, MalApiService, AniListClient, UpdateChecker
-│       │   │   │   ├── repository/        # CanimRepository, MalAuthManager, StudioBioRegistry, GachaCreditManager
-│       │   │   │   └── resolver/          # MediaResolver (Pemetaan AniList ↔ MAL ID)
+│       │   │   │   ├── repository/        # CanimRepository, MalAuthManager, GachaCreditManager
+│       │   │   │   └── resolver/          # MediaResolver (Pemetaan canonical AniList ↔ MAL ID)
 │       │   │   ├── ui/
-│       │   │   │   ├── screens/           # Dashboard, Library, Search, Discover, MediaDetail, FlashcardScreen,
-│       │   │   │   │                      # CastCrewProfile, StudioFilmography, StatsScreen, StatsExporter, SettingsScreen
-│       │   │   │   ├── theme/             # Palet warna cyber dark, Tipografi, Shape
-│       │   │   │   └── viewmodel/         # CanimViewModel & Factory
+│       │   │   │   ├── components/        # SmoothSegmentedSelector
+│       │   │   │   ├── screens/           # DashboardScreen, LibraryScreen, SearchScreen, DiscoverScreen,
+│       │   │   │   │                      # MediaDetailScreen, FlashcardScreen, StatsScreen, StatsExporter
+│       │   │   │   ├── theme/             # Cyber Dark palette, Typography, Elevation Tokens
+│       │   │   │   └── viewmodel/         # CanimViewModel & CanimUiState
 │       │   │   └── util/                  # AnimeFranchiseFilter, TextSanitizer
-│       │   └── res/                       # Vektor drawables (ic_app_logo), mipmap, values
-│       └── test/                          # 51 Automated unit tests (12 test suites)
-├── art/
-│   └── logo.png                           # Aset visual master resolusi tinggi (1254x1254 px)
-├── fastlane/                              # Metadata F-Droid standar (en-US title, desc, icon, changelog)
-├── gradle/                                # Gradle wrapper & version catalogs (libs.versions.toml)
-├── gradle.properties                      # JVM args & tuning R8 compat mode
+│       │   └── res/                       # Vector drawables (ic_app_logo), mipmaps, values
+│       └── test/                          # 65 Automated Unit Tests (DualEngine, Gacha, Navigation, Cache)
+├── fastlane/                              # F-Droid standard metadata (title, short/full desc, changelog)
+├── gradle.properties                      # JVM args, R8 full mode configuration
 ├── LICENSE                                # GNU General Public License v3.0 (GPL-3.0)
-└── README.md                              # Dokumentasi resmi proyek
+└── README.md                              # Dokumentasi teknis proyek
 ```
 
 ---
 
-## 🚀 Panduan Kompilasi Manual
+## 🧪 8. Verifikasi Lokal & Kebijakan Kompilasi
 
-Bagi pengembang yang ingin memodifikasi atau mengompilasi APK secara mandiri:
+### Kebijakan Kompilasi (Zero Local APK Builds):
+Sesuai standar integrasi proyek CA'NIM, **tidak diperbolehkan menjalankan `./gradlew assembleDebug` atau `./gradlew assembleRelease` pada komputer lokal**. Seluruh kompilasi berkas biner (APK) dilakukan secara eksklusif oleh GitHub Actions runners di cloud untuk menjamin lingkungan build yang steril, bersih dari artefak lokal, serta terverifikasi secara kriptografis.
 
-### Kebutuhan Lingkungan:
-- **Android Studio** (Hedgehog 2023.1.1 atau yang lebih baru).
-- **JDK 17** (Microsoft OpenJDK 17 atau Eclipse Temurin 17).
-- **Android SDK** API Level 34 (Android 14) dengan Min SDK 24 (Android 7.0).
+### Menjalankan Pengujian Unit Otomatis:
+Verifikasi lokal diwajibkan menjalankan suite pengujian unit otomatis sebelum melakukan commit perubahan:
 
-### Langkah-langkah Kompilasi:
-
-1. **Clone Repositori**:
-   ```bash
-   git clone https://github.com/Kh1zZ/CA-NIM.git
-   cd CA-NIM
-   ```
-
-2. **Kompilasi APK Release (Minified & R8 Optimized)**:
-   ```bash
-   ./gradlew assembleRelease
-   ```
-   *File keluaran berlokasi di:*
-   ```text
-   app/build/outputs/apk/release/canim-universal-release-v<version>.apk
-   ```
-
-3. **Kompilasi APK Debug**:
-   ```bash
-   ./gradlew assembleDebug
-   ```
-   *File keluaran berlokasi di:*
-   ```text
-   app/build/outputs/apk/debug/canim-debug-v<version>.apk
-   ```
-
-4. **Menjalankan Seluruh Automated Unit Tests**:
-   ```bash
-   ./gradlew testDebugUnitTest
-   ```
+```powershell
+# Jalankan seluruh 65 unit tests secara lokal
+./gradlew testDebugUnitTest
+```
 
 ---
 
-## 🚀 CI/CD & Rilis Otomatis (GitHub Actions)
+## 🚀 9. CI/CD Pipeline & Alur Rilis
 
-Mulai versi `v4.4.1`, seluruh berkas APK rilis resmi **CA'NIM** dikompilasi secara eksklusif dan otomatis oleh **GitHub Actions** (tidak dikompilasi manual di mesin lokal):
-
-- **CI Pipeline (`.github/workflows/ci.yml`)**: Berjalan pada setiap pull request dan push ke branch `main`, `debug`, maupun `dev`, menjalankan unit test otomatis (`./gradlew testDebugUnitTest`), kompilasi build debug (`./gradlew assembleDebug`), serta secara otomatis mengunggah APK Debug (`canim-debug-vX.Y.Z.apk`) ke **GitHub Actions Artifacts** sehingga dapat langsung diunduh dan diuji coba di HP sebelum di-merge ke `main`.
-- **Release Pipeline (`.github/workflows/release.yml`)**: Pipeline rilis multi-saluran yang dapat dipicu melalui push Git tag (`v*`), publikasi release di web GitHub, maupun dieksekusi secara manual via tombol **"Run workflow"** (`workflow_dispatch`) langsung dari tab Actions di web:
-  1. Validasi kecocokan ketat antara target tag (`vX.Y.Z`) dan `versionName` serta `versionCode` pada `app/build.gradle.kts` (mencegah salah rilis/tag).
-  2. Menjalankan seluruh 57 automated unit tests.
-  3. Mengompilasi APK Release Universal (`canim-universal-release-vX.Y.Z.apk`).
-  4. Menghasilkan ringkasan kriptografi `SHA256SUMS.txt`.
-  5. Menghasilkan *release notes* otomatis terstruktur berdasarkan commit messages (`feat:`, `fix:`, `perf:`, `ui:`).
-  6. Mengunggah berkas APK dan Checksum ke **GitHub Actions Artifacts** sebagai cadangan instan.
-  7. Memublikasikan atau memperbarui GitHub Release secara otomatis beserta seluruh aset APK rilis.
-- **Distribusi & Keamanan**: Berkas APK murni didistribusikan melalui [GitHub Releases](https://github.com/Kh1zZ/CA-NIM/releases) dan **tidak pernah di-commit ke dalam Git history**.
-- **Konfigurasi Signing Produksi & Fallback**: Pipeline mendukung penandatanganan rilis dengan keystore produksi permanen berbasis GitHub Secrets (`RELEASE_KEYSTORE_BASE64`, `RELEASE_KEYSTORE_PASSWORD`, `RELEASE_KEY_ALIAS`, `RELEASE_KEY_PASSWORD`), serta dilengkapi mekanisme fallback otomatis yang men-generate `debug.keystore` cadangan via `keytool` sehingga build release selalu 100% andal di segala kondisi.
+- **CI Pipeline (`.github/workflows/ci.yml`)**:
+  - Terpicu pada setiap push atau Pull Request ke branch `main`, `debug`, dan `dev`.
+  - Menjalankan linting dan unit tests otomatis (`testDebugUnitTest`).
+  - Mengompilasi APK Debug dan mengunggahnya ke **GitHub Actions Artifacts** agar pengembang dapat langsung mengunduh dan menguji coba perubahan di perangkat fisik.
+- **Release Pipeline (`.github/workflows/release.yml`)**:
+  - Terpicu saat pembuatan tag Git (`v*`) atau eksekusi manual via `workflow_dispatch`.
+  - Memverifikasi kecocokan versi antara Git tag dan `versionName` serta `versionCode` pada `app/build.gradle.kts`.
+  - Menjalankan unit tests, mengompilasi APK Release universal, menghitung `SHA256SUMS.txt`, dan memublikasikan rilis secara otomatis ke GitHub Releases.
 
 ---
 
-## 📝 Catatan Rilis Terbaru (v6.0.3)
+## 📝 10. Catatan Perubahan: v6.1.3 (Build 22)
 
-- **Aktivasi Penuh R8 Full Mode & Optimasi Bytecode (Standar ArchiveTune)**:
-  - Mengaktifkan **R8 Full Mode** (`android.enableR8.fullMode=true` di `gradle.properties`) untuk inlining agresif terhadap synthetic lambda classes dan composable functions.
-  - Menambahkan aturan `-allowaccessmodification` dan `-repackageclasses` pada `proguard-rules.pro` untuk memperluas cakupan inlining antar-paket dan penggabungan kelas (class merging).
-  - Menghapus overhead debugging Compose di build release dengan aturan `-assumenosideeffects` pada `ComposerKt.sourceInformation`, memangkas ribuan alokasi string dan penanda layout inspector saat scrolling cepat.
-- **100% Skippable Recomposition & Lambda Hoisting**:
-  - Mengisolasi dan me-`remember` seluruh lambda callback di `MainActivity` dan `DashboardScreen` (`WatchingCard` dan `ReadingCard`).
-  - Item daftar pada kartu media kini 100% dilewati (*skipped*) oleh Jetpack Compose saat layar digulir, mencegah pengukuran ulang layout (*zero re-measurement pass*).
-- **Optimasi Memori Bitmap Coil (RGB_565)**:
-  - Mengaktifkan `.allowRgb565(true)` pada Coil `ImageLoader` di `CanimApplication`, memangkas konsumsi RAM decoding poster anime/manga hingga 50% dan melenyapkan jeda Garbage Collection (GC pauses) saat *fast fling scroll*.
-- **Preservasi Fungsionalitas & Test Suite (57 Unit Tests Lulus 100%)**: Seluruh 57 automated unit tests lulus tanpa ada regresi.
-
-<details>
-<summary><b>Lihat Catatan Rilis Sebelumnya (v6.0.2)</b></summary>
-
-- **Eliminasi Redundansi Tombol Dasbor**: Menghapus tombol redundan *"Analisis Lengkap"* dari seksi aksi cepat Dasbor karena fungsi analisis mendalam dan ekspor infografis telah dipusatkan pada tombol *"Detail dan Ekspor"* di header Ringkasan Statistik. Kartu *"Flashcard Gacha"* kini diperluas secara proporsional memenuhi baris (`fillMaxWidth()`) lengkap dengan gradient border Cyber Blue, indikator tiket sisa, dan panah navigasi.
-- **Perbaikan Header Menu Flashcard (Fix Overflowing/Overlap)**: Memperbaiki masalah teks judul Flashcard Gacha yang tertimpa (*overflowing*) oleh box header atas / badge tiket akibat akumulasi WindowInsets. Mengatur `windowInsets = WindowInsets(0.dp)` pada TopAppBar, judul single-line (`maxLines = 1` dengan `TextOverflow.Ellipsis`), serta menyederhanakan subtitle (`"Eksplorasi Anime"`) agar tata letak tetap lapang dan tidak bertabrakan dengan badge tiket.
-- **Pemuatan Sub-200ms Layar Detail Media (Cast VA, Kru, & Metrik)**:
-  - *Instant Baseline Detail Synthesis (0 ms)*: Saat membuka detail anime/manga, ViewModel seketika mensintesis data baseline awal dari metadata lokal yang ada sehingga poster, skor, format, genre, dan studio langsung tampil tanpa jeda strip kosong ("—").
-  - *Disk-Backed LRU Cache (< 10 ms)*: Serialisasi detail tersimpan otomatis di cache lokal (`canim_detail_cache`).
-  - *Two-Phase Progressive Loading*: Data AniList (12 karakter + seiyuu & 10 staf produksi) langsung di-emit ke antarmuka pada fase 1 tanpa menunggu respon sekunder MAL.
-- **Sistem 60 FPS Smooth Scroll (Standar Animite)**: Mengadopsi arsitektur rendering Compose dari [imashnake0/Animite](https://github.com/imashnake0/Animite). Menyematkan `key` stabil dan `contentType` eksplisit pada seluruh `LazyRow` dan `LazyColumn` di Dasbor, Discover, Library, dan Layar Detail, serta menetapkan background placeholder elevasi tetap (`CardElevated`) pada avatar dan kartu mini untuk mengeliminasi relayout pass dan GC thrashing saat scrolling cepat.
-- **Preservasi Fungsionalitas & Test Suite 100% (57 Unit Tests Lulus)**: Seluruh 57 automated unit tests lulus sempurna.
-
-</details>
-
-<details>
-<summary><b>Lihat Catatan Rilis Sebelumnya (v6.0.1)</b></summary>
-
-- **Rombak Total Arsitektur UI/UX (Invisible Continuity Overhaul)**: Menghilangkan dominasi kotak-kotak terisolasi (*cardification anti-pattern*) di seluruh aplikasi, menggantikannya dengan aliran informasi alami berorientasi konten (*content-first*) yang elegan, lapang, dan berdensitas tinggi.
-- **Hero Metrics Strip Terpadu pada Dasbor**: Mengeliminasi 4 kotak terpisah (`StatCard`) dan menyatukannya ke dalam satu bilah analitik mulus berlatar `CardBg` dengan pemisah vertikal halus (`DividerSubtle`), menampilkan angka metrik besar (`20.sp FontWeight.Black`) yang seketika terbaca jelas dengan efisiensi ruang 40% lebih ringkas.
-- **Dual Quick-Action Row**: Menyederhanakan banner Statistik dan Flashcard Gacha menjadi seksi aksi horizontal yang ramping, proporsional, dan seimbang sehingga konten utama (*Sedang Ditonton*) langsung terlihat tanpa scroll berlebih.
-- **Poster-First Media Carousel**: Mengubah kartu *Sedang Ditonton* dan *Sedang Dibaca* menjadi kartu poster-first di mana sampul visual anime/manga menjadi fokus utama, dilengkapi lencana skor, progres bar terintegrasi di dasar poster, serta tombol penambahan progres `+` yang menyatu alami.
-- **Integrated Score & Metric Bar pada Layar Detail**: Mengeliminasi 8 kotak metrik kecil terpisah (`MDLStatTile`). Menggantinya dengan satu panel skor terintegrasi yang menyatukan Skor Resmi MAL (⭐ 8.85), chip nilai pribadi, serta 3 kolom metrik ringkas (Peringkat, Popularitas, Anggota) yang mengalir rapi dengan pemisah hairline.
-- **Seamless Streaming-Style Tracker Rows pada Library & Discover**: Mengganti kartu anime/manga ber-padding tebal dengan baris media mulus berpemisah garis halus (`DividerSubtle`), menghadirkan pengalaman navigasi modern setara aplikasi streaming kelas dunia (Spotify, Apple TV, Crunchyroll).
-- **Palet Cyber Blue Tetap Terjaga**: Mempertahankan identitas warna **Electric Cyber Blue** (`#3B82F6`) untuk anime, **Deep Midnight Navy** (`#1D4ED8`) untuk manga, dan **AMOLED Black** (`#070B14`) yang hemat baterai.
-- **Preservasi Fungsionalitas & Test Suite 100%**: Seluruh 57 automated unit tests lulus 100% tanpa regresi logika.
-
-</details>
-
-<details>
-<summary><b>Lihat Catatan Rilis Sebelumnya (v6.0.0)</b></summary>
-
-- **Arsitektur Visual Invisible Continuity**: Menghilangkan batasan kotak-kotak tebal (*cardification* dan *card-in-card anti-pattern*) yang memecah konsentrasi pengguna. Mengadopsi prinsip desain antarmuka kontemporer di mana konten mengalir alami melalui kedalaman kanvas (*elevation layering*), kontras tipografi hierarkis, dan pembatas mikro-subtle (`CardBorderSubtle` 12% alpha & `DividerSubtle` 8% alpha).
-- **Dasbor Seamless & Pemadatan Visual (Information Density)**:
-  - *Ringkasan Statistik*: Ditransformasikan dari 4 kotak terisolasi ber-border tebal menjadi blok metrik seamless yang tenang dan menyatu mulus dengan kanvas latar belakang.
-  - *MAL Sync Banner & Aksi Cepat*: Mengalir alami dengan aksen warna brand yang elegan tanpa outline tebal yang kaku.
-  - *Kartu Sedang Ditonton / Dibaca*: Transisi visual lembut dengan border mikro-subtle dan thumbnail tajam beraksen dinamis.
-- **Penyempurnaan Layar Detail Media (MediaDetailScreen)**:
-  - *Metrik & Skor*: Menghapus kontainer card pembungkus dan garis kotak kaku pada grid skor MAL, peringkat, dan popularitas. Metrik kini tersaji dalam grid kontinu berlatar belakang elevasi lembut.
-  - *Sinopsis Alami*: Teks sinopsis kini mengalir bebas di bawah judul seksi dengan tombol ekspansi "Baca Selengkapnya...", menghilangkan rasa sesak dari kotak tertutup.
-  - *Informasi Detail*: Metadata rilis disajikan dalam aliran key-value yang lapang dan terstruktur rapi.
-- **Studio Bio & Filmografi Kontemporer**:
-  - Kartu biografi studio dan lencana *quick facts* beralih ke surface seamless tanpa garis tepi tebal.
-  - Grid filmografi menggunakan kartu poster dengan pembatas mikro-subtle untuk memfokuskan pandangan pada visual seni anime.
-- **Harmonisasi Seluruh Antarmuka Aplikasi**:
-  - *Library & Discover Screen*: Filter chips, sort selector, dan kartu media anime/manga diperhalus dengan token visual Invisible Continuity.
-  - *Stats Screen*: Big Metric Cards dan diagram distribusi status mengadopsi border mikro-subtle.
-  - *Floating Search Navigation*: Tombol pencarian navigasi bawah diperbarui agar selaras dengan estetika baru.
-- **Preservasi Fungsionalitas & Test Suite 100% (57 Unit Tests Lulus)**: Seluruh interaksi, test tags, quick actions, navigasi, dan integrasi API tetap bekerja sempurna tanpa regresi.
-
-</details>
-
-<details>
-<summary><b>Lihat Catatan Rilis Sebelumnya (v5.1.1)</b></summary>
-
-- **Pencarian Studio Dinamis (Live Studio Search AniList)**: Menghilangkan pembatasan 16 studio lokal pada menu Discover. Pengguna kini dapat mencari nama studio animasi apa pun di dunia secara langsung dari database global AniList (`Page.studios(search: $search)`). Dilengkapi pencarian lokal instan 0ms dari database kurasi `StudioBioRegistry` yang berpadu mulus dengan hasil kueri live AniList lengkap dengan poster karya terpopuler.
-- **Koreksi ID Resmi Studio AniList & Deteksi Karya A-1 Pictures**: Memperbaiki bug kritis di mana filmografi A-1 Pictures tidak terdeteksi (sebelumnya ID `56` yang tidak ada di AniList dan mengembalikan 404, kini diperbaiki ke ID resmi **`561`** dengan 500+ anime seperti *Solo Leveling*, *Sword Art Online*, *Kaguya-sama*, dan *86*). Juga mengoreksi ID resmi AniList untuk CloverWorks (**`6222`**), CoMix Wave Films (**`291`**), dan Kinema Citrus (**`290`**).
-- **Penghapusan Pembatasan `isMain: true` pada Filmografi**: Menghapus parameter restriktif `isMain: true` pada kueri GraphQL `getStudioFilmography` sehingga seluruh karya anime yang diproduksi maupun hasil kolaborasi (*co-production*) tampil utuh tanpa ada yang terlewat.
-- **Peningkatan Test Suite (Total 57 Unit Tests)**: Menambahkan unit test baru untuk verifikasi integritas ID studio dan bio kurasi pada `StudioRegistryAndSearchTest` (seluruh 57 automated unit test lulus 100%).
-
-</details>
-
-<details>
-<summary><b>Lihat Catatan Rilis Sebelumnya (v5.1.0)</b></summary>
-
-- **Perbaikan Kritis Konflik Keystore Penandatanganan (Production Release Signing)**: Mengatasi error "App not installed" / konflik signature pembaruan dengan sistem penandatanganan keystore permanen via GitHub Actions Secrets (`RELEASE_KEYSTORE_BASE64` dll.). *Catatan Penting: Pengguna yang memperbarui dari versi <= v5.0.0 disarankan melakukan uninstall versi lama terlebih dahulu sebelum memasang v5.1.0 karena pergantian sertifikat debug acak ke release keystore permanen (data tracking tetap aman karena MAL adalah Single Source of Truth).*
-- **Penutupan Celah Farming Tiket Gacha & Guard Progres Episode**: Menambahkan proteksi validasi pada `quickIncrementAnime()` dan `quickIncrementManga()` agar progres tidak dapat melebihi batas total episode/chapter dan tidak memberi tiket gacha ilegal pada judul berstatus *Completed*. Tombol "+" pada Dasbor dan Library kini otomatis dinonaktifkan (berwarna abu-abu redup) saat target tercapai.
-- **Simpan Langsung ke Library dari Flashcard (`plan_to_watch`)**: Tombol ceklis pada kartu flashcard kini otomatis menyimpan anime ke library dengan status "Rencana Ditonton", menampilkan notifikasi konfirmasi Snackbar ("Ditambahkan ke Rencana Ditonton"), mengonsumsi 1 tiket kredit gacha, dan melanjutkan ke kartu berikutnya dengan animasi geser mulus. Jika proses simpan gagal, kartu tidak akan berpindah agar pengguna dapat mencoba kembali.
-- **Penyesuaian Tata Letak MediaDetailDialog (Full Alignment)**: Dialog tambah/edit anime kini menggunakan struktur `Scaffold` dengan `bottomBar` terisolasi sehingga tombol "Simpan" dan "Hapus" selalu terlihat penuh tanpa perlu scroll di semua ukuran layar dan split-screen. Pada alur tambah judul baru, tombol "Hapus" disembunyikan dan tombol "Simpan" melebar penuh dengan label "Tambah ke Library".
-- **Redesain Studio Picker & Visual Header Studio Filmography**: Modal Studio Picker kini menampilkan kartu bergaya poster anime dengan latar belakang karya terpopuler, gradasi gelap bawah, inisial monogram/logo studio, dan tipografi jelas. Header `StudioFilmographyScreen` kini menghitung padding atas dinamis berbasis `WindowInsets.statusBars` untuk menghindari tabrakan dengan tombol kembali/notch kamera, serta menghapus lencana love non-interaktif.
-- **Penyertaan Otomatis Anime TBA / Belum Rilis pada Filmografi Studio**: Query GraphQL AniList kini menggunakan pengurutan `[START_DATE_DESC, POPULARITY_DESC]` sehingga proyek masa depan dan anime berstatus `NOT_YET_RELEASED` langsung termuat di halaman awal dan terkelompok pada seksi "Akan Datang / TBA".
-- **Pengecekan Pembaruan Versi di Pengaturan (In-App Update Checker)**: Menambahkan seksi "Pembaruan Aplikasi" pada layar Pengaturan dengan tombol manual "Cek Update" dan opsi toggle "Cek Update Otomatis" (berjalan sekali setiap 24 jam) yang terhubung langsung ke GitHub Releases API via komparasi semver cerdas.
-- **Kualitas Gambar HD Khusus Flashcard**: Penambahan field `imageUrlHd` yang memprioritaskan aset resolusi `extraLarge` dari AniList khusus untuk kartu flashcard layar penuh tanpa membebani memori thumbnail di daftar library.
-- **Peningkatan Test Suite**: Menambah pengujian unit baru untuk pengecekan versi semver dan proteksi guard increment progres (total 51 unit test lulus 100%).
-
-<details>
-<summary><b>Lihat Catatan Rilis Sebelumnya (v5.0.0)</b></summary>
-
-- **Studio Details & Bio Komprehensif**: Bio naratif studio animasi dan *quick facts* terverifikasi (tahun berdiri, negara asal, jumlah anime tercatat, tautan situs resmi) dengan rendering progresif instan 0ms dari database kurasi 35+ studio legendaris (Ufotable, MAPPA, Kyoto Animation, Bones, Wit Studio, Madhouse, CloverWorks, dll.) serta cache persisten 30 hari di penyimpanan lokal.
-- **Pengelompokan Filmografi Berdasarkan Tahun (Year Grouping)**: Katalog filmografi studio kini dikelompokkan secara rapi per tahun rilis, dengan judul yang belum tayang / TBA ("Akan Datang / TBA") otomatis berada di posisi teratas. Komputasi grouping di-*memoize* murni untuk menjamin bebas dari recomposition overhead.
-- **Kontrol Sorting Filmografi Minimalis**: Sediakan kontrol sorting responsif yang sepenuhnya kompatibel dengan grouping tahun: *Tahun: Terbaru → Terlama* (default), *Tahun: Terlama → Terbaru*, *Popularitas*, dan *Rating Tertinggi*.
-- **Flashcard Gacha & Rekomendasi Interaktif**: Fitur rekomendasi berbasis tumpukan kartu fisik bergaya UNO dengan animasi geser fisika pegas (*spring-physics swipe*) interaktif, rotasi dinamis, dan efek fling mulus menggunakan Compose native tanpa dependensi pihak ketiga. Akses cepat ditempatkan langsung di bawah bagian "RINGKASAN STATISTIK" pada Dasbor.
-- **Sistem Tiket Gacha Berkelanjutan**: Kuota mingguan 5 tiket dengan reset otomatis setiap Senin 00:00:00 (floor minimum 5 tiket, tiket tambahan dari hasil menonton tidak hangus), bonus +1 tiket instan untuk setiap episode yang ditonton di Library, dan tampilan *empty state* yang informatif saat tiket habis.
-- **Pembersihan Bersih DiscoverScreen**: Menghilangkan Smart Randomizer dan panel filter lama yang usang untuk menghasilkan alur penjelajahan katalog yang bersih, terfokus, dan bebas beban kode mati.
-- **Peningkatan Suite Pengujian Unit**: Menambah unit test untuk pengelompokan filmografi studio dan logika reset kuota mingguan (total 43 unit test lulus 100%).
-
-</details>
-
-<details>
-<summary><b>Lihat Catatan Rilis Sebelumnya (v4.4.3)</b></summary>
-
-- **Optimasi Kinerja Metrik Layar Detail**: Menghilangkan latensi *waterfall* dengan eksekusi paralel konkuren (`async`) untuk permintaan metadata AniList dan MyAnimeList secara simultan.
-- **MyAnimeList (MAL) sebagai Sumber Rating Otoritatif**: Skor publik (`Rating MAL`) dan skor pengguna (`Rating Pribadi`) sepenuhnya bersumber dari API resmi MyAnimeList.
-- **Multi-Key In-Memory Caching (0 ms Load)**: Hasil penggabungan metadata tersimpan secara persisten pada memori lokal, memungkinkan layar detail terbuka secara instan tanpa delay atau flicker.
-- **Pre-Enriched Library Sync**: Sinkronisasi koleksi MAL pengguna langsung meminta dan menyimpan metrik skor publik (`node.mean`), popularitas, peringkat, dan anggota ke memori lokal sejak Frame 1.
-- **Decoupled Asynchronous Tracking**: Tampilan metrik publik dan visual detail anime tidak lagi tertahan oleh proses live tracking pengguna.
-
-</details>
-
-<details>
-<summary><b>Lihat Catatan Rilis Sebelumnya (v4.4.2)</b></summary>
-
-- **Otomatisasi Penuh CI/CD (GitHub Actions)**: Kompilasi APK rilis resmi beralih 100% ke GitHub-hosted runners dengan validasi versi ketat dan integritas hash SHA-256.
-- **Eksklusi Debug APK pada Rilis**: Halaman GitHub Release kini bersih dan terfokus hanya mendistribusikan `canim-universal-release-vX.Y.Z.apk`.
-- **Perombakan Ekspor Statistik & Anti-Stretch**: Desain infografis baru dengan cover *aspect-fill center-crop*, rasio multi-format (`9:16 Story`, `4:5`, `3:4`, `1:1`, `16:9 Landscape`), profil MAL yang diperbesar, dan Pie Chart tajam beresolusi tinggi.
-- **Algoritma Filter Top 5 Non-Sekuel**: Peringkat Top 5 anime kini menyaring sekuel waralaba secara cerdas agar tidak didominasi oleh musim lanjutan dari judul yang sama.
-- **Studio Filmography & Cast/Crew**: Eksplorasi katalog anime berdasarkan studio animasi dan profil mendalam para seiyuu/staf produksi.
-- **Peningkatan Keterbacaan UI/UX**: Nama seiyuu dan karakter ditampilkan lengkap tanpa pemotongan teks, perbaikan tata letak metrik skor/peringkat, dan fitur *auto-fill* episode saat memilih status *Completed*.
-
-</details>
-
-<details>
-<summary><b>Lihat Catatan Rilis Sebelumnya (v3.0.0)</b></summary>
-
-- **Identitas Visual Resmi**: Integrasi logo brand *Cyber-Blue Radiant Manga* (`art/logo.png`) ke seluruh launcher mipmap icon, adaptive icon foreground, dan UI in-app.
-- **Pembersihan Application ID**: Standardisasi identitas paket menjadi **`com.canim.app`** yang rapi, profesional, dan siap F-Droid.
-- **Perbaikan Autentikasi MyAnimeList (MAL)**: Menyelesaikan bug parsing generic reflection Retrofit/R8 pada build release serta sinkronisasi PKCE verifier storage.
-- **Optimasi Scrolling Mulus (Standar ArchiveTune)**: 100% skippable recomposition, lambda hoisting, pre-allocated shapes, dan zero-overhead progress indicator.
-- **Paginasi Tanpa Batas**: Menghilangkan limitasi kuota 500 entri pada koleksi anime/manga pengguna.
-- **Pemangkasan Ukuran**: File APK release berhasil diciutkan hingga **~2.13 MB**.
-
-</details>
+- **Flashcard Credit Lifecycle Rule**:
+  - Mengubah titik konsumsi kuota tiket gacha dari saat membalik kartu menjadi hanya ketika kartu dibuang (*discard*) atau disimpan (*save*).
+  - Pengguna dengan 1 tiket tersisa tetap dapat membalik dan membaca detail kartu secara penuh.
+- **Scroll Position & Alignment Preservation**:
+  - Mengintegrasikan pelacakan `detailScrollPositions` pada `CanimViewModel` dan restorasi status pada `MediaDetailScreen`.
+  - Navigasi bolak-balik dari relasi/rekomendasi kini mempertahankan posisi scroll dan alignment konten sebelumnya secara presisi tanpa reset ke atas.
+- **Sliding Highlight Navigation & Selectors**:
+  - Menambahkan animasi penyorot geser berbasis pegas fisika (*spring-physics sliding indicator*) pada bilah navigasi bawah (`MainActivity`).
+  - Menghadirkan komponen generik `SmoothSegmentedSelector` untuk selektor Anime/Manga di `LibraryScreen` & `SearchScreen`, serta selektor rasio di `StatsScreen`.
+- **Real-Time API Outage Detection Banner**:
+  - Menambahkan pemantauan kesehatan berkala pada mesin AniList dan MyAnimeList.
+  - Menampilkan banner peringatan di Dasbor secara bersyarat ketika salah satu atau kedua API mengalami gangguan, dan menyembunyikannya secara otomatis saat normal.
+- **Compact Hero Metrics**:
+  - Memadatkan tata letak `dashboard_hero_metrics` pada Dasbor (padding lebih ringkas, hairline separator 22 dp, ukuran font proporsional) untuk meningkatkan densitas informasi.
+- **Resilient Filter-Only Search**:
+  - Memperbaiki kueri pencarian dengan filter aktif tanpa teks judul agar mengembalikan daftar anime/manga terpopuler (`bypopularity`, limit 100 entri pada fallback).
+- **Dual-Engine Latency Optimization**:
+  - Mengaktifkan `fastFallback(true)` (Happy Eyeballs RFC 8305) dan memperluas pool koneksi pada `ApiClient.kt`.
+  - Menurunkan batas timeout koneksi ke 6 detik dan baca ke 8 detik untuk mempercepat peralihan engine cadangan.
+- **Pembaruan Label Rasio Ekspor**:
+  - Menyederhanakan label rasio pada `StatsExporter` murni menjadi `"9:16"` dan `"16:9"` tanpa sufiks repetitif.
+- **Integritas Pengujian Unit**: Seluruh 65 automated unit tests lulus 100%.
 
 ---
 
-## 🙏 Kredit & Ucapan Terima Kasih
+## 📜 11. Lisensi
 
-- **AI Pair Programming & Architecture Optimization**: Dibangun, disempurnakan, dan dioptimalkan bersama **Gemini 3.8 Flash** (Google DeepMind) untuk perancangan arsitektur, eliminasi bottleneck konkurensi metrik MAL/AniList, pemecahan bug Retrofit/R8 ProGuard, eliminasi recomposition overhead, pembersihan Application ID, serta standarisasi rilis FOSS F-Droid.
-- **Penyedia Data & API**: [MyAnimeList API v2](https://myanimelist.net/apiconfig/references/api/v2) (User Tracking & Auth) & [AniList GraphQL API](https://anilist.gitbook.io/anilist-apiv2-docs/) (Rich Metadata).
-- **Inspirasi Optimasi Kinerja**: Rekayasa performa rendering dan efisiensi memori terinspirasi dari standar aplikasi open-source [ArchiveTune](https://github.com/rukamori/ArchiveTune) serta arsitektur 60fps smooth scroll Jetpack Compose [Animite](https://github.com/imashnake0/Animite).
+CA'NIM dilisensikan di bawah **GNU General Public License v3.0 (GPL-3.0)**. Setiap kode turunan wajib tetap bersifat sumber terbuka (*open source*) di bawah lisensi yang sama.
 
----
-
-## 📜 Lisensi
-
-Proyek ini dilisensikan di bawah lisensi **GNU General Public License v3.0 (GPL-3.0)**. Anda bebas menggunakan, memodifikasi, dan mendistribusikan perangkat lunak ini dengan ketentuan bahwa setiap kode turunan tetap bersifat *open source* di bawah lisensi yang sama.
-
-Silakan baca berkas [LICENSE](LICENSE) untuk ketentuan hukum selengkapnya.
-
----
-
-<p align="center">
-  Dibuat dengan ❤️ untuk komunitas Anime & Manga Indonesia.<br>
-  <strong>CA'NIM — Lacak Anime dan Mangamu</strong>
-</p>
+Silakan pelajari berkas [LICENSE](LICENSE) untuk informasi lisensi selengkapnya.

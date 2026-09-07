@@ -51,6 +51,8 @@ fun MediaDetailScreen(
     onOpenFullCast: (isCrew: Boolean) -> Unit,
     onOpenStudio: ((studioId: Int, studioName: String) -> Unit)? = null,
     onOpenMediaDetail: ((MediaItem, MediaType) -> Unit)? = null,
+    onSaveScrollPosition: ((key: String, index: Int, offset: Int) -> Unit)? = null,
+    onGetScrollPosition: ((key: String) -> Pair<Int, Int>)? = null,
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -61,6 +63,32 @@ fun MediaDetailScreen(
 
     val userItem: UserMediaItem? = item as? UserMediaItem
     val mediaItem: MediaItem? = item as? MediaItem
+
+    val itemKey = remember(item) {
+        userItem?.anilistId?.toString()
+            ?: userItem?.malId?.toString()
+            ?: mediaItem?.anilistId?.toString()
+            ?: mediaItem?.malId?.toString()
+            ?: userItem?.title
+            ?: mediaItem?.title
+            ?: item.toString()
+    }
+
+    val initialPos = remember(itemKey) { onGetScrollPosition?.invoke(itemKey) ?: Pair(0, 0) }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState(
+        initialFirstVisibleItemIndex = initialPos.first,
+        initialFirstVisibleItemScrollOffset = initialPos.second
+    )
+
+    DisposableEffect(itemKey) {
+        onDispose {
+            onSaveScrollPosition?.invoke(
+                itemKey,
+                listState.firstVisibleItemIndex,
+                listState.firstVisibleItemScrollOffset
+            )
+        }
+    }
 
     val title: String = userItem?.title ?: mediaItem?.title ?: ""
     val titleEnglish: String? = userItem?.metadata?.titleEnglish ?: mediaItem?.titleEnglish ?: extendedDetail?.titleEnglish
@@ -102,6 +130,7 @@ fun MediaDetailScreen(
 
     Box(modifier = modifier.fillMaxSize().background(BlackBg)) {
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(bottom = 90.dp)
         ) {

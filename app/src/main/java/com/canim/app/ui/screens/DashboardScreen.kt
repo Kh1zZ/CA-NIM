@@ -238,6 +238,66 @@ fun DashboardScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                             }
+                    }
+                }
+            }
+        }
+    }
+
+    // API Outage Alert Banner (AniList / MAL)
+    if (state.isAniListDown || state.isMalDown) {
+            item(key = "dashboard_api_outage_banner") {
+                val isBothDown = state.isAniListDown && state.isMalDown
+                val title = when {
+                    isBothDown -> "Layanan AniList & MyAnimeList Terkendala"
+                    state.isAniListDown -> "Layanan AniList Terkendala / Terblokir"
+                    else -> "Layanan MyAnimeList Terkendala / Maintenance"
+                }
+                val desc = when {
+                    isBothDown -> "Koneksi ke kedua engine gagal. Menggunakan data offline/cache lokal."
+                    state.isAniListDown -> "Metadata anime dialihkan otomatis ke MyAnimeList sebagai cadangan."
+                    else -> "Sinkronisasi progress MAL tertunda sementara. Data tetap tersimpan di lokal."
+                }
+
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF451A03).copy(alpha = 0.4f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.5f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFFF59E0B).copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.WarningAmber,
+                                contentDescription = "Peringatan",
+                                tint = Color(0xFFF59E0B),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = title,
+                                color = Color(0xFFFBBF24),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = desc,
+                                color = TextSecondary,
+                                fontSize = 10.sp,
+                                lineHeight = 14.sp
+                            )
                         }
                     }
                 }
@@ -422,17 +482,17 @@ fun DashboardScreen(
             }
         }
 
-        // Unified Hero Metrics Strip (PRD Invisible Continuity)
+        // Unified Hero Metrics Strip (Compact)
         item(key = "dashboard_hero_metrics") {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 color = CardBg,
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(14.dp),
                 border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderSubtle)
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -445,35 +505,35 @@ fun DashboardScreen(
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .size(7.dp)
-                                    .clip(CircleShape)
-                                    .background(AccentBlue)
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(AccentBlue)
                             )
                             Text(
                                 text = "RINGKASAN STATISTIK",
                                 color = TextSecondary,
-                                fontSize = 11.sp,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.2.sp
+                                letterSpacing = 1.sp
                             )
                         }
 
                         TextButton(
                             onClick = onOpenStats,
-                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
                         ) {
                             Text(
                                 text = "Detail dan Ekspor",
                                 color = AccentBlueLight,
-                                fontSize = 12.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
                             )
-                            Spacer(modifier = Modifier.width(4.dp))
+                            Spacer(modifier = Modifier.width(3.dp))
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                                 contentDescription = null,
                                 tint = AccentBlueLight,
-                                modifier = Modifier.size(13.dp)
+                                modifier = Modifier.size(12.dp)
                             )
                         }
                     }
@@ -495,7 +555,7 @@ fun DashboardScreen(
                         Box(
                             modifier = Modifier
                                 .width(1.dp)
-                                .height(36.dp)
+                                .height(22.dp)
                                 .background(DividerSubtle)
                         )
 
@@ -510,7 +570,7 @@ fun DashboardScreen(
                         Box(
                             modifier = Modifier
                                 .width(1.dp)
-                                .height(36.dp)
+                                .height(22.dp)
                                 .background(DividerSubtle)
                         )
 
@@ -525,7 +585,7 @@ fun DashboardScreen(
                         Box(
                             modifier = Modifier
                                 .width(1.dp)
-                                .height(36.dp)
+                                .height(22.dp)
                                 .background(DividerSubtle)
                         )
 
@@ -796,12 +856,12 @@ private fun HeroMetricItem(
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(2.dp)
+        verticalArrangement = Arrangement.spacedBy(1.dp)
     ) {
         Text(
             text = value,
             color = TextPrimary,
-            fontSize = 18.sp,
+            fontSize = 15.sp,
             fontWeight = FontWeight.Black
         )
         Row(
@@ -810,22 +870,22 @@ private fun HeroMetricItem(
         ) {
             Box(
                 modifier = Modifier
-                    .size(5.dp)
+                    .size(4.dp)
                     .clip(CircleShape)
                     .background(color)
             )
             Text(
                 text = label,
                 color = TextSecondary,
-                fontSize = 10.sp,
+                fontSize = 9.sp,
                 fontWeight = FontWeight.SemiBold,
-                letterSpacing = 0.8.sp
+                letterSpacing = 0.5.sp
             )
         }
         Text(
             text = unit,
             color = TextMuted,
-            fontSize = 9.sp
+            fontSize = 8.sp
         )
     }
 }

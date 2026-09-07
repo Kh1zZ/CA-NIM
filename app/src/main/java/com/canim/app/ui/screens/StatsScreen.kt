@@ -372,40 +372,16 @@ fun StatsScreen(
                         fontWeight = FontWeight.Bold
                     )
 
-                    // Aspect Ratio Selector Chips (9:16 Story, 4:5, 3:4, 1:1, 16:9 Landscape)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        ExportAspectRatio.entries.forEach { ratio ->
-                            val isSelected = ratio == selectedRatio
-                            Surface(
-                                selected = isSelected,
-                                onClick = { if (!isExporting) selectedRatio = ratio },
-                                shape = RoundedCornerShape(8.dp),
-                                color = if (isSelected) AccentBlue else CardBg,
-                                border = androidx.compose.foundation.BorderStroke(
-                                    1.dp,
-                                    if (isSelected) AccentBlue else CardBorder
-                                ),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Box(
-                                    modifier = Modifier.padding(vertical = 8.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = ratio.label,
-                                        fontSize = 11.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (isSelected) Color.White else TextSecondary,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                            }
-                        }
-                    }
+                    com.canim.app.ui.components.SmoothSegmentedSelector(
+                        options = ExportAspectRatio.entries,
+                        selectedOption = selectedRatio,
+                        onOptionSelected = { if (!isExporting) selectedRatio = it },
+                        labelProvider = { it.label },
+                        highlightColor = AccentBlue,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(40.dp)
+                    )
 
                     Text(
                         text = "Pilih Format (${selectedRatio.label} - ${selectedRatio.width}x${selectedRatio.height}):",
