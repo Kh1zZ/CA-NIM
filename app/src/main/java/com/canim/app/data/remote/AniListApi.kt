@@ -173,25 +173,48 @@ object AniListClient {
     private const val GRAPHQL_ENDPOINT = "https://graphql.anilist.co"
 
     private suspend fun executeQuery(graphqlQuery: String, variables: JSONObject): String? = withContext(Dispatchers.IO) {
-        try {
-            val requestBodyJson = JSONObject().apply {
-                put("query", graphqlQuery)
-                put("variables", variables)
-            }
-
-            val request = Request.Builder()
-                .url(GRAPHQL_ENDPOINT)
-                .post(requestBodyJson.toString().toRequestBody(jsonMediaType))
-                .header("User-Agent", "CanimApp/2.0")
-                .header("Accept", "application/json")
-                .build()
-
-            val response = ApiClient.okHttpClient.newCall(request).execute()
-            if (!response.isSuccessful) return@withContext null
-            response.body?.string()
-        } catch (_: Exception) {
-            null
+        val requestBodyJson = JSONObject().apply {
+            put("query", graphqlQuery)
+            put("variables", variables)
         }
+
+        val request = Request.Builder()
+            .url(GRAPHQL_ENDPOINT)
+            .post(requestBodyJson.toString().toRequestBody(jsonMediaType))
+            .header("User-Agent", "CanimApp/2.0")
+            .header("Accept", "application/json")
+            .build()
+
+        var attempts = 0
+        val maxAttempts = 2
+
+        while (attempts < maxAttempts) {
+            attempts++
+            try {
+                val response = ApiClient.okHttpClient.newCall(request).execute()
+                if (response.isSuccessful) {
+                    return@withContext response.body?.string()
+                }
+
+                if (response.code == 429 && attempts < maxAttempts) {
+                    val retryAfterSec = response.header("Retry-After")?.toLongOrNull() ?: 1L
+                    val jitterMs = (Math.random() * 500).toLong()
+                    val delayMs = (retryAfterSec * 1000L).coerceIn(1000L, 3000L) + jitterMs
+                    response.close()
+                    kotlinx.coroutines.delay(delayMs)
+                    continue
+                }
+
+                response.close()
+                return@withContext null
+            } catch (_: java.net.SocketTimeoutException) {
+                return@withContext null
+            } catch (_: Exception) {
+                if (attempts >= maxAttempts) return@withContext null
+                kotlinx.coroutines.delay(1000L)
+            }
+        }
+        null
     }
 
     suspend fun pingHealth(): Boolean = withContext(Dispatchers.IO) {
@@ -388,9 +411,25 @@ object AniListClient {
                 put("search", query.trim())
             }
             if (!genres.isNullOrEmpty()) {
-                queryDefParams.add("${'$'}genres: [String]")
-                mediaParams.add("genre_in: ${'$'}genres")
-                put("genres", JSONArray(genres))
+                val officialGenres = setOf(
+                    "Action", "Adventure", "Comedy", "Drama", "Ecchi",
+                    "Fantasy", "Hentai", "Horror", "Mahou Shoujo", "Mecha",
+                    "Music", "Mystery", "Psychological", "Romance", "Sci-Fi",
+                    "Slice of Life", "Sports", "Supernatural", "Thriller"
+                )
+                val validGenres = genres.filter { it in officialGenres }
+                val validTags = genres.filter { it !in officialGenres && !it.equals("Award Winning", ignoreCase = true) }
+
+                if (validGenres.isNotEmpty()) {
+                    queryDefParams.add("${'$'}genres: [String]")
+                    mediaParams.add("genre_in: ${'$'}genres")
+                    put("genres", JSONArray(validGenres))
+                }
+                if (validTags.isNotEmpty()) {
+                    queryDefParams.add("${'$'}tags: [String]")
+                    mediaParams.add("tag_in: ${'$'}tags")
+                    put("tags", JSONArray(validTags))
+                }
             }
             if (year != null) {
                 if (type == MediaType.ANIME && year >= 1917) {

@@ -552,6 +552,8 @@ class MalAuthManager(
         }
     }
 
+    fun getLastSynced(): Long = secureStorage.getLastSynced()
+
     /**
      * Fallback public metadata retrieval from MyAnimeList if AniList lacks specific details.
      */

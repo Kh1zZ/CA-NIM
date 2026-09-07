@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.1.3%20(Build%2022)-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.1.4%20(Build%2023)-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#tech-stack--dependensi"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#uiux-architecture--fluid-continuity"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
@@ -216,7 +216,31 @@ Verifikasi lokal diwajibkan menjalankan suite pengujian unit otomatis sebelum me
 
 ---
 
-## 📝 10. Catatan Perubahan: v6.1.3 (Build 22)
+## 📝 10. Catatan Perubahan
+
+### v6.1.4 (Build 23)
+- **Penyempurnaan Animasi Transisi Detail Fullscreen**:
+  - Mengubah transisi pembukaan awal fullscreen detail media dari slide horizontal menjadi slide vertikal halus (`slideInVertically` + `scaleIn` + `fadeIn`) dan penutupan ke bawah (`slideOutVertically` + `scaleOut` + `fadeOut`).
+  - Menghadirkan deteksi arah stack (`isStackPush`) untuk navigasi antar-detail yang mempertahankan kontinuitas arah maju (*push* dari kanan) dan mundur (*pop* dari kiri).
+- **Indikator Geser Highlight pada Seluruh Selektor**:
+  - Menerapkan `SmoothSegmentedSelector` pada toggle Anime/Manga di `DiscoverScreen` dan modal filter `SearchScreen`.
+  - Menerapkan sliding highlight indicator pill pada deretan kategori di `DiscoverScreen`.
+- **Perbaikan Akurasi Filter Pencarian & Banner AniList Outage**:
+  - Memisahkan genre resmi (`genre_in`) dan tag demografis (`tag_in`) pada kueri GraphQL AniList untuk mencegah kegagalan kueri saat memilih tag seperti Isekai, Shounen, Harem, dll.
+  - Menghilangkan fallback palsu (`malItems.take(30)`) saat filter aktif agar hasil pencarian tetap akurat dan tidak tercampur judul acak.
+  - Menampilkan banner peringatan di `SearchScreen` saat AniList mengalami gangguan dan hasil dialihkan ke mesin cadangan MAL.
+- **Perbaikan Penambahan Tiket Gacha (Episode / Chapter Watched)**:
+  - Memperbaiki *race condition* inisialisasi baseline kuota tiket gacha pada `updateLibraryData` sehingga penambahan episode tontonan anime maupun chapter bacaan manga langsung menambahkan kuota tiket gacha secara presisi.
+- **Keterangan Tambahan pada Banner Gangguan Layanan di Dasbor**:
+  - Menambahkan catatan eksplisit bahwa aplikasi tidak akan sepenuhnya berfungsi secara normal selama gangguan layanan berlangsung.
+- **Arsitektur Optimasi Sistematis API (Zero-Network Cold Start)**:
+  - Menerapkan *Lazy Loading* pada tab Eksplorasi sehingga tidak ada request yang ditembakkan saat aplikasi pertama kali dibuka (menghemat 3–4 request).
+  - Menerapkan *Incremental Diff-Only Enrichment* pada sinkronisasi daftar MAL (hanya meminta metadata untuk item yang belum tersimpan di cache).
+  - Menerapkan *Stale-While-Revalidate (SWR) Library Cache* (TTL 30 menit) untuk memotong pemanggilan jaringan saat cold start bagi pengguna MAL.
+  - Memasang *OkHttp HTTP Disk Cache (30 MB)* untuk respons 304 *Not Modified* dan koneksi HTTP/2 multiplexing.
+  - Menambahkan *In-Flight Request Deduplication* menggunakan `ConcurrentHashMap` untuk mencegah duplikasi request identik yang terpicu bersamaan.
+
+### v6.1.3 (Build 22)
 
 - **Flashcard Credit Lifecycle Rule**:
   - Mengubah titik konsumsi kuota tiket gacha dari saat membalik kartu menjadi hanya ketika kartu dibuang (*discard*) atau disimpan (*save*).

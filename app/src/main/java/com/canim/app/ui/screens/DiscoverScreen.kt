@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -158,71 +159,55 @@ fun DiscoverScreen(
                 }
             }
 
-            // 2-State Media Mode Toggle (Anime / Manga)
+            // 2-State Media Mode Toggle (Anime / Manga) with Smooth Sliding Indicator
             item {
-                Row(
+                com.canim.app.ui.components.SmoothSegmentedSelector(
+                    options = listOf(MediaType.ANIME, MediaType.MANGA),
+                    selectedOption = discoverMediaType,
+                    onOptionSelected = { selected ->
+                        if (discoverMediaType != selected) {
+                            discoverMediaType = selected
+                            if (selected == MediaType.ANIME) {
+                                onSelectCategory(DiscoverCategory.CURRENT_SEASON, DiscoverFilter())
+                            } else {
+                                onSelectCategory(DiscoverCategory.TRENDING_NOW, DiscoverFilter())
+                            }
+                        }
+                    },
+                    labelProvider = { if (it == MediaType.ANIME) "Anime" else "Manga" },
+                    highlightColor = if (discoverMediaType == MediaType.ANIME) AccentBlue else MangaAccentDarkBlue,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(CardBg)
-                        .padding(4.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (discoverMediaType == MediaType.ANIME) AccentBlue else Color.Transparent)
-                            .clickable {
-                                if (discoverMediaType != MediaType.ANIME) {
-                                    discoverMediaType = MediaType.ANIME
-                                    onSelectCategory(DiscoverCategory.CURRENT_SEASON, DiscoverFilter())
-                                }
-                            }
-                            .padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Anime",
-                            color = if (discoverMediaType == MediaType.ANIME) Color.White else TextMuted,
-                            fontSize = 13.sp,
-                            fontWeight = if (discoverMediaType == MediaType.ANIME) FontWeight.Bold else FontWeight.Medium
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (discoverMediaType == MediaType.MANGA) MangaAccentDarkBlue else Color.Transparent)
-                            .clickable {
-                                if (discoverMediaType != MediaType.MANGA) {
-                                    discoverMediaType = MediaType.MANGA
-                                    onSelectCategory(DiscoverCategory.TRENDING_NOW, DiscoverFilter())
-                                }
-                            }
-                            .padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Manga",
-                            color = if (discoverMediaType == MediaType.MANGA) Color.White else TextMuted,
-                            fontSize = 13.sp,
-                            fontWeight = if (discoverMediaType == MediaType.MANGA) FontWeight.Bold else FontWeight.Medium
-                        )
-                    }
-                }
+                        .height(44.dp)
+                )
             }
 
-            // Horizontal Category Chips
+            // Horizontal Category Tabs with Smooth Sliding Highlight Pill
             item {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(vertical = 4.dp)
+                val selectedCatIndex = currentCategories.indexOf(state.selectedDiscoverCategory).coerceAtLeast(0)
+                ScrollableTabRow(
+                    selectedTabIndex = selectedCatIndex,
+                    edgePadding = 0.dp,
+                    containerColor = Color.Transparent,
+                    divider = {},
+                    indicator = { tabPositions ->
+                        if (selectedCatIndex in tabPositions.indices) {
+                            Box(
+                                Modifier
+                                    .tabIndicatorOffset(tabPositions[selectedCatIndex])
+                                    .fillMaxHeight()
+                                    .padding(vertical = 4.dp, horizontal = 2.dp)
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(currentAccent)
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    items(currentCategories, key = { it.name }, contentType = { "category_chip" }) { category ->
+                    currentCategories.forEachIndexed { index, category ->
                         val isStudio = category == DiscoverCategory.STUDIO
                         val isSelected = state.selectedDiscoverCategory == category
-                        FilterChip(
+                        Tab(
                             selected = isSelected,
                             onClick = {
                                 if (isStudio) {
@@ -231,36 +216,31 @@ fun DiscoverScreen(
                                     onSelectCategory(category, DiscoverFilter())
                                 }
                             },
-                            leadingIcon = if (isStudio) {
-                                {
-                                    Icon(
-                                        imageVector = Icons.Default.Movie,
-                                        contentDescription = null,
-                                        tint = if (isSelected) Color.White else AccentBlue,
-                                        modifier = Modifier.size(14.dp)
+                            modifier = Modifier
+                                .height(42.dp)
+                                .clip(RoundedCornerShape(20.dp))
+                                .padding(horizontal = 4.dp),
+                            text = {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    if (isStudio) {
+                                        Icon(
+                                            imageVector = Icons.Default.Movie,
+                                            contentDescription = null,
+                                            tint = if (isSelected) Color.White else AccentBlue,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    }
+                                    Text(
+                                        text = category.label,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected || isStudio) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) Color.White else TextSecondary
                                     )
                                 }
-                            } else null,
-                            label = {
-                                Text(
-                                    text = category.label,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isSelected || isStudio) FontWeight.Bold else FontWeight.Normal
-                                )
-                            },
-                            shape = RoundedCornerShape(20.dp),
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = currentAccent,
-                                selectedLabelColor = Color.White,
-                                containerColor = if (isStudio) AccentBlue.copy(alpha = 0.18f) else CardBg,
-                                labelColor = if (isStudio) AccentBlue else TextSecondary
-                            ),
-                            border = FilterChipDefaults.filterChipBorder(
-                                enabled = true,
-                                selected = isSelected,
-                                borderColor = if (isStudio) AccentBlue.copy(alpha = 0.4f) else CardBorderSubtle,
-                                selectedBorderColor = currentAccent
-                            )
+                            }
                         )
                     }
                 }

@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.animation.*
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -73,6 +74,11 @@ class MainActivity : ComponentActivity() {
             CanimTheme {
                 val uiState by viewModel.uiState.collectAsState()
                 val screenStack by viewModel.screenStack.collectAsState()
+                var prevStackSize by remember { mutableIntStateOf(0) }
+                val isStackPush = screenStack.size >= prevStackSize
+                SideEffect {
+                    prevStackSize = screenStack.size
+                }
                 val context = LocalContext.current
                 val snackbarHostState = remember { SnackbarHostState() }
 
@@ -365,7 +371,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        // Top-level modal/overlay stack rendering with Pop-out Transition for Detail
+                        // Top-level modal/overlay stack rendering with smooth vertical entry & directional push/pop
                         AnimatedContent(
                             targetState = screenStack.lastOrNull(),
                             transitionSpec = {
@@ -373,17 +379,28 @@ class MainActivity : ComponentActivity() {
                                 val isInitialDetail = initialState is ScreenRoute.Detail
 
                                 if (isTargetDetail && isInitialDetail) {
-                                    // Detail-to-Detail transition (relation/recommendation): smooth directional slide
-                                    (slideInHorizontally(initialOffsetX = { it / 3 }, animationSpec = tween(220)) + fadeIn(animationSpec = tween(220)))
-                                        .togetherWith(slideOutHorizontally(targetOffsetX = { -it / 3 }, animationSpec = tween(180)) + fadeOut(animationSpec = tween(180)))
+                                    // Detail-to-Detail transition (relation/recommendation)
+                                    if (isStackPush) {
+                                        (slideInHorizontally(initialOffsetX = { it / 2 }, animationSpec = tween(240, easing = FastOutSlowInEasing)) + fadeIn(animationSpec = tween(220)))
+                                            .togetherWith(slideOutHorizontally(targetOffsetX = { -it / 3 }, animationSpec = tween(200, easing = FastOutSlowInEasing)) + fadeOut(animationSpec = tween(180)))
+                                    } else {
+                                        (slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = tween(200, easing = FastOutSlowInEasing)) + fadeIn(animationSpec = tween(200)))
+                                            .togetherWith(slideOutHorizontally(targetOffsetX = { it / 2 }, animationSpec = tween(240, easing = FastOutSlowInEasing)) + fadeOut(animationSpec = tween(180)))
+                                    }
                                 } else if (isTargetDetail) {
-                                    // Opening detail from base tab
-                                    (slideInHorizontally(initialOffsetX = { it / 3 }, animationSpec = tween(220)) + fadeIn(animationSpec = tween(220)))
-                                        .togetherWith(scaleOut(targetScale = 0.96f, animationSpec = tween(180)) + fadeOut(animationSpec = tween(180)))
+                                    // Opening detail from base tab: clean vertical slide up + scale
+                                    (slideInVertically(initialOffsetY = { (it * 0.15f).toInt() }, animationSpec = tween(260, easing = FastOutSlowInEasing)) +
+                                     scaleIn(initialScale = 0.95f, animationSpec = tween(260, easing = FastOutSlowInEasing)) +
+                                     fadeIn(animationSpec = tween(220)))
+                                        .togetherWith(fadeOut(animationSpec = tween(180)))
                                 } else if (isInitialDetail) {
-                                    // Popping detail back to base tab
-                                    (scaleIn(initialScale = 0.96f, animationSpec = tween(180)) + fadeIn(animationSpec = tween(180)))
-                                        .togetherWith(slideOutHorizontally(targetOffsetX = { it / 3 }, animationSpec = tween(180)) + fadeOut(animationSpec = tween(180)))
+                                    // Popping detail back to base tab: settle down + scale out
+                                    fadeIn(animationSpec = tween(180))
+                                        .togetherWith(
+                                            slideOutVertically(targetOffsetY = { (it * 0.15f).toInt() }, animationSpec = tween(220, easing = FastOutSlowInEasing)) +
+                                            scaleOut(targetScale = 0.95f, animationSpec = tween(220, easing = FastOutSlowInEasing)) +
+                                            fadeOut(animationSpec = tween(180))
+                                        )
                                 } else {
                                     fadeIn(animationSpec = tween(180)).togetherWith(fadeOut(animationSpec = tween(180)))
                                 }

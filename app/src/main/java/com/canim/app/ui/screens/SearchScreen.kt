@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -244,6 +245,53 @@ fun SearchScreen(
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
                 ) {
                     Text(text = "Cari", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        }
+
+        // AniList Outage Notice Banner in Search
+        if (state.isAniListDown) {
+            item {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFF451A03).copy(alpha = 0.4f),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.5f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(Color(0xFFF59E0B).copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.WarningAmber,
+                                contentDescription = null,
+                                tint = Color(0xFFF59E0B),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Pemberitahuan: Layanan AniList Sedang Terkendala",
+                                color = Color(0xFFFBBF24),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Hasil pencarian & filter dialihkan otomatis ke MyAnimeList dengan kapasitas filter terbatas.",
+                                color = TextSecondary,
+                                fontSize = 10.sp,
+                                lineHeight = 14.sp
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -688,55 +736,22 @@ fun SearchScreen(
                     }
                 }
 
-                // Media Type Selector
+                // Media Type Selector with Smooth Sliding Indicator
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(text = "Tipe Media", color = TextSecondary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Row(
+                    com.canim.app.ui.components.SmoothSegmentedSelector(
+                        options = listOf(MediaType.ANIME, MediaType.MANGA),
+                        selectedOption = searchType,
+                        onOptionSelected = { selected ->
+                            searchType = selected
+                            tempFormat = null
+                        },
+                        labelProvider = { if (it == MediaType.ANIME) "Anime" else "Manga" },
+                        highlightColor = if (searchType == MediaType.ANIME) AccentBlue else MangaAccentDarkBlue,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(CardBg)
-                            .padding(4.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (searchType == MediaType.ANIME) AccentBlue else Color.Transparent)
-                                .clickable {
-                                    searchType = MediaType.ANIME
-                                    tempFormat = null
-                                }
-                                .padding(vertical = 8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Anime",
-                                color = if (searchType == MediaType.ANIME) Color.White else TextMuted,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (searchType == MediaType.MANGA) MangaAccentDarkBlue else Color.Transparent)
-                                .clickable {
-                                    searchType = MediaType.MANGA
-                                    tempFormat = null
-                                }
-                                .padding(vertical = 8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Manga",
-                                color = if (searchType == MediaType.MANGA) Color.White else TextMuted,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
+                            .height(40.dp)
+                    )
                 }
 
                 // Format Selector

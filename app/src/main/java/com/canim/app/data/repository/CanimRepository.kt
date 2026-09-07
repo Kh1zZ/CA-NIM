@@ -21,6 +21,26 @@ import kotlinx.coroutines.withContext
 class CanimRepository(
     val malAuthManager: MalAuthManager
 ) {
+    private val inFlightRequests = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Deferred<Any?>>()
+
+    suspend fun <T> deduplicateInFlight(key: String, block: suspend () -> T): T = coroutineScope {
+        val existing = inFlightRequests[key]
+        if (existing != null && existing.isActive) {
+            @Suppress("UNCHECKED_CAST")
+            return@coroutineScope existing.await() as T
+        }
+
+        val deferred = async(Dispatchers.IO) {
+            try {
+                block()
+            } finally {
+                inFlightRequests.remove(key)
+            }
+        }
+        inFlightRequests[key] = deferred
+        deferred.await()
+    }
+
     fun buildMalAuthorizeUrl(): String = malAuthManager.buildAuthorizeUrl()
 
     suspend fun handleMalOAuthCallback(code: String, state: String?): Result<MalUser> =
@@ -33,6 +53,8 @@ class CanimRepository(
     }
 
     suspend fun syncWithMal(): MalSyncResult = malAuthManager.syncWithMal()
+
+    fun getLastSyncedTime(): Long = malAuthManager.getLastSynced()
 
     fun getCachedTracking(type: String): List<UserMediaItem>? {
         val memory = CacheManager.getTracking(type)
@@ -114,9 +136,19 @@ class CanimRepository(
         type: MediaType
     ): List<UserMediaItem> = withContext(Dispatchers.IO) {
         val malIds = items.mapNotNull { it.malId }
-        val aniListMap = try {
-            AniListClient.getMediaBatchByMalIds(malIds, type)
-        } catch (_: Exception) {
+        val unEnrichedMalIds = malIds.filter { mId ->
+            val aniId = CacheManager.getAniListIdForMalId(mId)
+            val cached = CacheManager.getDetail(CacheManager.detailKey(aniId, mId))
+            cached == null
+        }
+
+        val aniListMap = if (unEnrichedMalIds.isNotEmpty()) {
+            try {
+                AniListClient.getMediaBatchByMalIds(unEnrichedMalIds, type)
+            } catch (_: Exception) {
+                emptyMap()
+            }
+        } else {
             emptyMap()
         }
 
@@ -228,72 +260,76 @@ class CanimRepository(
         val cached = CacheManager.getSearch(filterKey, "ANIME")
         if (cached != null) return@withContext cached
 
-        var result = runCatching {
-            AniListClient.searchMedia(trimmed, MediaType.ANIME, genres, year, format)
-        }.getOrDefault(emptyList())
+        deduplicateInFlight("search_anime_$filterKey") {
+            var result = runCatching {
+                AniListClient.searchMedia(trimmed, MediaType.ANIME, genres, year, format)
+            }.getOrDefault(emptyList())
 
-        // Fallback to MyAnimeList Search API v2 if AniList is down / empty
-        if (result.isEmpty()) {
-            try {
-                val malItems = if (trimmed.isNotBlank()) {
-                    val malResp = ApiClient.malApi.searchAnime(MalAuthManager.CLIENT_ID, trimmed, limit = 50)
-                    if (malResp.isSuccessful && malResp.body()?.data?.isNotEmpty() == true) {
-                        malResp.body()!!.data.map { mapMalAnimeNodeToMediaItem(it.node) }
-                    } else emptyList()
-                } else if (!genres.isNullOrEmpty() || year != null || !format.isNullOrBlank()) {
-                    val malResp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "bypopularity", limit = 100)
-                    if (malResp.isSuccessful && malResp.body()?.data?.isNotEmpty() == true) {
-                        malResp.body()!!.data.map { mapMalAnimeNodeToMediaItem(it.node) }
-                    } else emptyList()
-                } else emptyList()
+            val hasExplicitFilters = !genres.isNullOrEmpty() || year != null || !format.isNullOrBlank()
 
-                if (malItems.isNotEmpty()) {
-                    var filtered = malItems
-                    if (!genres.isNullOrEmpty()) {
-                        filtered = filtered.filter { item ->
-                            item.genres.any { g -> genres.any { sel -> g.contains(sel, ignoreCase = true) } }
+            // Fallback to MyAnimeList Search API v2 if AniList is down / empty
+            if (result.isEmpty()) {
+                try {
+                    val malItems = if (trimmed.isNotBlank()) {
+                        val malResp = ApiClient.malApi.searchAnime(MalAuthManager.CLIENT_ID, trimmed, limit = 50)
+                        if (malResp.isSuccessful && malResp.body()?.data?.isNotEmpty() == true) {
+                            malResp.body()!!.data.map { mapMalAnimeNodeToMediaItem(it.node) }
+                        } else emptyList()
+                    } else if (hasExplicitFilters) {
+                        val malResp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "bypopularity", limit = 100)
+                        if (malResp.isSuccessful && malResp.body()?.data?.isNotEmpty() == true) {
+                            malResp.body()!!.data.map { mapMalAnimeNodeToMediaItem(it.node) }
+                        } else emptyList()
+                    } else emptyList()
+
+                    if (malItems.isNotEmpty()) {
+                        var filtered = malItems
+                        if (!genres.isNullOrEmpty()) {
+                            filtered = filtered.filter { item ->
+                                item.genres.any { g -> genres.any { sel -> g.contains(sel, ignoreCase = true) } }
+                            }
                         }
+                        if (year != null) {
+                            filtered = filtered.filter { item -> item.year == year }
+                        }
+                        if (!format.isNullOrBlank()) {
+                            filtered = filtered.filter { item -> item.format.equals(format, ignoreCase = true) }
+                        }
+                        result = if (hasExplicitFilters) filtered else malItems.take(30)
                     }
-                    if (year != null) {
-                        filtered = filtered.filter { item -> item.year == year }
-                    }
-                    if (!format.isNullOrBlank()) {
-                        filtered = filtered.filter { item -> item.format.equals(format, ignoreCase = true) }
-                    }
-                    result = if (filtered.isNotEmpty()) filtered else malItems.take(30)
-                }
-            } catch (_: Exception) {}
-        }
+                } catch (_: Exception) {}
+            }
 
-        if (result.isEmpty()) {
-            val baseList = fallbackAnime()
-            var localMatches = baseList
-            if (trimmed.isNotBlank()) {
-                localMatches = localMatches.filter {
-                    it.title.contains(trimmed, ignoreCase = true) ||
-                    (it.titleEnglish?.contains(trimmed, ignoreCase = true) == true)
+            if (result.isEmpty()) {
+                val baseList = fallbackAnime()
+                var localMatches = baseList
+                if (trimmed.isNotBlank()) {
+                    localMatches = localMatches.filter {
+                        it.title.contains(trimmed, ignoreCase = true) ||
+                        (it.titleEnglish?.contains(trimmed, ignoreCase = true) == true)
+                    }
+                }
+                if (!genres.isNullOrEmpty()) {
+                    localMatches = localMatches.filter { item ->
+                        item.genres.any { g -> genres.any { sel -> g.contains(sel, ignoreCase = true) } }
+                    }
+                }
+                if (year != null) {
+                    localMatches = localMatches.filter { item -> item.year == year }
+                }
+                if (!format.isNullOrBlank()) {
+                    localMatches = localMatches.filter { item -> item.format.equals(format, ignoreCase = true) }
+                }
+                if (localMatches.isNotEmpty() && (!hasExplicitFilters || localMatches != baseList)) {
+                    result = localMatches
                 }
             }
-            if (!genres.isNullOrEmpty()) {
-                localMatches = localMatches.filter { item ->
-                    item.genres.any { g -> genres.any { sel -> g.contains(sel, ignoreCase = true) } }
-                }
-            }
-            if (year != null) {
-                localMatches = localMatches.filter { item -> item.year == year }
-            }
-            if (!format.isNullOrBlank()) {
-                localMatches = localMatches.filter { item -> item.format.equals(format, ignoreCase = true) }
-            }
-            if (localMatches.isNotEmpty()) {
-                result = localMatches
-            }
-        }
 
-        if (result.isNotEmpty()) {
-            CacheManager.putSearch(filterKey, "ANIME", result)
+            if (result.isNotEmpty()) {
+                CacheManager.putSearch(filterKey, "ANIME", result)
+            }
+            result
         }
-        result
     }
 
     suspend fun searchManga(
@@ -309,72 +345,76 @@ class CanimRepository(
         val cached = CacheManager.getSearch(filterKey, "MANGA")
         if (cached != null) return@withContext cached
 
-        var result = runCatching {
-            AniListClient.searchMedia(trimmed, MediaType.MANGA, genres, year, format)
-        }.getOrDefault(emptyList())
+        deduplicateInFlight("search_manga_$filterKey") {
+            var result = runCatching {
+                AniListClient.searchMedia(trimmed, MediaType.MANGA, genres, year, format)
+            }.getOrDefault(emptyList())
 
-        // Fallback to MyAnimeList Search API v2 if AniList is down / empty
-        if (result.isEmpty()) {
-            try {
-                val malItems = if (trimmed.isNotBlank()) {
-                    val malResp = ApiClient.malApi.searchManga(MalAuthManager.CLIENT_ID, trimmed, limit = 50)
-                    if (malResp.isSuccessful && malResp.body()?.data?.isNotEmpty() == true) {
-                        malResp.body()!!.data.map { mapMalMangaNodeToMediaItem(it.node) }
-                    } else emptyList()
-                } else if (!genres.isNullOrEmpty() || year != null || !format.isNullOrBlank()) {
-                    val malResp = ApiClient.malApi.getMangaRanking(MalAuthManager.CLIENT_ID, "bypopularity", limit = 100)
-                    if (malResp.isSuccessful && malResp.body()?.data?.isNotEmpty() == true) {
-                        malResp.body()!!.data.map { mapMalMangaNodeToMediaItem(it.node) }
-                    } else emptyList()
-                } else emptyList()
+            val hasExplicitFilters = !genres.isNullOrEmpty() || year != null || !format.isNullOrBlank()
 
-                if (malItems.isNotEmpty()) {
-                    var filtered = malItems
-                    if (!genres.isNullOrEmpty()) {
-                        filtered = filtered.filter { item ->
-                            item.genres.any { g -> genres.any { sel -> g.contains(sel, ignoreCase = true) } }
+            // Fallback to MyAnimeList Search API v2 if AniList is down / empty
+            if (result.isEmpty()) {
+                try {
+                    val malItems = if (trimmed.isNotBlank()) {
+                        val malResp = ApiClient.malApi.searchManga(MalAuthManager.CLIENT_ID, trimmed, limit = 50)
+                        if (malResp.isSuccessful && malResp.body()?.data?.isNotEmpty() == true) {
+                            malResp.body()!!.data.map { mapMalMangaNodeToMediaItem(it.node) }
+                        } else emptyList()
+                    } else if (hasExplicitFilters) {
+                        val malResp = ApiClient.malApi.getMangaRanking(MalAuthManager.CLIENT_ID, "bypopularity", limit = 100)
+                        if (malResp.isSuccessful && malResp.body()?.data?.isNotEmpty() == true) {
+                            malResp.body()!!.data.map { mapMalMangaNodeToMediaItem(it.node) }
+                        } else emptyList()
+                    } else emptyList()
+
+                    if (malItems.isNotEmpty()) {
+                        var filtered = malItems
+                        if (!genres.isNullOrEmpty()) {
+                            filtered = filtered.filter { item ->
+                                item.genres.any { g -> genres.any { sel -> g.contains(sel, ignoreCase = true) } }
+                            }
                         }
+                        if (year != null) {
+                            filtered = filtered.filter { item -> item.year == year }
+                        }
+                        if (!format.isNullOrBlank()) {
+                            filtered = filtered.filter { item -> item.format.equals(format, ignoreCase = true) }
+                        }
+                        result = if (hasExplicitFilters) filtered else malItems.take(30)
                     }
-                    if (year != null) {
-                        filtered = filtered.filter { item -> item.year == year }
-                    }
-                    if (!format.isNullOrBlank()) {
-                        filtered = filtered.filter { item -> item.format.equals(format, ignoreCase = true) }
-                    }
-                    result = if (filtered.isNotEmpty()) filtered else malItems.take(30)
-                }
-            } catch (_: Exception) {}
-        }
+                } catch (_: Exception) {}
+            }
 
-        if (result.isEmpty()) {
-            val baseList = fallbackManga()
-            var localMatches = baseList
-            if (trimmed.isNotBlank()) {
-                localMatches = localMatches.filter {
-                    it.title.contains(trimmed, ignoreCase = true) ||
-                    (it.titleEnglish?.contains(trimmed, ignoreCase = true) == true)
+            if (result.isEmpty()) {
+                val baseList = fallbackManga()
+                var localMatches = baseList
+                if (trimmed.isNotBlank()) {
+                    localMatches = localMatches.filter {
+                        it.title.contains(trimmed, ignoreCase = true) ||
+                        (it.titleEnglish?.contains(trimmed, ignoreCase = true) == true)
+                    }
+                }
+                if (!genres.isNullOrEmpty()) {
+                    localMatches = localMatches.filter { item ->
+                        item.genres.any { g -> genres.any { sel -> g.contains(sel, ignoreCase = true) } }
+                    }
+                }
+                if (year != null) {
+                    localMatches = localMatches.filter { item -> item.year == year }
+                }
+                if (!format.isNullOrBlank()) {
+                    localMatches = localMatches.filter { item -> item.format.equals(format, ignoreCase = true) }
+                }
+                if (localMatches.isNotEmpty() && (!hasExplicitFilters || localMatches != baseList)) {
+                    result = localMatches
                 }
             }
-            if (!genres.isNullOrEmpty()) {
-                localMatches = localMatches.filter { item ->
-                    item.genres.any { g -> genres.any { sel -> g.contains(sel, ignoreCase = true) } }
-                }
-            }
-            if (year != null) {
-                localMatches = localMatches.filter { item -> item.year == year }
-            }
-            if (!format.isNullOrBlank()) {
-                localMatches = localMatches.filter { item -> item.format.equals(format, ignoreCase = true) }
-            }
-            if (localMatches.isNotEmpty()) {
-                result = localMatches
-            }
-        }
 
-        if (result.isNotEmpty()) {
-            CacheManager.putSearch(filterKey, "MANGA", result)
+            if (result.isNotEmpty()) {
+                CacheManager.putSearch(filterKey, "MANGA", result)
+            }
+            result
         }
-        result
     }
 
     // --- Discover with On-Demand Loading & forceRefresh Propagation ---
@@ -532,63 +572,65 @@ class CanimRepository(
             }
         }
 
-        coroutineScope {
-            // Concurrent parallel fetching over HTTP/2
-            val aniDeferred = async {
-                AniListClient.getExtendedDetails(resolvedAniListId, resolvedMalId, type, forceRefresh)
-            }
-            val malDeferred = async {
-                if (resolvedMalId != null) {
-                    malAuthManager.getExtendedDetailFallback(resolvedMalId, type)
-                } else null
-            }
-
-            val aniDetail = aniDeferred.await()
-            var malExt = malDeferred.await()
-
-            // If MAL ID wasn't known beforehand, but AniList returned it, fetch MAL fallback
-            val effectiveMalId = aniDetail?.malId ?: resolvedMalId
-            if (malExt == null && effectiveMalId != null) {
-                malExt = malAuthManager.getExtendedDetailFallback(effectiveMalId, type)
-            }
-
-            val merged = if (aniDetail != null && malExt != null) {
-                aniDetail.copy(
-                    // Metrics: MAL is authoritative for Rating MAL
-                    malScore = malExt.malScore,
-                    malRank = malExt.malRank ?: aniDetail.rank,
-                    malPopularity = malExt.malPopularity ?: aniDetail.popularity,
-                    malMembers = malExt.malMembers ?: aniDetail.watchers,
-                    // Visual / rich media: Prioritize AniList, fallback to MAL
-                    studio = aniDetail.studio ?: malExt.studio,
-                    studioId = aniDetail.studioId ?: malExt.studioId,
-                    publisher = aniDetail.publisher ?: malExt.publisher,
-                    airingStatus = aniDetail.airingStatus ?: malExt.airingStatus,
-                    startDate = aniDetail.startDate ?: malExt.startDate,
-                    endDate = aniDetail.endDate ?: malExt.endDate,
-                    genres = if (aniDetail.genres.isNotEmpty()) aniDetail.genres else malExt.genres,
-                    source = aniDetail.source ?: malExt.source
-                )
-            } else {
-                aniDetail ?: malExt
-            }
-
-            if (merged != null) {
-                val effectiveAni = merged.anilistId
-                val effectiveMal = merged.malId
-                if (effectiveAni != null && effectiveMal != null) {
-                    CacheManager.putIdMapping(effectiveMal, effectiveAni)
+        deduplicateInFlight("detail_${resolvedAniListId}_${resolvedMalId}_${type.name}") {
+            coroutineScope {
+                // Concurrent parallel fetching over HTTP/2
+                val aniDeferred = async {
+                    AniListClient.getExtendedDetails(resolvedAniListId, resolvedMalId, type, forceRefresh)
                 }
-                CacheManager.putDetail(CacheManager.detailKey(effectiveAni, effectiveMal), merged)
-                if (effectiveAni != null) {
-                    CacheManager.putDetail(CacheManager.detailKey(effectiveAni, null), merged)
+                val malDeferred = async {
+                    if (resolvedMalId != null) {
+                        malAuthManager.getExtendedDetailFallback(resolvedMalId, type)
+                    } else null
                 }
-                if (effectiveMal != null) {
-                    CacheManager.putDetail(CacheManager.detailKey(null, effectiveMal), merged)
-                }
-            }
 
-            merged
+                val aniDetail = aniDeferred.await()
+                var malExt = malDeferred.await()
+
+                // If MAL ID wasn't known beforehand, but AniList returned it, fetch MAL fallback
+                val effectiveMalId = aniDetail?.malId ?: resolvedMalId
+                if (malExt == null && effectiveMalId != null) {
+                    malExt = malAuthManager.getExtendedDetailFallback(effectiveMalId, type)
+                }
+
+                val merged = if (aniDetail != null && malExt != null) {
+                    aniDetail.copy(
+                        // Metrics: MAL is authoritative for Rating MAL
+                        malScore = malExt.malScore,
+                        malRank = malExt.malRank ?: aniDetail.rank,
+                        malPopularity = malExt.malPopularity ?: aniDetail.popularity,
+                        malMembers = malExt.malMembers ?: aniDetail.watchers,
+                        // Visual / rich media: Prioritize AniList, fallback to MAL
+                        studio = aniDetail.studio ?: malExt.studio,
+                        studioId = aniDetail.studioId ?: malExt.studioId,
+                        publisher = aniDetail.publisher ?: malExt.publisher,
+                        airingStatus = aniDetail.airingStatus ?: malExt.airingStatus,
+                        startDate = aniDetail.startDate ?: malExt.startDate,
+                        endDate = aniDetail.endDate ?: malExt.endDate,
+                        genres = if (aniDetail.genres.isNotEmpty()) aniDetail.genres else malExt.genres,
+                        source = aniDetail.source ?: malExt.source
+                    )
+                } else {
+                    aniDetail ?: malExt
+                }
+
+                if (merged != null) {
+                    val effectiveAni = merged.anilistId
+                    val effectiveMal = merged.malId
+                    if (effectiveAni != null && effectiveMal != null) {
+                        CacheManager.putIdMapping(effectiveMal, effectiveAni)
+                    }
+                    CacheManager.putDetail(CacheManager.detailKey(effectiveAni, effectiveMal), merged)
+                    if (effectiveAni != null) {
+                        CacheManager.putDetail(CacheManager.detailKey(effectiveAni, null), merged)
+                    }
+                    if (effectiveMal != null) {
+                        CacheManager.putDetail(CacheManager.detailKey(null, effectiveMal), merged)
+                    }
+                }
+
+                merged
+            }
         }
     }
 

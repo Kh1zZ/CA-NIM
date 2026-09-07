@@ -298,6 +298,14 @@ fun DashboardScreen(
                                 fontSize = 10.sp,
                                 lineHeight = 14.sp
                             )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Catatan: Aplikasi tidak akan sepenuhnya berfungsi secara normal selama gangguan layanan berlangsung.",
+                                color = Color(0xFFF59E0B).copy(alpha = 0.85f),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium,
+                                lineHeight = 13.sp
+                            )
                         }
                     }
                 }

@@ -175,8 +175,13 @@ class CanimViewModel(
         // Initialize Update Preferences & Auto-check
         initUpdateChecker()
 
-        // Load discovery category
-        loadDiscoverCategory(_uiState.value.selectedDiscoverCategory, _uiState.value.discoverFilter)
+        // Prefetch discovery lazily after initial UI is ready (or on-demand when switching to discover tab)
+        viewModelScope.launch {
+            delay(2500L)
+            if (_uiState.value.discoverItems.isEmpty()) {
+                loadDiscoverCategory(_uiState.value.selectedDiscoverCategory, _uiState.value.discoverFilter)
+            }
+        }
 
         // Silent background sync / load user library
         loadUserLibrary()
@@ -235,9 +240,18 @@ class CanimViewModel(
      */
     fun loadUserLibrary(forceRefresh: Boolean = false) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoadingLibrary = true, syncStatus = SyncStatus.SYNCING) }
             val user = repository.getMalUser()
             if (user.isLoggedIn) {
+                // SWR: If cached items exist and synced within 30 minutes, skip network on startup unless forced
+                val hasCachedData = _uiState.value.animeList.isNotEmpty() || _uiState.value.mangaList.isNotEmpty()
+                val lastSynced = repository.getLastSyncedTime()
+                val isCacheFresh = (System.currentTimeMillis() - lastSynced) < 30 * 60 * 1000L
+                if (!forceRefresh && hasCachedData && isCacheFresh) {
+                    _uiState.update { it.copy(isLoadingLibrary = false, syncStatus = SyncStatus.IDLE) }
+                    return@launch
+                }
+
+                _uiState.update { it.copy(isLoadingLibrary = true, syncStatus = SyncStatus.SYNCING) }
                 val animeDeferred = async(Dispatchers.IO) { repository.getUserAnimeList(forceRefresh) }
                 val mangaDeferred = async(Dispatchers.IO) { repository.getUserMangaList(forceRefresh) }
 
@@ -271,6 +285,10 @@ class CanimViewModel(
                 val hasFailure = animeResult is MalFetchResult.Failure && mangaResult is MalFetchResult.Failure
                 val finalSyncStatus = if (hasFailure) SyncStatus.FAILED else SyncStatus.SUCCESS
 
+                val gachaMgr = gachaCreditManager ?: try { GachaCreditManager.getInstance(CanimApplication.instance) } catch (_: Exception) { null }
+                animes.forEach { gachaMgr?.initBaselineProgress(it.id, it.progress) }
+                mangas.forEach { gachaMgr?.initBaselineProgress(it.id, it.progress) }
+
                 updateLibraryData(animes, mangas)
                 _uiState.update { it.copy(isLoadingLibrary = false, syncStatus = finalSyncStatus) }
 
@@ -296,10 +314,6 @@ class CanimViewModel(
             val reading = mangas.filter { it.status == "reading" }
             val completedAnimeIds = animes.filter { it.status == "completed" }.mapNotNull { it.malId }.toSet()
             val completedMangaIds = mangas.filter { it.status == "completed" }.mapNotNull { it.malId }.toSet()
-
-            val gachaMgr = gachaCreditManager ?: try { GachaCreditManager.getInstance(CanimApplication.instance) } catch (_: Exception) { null }
-            animes.forEach { gachaMgr?.initBaselineProgress(it.id, it.progress) }
-            mangas.forEach { gachaMgr?.initBaselineProgress(it.id, it.progress) }
 
             val totalEp = animes.sumOf { it.progress }
             val totalCh = mangas.sumOf { it.progressChapters }
@@ -352,6 +366,9 @@ class CanimViewModel(
     fun setTab(tab: String) {
         clearScreenStack()
         _uiState.update { it.copy(activeTab = tab) }
+        if (tab == "discover" && _uiState.value.discoverItems.isEmpty() && !_uiState.value.isDiscoverLoading) {
+            loadDiscoverCategory(_uiState.value.selectedDiscoverCategory, _uiState.value.discoverFilter)
+        }
     }
 
     fun setLibraryFilterType(type: MediaType) {
@@ -386,18 +403,19 @@ class CanimViewModel(
                 updatedAt = System.currentTimeMillis()
             )
         )
-        // 1. Optimistic UI update
-        val optimisticList = currentList.map { if (it.id == item.id) updatedItem else it }
-        updateLibraryData(optimisticList, _uiState.value.mangaList)
         val gachaMgr = gachaCreditManager ?: try { GachaCreditManager.getInstance(CanimApplication.instance) } catch (_: Exception) { null }
         val awarded = gachaMgr?.recordProgressAndAwardCredits(item.id, updatedItem.tracking.progress) ?: 0
         if (awarded > 0) {
-            val newBal = gachaMgr?.getCredits() ?: _uiState.value.gachaCredits
+            val newBal = gachaMgr?.getCredits() ?: (_uiState.value.gachaCredits + awarded)
             _uiState.update { it.copy(gachaCredits = newBal) }
             showSnackbar("+1 Episode ditambahkan! (+$awarded Tiket Gacha)")
         } else {
             showSnackbar("+1 Episode ditambahkan!")
         }
+
+        // 1. Optimistic UI update
+        val optimisticList = currentList.map { if (it.id == item.id) updatedItem else it }
+        updateLibraryData(optimisticList, _uiState.value.mangaList)
 
         // 2. Dispatch to MAL API if logged in
         if (item.malId != null && _uiState.value.malUser.isLoggedIn) {
@@ -452,9 +470,18 @@ class CanimViewModel(
                 updatedAt = System.currentTimeMillis()
             )
         )
+        val gachaMgr = gachaCreditManager ?: try { GachaCreditManager.getInstance(CanimApplication.instance) } catch (_: Exception) { null }
+        val awarded = gachaMgr?.recordProgressAndAwardCredits(item.id, updatedItem.tracking.progress) ?: 0
+        if (awarded > 0) {
+            val newBal = gachaMgr?.getCredits() ?: (_uiState.value.gachaCredits + awarded)
+            _uiState.update { it.copy(gachaCredits = newBal) }
+            showSnackbar("+1 Chapter ditambahkan! (+$awarded Tiket Gacha)")
+        } else {
+            showSnackbar("+1 Chapter ditambahkan!")
+        }
+
         val optimisticList = currentList.map { if (it.id == item.id) updatedItem else it }
         updateLibraryData(_uiState.value.animeList, optimisticList)
-        showSnackbar("+1 Chapter ditambahkan!")
 
         if (item.malId != null && _uiState.value.malUser.isLoggedIn) {
             viewModelScope.launch {
