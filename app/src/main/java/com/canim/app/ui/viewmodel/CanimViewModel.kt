@@ -159,9 +159,42 @@ class CanimViewModel(
         statsScrollOffset = 0
     }
 
+    fun cacheDetail(item: Any, detail: ExtendedMediaDetail) {
+        val key = getMediaKey(item)
+        detailCache[key] = detail
+        detail.anilistId?.let { detailCache[it.toString()] = detail }
+        detail.malId?.let { detailCache[it.toString()] = detail }
+        (item as? MediaItem)?.malId?.let { detailCache[it.toString()] = detail }
+        (item as? MediaItem)?.anilistId?.let { detailCache[it.toString()] = detail }
+        (item as? UserMediaItem)?.malId?.let { detailCache[it.toString()] = detail }
+        (item as? UserMediaItem)?.anilistId?.let { detailCache[it.toString()] = detail }
+    }
+
     fun getCachedDetail(item: Any): ExtendedMediaDetail? {
         val key = getMediaKey(item)
-        return detailCache[key]
+        val direct = detailCache[key]
+        if (direct != null) return direct
+
+        val aniId = when (item) {
+            is UserMediaItem -> item.anilistId
+            is MediaItem -> item.anilistId
+            else -> null
+        }
+        val malId = when (item) {
+            is UserMediaItem -> item.malId
+            is MediaItem -> item.malId
+            else -> null
+        }
+        val resolvedAniListId = aniId ?: (malId?.let { CacheManager.getAniListIdForMalId(it) })
+        val resolvedMalId = malId ?: (resolvedAniListId?.let { CacheManager.getMalIdForAniListId(it) })
+
+        return (resolvedAniListId?.let { detailCache[it.toString()] })
+            ?: (resolvedMalId?.let { detailCache[it.toString()] })
+            ?: (aniId?.let { detailCache[it.toString()] })
+            ?: (malId?.let { detailCache[it.toString()] })
+            ?: CacheManager.getDetail(CacheManager.detailKey(resolvedAniListId, resolvedMalId))
+            ?: (resolvedAniListId?.let { CacheManager.getDetail(CacheManager.detailKey(it, null)) })
+            ?: (resolvedMalId?.let { CacheManager.getDetail(CacheManager.detailKey(null, it)) })
     }
 
     fun saveDetailScrollPosition(key: String, index: Int, offset: Int) {
@@ -1139,6 +1172,11 @@ class CanimViewModel(
                     else -> null
                 }
 
+                if (initialDetail != null) {
+                    cacheDetail(resolvedItem, initialDetail)
+                    cacheDetail(item, initialDetail)
+                }
+
                 _uiState.update {
                     it.copy(
                         selectedDetailItem = resolvedItem,
@@ -1164,7 +1202,8 @@ class CanimViewModel(
                                 malScore = currentExt?.malScore ?: aniDetail.malScore,
                                 malRank = currentExt?.malRank ?: aniDetail.rank
                             )
-                            detailCache[mediaKey] = mergedFast
+                            cacheDetail(resolvedItem, mergedFast)
+                            cacheDetail(item, mergedFast)
                             current.copy(
                                 extendedDetail = mergedFast,
                                 isLoadingExtendedDetail = false
@@ -1178,7 +1217,8 @@ class CanimViewModel(
 
                     // Final merge with authoritative MAL metrics
                     if (detail != null) {
-                        detailCache[mediaKey] = detail
+                        cacheDetail(resolvedItem, detail)
+                        cacheDetail(item, detail)
                         _uiState.update {
                             it.copy(
                                 extendedDetail = detail,

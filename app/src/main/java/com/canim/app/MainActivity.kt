@@ -10,6 +10,7 @@ import androidx.activity.viewModels
 import androidx.compose.animation.*
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -78,11 +79,6 @@ class MainActivity : ComponentActivity() {
             CanimTheme {
                 val uiState by viewModel.uiState.collectAsState()
                 val screenStack by viewModel.screenStack.collectAsState()
-                val prevStackSizeRef = remember { intArrayOf(0) }
-                val isStackPush = screenStack.size >= prevStackSizeRef[0]
-                SideEffect {
-                    prevStackSizeRef[0] = screenStack.size
-                }
                 val context = LocalContext.current
                 val snackbarHostState = remember { SnackbarHostState() }
 
@@ -386,41 +382,45 @@ class MainActivity : ComponentActivity() {
                                     true
                                 } else if (initialState != null && targetState == null) {
                                     false
+                                } else if (targetState != null && !screenStack.contains(initialState)) {
+                                    false
+                                } else if (initialState != null && !screenStack.contains(targetState)) {
+                                    false
                                 } else {
-                                    isStackPush
+                                    screenStack.indexOf(targetState) > screenStack.indexOf(initialState)
                                 }
 
                                 if (isPush) {
-                                    // Instant, punchy popup entry: rises immediately from bottom with 40% offset, rapid 140ms fade
+                                    // Smooth vertical popup entry: rises from bottom of screen to top, rapid fade
                                     (slideInVertically(
-                                        initialOffsetY = { (it * 0.40f).toInt() },
+                                        initialOffsetY = { it },
                                         animationSpec = tween(240, easing = FastOutSlowInEasing)
                                     ) + scaleIn(
-                                        initialScale = 0.94f,
+                                        initialScale = 0.92f,
                                         animationSpec = tween(240, easing = FastOutSlowInEasing)
-                                    ) + fadeIn(animationSpec = tween(140, easing = LinearOutSlowInEasing)))
+                                    ) + fadeIn(animationSpec = tween(150, easing = LinearOutSlowInEasing)))
                                         .togetherWith(
                                             scaleOut(
-                                                targetScale = 0.94f,
+                                                targetScale = 0.92f,
                                                 animationSpec = tween(200, easing = FastOutSlowInEasing)
                                             ) + fadeOut(animationSpec = tween(140))
                                         )
                                         .using(noClipSizeTransform)
                                         .apply { targetContentZIndex = 1f }
                                 } else {
-                                    // Responsive popdown exit: settles smoothly to bottom
+                                    // Instant popdown exit: drops down immediately off bottom edge with zero still-image hesitation
                                     (scaleIn(
                                         initialScale = 0.94f,
-                                        animationSpec = tween(200, easing = FastOutSlowInEasing)
-                                    ) + fadeIn(animationSpec = tween(160)))
+                                        animationSpec = tween(200, easing = LinearOutSlowInEasing)
+                                    ) + fadeIn(animationSpec = tween(150, easing = LinearOutSlowInEasing)))
                                         .togetherWith(
                                             slideOutVertically(
-                                                targetOffsetY = { (it * 0.40f).toInt() },
-                                                animationSpec = tween(220, easing = FastOutSlowInEasing)
+                                                targetOffsetY = { it },
+                                                animationSpec = tween(180, easing = LinearEasing)
                                             ) + scaleOut(
-                                                targetScale = 0.94f,
-                                                animationSpec = tween(220, easing = FastOutSlowInEasing)
-                                            ) + fadeOut(animationSpec = tween(160))
+                                                targetScale = 0.92f,
+                                                animationSpec = tween(180, easing = LinearEasing)
+                                            ) + fadeOut(animationSpec = tween(140, easing = LinearEasing))
                                         )
                                         .using(noClipSizeTransform)
                                         .apply { targetContentZIndex = -1f }
@@ -483,7 +483,7 @@ class MainActivity : ComponentActivity() {
                                         ?: ""
                                     MediaDetailScreen(
                                         item = detailItem,
-                                        type = uiState.detailMediaType,
+                                        type = currentScreen.type,
                                         extendedDetail = detailExtended,
                                         isLoadingExtendedDetail = detailIsLoading,
                                         onSaveAnime = { viewModel.saveAnime(it) },

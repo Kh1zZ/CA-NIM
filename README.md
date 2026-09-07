@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.1.7%20(Build%2026)-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.1.7b%20(Build%2027)-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#tech-stack--dependensi"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#uiux-architecture--fluid-continuity"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
@@ -217,6 +217,14 @@ Verifikasi lokal diwajibkan menjalankan suite pengujian unit otomatis sebelum me
 ---
 
 ## 📝 10. Catatan Perubahan
+
+### v6.1.7b (Build 27)
+- **Peniadaan Jeda Still Image Saat Kembali dari Layer 2 Detail Anime (Relasi/Rekomendasi)**:
+  - Mengimplementasikan *multi-key caching* komprehensif pada `CanimViewModel` (`cacheDetail`) yang memetakan item media ke ID kanonikal, ID AniList, dan ID MAL secara instan di memori, menjamin layar detail layer ke-2 (`initialContent`) tidak mengalami layout wipe, relayout berat, atau drop state saat transisi keluar (*exit transition*) berlangsung.
+  - Memperbarui kurva dan offset animasi popdown (`slideOutVertically`) menggunakan `LinearEasing` penuh dengan target offset 100% tinggi layar (`targetOffsetY = { it }`) dan durasi 180 ms, memberikan pergerakan turun instan dari milidetik pertama (t=0) tanpa jeda kurva perlambatan (*zero-velocity hesitation*).
+  - Menyempurnakan deteksi arah tumpukan navigasi (`isPush`) secara deterministik langsung dari keanggotaan dan indeks elemen pada `screenStack`, meniadakan ketergantungan pada referensi array mutable atau siklus efek samping rekomposisi.
+  - Mengunci jenis media (`MediaType`) langsung dari rute layar (`currentScreen.type`) untuk mencegah kedipan atau evaluasi ulang jenis media saat kembali ke detail sebelumnya.
+- **Integritas Pengujian Unit**: Seluruh 66 automated unit tests lulus 100%.
 
 ### v6.1.7 (Build 26)
 - **Peniadaan Delay & Still Image pada Pembukaan Anime dari Relasi/Rekomendasi**:
