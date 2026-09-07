@@ -510,29 +510,22 @@ class CanimRepository(
                             results = resp.body()!!.data.map { mapMalAnimeNodeToMediaItem(it.node) }
                         }
                     }
-                    DiscoverCategory.TRENDING_NOW -> {
-                        // MAL does not provide real-time trending metrics (only all-time popularity rankings).
-                        // Real-time trending is exclusively provided by AniList. Results remain empty when AniList is down.
-                    }
-                    DiscoverCategory.RECENTLY_DONE_MANGA -> {
-                        val resp = ApiClient.malApi.getMangaRanking(MalAuthManager.CLIENT_ID, "manga", limit, offset)
-                        if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
-                            results = resp.body()!!.data.map { mapMalMangaNodeToMediaItem(it.node) }
-                        }
-                    }
+                    DiscoverCategory.TRENDING_NOW,
+                    DiscoverCategory.RECENTLY_DONE_MANGA,
                     DiscoverCategory.NEWLY_ADDED_MANGA -> {
-                        val resp = ApiClient.malApi.getMangaRanking(MalAuthManager.CLIENT_ID, "favorite", limit, offset)
-                        if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
-                            results = resp.body()!!.data.map { mapMalMangaNodeToMediaItem(it.node) }
-                        }
+                        // MAL does not provide trending, recently finished, or newly added manga endpoints (only top manga rankings).
+                        // These categories exclusively require AniList engine and remain empty when AniList is down.
                     }
                     else -> {}
                 }
             } catch (_: Exception) {}
         }
 
-        // Offline fallback if network fails completely (except TRENDING_NOW which requires live AniList engine)
-        if (category != DiscoverCategory.TRENDING_NOW && results.isEmpty() && page == 1) {
+        // Offline fallback if network fails completely (except AniList-exclusive categories)
+        if (category != DiscoverCategory.TRENDING_NOW &&
+            category != DiscoverCategory.RECENTLY_DONE_MANGA &&
+            category != DiscoverCategory.NEWLY_ADDED_MANGA &&
+            results.isEmpty() && page == 1) {
             results = if (filter.format == "MANGA") fallbackManga() else fallbackAnime()
         }
 

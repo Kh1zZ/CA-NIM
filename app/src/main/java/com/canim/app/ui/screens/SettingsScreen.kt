@@ -40,9 +40,9 @@ fun SettingsScreen(
     onLoginMal: () -> Unit,
     onSyncMal: () -> Unit,
     onLogoutMal: () -> Unit,
-    onSetAppMode: (String) -> Unit,
-    onLoadDemoData: () -> Unit,
-    onClearAllData: () -> Unit,
+    onSetAppMode: (String) -> Unit = {},
+    onLoadDemoData: () -> Unit = {},
+    onClearAllData: () -> Unit = {},
     onClearImageCache: () -> Unit,
     onClearMetadataCache: () -> Unit,
     onClearAllCache: () -> Unit,
@@ -54,7 +54,6 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var showClearDataDialog by remember { mutableStateOf(false) }
 
     LazyColumn(
         modifier = modifier
@@ -342,74 +341,6 @@ fun SettingsScreen(
             }
         }
 
-        // Database & Demo Actions
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, CardBorder, RoundedCornerShape(12.dp)),
-                colors = CardDefaults.cardColors(containerColor = CardBg),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        text = "Tindakan Data Library",
-                        color = TextPrimary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    Button(
-                        onClick = onLoadDemoData,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("load_demo_button"),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = CardElevated,
-                            contentColor = AccentGreen
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Download,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Muat Ulang Dataset Demo",
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-
-                    Button(
-                        onClick = { showClearDataDialog = true },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("clear_data_button"),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = CardElevated,
-                            contentColor = StatusDroppedColor
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.DeleteForever,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Kosongkan Semua Data Library",
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-            }
-        }
 
         // Pembaruan Aplikasi (Revisi 6)
         item {
@@ -640,43 +571,6 @@ fun SettingsScreen(
         }
     }
 
-    if (showClearDataDialog) {
-        AlertDialog(
-            onDismissRequest = { showClearDataDialog = false },
-            containerColor = CardElevated,
-            title = {
-                Text(
-                    text = "Konfirmasi Hapus Data",
-                    color = TextPrimary,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text(
-                    text = "Apakah kamu yakin ingin mengosongkan semua data anime dan manga dari library lokal?",
-                    color = TextSecondary,
-                    fontSize = 13.sp
-                )
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        onClearAllData()
-                        showClearDataDialog = false
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = StatusDroppedColor)
-                ) {
-                    Text("Hapus Semua", color = Color.White)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showClearDataDialog = false }) {
-                    Text("Batal", color = TextSecondary)
-                }
-            }
-        )
-    }
 
     // Dialog Pembaruan Tersedia
     if (state.updateInfo != null && state.updateInfo.isUpdateAvailable) {

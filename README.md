@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.1.8%20(Build%2029)-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.1.8a%20(Build%2030)-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#tech-stack--dependensi"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#uiux-architecture--fluid-continuity"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
@@ -217,6 +217,19 @@ Verifikasi lokal diwajibkan menjalankan suite pengujian unit otomatis sebelum me
 ---
 
 ## 📝 10. Catatan Perubahan
+
+### v6.1.8a (Build 30)
+- **Pembersihan Tombol Tambah Judul FAB di Menu Library**:
+  - Menghapus tombol `ExtendedFloatingActionButton` ("Tambah Judul") pada menu Library (`MainActivity`) agar antarmuka koleksi library tetap bersih, fokus, dan sepenuhnya terintegrasi dengan sinkronisasi MyAnimeList.
+- **Penyesuaian Outage Kategori Manga (Recently Done & Newly Added)**:
+  - Mengintegrasikan penanganan outage untuk kategori manga *Recently Done* (Baru Selesai) dan *Newly Added* (Baru Ditambahkan) di `CanimRepository` dan `DiscoverScreen`.
+  - Karena database MyAnimeList hanya menyediakan endpoint ranking untuk *Top Manga* (dan tidak memiliki endpoint untuk manga yang baru tamat atau baru ditambahkan), kedua kategori ini ditandai secara akurat saat AniList dalam pemeliharaan (*maintenance*):
+    - Ikon indikator outage amber ditampilkan pada tab kategori.
+    - Notifikasi box informatif ditampilkan kepada pengguna saat kolom dibuka.
+    - Beralih ke mode Manga saat AniList mengalami pemeliharaan kini secara cerdas mengarahkan ke *Top Manga* (kategori yang didukung oleh MyAnimeList).
+- **Pembersihan Kartu Tindakan Data Library di Pengaturan**:
+  - Menghapus menu/kartu "Tindakan Data Library" (*Dataset Demo* dan *Kosongkan Data Library*) di `SettingsScreen` guna meniadakan aksi data tiruan (*mock data*) yang tidak lagi relevan dengan arsitektur penuh *Single Source of Truth* MyAnimeList.
+- **Integritas Pengujian Unit**: Seluruh automated unit tests lulus 100%.
 
 ### v6.1.8 (Build 29)
 - **Kotak Pencarian Ringkas & Harmonisasi Ukuran Tombol**:

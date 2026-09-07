@@ -125,31 +125,7 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                     },
-                    floatingActionButton = {
-                        if (uiState.activeTab == "library" && screenStack.isEmpty()) {
-                            ExtendedFloatingActionButton(
-                                onClick = { viewModel.openAddTitleSheet() },
-                                containerColor = AccentBlue,
-                                contentColor = Color.White,
-                                shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier
-                                    .padding(bottom = 8.dp)
-                                    .testTag("main_quick_fab")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = "Cari & Tambah",
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = "Tambah Judul",
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp
-                                )
-                            }
-                        }
-                    },
+                    floatingActionButton = {},
                     bottomBar = {
                         val activeIndex = navItems.indexOfFirst { it.route == uiState.activeTab }.coerceAtLeast(0)
 
