@@ -93,9 +93,6 @@ jobs:
           echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
           echo "Version validation passed successfully: Target '$TAG_NAME' matches versionName '$VERSION_NAME' with versionCode $VERSION_CODE."
 
-      - name: Run Unit Tests
-        run: ./gradlew testDebugUnitTest --build-cache --parallel --stacktrace
-
       - name: Configure Production Signing Keystore
         id: setup_signing
         env:

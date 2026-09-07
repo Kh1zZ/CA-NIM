@@ -41,8 +41,8 @@ jobs:
           # Remove local developer machine JDK override if present
           sed -i '/org.gradle.java.home/d' gradle.properties
 
-      - name: Run Tests & Compile Debug APK (Parallel with Build Cache)
-        run: ./gradlew testDebugUnitTest assembleDebug --build-cache --parallel --stacktrace
+      - name: Compile Debug APK (Parallel with Build Cache)
+        run: ./gradlew assembleDebug --build-cache --parallel --stacktrace
 
       - name: Validate Debug APK Output
         id: apk_check

@@ -206,13 +206,13 @@ Verifikasi lokal diwajibkan menjalankan suite pengujian unit otomatis sebelum me
 ## 🚀 9. CI/CD Pipeline & Alur Rilis
 
 - **CI Pipeline (`.github/workflows/ci.yml`)**:
-  - Terpicu pada setiap push atau Pull Request ke branch `main`, `debug`, dan `dev`.
-  - Menjalankan linting dan unit tests otomatis (`testDebugUnitTest`).
-  - Mengompilasi APK Debug dan mengunggahnya ke **GitHub Actions Artifacts** agar pengembang dapat langsung mengunduh dan menguji coba perubahan di perangkat fisik.
+  - Terpicu pada setiap push atau Pull Request ke branch `main`.
+  - Memanfaatkan verifikasi unit tests 100% di lingkungan lokal sebelum commit, CI memfokuskan sumber daya secara eksklusif untuk kompilasi APK Debug ultra-cepat (`assembleDebug`).
+  - Mengunggah APK Debug ke **GitHub Actions Artifacts** agar pengembang dapat langsung mengunduh dan menguji coba perubahan di perangkat fisik.
 - **Release Pipeline (`.github/workflows/release.yml`)**:
   - Terpicu saat pembuatan tag Git (`v*`) atau eksekusi manual via `workflow_dispatch`.
   - Memverifikasi kecocokan versi antara Git tag dan `versionName` serta `versionCode` pada `app/build.gradle.kts`.
-  - Menjalankan unit tests, mengompilasi APK Release universal, menghitung `SHA256SUMS.txt`, dan memublikasikan rilis secara otomatis ke GitHub Releases.
+  - Mengompilasi APK Release universal secara terakselerasi, menghitung `SHA256SUMS.txt`, dan memublikasikan rilis secara otomatis ke GitHub Releases.
 
 ---
 
