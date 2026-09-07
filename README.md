@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.1.5%20(Build%2024)-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.1.6%20(Build%2025)-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#tech-stack--dependensi"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#uiux-architecture--fluid-continuity"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
@@ -217,6 +217,13 @@ Verifikasi lokal diwajibkan menjalankan suite pengujian unit otomatis sebelum me
 ---
 
 ## 📝 10. Catatan Perubahan
+
+### v6.1.6 (Build 25)
+- **Perbaikan Animasi Popup pada Menu Statistik (Top 5 Anime & Manga)**:
+  - Menerapkan animasi popup vertikal halus yang konsisten saat membuka anime/manga dari daftar Top 5 Anime dan Top 5 Manga pada menu Statistik, menggantikan pergerakan slide horizontal/glitch.
+  - Memperbaiki transisi navigasi kembali (popdown) dari layar detail ke menu statistik dengan `targetContentZIndex = -1f` agar layar detail yang turun selalu berada di atas menu statistik.
+- **Unifikasi Menyeluruh Animasi Popup Layar Penuh**:
+  - Memastikan seluruh navigasi detail media baik dari tab dasar, antar-detail relasi & rekomendasi, profil cast/crew, karya studio, maupun dari layar statistik berjalan konsisten menggunakan animasi popup vertikal halus (`slideInVertically(0.15f)` + `scaleIn(0.95f)` + `fadeIn(220ms)`).
 
 ### v6.1.5 (Build 24)
 - **Unifikasi Animasi Popup Layar Penuh Detail Anime**:
