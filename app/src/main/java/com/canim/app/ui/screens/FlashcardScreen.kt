@@ -201,7 +201,26 @@ fun FlashcardScreen(
                     EmptyCreditState(onBack = onBack)
                 }
                 deck.isEmpty() -> {
-                    EmptyDeckState(onRefresh = onRefreshDeck)
+                    LaunchedEffect(Unit) {
+                        onRefreshDeck()
+                    }
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            CircularProgressIndicator(color = AccentBlue, strokeWidth = 3.dp)
+                            Text(
+                                text = "Menyiapkan kartu gacha...",
+                                color = TextPrimary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
                 else -> {
                     val topCard = deck.first()
@@ -277,16 +296,35 @@ fun FlashcardScreen(
                                                         isSwiping = false
                                                         coroutineScope.launch {
                                                             if (kotlin.math.abs(offsetX.value) > swipeThreshold) {
-                                                                val targetX = if (offsetX.value > 0) screenWidthPx * 1.5f else -screenWidthPx * 1.5f
-                                                                offsetX.animateTo(
-                                                                    targetValue = targetX,
-                                                                    animationSpec = tween(220)
-                                                                )
-                                                                onSwipeCard(topCard)
-                                                                offsetX.snapTo(0f)
-                                                                offsetY.snapTo(0f)
-                                                                isCardFlipped = false
-                                                                flipRotation.snapTo(0f)
+                                                                val isRight = offsetX.value > 0
+                                                                if (isRight) {
+                                                                    onSavePlanToWatch(topCard) { success ->
+                                                                        if (success) {
+                                                                            coroutineScope.launch {
+                                                                                offsetX.animateTo(screenWidthPx * 1.5f, tween(220))
+                                                                                if (onConsumeCredit()) {
+                                                                                    onSwipeCard(topCard)
+                                                                                }
+                                                                                offsetX.snapTo(0f)
+                                                                                offsetY.snapTo(0f)
+                                                                                isCardFlipped = false
+                                                                                flipRotation.snapTo(0f)
+                                                                            }
+                                                                        } else {
+                                                                            coroutineScope.launch {
+                                                                                offsetX.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                                                                                offsetY.animateTo(0f, spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                } else {
+                                                                    offsetX.animateTo(-screenWidthPx * 1.5f, tween(220))
+                                                                    onSwipeCard(topCard)
+                                                                    offsetX.snapTo(0f)
+                                                                    offsetY.snapTo(0f)
+                                                                    isCardFlipped = false
+                                                                    flipRotation.snapTo(0f)
+                                                                }
                                                             } else {
                                                                 launch {
                                                                     offsetX.animateTo(
@@ -354,98 +392,130 @@ fun FlashcardScreen(
                             }
                         }
 
-                        // Bottom Control Buttons (A.2: Trash, Info, Plus)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 12.dp, horizontal = 24.dp),
-                            horizontalArrangement = Arrangement.SpaceEvenly,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // 1. Trash / Lewati Button (DeleteOutline)
-                            IconButton(
-                                onClick = {
-                                    if (!isCardFlipped) return@IconButton
-                                    coroutineScope.launch {
-                                        offsetX.animateTo(-screenWidthPx * 1.5f, tween(250))
-                                        onSwipeCard(topCard)
-                                        offsetX.snapTo(0f)
-                                        offsetY.snapTo(0f)
-                                        isCardFlipped = false
-                                        flipRotation.snapTo(0f)
+                        // Bottom Controls
+                        if (!isCardFlipped) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 12.dp, horizontal = 24.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Button(
+                                    onClick = { flipToFront() },
+                                    colors = ButtonDefaults.buttonColors(containerColor = AccentBlue),
+                                    shape = RoundedCornerShape(14.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(52.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.AutoAwesome,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                        Text(
+                                            text = "Buka Kartu Gacha",
+                                            color = Color.White,
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
                                     }
-                                },
-                                enabled = isCardFlipped,
-                                modifier = Modifier
-                                    .size(56.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isCardFlipped) CardElevated else CardElevated.copy(alpha = 0.35f))
-                                    .border(1.dp, if (isCardFlipped) Color(0xFFEF4444).copy(alpha = 0.5f) else CardBorderSubtle, CircleShape)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.DeleteOutline,
-                                    contentDescription = "Lewati Kartu",
-                                    tint = if (isCardFlipped) Color(0xFFEF4444) else TextMuted,
-                                    modifier = Modifier.size(26.dp)
-                                )
+                                }
                             }
-
-                            // 2. Info Button (Info - Sole navigation path to detail)
-                            IconButton(
-                                onClick = {
-                                    if (!isCardFlipped) return@IconButton
-                                    onOpenDetail(topCard, topCard.type)
-                                },
-                                enabled = isCardFlipped,
+                        } else {
+                            Row(
                                 modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isCardFlipped) CardElevated else CardElevated.copy(alpha = 0.35f))
-                                    .border(1.dp, if (isCardFlipped) AccentBlue.copy(alpha = 0.5f) else CardBorderSubtle, CircleShape)
+                                    .fillMaxWidth()
+                                    .padding(vertical = 12.dp, horizontal = 24.dp),
+                                horizontalArrangement = Arrangement.SpaceEvenly,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Info,
-                                    contentDescription = "Lihat Detail Anime",
-                                    tint = if (isCardFlipped) AccentBlue else TextMuted,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
+                                // 1. Trash / Lewati Button (DeleteOutline)
+                                IconButton(
+                                    onClick = {
+                                        coroutineScope.launch {
+                                            offsetX.animateTo(-screenWidthPx * 1.5f, tween(250))
+                                            onSwipeCard(topCard)
+                                            offsetX.snapTo(0f)
+                                            offsetY.snapTo(0f)
+                                            isCardFlipped = false
+                                            flipRotation.snapTo(0f)
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .clip(CircleShape)
+                                        .background(CardElevated)
+                                        .border(1.dp, Color(0xFFEF4444).copy(alpha = 0.5f), CircleShape)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.DeleteOutline,
+                                        contentDescription = "Lewati Kartu",
+                                        tint = Color(0xFFEF4444),
+                                        modifier = Modifier.size(26.dp)
+                                    )
+                                }
 
-                            // 3. Plus Button (Add - Add to Library as "Rencana" & consume 1 credit)
-                            var isSavingCard by remember { mutableStateOf(false) }
-                            IconButton(
-                                onClick = {
-                                    if (!isCardFlipped || isSavingCard) return@IconButton
-                                    isSavingCard = true
-                                    onSavePlanToWatch(topCard) { success ->
-                                        isSavingCard = false
-                                        if (success) {
-                                            coroutineScope.launch {
-                                                offsetX.animateTo(screenWidthPx * 1.5f, tween(250))
-                                                if (onConsumeCredit()) {
-                                                    onSwipeCard(topCard)
+                                // 2. Info Button (Info - Sole navigation path to detail)
+                                IconButton(
+                                    onClick = {
+                                        onOpenDetail(topCard, topCard.type)
+                                    },
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(CardElevated)
+                                        .border(1.dp, AccentBlue.copy(alpha = 0.5f), CircleShape)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Info,
+                                        contentDescription = "Lihat Detail Anime",
+                                        tint = AccentBlue,
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                }
+
+                                // 3. Plus Button (Add - Add to Library as "Rencana" & consume 1 credit)
+                                var isSavingCard by remember { mutableStateOf(false) }
+                                IconButton(
+                                    onClick = {
+                                        if (isSavingCard) return@IconButton
+                                        isSavingCard = true
+                                        onSavePlanToWatch(topCard) { success ->
+                                            isSavingCard = false
+                                            if (success) {
+                                                coroutineScope.launch {
+                                                    offsetX.animateTo(screenWidthPx * 1.5f, tween(250))
+                                                    if (onConsumeCredit()) {
+                                                        onSwipeCard(topCard)
+                                                    }
+                                                    offsetX.snapTo(0f)
+                                                    offsetY.snapTo(0f)
+                                                    isCardFlipped = false
+                                                    flipRotation.snapTo(0f)
                                                 }
-                                                offsetX.snapTo(0f)
-                                                offsetY.snapTo(0f)
-                                                isCardFlipped = false
-                                                flipRotation.snapTo(0f)
                                             }
                                         }
-                                    }
-                                },
-                                enabled = isCardFlipped && !isSavingCard,
-                                modifier = Modifier
-                                    .size(56.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isCardFlipped) AccentBlue else AccentBlue.copy(alpha = 0.35f))
-                                    .border(1.dp, if (isCardFlipped) AccentBlue.copy(alpha = 0.8f) else Color.Transparent, CircleShape)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = "Tambah ke Rencana",
-                                    tint = if (isCardFlipped) Color.White else TextMuted,
-                                    modifier = Modifier.size(28.dp)
-                                )
+                                    },
+                                    enabled = !isSavingCard,
+                                    modifier = Modifier
+                                        .size(56.dp)
+                                        .clip(CircleShape)
+                                        .background(AccentBlue)
+                                        .border(1.dp, AccentBlue.copy(alpha = 0.8f), CircleShape)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Add,
+                                        contentDescription = "Tambah ke Rencana",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(28.dp)
+                                    )
+                                }
                             }
                         }
                     }

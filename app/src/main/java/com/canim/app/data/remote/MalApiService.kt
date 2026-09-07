@@ -101,28 +101,28 @@ interface MalApiService {
     suspend fun getAnimeDetailFallback(
         @Header("X-MAL-CLIENT-ID") clientId: String,
         @Path("anime_id") animeId: Int,
-        @Query("fields") fields: String = "id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_episodes,status,genres,my_list_status,studios"
+        @Query("fields") fields: String = "id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_episodes,status,genres,my_list_status,studios,source,related_anime,recommendations"
     ): Response<MalAnimeNode>
 
     @GET("manga/{manga_id}")
     suspend fun getMangaDetailFallback(
         @Header("X-MAL-CLIENT-ID") clientId: String,
         @Path("manga_id") mangaId: Int,
-        @Query("fields") fields: String = "id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_chapters,num_volumes,status,genres,my_list_status,authors"
+        @Query("fields") fields: String = "id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_chapters,num_volumes,status,genres,my_list_status,authors,related_manga,recommendations"
     ): Response<MalMangaNode>
 
     @GET("anime/{anime_id}")
     suspend fun getAnimeDetailAuth(
         @Header("Authorization") authHeader: String,
         @Path("anime_id") animeId: Int,
-        @Query("fields") fields: String = "id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_episodes,status,genres,my_list_status,studios"
+        @Query("fields") fields: String = "id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_episodes,status,genres,my_list_status,studios,source,related_anime,recommendations"
     ): Response<MalAnimeNode>
 
     @GET("manga/{manga_id}")
     suspend fun getMangaDetailAuth(
         @Header("Authorization") authHeader: String,
         @Path("manga_id") mangaId: Int,
-        @Query("fields") fields: String = "id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_chapters,num_volumes,status,genres,my_list_status,authors"
+        @Query("fields") fields: String = "id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_chapters,num_volumes,status,genres,my_list_status,authors,related_manga,recommendations"
     ): Response<MalMangaNode>
 
     @GET("anime/ranking")
@@ -131,7 +131,7 @@ interface MalApiService {
         @Query("ranking_type") rankingType: String = "all",
         @Query("limit") limit: Int = 50,
         @Query("offset") offset: Int = 0,
-        @Query("fields") fields: String = "id,title,main_picture,mean,rank,popularity,num_list_users,num_episodes,status,genres"
+        @Query("fields") fields: String = "id,title,main_picture,mean,rank,popularity,num_list_users,num_episodes,status,genres,synopsis,start_date,studios"
     ): Response<MalAnimeListResponse>
 
     @GET("manga/ranking")
@@ -140,6 +140,34 @@ interface MalApiService {
         @Query("ranking_type") rankingType: String = "all",
         @Query("limit") limit: Int = 50,
         @Query("offset") offset: Int = 0,
-        @Query("fields") fields: String = "id,title,main_picture,mean,rank,popularity,num_list_users,num_chapters,num_volumes,status,genres"
+        @Query("fields") fields: String = "id,title,main_picture,mean,rank,popularity,num_list_users,num_chapters,num_volumes,status,genres,synopsis,start_date,authors"
     ): Response<MalMangaListResponse>
+
+    @GET("anime")
+    suspend fun searchAnime(
+        @Header("X-MAL-CLIENT-ID") clientId: String,
+        @Query("q") query: String,
+        @Query("limit") limit: Int = 30,
+        @Query("offset") offset: Int = 0,
+        @Query("fields") fields: String = "id,title,main_picture,mean,rank,popularity,num_list_users,num_episodes,status,genres,synopsis,start_date,studios"
+    ): Response<MalAnimeListResponse>
+
+    @GET("manga")
+    suspend fun searchManga(
+        @Header("X-MAL-CLIENT-ID") clientId: String,
+        @Query("q") query: String,
+        @Query("limit") limit: Int = 30,
+        @Query("offset") offset: Int = 0,
+        @Query("fields") fields: String = "id,title,main_picture,mean,rank,popularity,num_list_users,num_chapters,num_volumes,status,genres,synopsis,start_date,authors"
+    ): Response<MalMangaListResponse>
+
+    @GET("anime/season/{year}/{season}")
+    suspend fun getSeasonalAnime(
+        @Header("X-MAL-CLIENT-ID") clientId: String,
+        @Path("year") year: Int,
+        @Path("season") season: String,
+        @Query("limit") limit: Int = 50,
+        @Query("offset") offset: Int = 0,
+        @Query("fields") fields: String = "id,title,main_picture,mean,rank,popularity,num_list_users,num_episodes,status,genres,synopsis,start_date,studios"
+    ): Response<MalAnimeListResponse>
 }

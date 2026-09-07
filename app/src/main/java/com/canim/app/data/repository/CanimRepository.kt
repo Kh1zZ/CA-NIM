@@ -159,7 +159,62 @@ class CanimRepository(
     suspend fun deleteMangaTracking(malId: Int): Result<Unit> =
         malAuthManager.deleteMangaTracking(malId)
 
-    // --- Search with AniList as Primary & Offline Fallback ---
+    // --- Helpers for MyAnimeList Node Mapping ---
+    private fun mapMalAnimeNodeToMediaItem(node: MalAnimeNode): MediaItem {
+        return MediaItem(
+            malId = node.id,
+            anilistId = CacheManager.getAniListIdForMalId(node.id) ?: node.id,
+            title = node.title,
+            titleEnglish = node.alternativeTitles?.en ?: node.title,
+            imageUrl = node.mainPicture?.large ?: node.mainPicture?.medium ?: "",
+            type = MediaType.ANIME,
+            score = node.mean,
+            synopsis = node.synopsis ?: "",
+            episodes = node.numEpisodes,
+            chapters = null,
+            volumes = null,
+            status = when (node.status?.lowercase()) {
+                "currently_airing" -> "AIRING"
+                "finished_airing" -> "AIRED"
+                "not_yet_aired" -> "NOT YET AIRED"
+                else -> node.status?.uppercase() ?: "AIRED"
+            },
+            year = node.startDate?.take(4)?.toIntOrNull(),
+            season = null,
+            genres = node.genres?.map { it.name } ?: emptyList(),
+            format = "TV",
+            studio = node.studios?.firstOrNull()?.name
+        )
+    }
+
+    private fun mapMalMangaNodeToMediaItem(node: MalMangaNode): MediaItem {
+        return MediaItem(
+            malId = node.id,
+            anilistId = CacheManager.getAniListIdForMalId(node.id) ?: node.id,
+            title = node.title,
+            titleEnglish = node.alternativeTitles?.en ?: node.title,
+            imageUrl = node.mainPicture?.large ?: node.mainPicture?.medium ?: "",
+            type = MediaType.MANGA,
+            score = node.mean,
+            synopsis = node.synopsis ?: "",
+            episodes = null,
+            chapters = node.numChapters,
+            volumes = node.numVolumes,
+            status = when (node.status?.lowercase()) {
+                "currently_publishing" -> "PUBLISHING"
+                "finished" -> "FINISHED"
+                "on_hiatus" -> "ON HIATUS"
+                "discontinued" -> "CANCELLED"
+                else -> node.status?.uppercase() ?: "FINISHED"
+            },
+            year = node.startDate?.take(4)?.toIntOrNull(),
+            season = null,
+            genres = node.genres?.map { it.name } ?: emptyList(),
+            format = "MANGA",
+            studio = node.authors?.firstOrNull()?.name
+        )
+    }
+
     suspend fun searchAnime(
         query: String,
         genres: List<String>? = null,
@@ -173,7 +228,28 @@ class CanimRepository(
         val cached = CacheManager.getSearch(filterKey, "ANIME")
         if (cached != null) return@withContext cached
 
-        var result = AniListClient.searchMedia(trimmed, MediaType.ANIME, genres, year, format)
+        var result = runCatching {
+            AniListClient.searchMedia(trimmed, MediaType.ANIME, genres, year, format)
+        }.getOrDefault(emptyList())
+
+        // Fallback to MyAnimeList Search API v2 if AniList is down / empty
+        if (result.isEmpty() && trimmed.isNotBlank()) {
+            try {
+                val malResp = ApiClient.malApi.searchAnime(MalAuthManager.CLIENT_ID, trimmed, limit = 30)
+                if (malResp.isSuccessful && malResp.body()?.data?.isNotEmpty() == true) {
+                    var malItems = malResp.body()!!.data.map { mapMalAnimeNodeToMediaItem(it.node) }
+                    if (!genres.isNullOrEmpty()) {
+                        malItems = malItems.filter { item -> item.genres.any { g -> genres.contains(g) } }
+                    }
+                    if (year != null) {
+                        malItems = malItems.filter { item -> item.year == year }
+                    }
+                    if (malItems.isNotEmpty()) {
+                        result = malItems
+                    }
+                }
+            } catch (_: Exception) {}
+        }
 
         if (result.isEmpty() && genres.isNullOrEmpty() && year == null && format == null) {
             val localMatches = fallbackAnime().filter {
@@ -204,7 +280,28 @@ class CanimRepository(
         val cached = CacheManager.getSearch(filterKey, "MANGA")
         if (cached != null) return@withContext cached
 
-        var result = AniListClient.searchMedia(trimmed, MediaType.MANGA, genres, year, format)
+        var result = runCatching {
+            AniListClient.searchMedia(trimmed, MediaType.MANGA, genres, year, format)
+        }.getOrDefault(emptyList())
+
+        // Fallback to MyAnimeList Search API v2 if AniList is down / empty
+        if (result.isEmpty() && trimmed.isNotBlank()) {
+            try {
+                val malResp = ApiClient.malApi.searchManga(MalAuthManager.CLIENT_ID, trimmed, limit = 30)
+                if (malResp.isSuccessful && malResp.body()?.data?.isNotEmpty() == true) {
+                    var malItems = malResp.body()!!.data.map { mapMalMangaNodeToMediaItem(it.node) }
+                    if (!genres.isNullOrEmpty()) {
+                        malItems = malItems.filter { item -> item.genres.any { g -> genres.contains(g) } }
+                    }
+                    if (year != null) {
+                        malItems = malItems.filter { item -> item.year == year }
+                    }
+                    if (malItems.isNotEmpty()) {
+                        result = malItems
+                    }
+                }
+            } catch (_: Exception) {}
+        }
 
         if (result.isEmpty() && genres.isNullOrEmpty() && year == null && format == null) {
             val localMatches = fallbackManga().filter {
@@ -236,11 +333,12 @@ class CanimRepository(
             if (cached != null) return@withContext cached
         }
 
+        val limit = 25
+        val offset = (page - 1) * limit
+
         // B.4: Top Anime exclusively based on MAL API ranking
         if (category == DiscoverCategory.TOP_ANIME) {
             try {
-                val limit = 25
-                val offset = (page - 1) * limit
                 val resp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "all", limit, offset)
                 if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
                     val malNodes = resp.body()!!.data.map { it.node }
@@ -248,25 +346,15 @@ class CanimRepository(
                     val aniMap = runCatching { AniListClient.getMediaBatchByMalIds(malIds, MediaType.ANIME) }.getOrDefault(emptyMap())
                     val items = malNodes.map { node ->
                         val ani = aniMap[node.id]
-                        MediaItem(
-                            malId = node.id,
-                            anilistId = ani?.anilistId ?: node.id,
-                            title = ani?.title ?: node.title,
-                            titleEnglish = ani?.titleEnglish ?: node.title,
-                            imageUrl = ani?.imageUrl?.ifBlank { node.mainPicture?.large ?: node.mainPicture?.medium ?: "" } ?: (node.mainPicture?.large ?: node.mainPicture?.medium ?: ""),
-                            type = MediaType.ANIME,
-                            score = node.mean,
-                            synopsis = ani?.synopsis ?: node.synopsis ?: "",
-                            episodes = ani?.episodes ?: node.numEpisodes,
-                            chapters = null,
-                            volumes = null,
-                            status = ani?.status ?: node.status ?: "AIRED",
-                            year = ani?.year,
-                            season = ani?.season,
-                            genres = if (!ani?.genres.isNullOrEmpty()) ani!!.genres else (node.genres?.map { it.name } ?: emptyList()),
-                            format = ani?.format ?: "TV",
-                            studio = ani?.studio
-                        )
+                        if (ani != null) {
+                            ani.copy(
+                                score = node.mean ?: ani.score,
+                                imageUrl = ani.imageUrl.ifBlank { node.mainPicture?.large ?: node.mainPicture?.medium ?: "" },
+                                synopsis = ani.synopsis?.ifBlank { node.synopsis ?: "" } ?: (node.synopsis ?: "")
+                            )
+                        } else {
+                            mapMalAnimeNodeToMediaItem(node)
+                        }
                     }
                     CacheManager.putDiscover(cacheKey, items)
                     return@withContext items
@@ -274,8 +362,6 @@ class CanimRepository(
             } catch (_: Exception) {}
         } else if (category == DiscoverCategory.TOP_MANGA) {
             try {
-                val limit = 25
-                val offset = (page - 1) * limit
                 val resp = ApiClient.malApi.getMangaRanking(MalAuthManager.CLIENT_ID, "all", limit, offset)
                 if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
                     val malNodes = resp.body()!!.data.map { it.node }
@@ -283,25 +369,15 @@ class CanimRepository(
                     val aniMap = runCatching { AniListClient.getMediaBatchByMalIds(malIds, MediaType.MANGA) }.getOrDefault(emptyMap())
                     val items = malNodes.map { node ->
                         val ani = aniMap[node.id]
-                        MediaItem(
-                            malId = node.id,
-                            anilistId = ani?.anilistId ?: node.id,
-                            title = ani?.title ?: node.title,
-                            titleEnglish = ani?.titleEnglish ?: node.title,
-                            imageUrl = ani?.imageUrl?.ifBlank { node.mainPicture?.large ?: node.mainPicture?.medium ?: "" } ?: (node.mainPicture?.large ?: node.mainPicture?.medium ?: ""),
-                            type = MediaType.MANGA,
-                            score = node.mean,
-                            synopsis = ani?.synopsis ?: node.synopsis ?: "",
-                            episodes = null,
-                            chapters = ani?.chapters ?: node.numChapters,
-                            volumes = ani?.volumes ?: node.numVolumes,
-                            status = ani?.status ?: node.status ?: "AIRED",
-                            year = ani?.year,
-                            season = null,
-                            genres = if (!ani?.genres.isNullOrEmpty()) ani!!.genres else (node.genres?.map { it.name } ?: emptyList()),
-                            format = ani?.format ?: "MANGA",
-                            studio = null
-                        )
+                        if (ani != null) {
+                            ani.copy(
+                                score = node.mean ?: ani.score,
+                                imageUrl = ani.imageUrl.ifBlank { node.mainPicture?.large ?: node.mainPicture?.medium ?: "" },
+                                synopsis = ani.synopsis?.ifBlank { node.synopsis ?: "" } ?: (node.synopsis ?: "")
+                            )
+                        } else {
+                            mapMalMangaNodeToMediaItem(node)
+                        }
                     }
                     CacheManager.putDiscover(cacheKey, items)
                     return@withContext items
@@ -309,17 +385,70 @@ class CanimRepository(
             } catch (_: Exception) {}
         }
 
-        var results = AniListClient.getDiscoverMedia(
-            category = category,
-            filter = filter,
-            page = page,
-            randomSort = randomSort,
-            forceRefresh = forceRefresh
-        )
+        // Try AniList first if not top ranking
+        var results = runCatching {
+            AniListClient.getDiscoverMedia(
+                category = category,
+                filter = filter,
+                page = page,
+                randomSort = randomSort,
+                forceRefresh = forceRefresh
+            )
+        }.getOrDefault(emptyList())
 
-        // Offline fallback if network fails
+        // Resilient Dual-Engine: If AniList fails/is down, fallback to MyAnimeList API
+        if (results.isEmpty()) {
+            try {
+                when (category) {
+                    DiscoverCategory.CURRENT_SEASON -> {
+                        val resp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "airing", limit, offset)
+                        if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
+                            results = resp.body()!!.data.map { mapMalAnimeNodeToMediaItem(it.node) }
+                        }
+                    }
+                    DiscoverCategory.NEXT_SEASON, DiscoverCategory.UPCOMING, DiscoverCategory.TBA -> {
+                        val resp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "upcoming", limit, offset)
+                        if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
+                            results = resp.body()!!.data.map { mapMalAnimeNodeToMediaItem(it.node) }
+                        }
+                    }
+                    DiscoverCategory.TRENDING_NOW -> {
+                        if (filter.format == "MANGA") {
+                            val resp = ApiClient.malApi.getMangaRanking(MalAuthManager.CLIENT_ID, "bypopularity", limit, offset)
+                            if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
+                                results = resp.body()!!.data.map { mapMalMangaNodeToMediaItem(it.node) }
+                            }
+                        } else {
+                            val resp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "bypopularity", limit, offset)
+                            if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
+                                results = resp.body()!!.data.map { mapMalAnimeNodeToMediaItem(it.node) }
+                            }
+                        }
+                    }
+                    DiscoverCategory.RECENTLY_DONE_MANGA -> {
+                        val resp = ApiClient.malApi.getMangaRanking(MalAuthManager.CLIENT_ID, "manga", limit, offset)
+                        if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
+                            results = resp.body()!!.data.map { mapMalMangaNodeToMediaItem(it.node) }
+                        }
+                    }
+                    DiscoverCategory.NEWLY_ADDED_MANGA -> {
+                        val resp = ApiClient.malApi.getMangaRanking(MalAuthManager.CLIENT_ID, "favorite", limit, offset)
+                        if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
+                            results = resp.body()!!.data.map { mapMalMangaNodeToMediaItem(it.node) }
+                        }
+                    }
+                    else -> {}
+                }
+            } catch (_: Exception) {}
+        }
+
+        // Offline fallback if network fails completely
         if (results.isEmpty() && page == 1) {
             results = if (filter.format == "MANGA") fallbackManga() else fallbackAnime()
+        }
+
+        if (results.isNotEmpty()) {
+            CacheManager.putDiscover(cacheKey, results)
         }
 
         results

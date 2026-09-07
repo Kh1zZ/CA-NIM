@@ -62,7 +62,10 @@ data class MalAnimeNode(
     @SerializedName("rank") val rank: Int? = null,
     @SerializedName("popularity") val popularity: Int? = null,
     @SerializedName("num_list_users") val numListUsers: Int? = null,
-    @SerializedName("my_list_status") val myListStatus: MalAnimeListStatus? = null
+    @SerializedName("my_list_status") val myListStatus: MalAnimeListStatus? = null,
+    @SerializedName("related_anime") val relatedAnime: List<MalRelatedEdge>? = null,
+    @SerializedName("recommendations") val recommendations: List<MalRecommendationEdge>? = null,
+    @SerializedName("alternative_titles") val alternativeTitles: MalAlternativeTitles? = null
 )
 
 data class MalMangaNodeItem(
@@ -86,7 +89,27 @@ data class MalMangaNode(
     @SerializedName("rank") val rank: Int? = null,
     @SerializedName("popularity") val popularity: Int? = null,
     @SerializedName("num_list_users") val numListUsers: Int? = null,
-    @SerializedName("my_list_status") val myListStatus: MalMangaListStatus? = null
+    @SerializedName("my_list_status") val myListStatus: MalMangaListStatus? = null,
+    @SerializedName("related_manga") val relatedManga: List<MalRelatedEdge>? = null,
+    @SerializedName("recommendations") val recommendations: List<MalRecommendationEdge>? = null,
+    @SerializedName("alternative_titles") val alternativeTitles: MalAlternativeTitles? = null
+)
+
+data class MalRelatedEdge(
+    @SerializedName("node") val node: MalAnimeNode,
+    @SerializedName("relation_type") val relationType: String?,
+    @SerializedName("relation_type_formatted") val relationTypeFormatted: String?
+)
+
+data class MalRecommendationEdge(
+    @SerializedName("node") val node: MalAnimeNode,
+    @SerializedName("num_recommendations") val numRecommendations: Int?
+)
+
+data class MalAlternativeTitles(
+    @SerializedName("synonyms") val synonyms: List<String>?,
+    @SerializedName("en") val en: String?,
+    @SerializedName("ja") val ja: String?
 )
 
 data class MalPicture(

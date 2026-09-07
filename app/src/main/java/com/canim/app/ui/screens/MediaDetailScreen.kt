@@ -537,23 +537,23 @@ fun MediaDetailScreen(
 
             // Cast Section (Pemeran & Karakter)
             val castList: List<CharacterCastItem> = extendedDetail?.cast ?: emptyList()
-            if (castList.isNotEmpty()) {
-                item {
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "PEMERAN & KARAKTER (${castList.size})",
-                            color = TextSecondary,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp
-                        )
+            item {
+                Spacer(modifier = Modifier.height(14.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (castList.isNotEmpty()) "PEMERAN & KARAKTER (${castList.size})" else "PEMERAN & KARAKTER",
+                        color = TextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                    if (castList.isNotEmpty()) {
                         Text(
                             text = "Lihat Semua",
                             color = themeAccent,
@@ -562,7 +562,28 @@ fun MediaDetailScreen(
                             modifier = Modifier.clickable { onOpenFullCast(false) }
                         )
                     }
+                }
 
+                if (isLoadingExtendedDetail) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(
+                            color = themeAccent,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = "Memuat daftar pemeran...",
+                            color = TextMuted,
+                            fontSize = 12.sp
+                        )
+                    }
+                } else if (castList.isNotEmpty()) {
                     LazyRow(
                         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -581,6 +602,34 @@ fun MediaDetailScreen(
                                         onOpenCastCrew(targetId, isStaff)
                                     }
                                 }
+                            )
+                        }
+                    }
+                } else {
+                    Surface(
+                        color = CardElevated,
+                        shape = RoundedCornerShape(10.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderSubtle),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = TextMuted,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Daftar pemeran belum dapat dimuat saat server AniList sedang dalam pemeliharaan (Status 403). Metrik, relasi, dan rekomendasi MyAnimeList tetap aktif.",
+                                color = TextMuted,
+                                fontSize = 11.sp,
+                                lineHeight = 16.sp
                             )
                         }
                     }

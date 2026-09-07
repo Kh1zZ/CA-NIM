@@ -368,10 +368,36 @@ object AniListClient {
         if (cached != null) return@withContext cached
 
         val hasSearch = query.isNotBlank()
+        val queryDefParams = mutableListOf("${'$'}type: MediaType")
+        val mediaParams = mutableListOf("type: ${'$'}type")
+        val variables = JSONObject().apply {
+            put("type", if (type == MediaType.ANIME) "ANIME" else "MANGA")
+            if (hasSearch) {
+                queryDefParams.add("${'$'}search: String")
+                mediaParams.add("search: ${'$'}search")
+                put("search", query.trim())
+            }
+            if (!genres.isNullOrEmpty()) {
+                queryDefParams.add("${'$'}genres: [String]")
+                mediaParams.add("genre_in: ${'$'}genres")
+                put("genres", JSONArray(genres))
+            }
+            if (year != null && year > 1900) {
+                queryDefParams.add("${'$'}seasonYear: Int")
+                mediaParams.add("seasonYear: ${'$'}seasonYear")
+                put("seasonYear", year)
+            }
+            if (!format.isNullOrBlank()) {
+                queryDefParams.add("${'$'}format: MediaFormat")
+                mediaParams.add("format: ${'$'}format")
+                put("format", format)
+            }
+        }
+
         val graphqlQuery = """
-            query (${'$'}search: String, ${'$'}type: MediaType, ${'$'}genres: [String], ${'$'}seasonYear: Int, ${'$'}format: MediaFormat) {
+            query (${queryDefParams.joinToString(", ")}) {
               Page(page: 1, perPage: 30) {
-                media(${if (hasSearch) "search: \$search, " else ""}type: ${'$'}type, genre_in: ${'$'}genres, seasonYear: ${'$'}seasonYear, format: ${'$'}format, sort: POPULARITY_DESC) {
+                media(${mediaParams.joinToString(", ")}, sort: POPULARITY_DESC) {
                   id
                   idMal
                   title {
@@ -402,20 +428,6 @@ object AniListClient {
               }
             }
         """.trimIndent()
-
-        val variables = JSONObject().apply {
-            if (hasSearch) put("search", query.trim())
-            put("type", if (type == MediaType.ANIME) "ANIME" else "MANGA")
-            if (!genres.isNullOrEmpty()) {
-                put("genres", JSONArray(genres))
-            }
-            if (year != null && year > 1900) {
-                put("seasonYear", year)
-            }
-            if (!format.isNullOrBlank()) {
-                put("format", format)
-            }
-        }
 
         val responseString = executeQuery(graphqlQuery, variables) ?: return@withContext emptyList()
         val parsed = gson.fromJson(responseString, AniListResponse::class.java)

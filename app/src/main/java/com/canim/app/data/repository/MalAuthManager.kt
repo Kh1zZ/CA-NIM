@@ -615,9 +615,35 @@ class MalAuthManager(
                 val response = ApiClient.malApi.getAnimeDetailFallback(CLIENT_ID, malId)
                 if (response.isSuccessful && response.body() != null) {
                     val body = response.body()!!
+                    val parsedRelations = body.relatedAnime?.map { rel ->
+                        MediaRelationItem(
+                            id = rel.node.id,
+                            malId = rel.node.id,
+                            title = rel.node.title,
+                            imageUrl = rel.node.mainPicture?.large ?: rel.node.mainPicture?.medium,
+                            relationType = (rel.relationTypeFormatted ?: rel.relationType ?: "RELATION").uppercase(),
+                            type = MediaType.ANIME
+                        )
+                    } ?: emptyList()
+
+                    val parsedRecs = body.recommendations?.map { rec ->
+                        MediaItem(
+                            malId = rec.node.id,
+                            anilistId = rec.node.id,
+                            title = rec.node.title,
+                            imageUrl = rec.node.mainPicture?.large ?: rec.node.mainPicture?.medium ?: "",
+                            type = MediaType.ANIME
+                        )
+                    } ?: emptyList()
+
                     val ext = ExtendedMediaDetail(
                         malId = body.id,
                         title = body.title,
+                        titleEnglish = body.alternativeTitles?.en,
+                        nativeTitle = body.alternativeTitles?.ja,
+                        coverImage = body.mainPicture?.large ?: body.mainPicture?.medium,
+                        bannerImage = body.mainPicture?.large ?: body.mainPicture?.medium,
+                        synopsis = body.synopsis,
                         studio = body.studios?.firstOrNull()?.name,
                         source = body.source,
                         airingStatus = body.status,
@@ -631,6 +657,8 @@ class MalAuthManager(
                         rank = body.rank,
                         popularity = body.popularity,
                         watchers = body.numListUsers,
+                        relations = parsedRelations,
+                        recommendations = parsedRecs,
                         isFromFallback = true
                     )
                     CacheManager.putDetail(cacheKey, ext)
@@ -640,9 +668,35 @@ class MalAuthManager(
                 val response = ApiClient.malApi.getMangaDetailFallback(CLIENT_ID, malId)
                 if (response.isSuccessful && response.body() != null) {
                     val body = response.body()!!
+                    val parsedRelations = body.relatedManga?.map { rel ->
+                        MediaRelationItem(
+                            id = rel.node.id,
+                            malId = rel.node.id,
+                            title = rel.node.title,
+                            imageUrl = rel.node.mainPicture?.large ?: rel.node.mainPicture?.medium,
+                            relationType = (rel.relationTypeFormatted ?: rel.relationType ?: "RELATION").uppercase(),
+                            type = MediaType.MANGA
+                        )
+                    } ?: emptyList()
+
+                    val parsedRecs = body.recommendations?.map { rec ->
+                        MediaItem(
+                            malId = rec.node.id,
+                            anilistId = rec.node.id,
+                            title = rec.node.title,
+                            imageUrl = rec.node.mainPicture?.large ?: rec.node.mainPicture?.medium ?: "",
+                            type = MediaType.MANGA
+                        )
+                    } ?: emptyList()
+
                     val ext = ExtendedMediaDetail(
                         malId = body.id,
                         title = body.title,
+                        titleEnglish = body.alternativeTitles?.en,
+                        nativeTitle = body.alternativeTitles?.ja,
+                        coverImage = body.mainPicture?.large ?: body.mainPicture?.medium,
+                        bannerImage = body.mainPicture?.large ?: body.mainPicture?.medium,
+                        synopsis = body.synopsis,
                         publisher = body.authors?.firstOrNull()?.name,
                         airingStatus = body.status,
                         startDate = body.startDate,
@@ -655,6 +709,8 @@ class MalAuthManager(
                         rank = body.rank,
                         popularity = body.popularity,
                         watchers = body.numListUsers,
+                        relations = parsedRelations,
+                        recommendations = parsedRecs,
                         isFromFallback = true
                     )
                     CacheManager.putDetail(cacheKey, ext)
