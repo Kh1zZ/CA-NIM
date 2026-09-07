@@ -375,50 +375,55 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        // Top-level modal/overlay stack rendering with smooth popout entry & directional push/pop
+                        // Top-level modal/overlay stack rendering with unified smooth popup entry & popdown exit
                         AnimatedContent(
                             targetState = screenStack.lastOrNull(),
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center,
                             transitionSpec = {
                                 val noClipSizeTransform = SizeTransform(clip = false)
+                                val isPush = if (initialState == null && targetState != null) {
+                                    true
+                                } else if (initialState != null && targetState == null) {
+                                    false
+                                } else {
+                                    isStackPush
+                                }
 
-                                if (initialState != null && targetState != null) {
-                                    // Stack-to-Stack transition (e.g. Detail to relation Detail, CastCrew, Studio, etc.)
-                                    if (isStackPush) {
-                                        (slideInHorizontally(initialOffsetX = { it / 2 }, animationSpec = tween(260, easing = FastOutSlowInEasing)) + fadeIn(animationSpec = tween(220)))
-                                            .togetherWith(slideOutHorizontally(targetOffsetX = { -it / 3 }, animationSpec = tween(220, easing = FastOutSlowInEasing)) + fadeOut(animationSpec = tween(180)))
-                                            .using(noClipSizeTransform)
-                                    } else {
-                                        (slideInHorizontally(initialOffsetX = { -it / 3 }, animationSpec = tween(220, easing = FastOutSlowInEasing)) + fadeIn(animationSpec = tween(200)))
-                                            .togetherWith(slideOutHorizontally(targetOffsetX = { it / 2 }, animationSpec = tween(260, easing = FastOutSlowInEasing)) + fadeOut(animationSpec = tween(180)))
-                                            .using(noClipSizeTransform)
-                                    }
-                                } else if (targetState != null) {
-                                    // Opening overlay from base tab: smooth spring-based popout zoom entry
-                                    (scaleIn(
-                                        initialScale = 0.88f,
-                                        animationSpec = spring(
-                                            dampingRatio = 0.82f,
-                                            stiffness = Spring.StiffnessMediumLow
-                                        )
-                                    ) + fadeIn(animationSpec = tween(220, easing = LinearOutSlowInEasing)))
-                                        .togetherWith(fadeOut(animationSpec = tween(180)))
-                                        .using(noClipSizeTransform)
-                                } else if (initialState != null) {
-                                    // Popping overlay back to base tab: smooth popout zoom exit
-                                    fadeIn(animationSpec = tween(180))
+                                if (isPush) {
+                                    // Smooth vertical popup entry: rises smoothly from bottom + scales in + fades in
+                                    (slideInVertically(
+                                        initialOffsetY = { (it * 0.15f).toInt() },
+                                        animationSpec = tween(260, easing = FastOutSlowInEasing)
+                                    ) + scaleIn(
+                                        initialScale = 0.95f,
+                                        animationSpec = tween(260, easing = FastOutSlowInEasing)
+                                    ) + fadeIn(animationSpec = tween(220)))
                                         .togetherWith(
                                             scaleOut(
-                                                targetScale = 0.88f,
-                                                animationSpec = tween(200, easing = FastOutLinearInEasing)
+                                                targetScale = 0.95f,
+                                                animationSpec = tween(220, easing = FastOutSlowInEasing)
                                             ) + fadeOut(animationSpec = tween(180))
                                         )
                                         .using(noClipSizeTransform)
+                                        .apply { targetContentZIndex = 1f }
                                 } else {
-                                    (fadeIn(animationSpec = tween(180)))
-                                        .togetherWith(fadeOut(animationSpec = tween(180)))
+                                    // Smooth vertical popdown exit: settles down smoothly to bottom + scales out + fades out
+                                    (scaleIn(
+                                        initialScale = 0.95f,
+                                        animationSpec = tween(220, easing = FastOutSlowInEasing)
+                                    ) + fadeIn(animationSpec = tween(200)))
+                                        .togetherWith(
+                                            slideOutVertically(
+                                                targetOffsetY = { (it * 0.15f).toInt() },
+                                                animationSpec = tween(220, easing = FastOutSlowInEasing)
+                                            ) + scaleOut(
+                                                targetScale = 0.95f,
+                                                animationSpec = tween(220, easing = FastOutSlowInEasing)
+                                            ) + fadeOut(animationSpec = tween(180))
+                                        )
                                         .using(noClipSizeTransform)
+                                        .apply { targetContentZIndex = -1f }
                                 }
                             },
                             label = "ScreenOverlayTransition"
@@ -447,7 +452,21 @@ class MainActivity : ComponentActivity() {
                                     )
                                 }
                                 is ScreenRoute.Detail -> {
-                                    val detailItem = uiState.selectedDetailItem ?: currentScreen.item
+                                    val currentMediaId = when (val item = currentScreen.item) {
+                                        is com.canim.app.data.model.UserMediaItem -> item.id
+                                        is com.canim.app.data.model.MediaItem -> item.id
+                                        else -> null
+                                    }
+                                    val selectedMediaId = when (val item = uiState.selectedDetailItem) {
+                                        is com.canim.app.data.model.UserMediaItem -> item.id
+                                        is com.canim.app.data.model.MediaItem -> item.id
+                                        else -> null
+                                    }
+                                    val detailItem = if (currentMediaId != null && currentMediaId == selectedMediaId) {
+                                        uiState.selectedDetailItem ?: currentScreen.item
+                                    } else {
+                                        currentScreen.item
+                                    }
                                     val detailTitle = (detailItem as? com.canim.app.data.model.UserMediaItem)?.title
                                         ?: (detailItem as? com.canim.app.data.model.MediaItem)?.title
                                         ?: ""

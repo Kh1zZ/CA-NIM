@@ -219,10 +219,11 @@ Verifikasi lokal diwajibkan menjalankan suite pengujian unit otomatis sebelum me
 ## 📝 10. Catatan Perubahan
 
 ### v6.1.5 (Build 24)
-- **Animasi Popout Detail Layar Penuh yang Halus**:
-  - Memperbaiki kalkulasi ukuran container modal/overlay pada `AnimatedContent` dengan `Modifier.fillMaxSize()`, `Alignment.Center`, dan unclipped `SizeTransform(clip = false)`.
-  - Menerapkan animasi popout (zoom scale-up berbasis pegas fisika `scaleIn(0.88f)` + `fadeIn(220ms)`) saat membuka detail anime dari tab mana pun, serta popout zoom exit (`scaleOut(0.88f)` + `fadeOut(180ms)`) saat kembali ke tab dasar.
-  - Menghilangkan glitch visual loncatan/distorsi dari pojok kiri atas dan menyelaraskan state kosong (`null`) dengan `Spacer(modifier = Modifier.fillMaxSize())`.
+- **Unifikasi Animasi Popup Layar Penuh Detail Anime**:
+  - Menerapkan animasi popup vertikal halus yang identik (`slideInVertically(0.15f)` + `scaleIn(0.95f)` + `fadeIn(220ms)`) saat membuka detail anime, baik saat dibuka pertama kali dari tab dasar maupun saat membuka anime dari dalam tab fullscreen detail (relasi, rekomendasi, profil cast/crew, karya studio).
+  - Menghilangkan glitch visual loncatan/clipping dari pojok kiri atas dengan mengunci ukuran container `Modifier.fillMaxSize()`, `Alignment.Center`, `Spacer` pada state `null`, dan unclipped `SizeTransform(clip = false)`.
+  - Menerapkan transisi popdown mundur saat tombol kembali ditekan (`slideOutVertically(0.15f)` + `scaleOut(0.95f)` + `fadeOut(180ms)`) dengan pengaturan `targetContentZIndex = -1f` agar layar yang menutup selalu berada di atas layar yang kembali ditampilkan.
+  - Memperbaiki resolusi state item antar-layar stack agar judul dan poster layar sebelumnya tidak mengalami flicker/jump saat transisi berlangsung.
 - **Perbaikan Inversi Teks Sliding Highlight di Menu Discovery**:
   - Memperbaiki urutan draw layering (`zIndex`) pada `ScrollableTabRow` di `DiscoverScreen` dengan menempatkan Box pill indikator pada `zIndex(-1f)` di belakang tab, dan konten tab pada `zIndex(1f)` / `zIndex(2f)`.
   - Menambahkan transisi animasi warna teks terinversi dinamis (`Color.White` pekat dengan `FontWeight.ExtraBold` saat aktif vs `TextSecondary` saat tidak aktif) agar teks pilihan (seperti "Trending Now") selalu tampak kontras, tajam, dan tidak lagi tertutup oleh pill highlight.
