@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -23,11 +24,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -163,67 +167,102 @@ fun SearchScreen(
             )
         }
 
-        // Search Bar with Tactile Clear & Submit
+        // Search Bar with Tactile Clear & Submit (Harmonized 44.dp height)
         item {
+            var isSearchFocused by remember { mutableStateOf(false) }
+            val activeColor = if (searchType == MediaType.MANGA) MangaAccentDarkBlue else AccentBlue
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                OutlinedTextField(
-                    value = searchInput,
-                    onValueChange = { searchInput = it },
+                // Compact Search Input Box (Height: 44.dp)
+                Box(
                     modifier = Modifier
                         .weight(1f)
-                        .testTag("search_input_field"),
-                    placeholder = {
-                        Text(
-                            text = if (searchType == MediaType.ANIME) "Ketik judul anime (misal: Frieren)..." else "Ketik judul manga (misal: Berserk)...",
-                            color = TextMuted,
-                            fontSize = 13.sp
+                        .height(44.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(CardBg)
+                        .border(
+                            width = 1.dp,
+                            color = if (isSearchFocused) activeColor else CardBorder,
+                            shape = RoundedCornerShape(12.dp)
                         )
-                    },
-                    leadingIcon = {
+                        .padding(horizontal = 12.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Search,
                             contentDescription = "Cari",
-                            tint = AccentBlue
+                            tint = activeColor,
+                            modifier = Modifier.size(18.dp)
                         )
-                    },
-                    trailingIcon = {
+
+                        Box(
+                            modifier = Modifier.weight(1f),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            if (searchInput.isEmpty()) {
+                                Text(
+                                    text = if (searchType == MediaType.ANIME) "Ketik judul anime..." else "Ketik judul manga...",
+                                    color = TextMuted,
+                                    fontSize = 13.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            BasicTextField(
+                                value = searchInput,
+                                onValueChange = { searchInput = it },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("search_input_field")
+                                    .onFocusChanged { isSearchFocused = it.isFocused },
+                                singleLine = true,
+                                textStyle = TextStyle(
+                                    color = TextPrimary,
+                                    fontSize = 13.sp
+                                ),
+                                cursorBrush = SolidColor(activeColor),
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                keyboardActions = KeyboardActions(onSearch = {
+                                    focusManager.clearFocus()
+                                    if (searchInput.isNotBlank() || hasActiveFilters) {
+                                        onSearch(searchInput.trim(), searchType)
+                                    }
+                                })
+                            )
+                        }
+
                         if (searchInput.isNotEmpty()) {
-                            IconButton(onClick = {
-                                searchInput = ""
-                                onSearch("", searchType)
-                            }) {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable {
+                                        searchInput = ""
+                                        onSearch("", searchType)
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
                                 Icon(
                                     imageVector = Icons.Default.Close,
                                     contentDescription = "Hapus",
-                                    tint = TextMuted
+                                    tint = TextMuted,
+                                    modifier = Modifier.size(16.dp)
                                 )
                             }
                         }
-                    },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                    keyboardActions = KeyboardActions(onSearch = {
-                        focusManager.clearFocus()
-                        if (searchInput.isNotBlank() || hasActiveFilters) {
-                            onSearch(searchInput.trim(), searchType)
-                        }
-                    }),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AccentBlue,
-                        unfocusedBorderColor = CardBorder,
-                        focusedContainerColor = CardBg,
-                        unfocusedContainerColor = CardBg,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                )
+                    }
+                }
 
-                // Filter Button
+                // Filter Button (Height/Size: 44.dp)
                 IconButton(
                     onClick = {
                         searchType = state.searchType
@@ -234,18 +273,24 @@ fun SearchScreen(
                         showFilterSheet = true
                     },
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(44.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(if (hasActiveFilters) (if (searchType == MediaType.MANGA) MangaAccentDarkBlue else AccentBlue) else CardBg)
-                        .border(1.dp, if (hasActiveFilters) (if (searchType == MediaType.MANGA) MangaAccentDarkBlue else AccentBlue) else CardBorder, RoundedCornerShape(12.dp))
+                        .background(if (hasActiveFilters) activeColor else CardBg)
+                        .border(
+                            1.dp,
+                            if (hasActiveFilters) activeColor else CardBorder,
+                            RoundedCornerShape(12.dp)
+                        )
                 ) {
                     Icon(
                         imageVector = Icons.Default.FilterList,
                         contentDescription = "Filter",
-                        tint = if (hasActiveFilters) Color.White else TextPrimary
+                        tint = if (hasActiveFilters) Color.White else TextPrimary,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
 
+                // Cari Button (Height: 44.dp)
                 Button(
                     onClick = {
                         focusManager.clearFocus()
@@ -253,13 +298,15 @@ fun SearchScreen(
                             onSearch(searchInput.trim(), searchType)
                         }
                     },
-                    modifier = Modifier.testTag("search_submit_button"),
+                    modifier = Modifier
+                        .height(44.dp)
+                        .testTag("search_submit_button"),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (searchType == MediaType.MANGA) MangaAccentDarkBlue else AccentBlue,
+                        containerColor = activeColor,
                         contentColor = Color.White
                     ),
                     shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp)
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp)
                 ) {
                     Text(text = "Cari", fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }

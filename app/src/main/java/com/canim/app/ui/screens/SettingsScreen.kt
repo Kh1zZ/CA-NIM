@@ -167,19 +167,22 @@ fun SettingsScreen(
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Button(
                                 onClick = onSyncMal,
                                 enabled = !state.isSyncingMal,
                                 modifier = Modifier
                                     .weight(1f)
+                                    .height(42.dp)
                                     .testTag("sync_mal_button"),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = AccentGreen,
                                     contentColor = BlackBg
                                 ),
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
                             ) {
                                 if (state.isSyncingMal) {
                                     CircularProgressIndicator(
@@ -195,18 +198,36 @@ fun SettingsScreen(
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text(text = if (state.isSyncingMal) "Sinkronisasi..." else "Sinkron MAL")
+                                Text(
+                                    text = if (state.isSyncingMal) "Sinkronisasi..." else "Sinkron MAL",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
 
                             OutlinedButton(
                                 onClick = onLogoutMal,
                                 modifier = Modifier
                                     .weight(1f)
+                                    .height(42.dp)
                                     .testTag("logout_mal_button"),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = StatusDroppedColor),
-                                shape = RoundedCornerShape(8.dp)
+                                border = BorderStroke(1.dp, StatusDroppedColor.copy(alpha = 0.6f)),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
                             ) {
-                                Text(text = "Putuskan")
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp),
+                                    tint = StatusDroppedColor
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Putuskan",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                         }
                     } else {

@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.1.7c%20(Build%2028)-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.1.8%20(Build%2029)-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#tech-stack--dependensi"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#uiux-architecture--fluid-continuity"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
@@ -217,6 +217,19 @@ Verifikasi lokal diwajibkan menjalankan suite pengujian unit otomatis sebelum me
 ---
 
 ## 📝 10. Catatan Perubahan
+
+### v6.1.8 (Build 29)
+- **Kotak Pencarian Ringkas & Harmonisasi Ukuran Tombol**:
+  - Merekayasa ulang kotak input pencarian di `SearchScreen` menjadi jauh lebih ringkas (*compact UI*) berbasis `BasicTextField` dengan tinggi presisi `44 dp` dan radius sudut `12 dp`.
+  - Menyelaraskan dimensi tombol Filter (`size 44 dp`) dan tombol Cari (`height 44 dp`) agar sejajar sempurna tanpa memakan ruang berlebih secara vertikal.
+- **Notifikasi Box Outage Kategori Trending Now (Anime & Manga)**:
+  - Mengintegrasikan deteksi gangguan layanan pada kategori *Trending Now* di `DiscoverScreen` (baik mode Anime maupun Manga).
+  - Jika server AniList sedang dalam pemeliharaan (*maintenance*) atau data tidak dapat diperoleh, aplikasi menampilkan kotak notifikasi peringatan elegan bertema amber yang menginformasikan bahwa kolom ini sementara tidak dapat digunakan karena MyAnimeList tidak menyediakan metrik trending real-time.
+- **Penyelarasan Presisi Tombol Sinkronisasi MAL & Putuskan di Pengaturan**:
+  - Menyamakan dimensi tombol "Sinkron MAL" dan tombol "Putuskan" pada kartu integrasi akun MyAnimeList di `SettingsScreen`:
+    - Keduanya menggunakan `Modifier.weight(1f).height(42.dp)` dengan corner radius `8 dp` dan padding mikro terpusat.
+    - Menambahkan ikon status pemutus tautan pada tombol "Putuskan" untuk keseimbangan visual yang simetris dan harmonis.
+- **Integritas Pengujian Unit**: Seluruh automated unit tests lulus 100%.
 
 ### v6.1.7c (Build 28)
 - **Reset Otomatis Filter Saat Berganti Tipe Media (Anime ↔ Manga)**:

@@ -511,17 +511,8 @@ class CanimRepository(
                         }
                     }
                     DiscoverCategory.TRENDING_NOW -> {
-                        if (filter.format == "MANGA") {
-                            val resp = ApiClient.malApi.getMangaRanking(MalAuthManager.CLIENT_ID, "bypopularity", limit, offset)
-                            if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
-                                results = resp.body()!!.data.map { mapMalMangaNodeToMediaItem(it.node) }
-                            }
-                        } else {
-                            val resp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "bypopularity", limit, offset)
-                            if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
-                                results = resp.body()!!.data.map { mapMalAnimeNodeToMediaItem(it.node) }
-                            }
-                        }
+                        // MAL does not provide real-time trending metrics (only all-time popularity rankings).
+                        // Real-time trending is exclusively provided by AniList. Results remain empty when AniList is down.
                     }
                     DiscoverCategory.RECENTLY_DONE_MANGA -> {
                         val resp = ApiClient.malApi.getMangaRanking(MalAuthManager.CLIENT_ID, "manga", limit, offset)
@@ -540,8 +531,8 @@ class CanimRepository(
             } catch (_: Exception) {}
         }
 
-        // Offline fallback if network fails completely
-        if (results.isEmpty() && page == 1) {
+        // Offline fallback if network fails completely (except TRENDING_NOW which requires live AniList engine)
+        if (category != DiscoverCategory.TRENDING_NOW && results.isEmpty() && page == 1) {
             results = if (filter.format == "MANGA") fallbackManga() else fallbackAnime()
         }
 

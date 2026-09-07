@@ -259,6 +259,17 @@ fun DiscoverScreen(
                 }
             }
 
+        val isTrendingCategory = state.selectedDiscoverCategory == DiscoverCategory.TRENDING_NOW
+
+        if (isTrendingCategory && state.isAniListDown && state.discoverItems.isNotEmpty()) {
+            item {
+                TrendingOutageNoticeBox(
+                    isManga = discoverMediaType == MediaType.MANGA,
+                    isCached = true
+                )
+            }
+        }
+
         if (state.isDiscoverLoading) {
             item {
                 Box(
@@ -271,7 +282,7 @@ fun DiscoverScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        CircularProgressIndicator(color = AccentBlue)
+                        CircularProgressIndicator(color = currentAccent)
                         Text(
                             text = "Mengambil data ${state.selectedDiscoverCategory.label} dari AniList...",
                             color = TextSecondary,
@@ -282,17 +293,24 @@ fun DiscoverScreen(
             }
         } else if (state.discoverItems.isEmpty()) {
             item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(180.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Tidak ada judul yang ditemukan untuk kategori ini.",
-                        color = TextMuted,
-                        fontSize = 13.sp
+                if (isTrendingCategory) {
+                    TrendingOutageNoticeBox(
+                        isManga = discoverMediaType == MediaType.MANGA,
+                        isCached = false
                     )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Tidak ada judul yang ditemukan untuk kategori ini.",
+                            color = TextMuted,
+                            fontSize = 13.sp
+                        )
+                    }
                 }
             }
         } else {
@@ -1065,3 +1083,68 @@ fun DiscoverItemCard(
         )
     }
 }
+
+@Composable
+private fun TrendingOutageNoticeBox(
+    isManga: Boolean,
+    isCached: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = Color(0xFF451A03).copy(alpha = 0.45f),
+        border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.6f))
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Color(0xFFF59E0B).copy(alpha = 0.2f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.WarningAmber,
+                    contentDescription = "Peringatan",
+                    tint = Color(0xFFF59E0B),
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    text = if (isCached) {
+                        "Pembaruan Trending Now Ditangguhkan"
+                    } else {
+                        "Kolom Trending Now Tidak Dapat Digunakan"
+                    },
+                    color = Color(0xFFFCD34D),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = if (isCached) {
+                        "AniList sedang dalam pemeliharaan (maintenance). Data di bawah merupakan cache lokal dan belum diperbarui secara real-time karena MyAnimeList tidak menyediakan metrik trending."
+                    } else if (isManga) {
+                        "Hasil trending manga tidak dapat dimuat karena server AniList sedang dalam pemeliharaan (maintenance). Database MyAnimeList tidak menyediakan metrik trending real-time, sehingga kolom ini tidak dapat digunakan sementara waktu."
+                    } else {
+                        "Hasil trending anime tidak dapat dimuat karena server AniList sedang dalam pemeliharaan (maintenance). Database MyAnimeList tidak menyediakan metrik trending real-time, sehingga kolom ini tidak dapat digunakan sementara waktu."
+                    },
+                    color = Color(0xFFFCD34D).copy(alpha = 0.85f),
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp
+                )
+            }
+        }
+    }
+}
+
