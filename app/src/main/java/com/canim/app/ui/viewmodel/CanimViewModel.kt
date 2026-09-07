@@ -143,6 +143,27 @@ class CanimViewModel(
     private val detailScrollPositions = mutableMapOf<String, Pair<Int, Int>>()
     private val detailCache = mutableMapOf<String, ExtendedMediaDetail>()
 
+    // Stats Screen Scroll Position Preservation
+    private var statsScrollIndex: Int = 0
+    private var statsScrollOffset: Int = 0
+
+    fun saveStatsScrollPosition(index: Int, offset: Int) {
+        statsScrollIndex = index
+        statsScrollOffset = offset
+    }
+
+    fun getStatsScrollPosition(): Pair<Int, Int> = Pair(statsScrollIndex, statsScrollOffset)
+
+    fun resetStatsScrollPosition() {
+        statsScrollIndex = 0
+        statsScrollOffset = 0
+    }
+
+    fun getCachedDetail(item: Any): ExtendedMediaDetail? {
+        val key = getMediaKey(item)
+        return detailCache[key]
+    }
+
     fun saveDetailScrollPosition(key: String, index: Int, offset: Int) {
         detailScrollPositions[key] = Pair(index, offset)
     }
@@ -1324,6 +1345,7 @@ class CanimViewModel(
 
     // --- Stats Screen Navigation ---
     fun openStats() {
+        resetStatsScrollPosition()
         pushScreen(ScreenRoute.Stats)
     }
 

@@ -746,6 +746,11 @@ fun MediaDetailScreen(
                             RelationCardItem(
                                 relation = rel,
                                 onClick = {
+                                    onSaveScrollPosition?.invoke(
+                                        itemKey,
+                                        listState.firstVisibleItemIndex,
+                                        listState.firstVisibleItemScrollOffset
+                                    )
                                     val relMedia = MediaItem(
                                         malId = rel.malId,
                                         anilistId = rel.id,
@@ -789,6 +794,11 @@ fun MediaDetailScreen(
                             MediaItemMiniCard(
                                 item = rec,
                                 onClick = {
+                                    onSaveScrollPosition?.invoke(
+                                        itemKey,
+                                        listState.firstVisibleItemIndex,
+                                        listState.firstVisibleItemScrollOffset
+                                    )
                                     onOpenMediaDetail?.invoke(rec, rec.type)
                                 }
                             )

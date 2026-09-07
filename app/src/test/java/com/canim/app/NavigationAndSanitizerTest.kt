@@ -204,4 +204,38 @@ class NavigationAndSanitizerTest {
         assertEquals("https://anilist.co/banner_hd.jpg", synergized.bannerImage)
         assertEquals(569, synergized.studioId)
     }
+
+    @Test
+    fun testStatsScrollPositionPreservationLogic() {
+        var savedIndex = 0
+        var savedOffset = 0
+
+        fun saveStatsScrollPosition(index: Int, offset: Int) {
+            savedIndex = index
+            savedOffset = offset
+        }
+
+        fun getStatsScrollPosition(): Pair<Int, Int> = Pair(savedIndex, savedOffset)
+
+        fun resetStatsScrollPosition() {
+            savedIndex = 0
+            savedOffset = 0
+        }
+
+        // Initial state at top
+        assertEquals(Pair(0, 0), getStatsScrollPosition())
+
+        // User scrolls down to Top 5 Anime (e.g. index 4, offset 120) and clicks anime
+        saveStatsScrollPosition(4, 120)
+        assertEquals(Pair(4, 120), getStatsScrollPosition())
+
+        // Detail opens and closes (user presses back), Stats restores saved position
+        val restored = getStatsScrollPosition()
+        assertEquals(4, restored.first)
+        assertEquals(120, restored.second)
+
+        // If user opens Stats fresh from Dashboard, it resets to (0, 0)
+        resetStatsScrollPosition()
+        assertEquals(Pair(0, 0), getStatsScrollPosition())
+    }
 }

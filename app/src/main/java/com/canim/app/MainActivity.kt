@@ -78,10 +78,10 @@ class MainActivity : ComponentActivity() {
             CanimTheme {
                 val uiState by viewModel.uiState.collectAsState()
                 val screenStack by viewModel.screenStack.collectAsState()
-                var prevStackSize by remember { mutableIntStateOf(0) }
-                val isStackPush = screenStack.size >= prevStackSize
+                val prevStackSizeRef = remember { intArrayOf(0) }
+                val isStackPush = screenStack.size >= prevStackSizeRef[0]
                 SideEffect {
-                    prevStackSize = screenStack.size
+                    prevStackSizeRef[0] = screenStack.size
                 }
                 val context = LocalContext.current
                 val snackbarHostState = remember { SnackbarHostState() }
@@ -391,36 +391,36 @@ class MainActivity : ComponentActivity() {
                                 }
 
                                 if (isPush) {
-                                    // Smooth vertical popup entry: rises smoothly from bottom + scales in + fades in
+                                    // Instant, punchy popup entry: rises immediately from bottom with 40% offset, rapid 140ms fade
                                     (slideInVertically(
-                                        initialOffsetY = { (it * 0.15f).toInt() },
-                                        animationSpec = tween(260, easing = FastOutSlowInEasing)
+                                        initialOffsetY = { (it * 0.40f).toInt() },
+                                        animationSpec = tween(240, easing = FastOutSlowInEasing)
                                     ) + scaleIn(
-                                        initialScale = 0.95f,
-                                        animationSpec = tween(260, easing = FastOutSlowInEasing)
-                                    ) + fadeIn(animationSpec = tween(220)))
+                                        initialScale = 0.94f,
+                                        animationSpec = tween(240, easing = FastOutSlowInEasing)
+                                    ) + fadeIn(animationSpec = tween(140, easing = LinearOutSlowInEasing)))
                                         .togetherWith(
                                             scaleOut(
-                                                targetScale = 0.95f,
-                                                animationSpec = tween(220, easing = FastOutSlowInEasing)
-                                            ) + fadeOut(animationSpec = tween(180))
+                                                targetScale = 0.94f,
+                                                animationSpec = tween(200, easing = FastOutSlowInEasing)
+                                            ) + fadeOut(animationSpec = tween(140))
                                         )
                                         .using(noClipSizeTransform)
                                         .apply { targetContentZIndex = 1f }
                                 } else {
-                                    // Smooth vertical popdown exit: settles down smoothly to bottom + scales out + fades out
+                                    // Responsive popdown exit: settles smoothly to bottom
                                     (scaleIn(
-                                        initialScale = 0.95f,
-                                        animationSpec = tween(220, easing = FastOutSlowInEasing)
-                                    ) + fadeIn(animationSpec = tween(200)))
+                                        initialScale = 0.94f,
+                                        animationSpec = tween(200, easing = FastOutSlowInEasing)
+                                    ) + fadeIn(animationSpec = tween(160)))
                                         .togetherWith(
                                             slideOutVertically(
-                                                targetOffsetY = { (it * 0.15f).toInt() },
+                                                targetOffsetY = { (it * 0.40f).toInt() },
                                                 animationSpec = tween(220, easing = FastOutSlowInEasing)
                                             ) + scaleOut(
-                                                targetScale = 0.95f,
+                                                targetScale = 0.94f,
                                                 animationSpec = tween(220, easing = FastOutSlowInEasing)
-                                            ) + fadeOut(animationSpec = tween(180))
+                                            ) + fadeOut(animationSpec = tween(160))
                                         )
                                         .using(noClipSizeTransform)
                                         .apply { targetContentZIndex = -1f }
@@ -462,10 +462,21 @@ class MainActivity : ComponentActivity() {
                                         is com.canim.app.data.model.MediaItem -> item.id
                                         else -> null
                                     }
-                                    val detailItem = if (currentMediaId != null && currentMediaId == selectedMediaId) {
+                                    val isCurrentDetailSelected = currentMediaId != null && currentMediaId == selectedMediaId
+                                    val detailItem = if (isCurrentDetailSelected) {
                                         uiState.selectedDetailItem ?: currentScreen.item
                                     } else {
                                         currentScreen.item
+                                    }
+                                    val detailExtended = if (isCurrentDetailSelected) {
+                                        uiState.extendedDetail
+                                    } else {
+                                        viewModel.getCachedDetail(currentScreen.item)
+                                    }
+                                    val detailIsLoading = if (isCurrentDetailSelected) {
+                                        uiState.isLoadingExtendedDetail
+                                    } else {
+                                        false
                                     }
                                     val detailTitle = (detailItem as? com.canim.app.data.model.UserMediaItem)?.title
                                         ?: (detailItem as? com.canim.app.data.model.MediaItem)?.title
@@ -473,8 +484,8 @@ class MainActivity : ComponentActivity() {
                                     MediaDetailScreen(
                                         item = detailItem,
                                         type = uiState.detailMediaType,
-                                        extendedDetail = uiState.extendedDetail,
-                                        isLoadingExtendedDetail = uiState.isLoadingExtendedDetail,
+                                        extendedDetail = detailExtended,
+                                        isLoadingExtendedDetail = detailIsLoading,
                                         onSaveAnime = { viewModel.saveAnime(it) },
                                         onSaveManga = { viewModel.saveManga(it) },
                                         onDeleteAnime = { viewModel.deleteAnime(it) },
@@ -483,8 +494,8 @@ class MainActivity : ComponentActivity() {
                                         onOpenFullCast = { isCrew ->
                                             viewModel.openFullCastList(
                                                 mediaTitle = detailTitle,
-                                                castList = uiState.extendedDetail?.cast ?: emptyList(),
-                                                staffList = uiState.extendedDetail?.crew ?: emptyList(),
+                                                castList = detailExtended?.cast ?: emptyList(),
+                                                staffList = detailExtended?.crew ?: emptyList(),
                                                 isCrewInitial = isCrew
                                             )
                                         },
@@ -529,7 +540,9 @@ class MainActivity : ComponentActivity() {
                                     StatsScreen(
                                         state = uiState,
                                         onBack = { viewModel.popScreen() },
-                                        onSelectItem = { item, type -> viewModel.openDetail(item, type) }
+                                        onSelectItem = { item, type -> viewModel.openDetail(item, type) },
+                                        onSaveScrollPosition = { index, offset -> viewModel.saveStatsScrollPosition(index, offset) },
+                                        onGetScrollPosition = { viewModel.getStatsScrollPosition() }
                                     )
                                 }
                                 is ScreenRoute.AddTitleSheet -> {

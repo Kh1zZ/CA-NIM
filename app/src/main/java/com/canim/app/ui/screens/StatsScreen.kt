@@ -8,6 +8,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -53,12 +54,29 @@ fun StatsScreen(
     state: CanimUiState,
     onBack: () -> Unit,
     onSelectItem: (Any, MediaType) -> Unit,
+    onSaveScrollPosition: ((index: Int, offset: Int) -> Unit)? = null,
+    onGetScrollPosition: (() -> Pair<Int, Int>)? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var showExportDialog by remember { mutableStateOf(false) }
     var isExporting by remember { mutableStateOf(false) }
+
+    val initialScroll = remember { onGetScrollPosition?.invoke() ?: Pair(0, 0) }
+    val listState = rememberLazyListState(
+        initialFirstVisibleItemIndex = initialScroll.first,
+        initialFirstVisibleItemScrollOffset = initialScroll.second
+    )
+
+    DisposableEffect(Unit) {
+        onDispose {
+            onSaveScrollPosition?.invoke(
+                listState.firstVisibleItemIndex,
+                listState.firstVisibleItemScrollOffset
+            )
+        }
+    }
 
     // Calculate Top 5 by personal score (excluding sequel anime)
     val topAnime = remember(state.animeList) {
@@ -136,6 +154,7 @@ fun StatsScreen(
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
@@ -320,7 +339,10 @@ fun StatsScreen(
                         rank = index + 1,
                         item = anime,
                         isAnime = true,
-                        onClick = { onSelectItem(anime, MediaType.ANIME) }
+                        onClick = {
+                            onSaveScrollPosition?.invoke(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+                            onSelectItem(anime, MediaType.ANIME)
+                        }
                     )
                 }
             }
@@ -347,7 +369,10 @@ fun StatsScreen(
                         rank = index + 1,
                         item = manga,
                         isAnime = false,
-                        onClick = { onSelectItem(manga, MediaType.MANGA) }
+                        onClick = {
+                            onSaveScrollPosition?.invoke(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+                            onSelectItem(manga, MediaType.MANGA)
+                        }
                     )
                 }
             }

@@ -5,12 +5,12 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.1.6%20(Build%2025)-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.1.7%20(Build%2026)-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#tech-stack--dependensi"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#uiux-architecture--fluid-continuity"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
   <a href="#kinerja-dan-optimasi-memori"><img src="https://img.shields.io/badge/APK%20Size-~2.3%20MB%20(R8%20Full)-F59E0B.svg?style=for-the-badge" alt="Size"></a>
-  <a href="#verifikasi-lokal--pengujian-unit"><img src="https://img.shields.io/badge/Tests-65%20Unit%20Tests%20Passing-10B981.svg?style=for-the-badge" alt="Tests"></a>
+  <a href="#verifikasi-lokal--pengujian-unit"><img src="https://img.shields.io/badge/Tests-66%20Unit%20Tests%20Passing-10B981.svg?style=for-the-badge" alt="Tests"></a>
 </p>
 
 ---
@@ -217,6 +217,16 @@ Verifikasi lokal diwajibkan menjalankan suite pengujian unit otomatis sebelum me
 ---
 
 ## 📝 10. Catatan Perubahan
+
+### v6.1.7 (Build 26)
+- **Peniadaan Delay & Still Image pada Pembukaan Anime dari Relasi/Rekomendasi**:
+  - Mengisolasi passing data `extendedDetail` dan `isLoadingExtendedDetail` per item media saat transisi tumpukan navigasi antar-detail berlangsung, sehingga layar detail sebelumnya tidak merender data kosong atau memicu kalkulasi ulang tata letak (*layout recalculation*) berat di frame awal.
+  - Mengoptimalkan deteksi arah navigasi stack menggunakan integer array reference (`prevStackSizeRef`) untuk mengeliminasi siklus rekomposisi ganda seketika pada `MainActivity` yang sebelumnya memicu frame drop.
+  - Mempercepat kurva animasi popup vertikal (`slideInVertically(0.40f)`, `scaleIn(0.94f)`, dan `fadeIn(140ms, LinearOutSlowInEasing)`) sehingga transisi visual langsung bergerak naik secara instan tanpa jeda frame atau kesan gambar statis (*still image*).
+- **Preservasi Posisi Scroll & Alignment Menu Statistik**:
+  - Mengintegrasikan mekanisme penyimpanan dan restorasi posisi scroll (`LazyListState`) pada `StatsScreen` melalui `CanimViewModel`.
+  - Saat pengguna menekan anime/manga dari Top 5 Anime atau Top 5 Manga lalu menekan tombol kembali (*back*), posisi scroll menu statistik dipertahankan secara presisi pada posisi item yang diklik tanpa melompat kembali ke bagian paling atas.
+- **Integritas Pengujian Unit**: Seluruh 66 automated unit tests lulus 100%.
 
 ### v6.1.6 (Build 25)
 - **Perbaikan Animasi Popup pada Menu Statistik (Top 5 Anime & Manga)**:
