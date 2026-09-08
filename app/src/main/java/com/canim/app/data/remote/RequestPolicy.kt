@@ -21,8 +21,8 @@ import kotlin.random.Random
  * - Token, Authorization, PKCE, and other sensitive headers are never logged here.
  */
 class RequestPolicy(
-    private val maxConcurrent: Int = 4,
-    private val maxRetries: Int = 2,
+    internal val maxConcurrent: Int = 4,
+    internal val maxRetries: Int = 2,
     internal var baseBackoffMs: Long = 1_000L,
     internal var maxBackoffMs: Long = 8_000L,
     internal var jitterMs: Long = 300L,
@@ -79,51 +79,56 @@ class RequestPolicy(
     ): T {
         if (remainingCooldownMs() > 0L) return onCooldown()
 
-        return semaphore.withPermit {
-            var attempt = 0
-            var lastResult: PolicyResult<T>?
+        var attempt = 0
+        var lastResult: PolicyResult<T>? = null
 
-            while (true) {
-                if (remainingCooldownMs() > 0L) return@withPermit onCooldown()
+        while (true) {
+            if (remainingCooldownMs() > 0L) return onCooldown()
 
-                val result = try {
+            val result = try {
+                semaphore.withPermit {
+                    if (remainingCooldownMs() > 0L) return@withPermit null
                     block()
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Throwable) {
-                    PolicyResult.Failure(e)
+                } ?: return onCooldown()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                PolicyResult.Failure(e)
+            }
+
+            lastResult = result
+
+            when (result) {
+                is PolicyResult.Success -> return result.value
+
+                is PolicyResult.RateLimited -> {
+                    armCooldown(result.retryAfterMs)
+                    return onCooldown()
                 }
 
-                lastResult = result
-
-                when (result) {
-                    is PolicyResult.Success -> return@withPermit result.value
-
-                    is PolicyResult.RateLimited -> {
-                        armCooldown(result.retryAfterMs)
-                        return@withPermit onCooldown()
-                    }
-
-                    is PolicyResult.Retryable -> {
-                        if (!retryable || attempt >= maxRetries) break
-                        attempt++
+                is PolicyResult.Retryable -> {
+                    if (!retryable || attempt >= maxRetries) break
+                    attempt++
+                    // Permit is released before delay so backoff does not starve other callers
+                    if (baseBackoffMs > 0L) {
                         val backoff = min(baseBackoffMs * (1L shl (attempt - 1)), maxBackoffMs)
-                        val jitter = Random.nextLong(-jitterMs, jitterMs + 1)
-                        delay(maxOf(0L, backoff + jitter))
+                        val jitter = if (jitterMs > 0L) Random.nextLong(-jitterMs, jitterMs + 1) else 0L
+                        val delayMs = maxOf(0L, backoff + jitter)
+                        if (delayMs > 0L) delay(delayMs)
                     }
-
-                    is PolicyResult.Failure -> break
-                    is PolicyResult.NonRetryable -> break
                 }
-            }
 
-            // Exhausted retries or non-retryable failure — extract value
-            when (val r = lastResult) {
-                is PolicyResult.Failure -> throw r.throwable
-                is PolicyResult.Retryable -> r.fallback
-                is PolicyResult.NonRetryable -> r.value
-                else -> onCooldown() // safety
+                is PolicyResult.Failure -> break
+                is PolicyResult.NonRetryable -> break
             }
+        }
+
+        // Exhausted retries or non-retryable failure — extract value
+        return when (val r = lastResult) {
+            is PolicyResult.Failure -> throw r.throwable
+            is PolicyResult.Retryable -> r.fallback
+            is PolicyResult.NonRetryable -> r.value
+            else -> onCooldown() // safety
         }
     }
 }

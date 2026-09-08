@@ -28,11 +28,26 @@ data class StudioFilmographyPage(
 data class CacheEntry<T>(
     val data: T,
     val timestamp: Long = System.currentTimeMillis(),
-    val ttlMillis: Long
+    val ttlMillis: Long,
+    /** Stale window: after this duration the entry is considered stale but not yet expired.
+     *  Defaults to half of ttlMillis. A background revalidation should be triggered when stale. */
+    val staleWindowMs: Long = ttlMillis / 2
 ) {
     val isExpired: Boolean
         get() = System.currentTimeMillis() - timestamp > ttlMillis
+
+    /** True if the entry has passed the stale window but has not yet expired.
+     *  Stale entries may be served immediately while a background refresh proceeds. */
+    val isStale: Boolean
+        get() = !isExpired && System.currentTimeMillis() - timestamp > staleWindowMs
 }
+
+/**
+ * Result type for stale-while-revalidate cache lookups.
+ * - [data] is the cached value (may be stale).
+ * - [isStale] indicates whether a background revalidation should be triggered.
+ */
+data class SWRResult<T>(val data: T, val isStale: Boolean)
 
 /**
  * Centralized Cache Management for CA'NIM.
@@ -118,6 +133,20 @@ object CacheManager {
         searchCache[key] = CacheEntry(items, ttlMillis = TTL_SEARCH)
     }
 
+    /**
+     * Stale-while-revalidate read for search.
+     * Returns [SWRResult] with the cached data and whether it is stale, or null if expired/absent.
+     */
+    fun getSearchSwr(query: String, type: String): SWRResult<List<MediaItem>>? {
+        val key = searchKey(query, type)
+        val entry = searchCache[key] ?: return null
+        if (entry.isExpired) {
+            searchCache.remove(key)
+            return null
+        }
+        return SWRResult(entry.data, entry.isStale)
+    }
+
     // --- Discover Cache ---
     fun getDiscover(categoryKey: String): List<MediaItem>? {
         val key = discoverKey(categoryKey)
@@ -133,6 +162,20 @@ object CacheManager {
     fun putDiscover(categoryKey: String, items: List<MediaItem>) {
         val key = discoverKey(categoryKey)
         discoverCache[key] = CacheEntry(items, ttlMillis = TTL_DISCOVER)
+    }
+
+    /**
+     * Stale-while-revalidate read for discover.
+     * Returns [SWRResult] with the cached data and whether it is stale, or null if expired/absent.
+     */
+    fun getDiscoverSwr(categoryKey: String): SWRResult<List<MediaItem>>? {
+        val key = discoverKey(categoryKey)
+        val entry = discoverCache[key] ?: return null
+        if (entry.isExpired) {
+            discoverCache.remove(key)
+            return null
+        }
+        return SWRResult(entry.data, entry.isStale)
     }
 
     private val gson by lazy { Gson() }
@@ -171,6 +214,28 @@ object CacheManager {
     fun putDetail(key: String, detail: ExtendedMediaDetail) {
         detailCache[key] = CacheEntry(detail, ttlMillis = TTL_DETAIL)
         putDetailDisk(key, detail)
+    }
+
+    /**
+     * Stale-while-revalidate read for extended detail.
+     * Checks memory first, then disk. Returns [SWRResult] or null if expired/absent.
+     * A stale result should trigger a background revalidation.
+     */
+    fun getDetailSwr(key: String): SWRResult<ExtendedMediaDetail>? {
+        val memEntry = detailCache[key]
+        if (memEntry != null) {
+            if (memEntry.isExpired) {
+                detailCache.remove(key)
+                deleteDetailDisk(key)
+                return null
+            }
+            return SWRResult(memEntry.data, memEntry.isStale)
+        }
+        // Fallback to disk — disk entries loaded into memory are treated as potentially stale
+        // (disk doesn't track the original in-memory stale window, so we mark as stale to trigger refresh)
+        val fromDisk = getDetailDisk(key) ?: return null
+        detailCache[key] = CacheEntry(fromDisk, ttlMillis = TTL_DETAIL)
+        return SWRResult(fromDisk, isStale = true)
     }
 
     private fun getDetailDisk(key: String): ExtendedMediaDetail? {

@@ -87,13 +87,24 @@ object ApiClient {
             .build()
     }
 
-    val malApi: MalApiService by lazy {
-        Retrofit.Builder()
+    private val defaultMalApi: MalApiService by lazy {
+        val retrofitService = Retrofit.Builder()
             .baseUrl("https://api.myanimelist.net/v2/")
             .client(malOkHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(MalApiService::class.java)
+        MalApiPolicyWrapper(retrofitService, malPolicy)
+    }
+
+    @Volatile
+    private var testMalApi: MalApiService? = null
+
+    val malApi: MalApiService
+        get() = testMalApi ?: defaultMalApi
+
+    fun setMalApiForTesting(service: MalApiService?) {
+        testMalApi = service
     }
 }
 

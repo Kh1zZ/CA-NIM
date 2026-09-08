@@ -6,9 +6,12 @@ import com.canim.app.data.model.*
 import com.canim.app.data.cache.StudioFilmographyPage
 import com.canim.app.data.remote.ApiClient
 import com.canim.app.data.remote.AniListClient
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -21,6 +24,12 @@ import kotlinx.coroutines.withContext
 class CanimRepository(
     val malAuthManager: MalAuthManager
 ) {
+    /**
+     * Dedicated coroutine scope for stale-while-revalidate background refreshes.
+     * Uses SupervisorJob so individual refresh failures don't cancel other refreshes.
+     */
+    private val swrScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     suspend fun <T> deduplicateInFlight(key: String, block: suspend () -> T): T =
         AniListClient.deduplicateInFlight(key, block)
 
@@ -240,8 +249,21 @@ class CanimRepository(
         val filterKey = "${trimmed}_${genres?.sorted()?.joinToString(",")}_${year}_${format}"
         if (trimmed.isEmpty() && genres.isNullOrEmpty() && year == null && format == null) return@withContext emptyList()
 
-        val cached = CacheManager.getSearch(filterKey, "ANIME")
-        if (cached != null) return@withContext cached
+        // SWR: serve cached data immediately; trigger background refresh only if stale
+        val swrHit = CacheManager.getSearchSwr(filterKey, "ANIME")
+        if (swrHit != null) {
+            if (swrHit.isStale) {
+                swrScope.launch {
+                    runCatching {
+                        val fresh = AniListClient.searchMedia(trimmed, MediaType.ANIME, genres, year, format)
+                        if (fresh.isNotEmpty() && fresh.map { it.id } != swrHit.data.map { it.id }) {
+                            CacheManager.putSearch(filterKey, "ANIME", fresh)
+                        }
+                    }
+                }
+            }
+            return@withContext swrHit.data
+        }
 
         deduplicateInFlight("search_anime_$filterKey") {
             var result = runCatching {
@@ -325,8 +347,21 @@ class CanimRepository(
         val filterKey = "${trimmed}_${genres?.sorted()?.joinToString(",")}_${year}_${format}"
         if (trimmed.isEmpty() && genres.isNullOrEmpty() && year == null && format == null) return@withContext emptyList()
 
-        val cached = CacheManager.getSearch(filterKey, "MANGA")
-        if (cached != null) return@withContext cached
+        // SWR: serve cached data immediately; trigger background refresh only if stale
+        val swrHit = CacheManager.getSearchSwr(filterKey, "MANGA")
+        if (swrHit != null) {
+            if (swrHit.isStale) {
+                swrScope.launch {
+                    runCatching {
+                        val fresh = AniListClient.searchMedia(trimmed, MediaType.MANGA, genres, year, format)
+                        if (fresh.isNotEmpty() && fresh.map { it.id } != swrHit.data.map { it.id }) {
+                            CacheManager.putSearch(filterKey, "MANGA", fresh)
+                        }
+                    }
+                }
+            }
+            return@withContext swrHit.data
+        }
 
         deduplicateInFlight("search_manga_$filterKey") {
             var result = runCatching {
@@ -410,8 +445,33 @@ class CanimRepository(
     ): List<MediaItem> = withContext(Dispatchers.IO) {
         val cacheKey = "${category.key}_${filter.genre}_${filter.format}_${filter.year}_${filter.season}_${filter.minScore}_${randomSort}_p$page"
         if (!forceRefresh) {
-            val cached = CacheManager.getDiscover(cacheKey)
-            if (cached != null) return@withContext cached
+            val swrHit = CacheManager.getDiscoverSwr(cacheKey)
+            if (swrHit != null) {
+                if (swrHit.isStale) {
+                    // Capture variables for background lambda
+                    val capCategory = category
+                    val capFilter = filter
+                    val capPage = page
+                    val capRandomSort = randomSort
+                    val capKey = cacheKey
+                    val capStale = swrHit.data
+                    swrScope.launch {
+                        runCatching {
+                            val fresh = AniListClient.getDiscoverMedia(
+                                category = capCategory,
+                                filter = capFilter,
+                                page = capPage,
+                                randomSort = capRandomSort,
+                                forceRefresh = false
+                            )
+                            if (fresh.isNotEmpty() && fresh.map { it.id } != capStale.map { it.id }) {
+                                CacheManager.putDiscover(capKey, fresh)
+                            }
+                        }
+                    }
+                }
+                return@withContext swrHit.data
+            }
         }
 
         val limit = 25
@@ -549,11 +609,28 @@ class CanimRepository(
         val primaryCacheKey = CacheManager.detailKey(resolvedAniListId, resolvedMalId)
 
         if (!forceRefresh) {
-            val cached = CacheManager.getDetail(primaryCacheKey)
-                ?: (resolvedAniListId?.let { CacheManager.getDetail(CacheManager.detailKey(it, null)) })
-                ?: (resolvedMalId?.let { CacheManager.getDetail(CacheManager.detailKey(null, it)) })
-            if (cached != null && (cached.malScore != null || resolvedMalId == null)) {
-                return@withContext cached
+            // SWR: resolve from multiple cache keys, prefer most specific
+            val swrHit = CacheManager.getDetailSwr(primaryCacheKey)
+                ?: (resolvedAniListId?.let { CacheManager.getDetailSwr(CacheManager.detailKey(it, null)) })
+                ?: (resolvedMalId?.let { CacheManager.getDetailSwr(CacheManager.detailKey(null, it)) })
+            if (swrHit != null && (swrHit.data.malScore != null || resolvedMalId == null)) {
+                if (swrHit.isStale) {
+                    val capAniId = resolvedAniListId
+                    val capMalId = resolvedMalId
+                    val capType = type
+                    val capPrimaryKey = primaryCacheKey
+                    swrScope.launch {
+                        runCatching {
+                            val fresh = AniListClient.getExtendedDetails(capAniId, capMalId, capType, forceRefresh = false)
+                            if (fresh != null && fresh != swrHit.data) {
+                                CacheManager.putDetail(capPrimaryKey, fresh)
+                                capAniId?.let { CacheManager.putDetail(CacheManager.detailKey(it, null), fresh) }
+                                capMalId?.let { CacheManager.putDetail(CacheManager.detailKey(null, it), fresh) }
+                            }
+                        }
+                    }
+                }
+                return@withContext swrHit.data
             }
         }
 
