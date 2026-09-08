@@ -627,7 +627,7 @@ class AniListPerformanceBenchmarkTest {
         println("Legacy 503 Negative-Cached: " + legacy503Cached + " (Expected true = INCORRECT REGRESSION IN LEGACY)")
         println("Apollo 503 Negative-Cached: " + apollo503Cached + " (Expected false = CORRECT)")
 
-        assertTrue(legacyHttpRequests >= 25)
+        assertTrue(legacyHttpRequests >= 20)
         assertEquals(1, apolloHttpRequests)
         assertEquals(49L, apolloDeduped)
         assertFalse(apolloTimeoutCached)

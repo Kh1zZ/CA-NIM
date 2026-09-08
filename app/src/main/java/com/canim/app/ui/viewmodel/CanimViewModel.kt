@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import com.canim.app.data.cache.CacheManager
 import com.canim.app.data.model.*
 import com.canim.app.data.repository.CanimRepository
 import com.canim.app.CanimApplication
@@ -185,16 +184,15 @@ class CanimViewModel(
             is MediaItem -> item.malId
             else -> null
         }
-        val resolvedAniListId = aniId ?: (malId?.let { CacheManager.getAniListIdForMalId(it) })
-        val resolvedMalId = malId ?: (resolvedAniListId?.let { CacheManager.getMalIdForAniListId(it) })
+        val type = when (item) {
+            is UserMediaItem -> item.metadata.type
+            is MediaItem -> item.type
+            else -> null
+        }
 
-        return (resolvedAniListId?.let { detailCache[it.toString()] })
-            ?: (resolvedMalId?.let { detailCache[it.toString()] })
-            ?: (aniId?.let { detailCache[it.toString()] })
+        return (aniId?.let { detailCache[it.toString()] })
             ?: (malId?.let { detailCache[it.toString()] })
-            ?: CacheManager.getDetail(CacheManager.detailKey(resolvedAniListId, resolvedMalId))
-            ?: (resolvedAniListId?.let { CacheManager.getDetail(CacheManager.detailKey(it, null)) })
-            ?: (resolvedMalId?.let { CacheManager.getDetail(CacheManager.detailKey(null, it)) })
+            ?: repository.getCachedExtendedDetail(aniId, malId, type)
     }
 
     fun saveDetailScrollPosition(key: String, index: Int, offset: Int) {
@@ -273,7 +271,7 @@ class CanimViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             while (isActive) {
                 delay(15 * 60 * 1000L)
-                CacheManager.pruneExpired()
+                repository.pruneCache()
             }
         }
 
@@ -1160,12 +1158,8 @@ class CanimViewModel(
 
                 val mediaKey = getMediaKey(resolvedItem)
                 val inMemoryDetail = detailCache[mediaKey]
-                val resolvedAniListId = anilistId ?: (malId?.let { CacheManager.getAniListIdForMalId(it) })
-                val resolvedMalId = malId ?: (resolvedAniListId?.let { CacheManager.getMalIdForAniListId(it) })
                 val cachedDetail = inMemoryDetail
-                    ?: CacheManager.getDetail(CacheManager.detailKey(resolvedAniListId, resolvedMalId))
-                    ?: (resolvedAniListId?.let { CacheManager.getDetail(CacheManager.detailKey(it, null)) })
-                    ?: (resolvedMalId?.let { CacheManager.getDetail(CacheManager.detailKey(null, it)) })
+                    ?: repository.getCachedExtendedDetail(anilistId, malId, type)
 
                 // Instant baseline synthesis (0ms): If cachedDetail is null, populate known fields immediately
                 val initialDetail = cachedDetail ?: when (resolvedItem) {
@@ -1221,7 +1215,7 @@ class CanimViewModel(
                 detailJob?.cancel()
                 detailJob = viewModelScope.launch(Dispatchers.IO) {
                     // FAST PATH (Phase 1): Fetch AniList details immediately (cast, crew, rankings, recommendations)
-                    val aniDetail = com.canim.app.data.remote.AniListClient.getExtendedDetails(resolvedAniListId, resolvedMalId, type)
+                    val aniDetail = com.canim.app.data.remote.AniListClient.getExtendedDetails(anilistId, malId, type)
                     if (aniDetail != null) {
                         _uiState.update { current ->
                             val currentExt = current.extendedDetail
@@ -1239,7 +1233,7 @@ class CanimViewModel(
                     }
 
                     // SECONDARY PATH (Phase 2): Asynchronously enrich with authoritative MAL details (score, rank, members)
-                    val effectiveMalId = aniDetail?.malId ?: malId ?: resolvedMalId
+                    val effectiveMalId = aniDetail?.malId ?: malId
                     val detail = repository.getExtendedDetails(anilistId, effectiveMalId, type)
 
                     // Final merge with authoritative MAL metrics

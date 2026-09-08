@@ -519,6 +519,24 @@ class CanimRepository(
         results
     }
 
+    /**
+     * Synchronously inspects persistent / memory cache for extended media details.
+     * Enforces strict MediaType namespace isolation when resolving IDs.
+     */
+    fun getCachedExtendedDetail(
+        aniListId: Int?,
+        malId: Int?,
+        type: MediaType? = null
+    ): ExtendedMediaDetail? {
+        val resolvedAniListId = aniListId ?: (malId?.let { CacheManager.getAniListIdForMalId(it, type) })
+        val resolvedMalId = malId ?: (resolvedAniListId?.let { CacheManager.getMalIdForAniListId(it, type) })
+        val primaryCacheKey = CacheManager.detailKey(resolvedAniListId, resolvedMalId)
+
+        return CacheManager.getDetail(primaryCacheKey)
+            ?: (resolvedAniListId?.let { CacheManager.getDetail(CacheManager.detailKey(it, null)) })
+            ?: (resolvedMalId?.let { CacheManager.getDetail(CacheManager.detailKey(null, it)) })
+    }
+
     // --- Extended Details: Primary AniList, Fallback to MAL ---
     suspend fun getExtendedDetails(
         aniListId: Int?,
@@ -624,6 +642,10 @@ class CanimRepository(
     }
 
     // --- Cache Management Actions ---
+    suspend fun pruneCache() {
+        CacheManager.pruneExpired()
+    }
+
     fun clearMetadataCache() {
         CacheManager.clearMetadataCache()
     }

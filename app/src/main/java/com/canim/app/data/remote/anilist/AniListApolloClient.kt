@@ -308,7 +308,12 @@ object AniListApolloClient {
                 return@safeApolloCall AniListResult.Success(emptyList())
             }
 
-            val items = mediaList.filterNotNull().map { mapApolloMediaToItem(it, type) }
+            val items = mediaList.filterNotNull().map { m ->
+                if (m.idMal != null) {
+                    CacheManager.putIdMapping(malId = m.idMal, aniListId = m.id, type = type)
+                }
+                AniListApolloMapper.toMediaItem(m, type)
+            }
             AniListResult.Success(items)
         }
     }
@@ -345,58 +350,6 @@ object AniListApolloClient {
         }
     }
 
-    private fun mapApolloMediaToItem(
-        m: SearchMediaQuery.Medium,
-        fallbackType: MediaType
-    ): MediaItem {
-        val primaryTitle = m.title?.romaji ?: m.title?.english ?: "Unknown Title"
-        val englishTitle = m.title?.english
-        val img = m.coverImage?.large ?: m.coverImage?.extraLarge ?: m.coverImage?.medium ?: ""
-        val imgHd = m.coverImage?.extraLarge ?: m.coverImage?.large ?: m.coverImage?.medium
-        val score = if (m.averageScore != null && m.averageScore > 0) m.averageScore / 10.0 else null
-        val cleanDescription = m.description
-            ?.replace(Regex("<[^>]*>"), "")
-            ?.replace("&quot;", "\"")
-            ?.replace("&#039;", "'")
-            ?.replace("&amp;", "&")
-
-        val statusStr = when (m.status) {
-            MediaStatus.RELEASING -> if (fallbackType == MediaType.ANIME) "AIRING" else "PUBLISHING"
-            MediaStatus.FINISHED -> if (fallbackType == MediaType.ANIME) "AIRED" else "FINISHED"
-            MediaStatus.NOT_YET_RELEASED -> "NOT YET AIRED"
-            MediaStatus.CANCELLED -> "CANCELLED"
-            else -> m.status?.rawValue ?: "AIRED"
-        }
-
-        val studioName = m.studios?.nodes?.firstOrNull()?.name
-
-        // Cache ID mapping
-        if (m.idMal != null) {
-            CacheManager.putIdMapping(malId = m.idMal, aniListId = m.id, type = fallbackType)
-        }
-
-        return MediaItem(
-            malId = m.idMal,
-            anilistId = m.id,
-            title = primaryTitle,
-            titleEnglish = englishTitle,
-            imageUrl = img,
-            type = fallbackType,
-            score = score,
-            synopsis = cleanDescription,
-            episodes = m.episodes,
-            chapters = m.chapters,
-            volumes = m.volumes,
-            status = statusStr,
-            year = m.seasonYear,
-            season = m.season?.rawValue,
-            genres = m.genres?.filterNotNull() ?: emptyList(),
-            format = m.format?.rawValue,
-            studio = studioName,
-            imageUrlHd = imgHd
-        )
-    }
-
     /**
      * Executes GetExtendedDetailsByIdQuery and returns AniListResult<ExtendedMediaDetail>.
      */
@@ -410,7 +363,11 @@ object AniListApolloClient {
                 if (errorResult != null) return@safeApolloCall errorResult
             }
             val media = response.data?.Media ?: return@safeApolloCall AniListResult.NotFound
-            val detail = mapApolloExtendedDetailsToDomain(media.extendedMediaDetailFields, null)
+            val fields = media.extendedMediaDetailFields
+            if (fields.idMal != null) {
+                CacheManager.putIdMapping(malId = fields.idMal, aniListId = fields.id)
+            }
+            val detail = AniListApolloMapper.toExtendedMediaDetail(fields, null)
             AniListResult.Success(detail)
         }
     }
@@ -434,7 +391,11 @@ object AniListApolloClient {
                 if (errorResult != null) return@safeApolloCall errorResult
             }
             val media = response.data?.Media ?: return@safeApolloCall AniListResult.NotFound
-            val detail = mapApolloExtendedDetailsToDomain(media.extendedMediaDetailFields, malId)
+            val fields = media.extendedMediaDetailFields
+            if (fields.idMal != null) {
+                CacheManager.putIdMapping(malId = fields.idMal, aniListId = fields.id, type = type)
+            }
+            val detail = AniListApolloMapper.toExtendedMediaDetail(fields, malId)
             AniListResult.Success(detail)
         }
     }
@@ -448,7 +409,7 @@ object AniListApolloClient {
         type: MediaType,
         forceRefresh: Boolean = false
     ): ExtendedMediaDetail? = withContext(Dispatchers.IO) {
-        val resolvedId = aniListId ?: (malId?.let { CacheManager.getAniListIdForMalId(it) })
+        val resolvedId = aniListId ?: (malId?.let { CacheManager.getAniListIdForMalId(it, type) })
         if (resolvedId == null && malId == null) return@withContext null
         val cacheKey = CacheManager.detailKey(resolvedId, malId)
 
@@ -492,123 +453,6 @@ object AniListApolloClient {
         }
     }
 
-    private fun formatFuzzyDate(year: Int?, month: Int?, day: Int?): String? {
-        if (year == null) return null
-        val monthNames = listOf("", "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agt", "Sep", "Okt", "Nov", "Des")
-        val mStr = if (month != null && month in 1..12) monthNames[month] else null
-        return if (day != null && mStr != null) {
-            "$day $mStr $year"
-        } else if (mStr != null) {
-            "$mStr $year"
-        } else {
-            "$year"
-        }
-    }
-
-    private fun mapApolloExtendedDetailsToDomain(
-        fields: ExtendedMediaDetailFields,
-        fallbackMalId: Int?
-    ): ExtendedMediaDetail {
-        if (fields.idMal != null) {
-            CacheManager.putIdMapping(malId = fields.idMal, aniListId = fields.id)
-        }
-
-        val castList = fields.characters?.edges?.mapNotNull { edge ->
-            val charNode = edge?.node ?: return@mapNotNull null
-            val va = edge.voiceActors?.firstOrNull()
-            CharacterCastItem(
-                characterId = charNode.id,
-                characterName = charNode.name?.full ?: "Karakter",
-                characterImage = charNode.image?.large ?: charNode.image?.medium,
-                actorId = va?.id,
-                actorName = va?.name?.full,
-                actorImage = va?.image?.large ?: va?.image?.medium,
-                role = edge.role?.rawValue ?: "Supporting"
-            )
-        } ?: emptyList()
-
-        val staffList = fields.staff?.edges?.mapNotNull { edge ->
-            val staffNode = edge?.node ?: return@mapNotNull null
-            StaffMemberItem(
-                staffId = staffNode.id,
-                name = staffNode.name?.full ?: "Staff",
-                role = edge.role ?: "Crew",
-                image = staffNode.image?.large ?: staffNode.image?.medium
-            )
-        } ?: emptyList()
-
-        val studioNode = fields.studios?.nodes?.firstOrNull()
-        val studioName = studioNode?.name
-        val studioId = studioNode?.id
-
-        val recList = fields.recommendations?.nodes?.mapNotNull { node ->
-            val rec = node?.mediaRecommendation ?: return@mapNotNull null
-            val recType = if (rec.type == ApolloMediaType.MANGA || rec.format?.rawValue == "MANGA") MediaType.MANGA else MediaType.ANIME
-            MediaItem(
-                malId = rec.idMal,
-                anilistId = rec.id,
-                title = rec.title?.romaji ?: rec.title?.english ?: "Unknown Title",
-                titleEnglish = rec.title?.english,
-                imageUrl = rec.coverImage?.large ?: rec.coverImage?.medium ?: "",
-                score = if (rec.averageScore != null && rec.averageScore > 0) rec.averageScore / 10.0 else null,
-                type = recType,
-                synopsis = null,
-                episodes = null,
-                chapters = null,
-                volumes = null,
-                status = null,
-                year = null,
-                season = null,
-                genres = emptyList(),
-                format = rec.format?.rawValue
-            )
-        } ?: emptyList()
-
-        val relationsList = fields.relations?.edges?.mapNotNull { edge ->
-            val node = edge?.node ?: return@mapNotNull null
-            val relType = edge.relationType?.rawValue ?: "RELATED"
-            MediaRelationItem(
-                id = node.id,
-                malId = node.idMal,
-                title = node.title?.romaji ?: node.title?.english ?: "Unknown",
-                titleEnglish = node.title?.english,
-                imageUrl = node.coverImage?.large ?: node.coverImage?.medium,
-                relationType = relType,
-                type = if (node.type == ApolloMediaType.MANGA) MediaType.MANGA else MediaType.ANIME,
-                format = node.format?.rawValue,
-                status = node.status?.rawValue
-            )
-        } ?: emptyList()
-
-        val avgScore = if (fields.averageScore != null && fields.averageScore > 0) fields.averageScore / 10.0 else null
-        val rankValue = fields.rankings?.firstOrNull { it?.allTime == true }?.rank ?: fields.rankings?.firstOrNull()?.rank
-
-        return ExtendedMediaDetail(
-            anilistId = fields.id,
-            malId = fields.idMal ?: fallbackMalId,
-            title = fields.title?.romaji ?: fields.title?.english ?: "",
-            titleEnglish = fields.title?.english,
-            nativeTitle = fields.title?.native,
-            studio = studioName,
-            studioId = studioId,
-            source = fields.source?.rawValue,
-            airingStatus = fields.status?.rawValue,
-            startDate = formatFuzzyDate(fields.startDate?.year, fields.startDate?.month, fields.startDate?.day),
-            endDate = formatFuzzyDate(fields.endDate?.year, fields.endDate?.month, fields.endDate?.day),
-            genres = fields.genres?.filterNotNull() ?: emptyList(),
-            durationMinutes = fields.duration,
-            cast = castList,
-            crew = staffList,
-            relations = relationsList,
-            averageScore = avgScore,
-            popularity = fields.popularity,
-            rank = rankValue,
-            watchers = fields.popularity,
-            recommendations = recList,
-            isFromFallback = false
-        )
-    }
-
     /**
      * Executes GetCharacterProfileQuery and returns AniListResult<CastCrewProfile>.
      */
@@ -622,59 +466,7 @@ object AniListApolloClient {
                 if (errorResult != null) return@safeApolloCall errorResult
             }
             val char = response.data?.Character ?: return@safeApolloCall AniListResult.NotFound
-
-            val fullName = char.name?.full?.takeIf { it.isNotBlank() } ?: "Karakter"
-            val nativeName = char.name?.native?.takeIf { it.isNotBlank() }
-            val firstName = char.name?.first?.takeIf { it.isNotBlank() }
-            val lastName = char.name?.last?.takeIf { it.isNotBlank() }
-
-            val imageUrl = char.image?.large?.takeIf { it.isNotBlank() }
-                ?: char.image?.medium?.takeIf { it.isNotBlank() }
-
-            val cleanDesc = char.description?.let { TextSanitizer.sanitize(it) }?.takeIf { it.isNotBlank() }
-
-            val filmography = char.media?.edges?.mapNotNull { edge ->
-                val role = edge?.characterRole?.rawValue ?: "Character"
-                val node = edge?.node ?: return@mapNotNull null
-                val mId = node.id
-                val malId = node.idMal
-                val tRomaji = node.title?.romaji
-                val tEng = node.title?.english
-                val cImg = node.coverImage?.large ?: node.coverImage?.medium
-                val sYear = node.startDate?.year
-                val fmt = node.format?.rawValue
-                val mType = if (node.type == ApolloMediaType.MANGA) MediaType.MANGA else MediaType.ANIME
-
-                FilmographyItem(
-                    id = mId,
-                    malId = malId,
-                    title = tRomaji ?: tEng ?: "Judul",
-                    titleEnglish = tEng,
-                    imageUrl = cImg,
-                    year = sYear,
-                    format = fmt,
-                    type = mType,
-                    role = role,
-                    characterName = fullName,
-                    characterImage = imageUrl
-                )
-            } ?: emptyList()
-
-            val profile = CastCrewProfile(
-                id = id,
-                isStaff = false,
-                name = fullName,
-                nativeName = nativeName,
-                firstName = firstName,
-                lastName = lastName,
-                image = imageUrl,
-                biography = cleanDesc,
-                nationality = null,
-                birthday = null,
-                age = null,
-                gender = null,
-                filmography = filmography
-            )
+            val profile = AniListApolloMapper.toCharacterProfile(id, char)
             AniListResult.Success(profile)
         }
     }
@@ -704,9 +496,9 @@ object AniListApolloClient {
         }
     }
 
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    // Step 5.3 â€” GetStaffProfile
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ──────────────────────────────────────────────────────────────────────────
+    // Step 5.3 — GetStaffProfile
+    // ──────────────────────────────────────────────────────────────────────────
 
     private suspend fun executeGetStaffProfile(id: Int): AniListResult<CastCrewProfile> {
         AniListMetrics.recordRequest()
@@ -719,113 +511,7 @@ object AniListApolloClient {
                 if (errorResult != null) return@safeApolloCall errorResult
             }
             val staff = response.data?.Staff ?: return@safeApolloCall AniListResult.NotFound
-
-            val name = staff.name
-            val fullName = name?.full?.takeIf { it.isNotBlank() } ?: "Staff"
-            val nativeName = name?.native?.takeIf { it.isNotBlank() }
-            val firstName = name?.first?.takeIf { it.isNotBlank() }
-            val lastName = name?.last?.takeIf { it.isNotBlank() }
-
-            val imageUrl = staff.image?.large?.takeIf { it.isNotBlank() }
-                ?: staff.image?.medium?.takeIf { it.isNotBlank() }
-
-            val cleanDesc = staff.description
-                ?.let { TextSanitizer.sanitize(it) }
-                ?.takeIf { it.isNotBlank() }
-
-            // Build filmography from character voice roles (characters connection)
-            val filmography = mutableListOf<FilmographyItem>()
-            val charEdges = staff.characters?.edges
-            if (charEdges != null) {
-                for (edge in charEdges) {
-                    val charNode = edge?.node ?: continue
-                    val charName = charNode.name?.full
-                    val charImg = charNode.image?.large?.takeIf { it.isNotBlank() }
-                        ?: charNode.image?.medium?.takeIf { it.isNotBlank() }
-                    val roleStr = edge.role?.rawValue ?: "MAIN"
-
-                    // Each character edge has media: [Media] — take first
-                    val mediaList = edge.media ?: emptyList()
-                    for (m in mediaList) {
-                        if (m == null) continue
-                        val mId = m.id
-                        val malId = m.idMal
-                        val tRomaji = m.title?.romaji?.takeIf { it.isNotBlank() }
-                        val tEng = m.title?.english?.takeIf { it.isNotBlank() }
-                        val cImg = m.coverImage?.large?.takeIf { it.isNotBlank() }
-                            ?: m.coverImage?.medium?.takeIf { it.isNotBlank() }
-                        val sYear = m.startDate?.year?.takeIf { it > 0 }
-                        val fmt = m.format?.rawValue
-                        val mType = if (m.type?.rawValue == "MANGA") MediaType.MANGA else MediaType.ANIME
-
-                        filmography.add(
-                            FilmographyItem(
-                                id = mId,
-                                malId = malId,
-                                title = tRomaji ?: tEng ?: "Judul",
-                                titleEnglish = tEng,
-                                imageUrl = cImg,
-                                year = sYear,
-                                format = fmt,
-                                type = mType,
-                                role = roleStr,
-                                characterName = charName,
-                                characterImage = charImg
-                            )
-                        )
-                    }
-                }
-            }
-
-            // Build filmography from production staff roles (staffMedia connection)
-            val staffEdges = staff.staffMedia?.edges
-            if (staffEdges != null) {
-                for (edge in staffEdges) {
-                    val node = edge?.node ?: continue
-                    val mId = node.id
-                    val malId = node.idMal
-                    val tRomaji = node.title?.romaji?.takeIf { it.isNotBlank() }
-                    val tEng = node.title?.english?.takeIf { it.isNotBlank() }
-                    val cImg = node.coverImage?.large?.takeIf { it.isNotBlank() }
-                        ?: node.coverImage?.medium?.takeIf { it.isNotBlank() }
-                    val sYear = node.startDate?.year?.takeIf { it > 0 }
-                    val fmt = node.format?.rawValue
-                    val mType = if (node.type?.rawValue == "MANGA") MediaType.MANGA else MediaType.ANIME
-                    val role = edge.staffRole?.takeIf { it.isNotBlank() } ?: "Staff"
-
-                    filmography.add(
-                        FilmographyItem(
-                            id = mId,
-                            malId = malId,
-                            title = tRomaji ?: tEng ?: "Judul",
-                            titleEnglish = tEng,
-                            imageUrl = cImg,
-                            year = sYear,
-                            format = fmt,
-                            type = mType,
-                            role = role,
-                            characterName = null,
-                            characterImage = null
-                        )
-                    )
-                }
-            }
-
-            val profile = CastCrewProfile(
-                id = id,
-                isStaff = true,
-                name = fullName,
-                nativeName = nativeName,
-                firstName = firstName,
-                lastName = lastName,
-                image = imageUrl,
-                biography = cleanDesc,
-                nationality = null,   // not in this schema version
-                birthday = null,      // not in this schema version
-                age = null,           // not in this schema version
-                gender = null,        // not in this schema version
-                filmography = filmography.distinctBy { it.id }
-            )
+            val profile = AniListApolloMapper.toStaffProfile(id, staff)
             AniListResult.Success(profile)
         }
     }
@@ -858,54 +544,6 @@ object AniListApolloClient {
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Step 5.4 â€” GetStudioFilmography
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-    private fun mapApolloMediaNodeToItem(
-        node: GetStudioFilmographyQuery.Node,
-        studioName: String
-    ): MediaItem? {
-        val mId = node.id.takeIf { it > 0 } ?: return null
-        val malId = node.idMal
-        val tRomaji = node.title?.romaji?.takeIf { it.isNotBlank() }
-        val tEng = node.title?.english?.takeIf { it.isNotBlank() }
-        val cover = node.coverImage?.large?.takeIf { it.isNotBlank() }
-            ?: node.coverImage?.medium?.takeIf { it.isNotBlank() }
-            ?: node.coverImage?.extraLarge?.takeIf { it.isNotBlank() } ?: ""
-        val coverHd = node.coverImage?.extraLarge?.takeIf { it.isNotBlank() }
-            ?: node.coverImage?.large?.takeIf { it.isNotBlank() }
-        val fmt = node.format?.rawValue
-        val mType = if (node.type?.rawValue == "MANGA") MediaType.MANGA else MediaType.ANIME
-        val status = node.status?.rawValue
-        val episodes = node.episodes?.takeIf { it > 0 }
-        val chapters = node.chapters?.takeIf { it > 0 }
-        val avgScore = node.averageScore ?: 0
-        val score = if (avgScore > 0) avgScore / 10.0 else null
-        val popularity = node.popularity?.takeIf { it > 0 }
-        val genresList = node.genres?.filterNotNull() ?: emptyList()
-        val year = node.startDate?.year?.takeIf { it > 0 }
-
-        if (malId != null && malId > 0) {
-            CacheManager.putIdMapping(malId = malId, aniListId = mId, type = mType)
-        }
-
-        return MediaItem(
-            malId = malId,
-            anilistId = mId,
-            title = tRomaji ?: tEng ?: "Judul",
-            titleEnglish = tEng,
-            imageUrl = cover,
-            type = mType,
-            score = score,
-            format = fmt,
-            status = status,
-            episodes = episodes,
-            chapters = chapters,
-            genres = genresList,
-            year = year,
-            studio = studioName,
-            popularity = popularity,
-            imageUrlHd = coverHd
-        )
-    }
 
     suspend fun fetchStudioFilmography(
         studioId: Int?,
@@ -962,7 +600,13 @@ object AniListApolloClient {
                     .filterNotNull()
                     .mapNotNull { node ->
                         if (!seenIds.add(node.id)) null
-                        else mapApolloMediaNodeToItem(node, resolvedName)
+                        else {
+                            if (node.idMal != null && node.idMal > 0) {
+                                val mType = if (node.type?.rawValue == "MANGA") MediaType.MANGA else MediaType.ANIME
+                                CacheManager.putIdMapping(malId = node.idMal, aniListId = node.id, type = mType)
+                            }
+                            AniListApolloMapper.toStudioFilmographyItem(node, resolvedName)
+                        }
                     }
 
                 val result = StudioFilmographyPage(
@@ -1048,60 +692,10 @@ object AniListApolloClient {
             }
         }
     }
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    // Step 5.6 â€” GetDiscoverMedia
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-    private fun mapApolloDiscoverMediaToItem(
-        m: GetDiscoverMediaQuery.Medium,
-        fallbackType: MediaType
-    ): MediaItem {
-        val primaryTitle = m.title?.romaji?.takeIf { it.isNotBlank() }
-            ?: m.title?.english?.takeIf { it.isNotBlank() }
-            ?: "Unknown Title"
-        val englishTitle = m.title?.english
-        val img = m.coverImage?.large?.takeIf { it.isNotBlank() }
-            ?: m.coverImage?.extraLarge?.takeIf { it.isNotBlank() }
-            ?: m.coverImage?.medium?.takeIf { it.isNotBlank() }
-            ?: ""
-        val imgHd = m.coverImage?.extraLarge?.takeIf { it.isNotBlank() }
-            ?: m.coverImage?.large?.takeIf { it.isNotBlank() }
-        val score = if ((m.averageScore ?: 0) > 0) m.averageScore!! / 10.0 else null
-        val cleanDesc = m.description?.let { TextSanitizer.sanitize(it) }
-
-        val statusStr = when (m.status?.rawValue) {
-            "RELEASING" -> if (fallbackType == MediaType.ANIME) "AIRING" else "PUBLISHING"
-            "FINISHED"  -> if (fallbackType == MediaType.ANIME) "AIRED" else "FINISHED"
-            "NOT_YET_RELEASED" -> "NOT YET AIRED"
-            "CANCELLED" -> "CANCELLED"
-            "HIATUS"    -> "ON HIATUS"
-            else        -> m.status?.rawValue?.uppercase() ?: "AIRED"
-        }
-
-        val studioName = m.studios?.nodes?.firstOrNull()?.name
-        if (m.idMal != null) CacheManager.putIdMapping(malId = m.idMal, aniListId = m.id, type = fallbackType)
-
-        return MediaItem(
-            malId = m.idMal,
-            anilistId = m.id,
-            title = primaryTitle,
-            titleEnglish = englishTitle,
-            imageUrl = img,
-            type = fallbackType,
-            score = score,
-            synopsis = cleanDesc,
-            episodes = m.episodes?.takeIf { it > 0 },
-            chapters = m.chapters?.takeIf { it > 0 },
-            volumes = m.volumes?.takeIf { it > 0 },
-            status = statusStr,
-            year = m.seasonYear,
-            season = m.season?.rawValue,
-            genres = m.genres?.filterNotNull() ?: emptyList(),
-            format = m.format?.rawValue,
-            studio = studioName,
-            imageUrlHd = imgHd
-        )
-    }
+    // ──────────────────────────────────────────────────────────────────────────
+    // Step 5.6 — GetDiscoverMedia
+    // ──────────────────────────────────────────────────────────────────────────
 
     suspend fun getDiscoverMedia(
         category: DiscoverCategory,
@@ -1178,19 +772,37 @@ object AniListApolloClient {
             }
             DiscoverCategory.RECENTLY_DONE_MANGA -> {
                 apolloStatus = Optional.present(MediaStatus.FINISHED)
-                apolloSort = Optional.present(listOf(MediaSort.END_DATE_DESC))
+                apolloSort = Optional.present(listOf(MediaSort.END_DATE_DESC, MediaSort.POPULARITY_DESC))
             }
             DiscoverCategory.NEWLY_ADDED_MANGA -> {
-                apolloSort = Optional.present(listOf(MediaSort.ID_DESC))
+                apolloSort = Optional.present(listOf(MediaSort.START_DATE_DESC, MediaSort.POPULARITY_DESC))
             }
         }
 
-        // Apply filter overrides
-        filter.genre?.let { apolloGenre = Optional.present(it) }
-        filter.year?.let { apolloSeasonYear = Optional.present(it) }
-        filter.season?.let { apolloSeason = Optional.present(MediaSeason.safeValueOf(it)) }
-        filter.minScore?.let { apolloMinScore = Optional.present(it) }
-        filter.format?.takeIf { it != "MANGA" }?.let {
+        if (randomSort != null && category != DiscoverCategory.TOP_ANIME && category != DiscoverCategory.TOP_MANGA) {
+            when (randomSort) {
+                "POPULARITY_DESC" -> apolloSort = Optional.present(listOf(MediaSort.POPULARITY_DESC))
+                "SCORE_DESC" -> apolloSort = Optional.present(listOf(MediaSort.SCORE_DESC))
+                "FAVOURITES_DESC" -> apolloSort = Optional.present(listOf(MediaSort.FAVOURITES_DESC))
+                "TRENDING_DESC" -> apolloSort = Optional.present(listOf(MediaSort.TRENDING_DESC))
+                "START_DATE_DESC" -> apolloSort = Optional.present(listOf(MediaSort.START_DATE_DESC))
+                "TITLE_ROMAJI" -> apolloSort = Optional.present(listOf(MediaSort.TITLE_ROMAJI))
+            }
+        }
+
+        filter.genre?.let {
+            apolloGenre = Optional.present(it)
+        }
+        filter.minScore?.let {
+            apolloMinScore = Optional.present(it * 10)
+        }
+        filter.season?.let {
+            apolloSeason = Optional.present(MediaSeason.safeValueOf(it.uppercase()))
+        }
+        filter.year?.let {
+            apolloSeasonYear = Optional.present(it)
+        }
+        filter.format?.let {
             apolloFormat = Optional.present(MediaFormat.safeValueOf(it))
         }
 
@@ -1212,8 +824,13 @@ object AniListApolloClient {
                 )
                 val response = client.query(q).execute()
                 val mediaList = response.data?.Page?.media ?: emptyList()
-                val items = mediaList.filterNotNull().map { mapApolloDiscoverMediaToItem(it, fallbackType) }
-                                if (items.isNotEmpty()) CacheManager.putDiscover(cacheKey, items)
+                val items = mediaList.filterNotNull().map { m ->
+                    if (m.idMal != null) {
+                        CacheManager.putIdMapping(malId = m.idMal, aniListId = m.id, type = fallbackType)
+                    }
+                    AniListApolloMapper.toDiscoverMediaItem(m, fallbackType)
+                }
+                if (items.isNotEmpty()) CacheManager.putDiscover(cacheKey, items)
                 items
             } catch (e: CancellationException) {
                 throw e
@@ -1224,60 +841,9 @@ object AniListApolloClient {
         }
     }
 
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    // Step 5.7 â€” GetMediaBatchByMalIds
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
-    private fun mapApolloBatchMediaToItem(
-        m: GetMediaBatchByMalIdsQuery.Medium,
-        fallbackType: MediaType
-    ): MediaItem {
-        val primaryTitle = m.title?.romaji?.takeIf { it.isNotBlank() }
-            ?: m.title?.english?.takeIf { it.isNotBlank() }
-            ?: "Unknown Title"
-        val englishTitle = m.title?.english
-        val img = m.coverImage?.large?.takeIf { it.isNotBlank() }
-            ?: m.coverImage?.extraLarge?.takeIf { it.isNotBlank() }
-            ?: m.coverImage?.medium?.takeIf { it.isNotBlank() }
-            ?: ""
-        val imgHd = m.coverImage?.extraLarge?.takeIf { it.isNotBlank() }
-            ?: m.coverImage?.large?.takeIf { it.isNotBlank() }
-        val score = if ((m.averageScore ?: 0) > 0) m.averageScore!! / 10.0 else null
-        val cleanDesc = m.description?.let { TextSanitizer.sanitize(it) }
-
-        val statusStr = when (m.status?.rawValue) {
-            "RELEASING" -> if (fallbackType == MediaType.ANIME) "AIRING" else "PUBLISHING"
-            "FINISHED"  -> if (fallbackType == MediaType.ANIME) "AIRED" else "FINISHED"
-            "NOT_YET_RELEASED" -> "NOT YET AIRED"
-            "CANCELLED" -> "CANCELLED"
-            "HIATUS"    -> "ON HIATUS"
-            else        -> m.status?.rawValue?.uppercase() ?: "AIRED"
-        }
-
-        val studioName = m.studios?.nodes?.firstOrNull()?.name
-        if (m.idMal != null) CacheManager.putIdMapping(malId = m.idMal, aniListId = m.id, type = fallbackType)
-
-        return MediaItem(
-            malId = m.idMal,
-            anilistId = m.id,
-            title = primaryTitle,
-            titleEnglish = englishTitle,
-            imageUrl = img,
-            type = fallbackType,
-            score = score,
-            synopsis = cleanDesc,
-            episodes = m.episodes?.takeIf { it > 0 },
-            chapters = m.chapters?.takeIf { it > 0 },
-            volumes = m.volumes?.takeIf { it > 0 },
-            status = statusStr,
-            year = m.seasonYear,
-            season = m.season?.rawValue,
-            genres = m.genres?.filterNotNull() ?: emptyList(),
-            format = m.format?.rawValue,
-            studio = studioName,
-            imageUrlHd = imgHd
-        )
-    }
+    // ──────────────────────────────────────────────────────────────────────────
+    // Step 5.7 — GetMediaBatchByMalIds
+    // ──────────────────────────────────────────────────────────────────────────
 
     suspend fun getMediaBatchByMalIds(
         malIds: List<Int>,
@@ -1301,7 +867,10 @@ object AniListApolloClient {
                     val mediaList = response.data?.Page?.media ?: emptyList()
                     val chunkResult = mutableMapOf<Int, MediaItem>()
                     for (m in mediaList.filterNotNull()) {
-                        val item = mapApolloBatchMediaToItem(m, type)
+                        if (m.idMal != null) {
+                            CacheManager.putIdMapping(malId = m.idMal, aniListId = m.id, type = type)
+                        }
+                        val item = AniListApolloMapper.toBatchMediaItem(m, type)
                         m.idMal?.let { malId -> chunkResult[malId] = item }
                     }
                     chunkResult
