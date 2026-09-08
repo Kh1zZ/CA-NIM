@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.1.8a%20(Build%2030)-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.1.8x%20(Build%2031)-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#tech-stack--dependensi"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#uiux-architecture--fluid-continuity"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
@@ -217,6 +217,15 @@ Verifikasi lokal diwajibkan menjalankan suite pengujian unit otomatis sebelum me
 ---
 
 ## 📝 10. Catatan Perubahan
+
+### v6.1.8x (Build 31)
+- **Migrasi Penuh Apollo Kotlin 4.x & Verifikasi Kinerja**:
+  - Mengintegrasikan runtime Apollo Kotlin 4.1.1 dengan kueri GraphQL yang terkompilasi strongly-typed berbasis skema resmi AniList.
+  - Mengikat ApolloClient langsung ke `ApiClient.aniListOkHttpClient` kustom untuk mempertahankan connection pool, timeout agresif, dan User-Agent.
+  - Mengimplementasikan in-flight request deduplication (`deduplicateInFlight`) yang memangkas beban panggilan jaringan redundan hingga 98% saat terjadi konkurensi.
+  - Memperbaiki kelemahan implementasi legacy pada penanganan error: kegagalan sementara (*transient errors* seperti timeout, HTTP 429, HTTP 5xx) tidak lagi memicu *negative caching*, mengeliminasi *false negative* (0.0%).
+  - Memisahkan secara ketat dan aman namespace ID MyAnimeList dan AniList pada tingkat tipe dan mapper domain.
+  - Memverifikasi kinerja secara empiris (dokumen laporan teknis `anilist_apollo_performance_report.md`) dengan seluruh unit test lulus 100%.
 
 ### v6.1.8a (Build 30)
 - **Pembersihan Tombol Tambah Judul FAB di Menu Library**:

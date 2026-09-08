@@ -1,0 +1,32 @@
+query GetMediaBatchByMalIds($idMal_in: [Int], $type: MediaType) {
+  Page(page: 1, perPage: 50) {
+    media(idMal_in: $idMal_in, type: $type) {
+      id
+      idMal
+      title {
+        romaji
+        english
+      }
+      coverImage {
+        medium
+        large
+        extraLarge
+      }
+      averageScore
+      description(asHtml: false)
+      episodes
+      chapters
+      volumes
+      status
+      seasonYear
+      season
+      format
+      genres
+      studios(isMain: true) {
+        nodes {
+          name
+        }
+      }
+    }
+  }
+}

@@ -195,7 +195,7 @@ class CanimRepository(
     private fun mapMalAnimeNodeToMediaItem(node: MalAnimeNode): MediaItem {
         return MediaItem(
             malId = node.id,
-            anilistId = CacheManager.getAniListIdForMalId(node.id) ?: node.id,
+            anilistId = CacheManager.getAniListIdForMalId(node.id),
             title = node.title,
             titleEnglish = node.alternativeTitles?.en ?: node.title,
             imageUrl = node.mainPicture?.large ?: node.mainPicture?.medium ?: "",
@@ -222,7 +222,7 @@ class CanimRepository(
     private fun mapMalMangaNodeToMediaItem(node: MalMangaNode): MediaItem {
         return MediaItem(
             malId = node.id,
-            anilistId = CacheManager.getAniListIdForMalId(node.id) ?: node.id,
+            anilistId = CacheManager.getAniListIdForMalId(node.id),
             title = node.title,
             titleEnglish = node.alternativeTitles?.en ?: node.title,
             imageUrl = node.mainPicture?.large ?: node.mainPicture?.medium ?: "",
@@ -620,6 +620,11 @@ class CanimRepository(
 
     suspend fun isAniListUnavailable(): Boolean = withContext(Dispatchers.IO) {
         try {
+            if (AniListClient.pingHealth()) {
+                return@withContext false
+            }
+            // Tolerant retry: wait 1.5s before concluding outage
+            kotlinx.coroutines.delay(1500L)
             !AniListClient.pingHealth()
         } catch (_: Exception) {
             true

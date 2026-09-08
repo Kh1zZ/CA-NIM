@@ -32,6 +32,25 @@ object ApiClient {
             .build()
     }
 
+    /**
+     * Dedicated OkHttpClient for AniList GraphQL operations.
+     * Tuned timeouts: 10s connect, 15s read, 10s write.
+     * Isolated connection pool and no ineffective HTTP GET cache for GraphQL POST requests.
+     */
+    val aniListOkHttpClient: OkHttpClient by lazy {
+        val logging = HttpLoggingInterceptor().apply {
+            level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BASIC else HttpLoggingInterceptor.Level.NONE
+        }
+        OkHttpClient.Builder()
+            .connectionPool(ConnectionPool(5, 5, TimeUnit.MINUTES))
+            .retryOnConnectionFailure(true)
+            .addInterceptor(logging)
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .writeTimeout(10, TimeUnit.SECONDS)
+            .build()
+    }
+
     val malApi: MalApiService by lazy {
         Retrofit.Builder()
             .baseUrl("https://api.myanimelist.net/v2/")

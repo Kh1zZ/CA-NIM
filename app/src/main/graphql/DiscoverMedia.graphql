@@ -1,0 +1,53 @@
+query GetDiscoverMedia(
+  $page: Int,
+  $perPage: Int,
+  $type: MediaType,
+  $status: MediaStatus,
+  $seasonYear: Int,
+  $season: MediaSeason,
+  $genre: String,
+  $format: MediaFormat,
+  $averageScore_greater: Int,
+  $sort: [MediaSort]
+) {
+  Page(page: $page, perPage: $perPage) {
+    media(
+      type: $type,
+      status: $status,
+      seasonYear: $seasonYear,
+      season: $season,
+      genre: $genre,
+      format: $format,
+      averageScore_greater: $averageScore_greater,
+      sort: $sort,
+      isAdult: false
+    ) {
+      id
+      idMal
+      title {
+        romaji
+        english
+      }
+      coverImage {
+        medium
+        large
+        extraLarge
+      }
+      averageScore
+      description(asHtml: false)
+      episodes
+      chapters
+      volumes
+      status
+      seasonYear
+      season
+      format
+      genres
+      studios(isMain: true) {
+        nodes {
+          name
+        }
+      }
+    }
+  }
+}

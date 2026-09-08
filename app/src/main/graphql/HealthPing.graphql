@@ -1,0 +1,5 @@
+query HealthPing {
+  Media(id: 1) {
+    id
+  }
+}

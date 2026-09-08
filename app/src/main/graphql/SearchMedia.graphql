@@ -1,0 +1,53 @@
+query SearchMedia(
+  $page: Int = 1,
+  $perPage: Int = 30,
+  $type: MediaType,
+  $search: String,
+  $genres: [String],
+  $tags: [String],
+  $seasonYear: Int,
+  $startDateGreater: FuzzyDateInt,
+  $startDateLesser: FuzzyDateInt,
+  $format: MediaFormat
+) {
+  Page(page: $page, perPage: $perPage) {
+    media(
+      type: $type,
+      search: $search,
+      genre_in: $genres,
+      tag_in: $tags,
+      seasonYear: $seasonYear,
+      startDate_greater: $startDateGreater,
+      startDate_lesser: $startDateLesser,
+      format: $format,
+      sort: [POPULARITY_DESC]
+    ) {
+      id
+      idMal
+      title {
+        romaji
+        english
+      }
+      coverImage {
+        medium
+        large
+        extraLarge
+      }
+      averageScore
+      description(asHtml: false)
+      episodes
+      chapters
+      volumes
+      status
+      seasonYear
+      season
+      format
+      genres
+      studios(isMain: true) {
+        nodes {
+          name
+        }
+      }
+    }
+  }
+}

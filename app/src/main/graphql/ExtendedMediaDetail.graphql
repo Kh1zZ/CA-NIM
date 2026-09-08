@@ -1,0 +1,129 @@
+fragment ExtendedMediaDetailFields on Media {
+  id
+  idMal
+  title {
+    romaji
+    english
+    native
+  }
+  duration
+  source
+  status
+  genres
+  averageScore
+  popularity
+  rankings {
+    rank
+    allTime
+  }
+  recommendations(page: 1, perPage: 8, sort: [RATING_DESC]) {
+    nodes {
+      mediaRecommendation {
+        id
+        idMal
+        title {
+          romaji
+          english
+        }
+        coverImage {
+          large
+          medium
+        }
+        type
+        averageScore
+        format
+      }
+    }
+  }
+  startDate {
+    year
+    month
+    day
+  }
+  endDate {
+    year
+    month
+    day
+  }
+  studios(isMain: true) {
+    nodes {
+      id
+      name
+    }
+  }
+  characters(sort: [ROLE], perPage: 12) {
+    edges {
+      role
+      node {
+        id
+        name {
+          full
+          native
+        }
+        image {
+          medium
+          large
+        }
+      }
+      voiceActors(language: JAPANESE) {
+        id
+        name {
+          full
+          native
+        }
+        image {
+          medium
+          large
+        }
+      }
+    }
+  }
+  staff(sort: [ROLE], perPage: 10) {
+    edges {
+      role
+      node {
+        id
+        name {
+          full
+          native
+        }
+        image {
+          medium
+          large
+        }
+      }
+    }
+  }
+  relations {
+    edges {
+      relationType
+      node {
+        id
+        idMal
+        title {
+          romaji
+          english
+        }
+        coverImage {
+          large
+          medium
+        }
+        type
+        format
+        status
+      }
+    }
+  }
+}
+
+query GetExtendedDetailsById($id: Int) {
+  Media(id: $id) {
+    ...ExtendedMediaDetailFields
+  }
+}
+
+query GetExtendedDetailsByMalId($idMal: Int, $type: MediaType) {
+  Media(idMal: $idMal, type: $type) {
+    ...ExtendedMediaDetailFields
+  }
+}

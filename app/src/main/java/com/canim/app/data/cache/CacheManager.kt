@@ -442,6 +442,10 @@ object CacheManager {
         idMappingAniListToMal.clear()
     }
 
+    fun clearNegativeCache() {
+        negativeCache.clear()
+    }
+
     fun clearMetadataCache() {
         metadataCache.clear()
         searchCache.clear()

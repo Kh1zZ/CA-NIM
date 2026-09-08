@@ -619,7 +619,7 @@ class MalAuthManager(
                     val body = response.body()!!
                     val parsedRelations = body.relatedAnime?.map { rel ->
                         MediaRelationItem(
-                            id = rel.node.id,
+                            id = CacheManager.getAniListIdForMalId(rel.node.id) ?: 0,
                             malId = rel.node.id,
                             title = rel.node.title,
                             imageUrl = rel.node.mainPicture?.large ?: rel.node.mainPicture?.medium,
@@ -631,7 +631,7 @@ class MalAuthManager(
                     val parsedRecs = body.recommendations?.map { rec ->
                         MediaItem(
                             malId = rec.node.id,
-                            anilistId = rec.node.id,
+                            anilistId = CacheManager.getAniListIdForMalId(rec.node.id),
                             title = rec.node.title,
                             imageUrl = rec.node.mainPicture?.large ?: rec.node.mainPicture?.medium ?: "",
                             type = MediaType.ANIME
@@ -672,7 +672,7 @@ class MalAuthManager(
                     val body = response.body()!!
                     val parsedRelations = body.relatedManga?.map { rel ->
                         MediaRelationItem(
-                            id = rel.node.id,
+                            id = CacheManager.getAniListIdForMalId(rel.node.id) ?: 0,
                             malId = rel.node.id,
                             title = rel.node.title,
                             imageUrl = rel.node.mainPicture?.large ?: rel.node.mainPicture?.medium,
@@ -684,7 +684,7 @@ class MalAuthManager(
                     val parsedRecs = body.recommendations?.map { rec ->
                         MediaItem(
                             malId = rec.node.id,
-                            anilistId = rec.node.id,
+                            anilistId = CacheManager.getAniListIdForMalId(rec.node.id),
                             title = rec.node.title,
                             imageUrl = rec.node.mainPicture?.large ?: rec.node.mainPicture?.medium ?: "",
                             type = MediaType.MANGA

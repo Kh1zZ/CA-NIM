@@ -1,0 +1,70 @@
+query GetStaffProfile($id: Int) {
+  Staff(id: $id) {
+    id
+    name {
+      first
+      last
+      full
+      native
+    }
+    image {
+      large
+      medium
+    }
+    description(asHtml: false)
+    characters(page: 1, perPage: 25) {
+      edges {
+        role
+        node {
+          id
+          name {
+            full
+          }
+          image {
+            large
+            medium
+          }
+        }
+        media {
+          id
+          idMal
+          title {
+            romaji
+            english
+          }
+          coverImage {
+            large
+            medium
+          }
+          startDate {
+            year
+          }
+          format
+          type
+        }
+      }
+    }
+    staffMedia(page: 1, perPage: 25, sort: POPULARITY_DESC) {
+      edges {
+        staffRole
+        node {
+          id
+          idMal
+          title {
+            romaji
+            english
+          }
+          coverImage {
+            large
+            medium
+          }
+          startDate {
+            year
+          }
+          format
+          type
+        }
+      }
+    }
+  }
+}

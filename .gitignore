@@ -58,10 +58,13 @@ Thumbs.db
 *.tmp
 *.temp
 
-# Local AI / Agent Rules
+# Local AI / Agent Rules & Tools
 GEMINI.md
 gemini.md
 AGENTS.md
 agents.md
+.agents/
+.codegraph/
+.serena/
 
 

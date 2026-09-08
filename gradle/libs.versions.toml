@@ -11,8 +11,10 @@ okhttp = "4.12.0"
 coilCompose = "2.6.0"
 kotlinxCoroutines = "1.8.0"
 securityCrypto = "1.1.0-alpha06"
+apollo = "4.0.0"
 
 [libraries]
+apollo-runtime = { group = "com.apollographql.apollo", name = "apollo-runtime", version.ref = "apollo" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
@@ -36,4 +38,5 @@ kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+apollo = { id = "com.apollographql.apollo", version.ref = "apollo" }
 
