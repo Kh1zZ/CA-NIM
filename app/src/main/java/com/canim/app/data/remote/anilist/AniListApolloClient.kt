@@ -51,6 +51,8 @@ import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import java.net.SocketTimeoutException
 
+import com.canim.app.data.metrics.AppMetrics
+
 /**
  * Dedicated ApolloClient for AniList GraphQL operations.
  *
@@ -108,53 +110,63 @@ object AniListApolloClient {
      */
     private suspend fun <T> withAniListPolicy(
         retryable: Boolean = true,
+        operationName: String = "graphql",
         block: suspend (isFinalAttempt: Boolean) -> AniListResult<T>
     ): AniListResult<T> {
         val policy = ApiClient.aniListPolicy
         val onCooldown: () -> AniListResult<T> = {
             AniListMetrics.recordRateLimit()
+            AppMetrics.recordRateLimit("anilist", operationName)
             AniListResult.RateLimited(policy.remainingCooldownMs() / 1000L)
         }
 
         if (policy.remainingCooldownMs() > 0L) return onCooldown()
 
+        val startNs = System.nanoTime()
         var attempt = 0
-        while (true) {
-            if (policy.remainingCooldownMs() > 0L) return onCooldown()
+        try {
+            while (true) {
+                if (policy.remainingCooldownMs() > 0L) return onCooldown()
 
-            val isFinalAttempt = !retryable || attempt >= 2
-            val result = try {
-                policy.semaphore.withPermit {
-                    if (policy.remainingCooldownMs() > 0L) {
-                        return@withPermit null
-                    }
-                    block(isFinalAttempt)
-                } ?: return onCooldown()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                ApolloErrorMapper.toAniListResult(e, recordMetrics = isFinalAttempt)
-            }
+                val isFinalAttempt = !retryable || attempt >= 2
+                val result = try {
+                    policy.semaphore.withPermit {
+                        if (policy.remainingCooldownMs() > 0L) {
+                            return@withPermit null
+                        }
+                        block(isFinalAttempt)
+                    } ?: return onCooldown()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    ApolloErrorMapper.toAniListResult(e, recordMetrics = isFinalAttempt)
+                }
 
-            when {
-                result is AniListResult.RateLimited -> {
-                    policy.armCooldown((result.retryAfterSeconds ?: 60L) * 1000L)
-                    return result
-                }
-                (result is AniListResult.Timeout || (result is AniListResult.HttpError && result.code in 500..599))
-                    && retryable && attempt < 2 -> {
-                    attempt++
-                    AniListMetrics.recordRetry()
-                    // Permit has been released! Delay does not starve other concurrent requests.
-                    if (policy.baseBackoffMs > 0L) {
-                        val backoff = minOf(policy.baseBackoffMs * (1L shl (attempt - 1)), policy.maxBackoffMs)
-                        val jitter = if (policy.jitterMs > 0L) kotlin.random.Random.nextLong(-policy.jitterMs, policy.jitterMs + 1) else 0L
-                        val delayMs = maxOf(0L, backoff + jitter)
-                        if (delayMs > 0L) kotlinx.coroutines.delay(delayMs)
+                when {
+                    result is AniListResult.RateLimited -> {
+                        policy.armCooldown((result.retryAfterSeconds ?: 60L) * 1000L)
+                        AppMetrics.recordRateLimit("anilist", operationName)
+                        return result
                     }
+                    (result is AniListResult.Timeout || (result is AniListResult.HttpError && result.code in 500..599))
+                        && retryable && attempt < 2 -> {
+                        attempt++
+                        AniListMetrics.recordRetry()
+                        AppMetrics.recordRetry("anilist", operationName)
+                        // Permit has been released! Delay does not starve other concurrent requests.
+                        if (policy.baseBackoffMs > 0L) {
+                            val backoff = minOf(policy.baseBackoffMs * (1L shl (attempt - 1)), policy.maxBackoffMs)
+                            val jitter = if (policy.jitterMs > 0L) kotlin.random.Random.nextLong(-policy.jitterMs, policy.jitterMs + 1) else 0L
+                            val delayMs = maxOf(0L, backoff + jitter)
+                            if (delayMs > 0L) kotlinx.coroutines.delay(delayMs)
+                        }
+                    }
+                    else -> return result
                 }
-                else -> return result
             }
+        } finally {
+            val durationMs = (System.nanoTime() - startNs) / 1_000_000L
+            AppMetrics.recordLatency("anilist", operationName, durationMs)
         }
     }
 

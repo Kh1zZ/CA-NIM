@@ -1,5 +1,6 @@
 package com.canim.app.data.remote
 
+import com.canim.app.data.metrics.AppMetrics
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.Protocol
@@ -27,6 +28,7 @@ internal class MalRequestInterceptor(
         // Non-blocking 429 cooldown check before touching network
         val remaining = policy.remainingCooldownMs()
         if (remaining > 0L) {
+            AppMetrics.recordRateLimit("myanimelist", "cooldown_intercepted")
             val retryAfterSeconds = maxOf(1L, (remaining + 999) / 1000)
             return Response.Builder()
                 .request(request)
@@ -41,6 +43,7 @@ internal class MalRequestInterceptor(
         val response = chain.proceed(request)
 
         if (response.code == 429) {
+            AppMetrics.recordRateLimit("myanimelist", "http_429")
             val retryAfterMs = parseRetryAfterMs(response.header("Retry-After"))
             policy.armCooldown(retryAfterMs)
         }

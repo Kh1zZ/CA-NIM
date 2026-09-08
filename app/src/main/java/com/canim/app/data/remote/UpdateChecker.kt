@@ -3,12 +3,14 @@ package com.canim.app.data.remote
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
+import com.canim.app.data.metrics.AppMetrics
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
+import java.net.URI
 import java.net.URL
 
 data class UpdateInfo(
@@ -26,6 +28,28 @@ data class UpdateInfo(
 object UpdateChecker {
 
     private const val GITHUB_LATEST_RELEASE_URL = "https://api.github.com/repos/Kh1zZ/CA-NIM/releases/latest"
+
+    /**
+     * Verifies that the download URL uses HTTPS and belongs to trusted GitHub domains.
+     */
+    fun isSafeDownloadUrl(urlStr: String): Boolean {
+        val uri = runCatching { URI(urlStr) }.getOrNull() ?: return false
+        if (!uri.scheme.equals("https", ignoreCase = true)) return false
+        val host = uri.host?.lowercase() ?: return false
+        return host == "github.com" ||
+                host.endsWith(".github.com") ||
+                host == "objects.githubusercontent.com" ||
+                host.endsWith(".githubusercontent.com")
+    }
+
+    /**
+     * Sanitizes an APK filename to prevent path traversal vulnerabilities.
+     */
+    fun sanitizeFileName(fileName: String): String {
+        val baseName = File(fileName).name
+        val safe = baseName.replace(Regex("[^a-zA-Z0-9._-]"), "")
+        return if (safe.endsWith(".apk", ignoreCase = true) && safe.isNotBlank()) safe else "canim-update.apk"
+    }
 
     /**
      * Parses a semver string (e.g., "v5.1.0", "5.0.0", "v5.1.0-alpha") into (major, minor, patch).
@@ -63,6 +87,8 @@ object UpdateChecker {
      * Queries GitHub Releases API for the latest published release and finds any attached .apk asset.
      */
     suspend fun checkLatestRelease(currentVersion: String): Result<UpdateInfo> = withContext(Dispatchers.IO) {
+        AppMetrics.recordRequest("github", "checkLatestRelease")
+        val startNs = System.nanoTime()
         var connection: HttpURLConnection? = null
         try {
             val url = URL(GITHUB_LATEST_RELEASE_URL)
@@ -76,6 +102,9 @@ object UpdateChecker {
 
             val responseCode = connection.responseCode
             if (responseCode != HttpURLConnection.HTTP_OK) {
+                if (responseCode in 500..599) {
+                    AppMetrics.recordHttp5xx("github", "checkLatestRelease", responseCode)
+                }
                 return@withContext Result.failure(Exception("HTTP $responseCode dari GitHub API"))
             }
 
@@ -124,14 +153,20 @@ object UpdateChecker {
                 )
             )
         } catch (e: Exception) {
+            if (e is java.net.SocketTimeoutException) {
+                AppMetrics.recordTimeout("github", "checkLatestRelease")
+            }
             Result.failure(e)
         } finally {
+            val durationMs = (System.nanoTime() - startNs) / 1_000_000L
+            AppMetrics.recordLatency("github", "checkLatestRelease", durationMs)
             connection?.disconnect()
         }
     }
 
     /**
      * Downloads the APK directly from GitHub with percentage progress callback.
+     * Uses atomic temporary file write to ensure corrupted partial files are never left.
      */
     suspend fun downloadApk(
         context: Context,
@@ -139,17 +174,29 @@ object UpdateChecker {
         fileName: String = "canim-update.apk",
         onProgress: (Float) -> Unit
     ): Result<File> = withContext(Dispatchers.IO) {
+        if (!isSafeDownloadUrl(downloadUrl)) {
+            return@withContext Result.failure(SecurityException("URL unduhan tidak tepercaya atau tidak menggunakan HTTPS"))
+        }
+
+        AppMetrics.recordRequest("github", "downloadApk")
+        val startNs = System.nanoTime()
         var connection: HttpURLConnection? = null
+        val safeName = sanitizeFileName(fileName)
+        val updateDir = File(context.getExternalFilesDir(null), "updates").apply { mkdirs() }
+        val apkFile = File(updateDir, safeName)
+        val tempFile = File(updateDir, "$safeName.tmp")
+
         try {
-            val updateDir = File(context.getExternalFilesDir(null), "updates").apply { mkdirs() }
-            val apkFile = File(updateDir, fileName)
-            if (apkFile.exists()) apkFile.delete()
+            if (tempFile.exists()) tempFile.delete()
 
             var targetUrl = downloadUrl
             var redirectCount = 0
             var connected = false
 
             while (!connected && redirectCount < 5) {
+                if (!isSafeDownloadUrl(targetUrl)) {
+                    return@withContext Result.failure(SecurityException("Redirect ke domain tidak tepercaya ditolak"))
+                }
                 val url = URL(targetUrl)
                 connection = (url.openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
@@ -172,6 +219,9 @@ object UpdateChecker {
                 } else if (responseCode == HttpURLConnection.HTTP_OK) {
                     connected = true
                 } else {
+                    if (responseCode in 500..599) {
+                        AppMetrics.recordHttp5xx("github", "downloadApk", responseCode)
+                    }
                     return@withContext Result.failure(Exception("HTTP $responseCode saat mengunduh APK"))
                 }
             }
@@ -182,7 +232,7 @@ object UpdateChecker {
 
             val fileLength = connection!!.contentLengthLong
             connection!!.inputStream.use { input ->
-                FileOutputStream(apkFile).use { output ->
+                FileOutputStream(tempFile).use { output ->
                     val buffer = ByteArray(16 * 1024)
                     var bytesRead: Int
                     var totalBytesRead = 0L
@@ -198,10 +248,24 @@ object UpdateChecker {
                 }
             }
 
+            // Atomic replacement of target file
+            if (apkFile.exists()) apkFile.delete()
+            val renamed = tempFile.renameTo(apkFile)
+            if (!renamed) {
+                tempFile.copyTo(apkFile, overwrite = true)
+                tempFile.delete()
+            }
+
             Result.success(apkFile)
         } catch (e: Exception) {
+            if (tempFile.exists()) tempFile.delete()
+            if (e is java.net.SocketTimeoutException) {
+                AppMetrics.recordTimeout("github", "downloadApk")
+            }
             Result.failure(e)
         } finally {
+            val durationMs = (System.nanoTime() - startNs) / 1_000_000L
+            AppMetrics.recordLatency("github", "downloadApk", durationMs)
             connection?.disconnect()
         }
     }
@@ -211,6 +275,10 @@ object UpdateChecker {
      */
     fun installApk(context: Context, apkFile: File): Result<Unit> {
         return try {
+            if (!apkFile.exists() || !apkFile.isFile || apkFile.length() <= 0L) {
+                return Result.failure(IllegalArgumentException("File APK tidak ditemukan atau rusak"))
+            }
+
             val apkUri = FileProvider.getUriForFile(
                 context,
                 "${context.packageName}.fileprovider",

@@ -1,5 +1,6 @@
 package com.canim.app.data.remote
 
+import com.canim.app.data.metrics.AppMetrics
 import com.canim.app.data.model.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -30,45 +31,64 @@ internal class MalApiPolicyWrapper(
 
     private suspend fun <T> executeWithPolicy(
         retryable: Boolean = true,
+        operation: String = "api",
         call: suspend () -> T
     ): T {
+        AppMetrics.recordRequest("myanimelist", operation)
+        val startNs = System.nanoTime()
         var attempt = 0
-        while (true) {
-            val result = try {
-                policy.semaphore.withPermit {
-                    call()
+        try {
+            while (true) {
+                val result = try {
+                    policy.semaphore.withPermit {
+                        call()
+                    }
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: SocketTimeoutException) {
+                    AppMetrics.recordTimeout("myanimelist", operation)
+                    if (!retryable || attempt >= policy.maxRetries) throw e
+                    attempt++
+                    AppMetrics.recordRetry("myanimelist", operation)
+                    val delayMs = calculateBackoff(attempt)
+                    if (delayMs > 0L) delay(delayMs)
+                    continue
+                } catch (e: IOException) {
+                    if (!retryable || attempt >= policy.maxRetries) throw e
+                    attempt++
+                    AppMetrics.recordRetry("myanimelist", operation)
+                    val delayMs = calculateBackoff(attempt)
+                    if (delayMs > 0L) delay(delayMs)
+                    continue
+                } catch (e: HttpException) {
+                    if (e.code() in 500..599) {
+                        AppMetrics.recordHttp5xx("myanimelist", operation, e.code())
+                    }
+                    if (!retryable || e.code() !in 500..599 || attempt >= policy.maxRetries) throw e
+                    attempt++
+                    AppMetrics.recordRetry("myanimelist", operation)
+                    val delayMs = calculateBackoff(attempt)
+                    if (delayMs > 0L) delay(delayMs)
+                    continue
                 }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: SocketTimeoutException) {
-                if (!retryable || attempt >= policy.maxRetries) throw e
-                attempt++
-                val delayMs = calculateBackoff(attempt)
-                if (delayMs > 0L) delay(delayMs)
-                continue
-            } catch (e: IOException) {
-                if (!retryable || attempt >= policy.maxRetries) throw e
-                attempt++
-                val delayMs = calculateBackoff(attempt)
-                if (delayMs > 0L) delay(delayMs)
-                continue
-            } catch (e: HttpException) {
-                if (!retryable || e.code() !in 500..599 || attempt >= policy.maxRetries) throw e
-                attempt++
-                val delayMs = calculateBackoff(attempt)
-                if (delayMs > 0L) delay(delayMs)
-                continue
-            }
 
-            // If result is Retrofit Response<*>, retry on HTTP 5xx
-            if (result is Response<*> && result.code() in 500..599 && retryable && attempt < policy.maxRetries) {
-                attempt++
-                val delayMs = calculateBackoff(attempt)
-                if (delayMs > 0L) delay(delayMs)
-                continue
-            }
+                // If result is Retrofit Response<*>, retry on HTTP 5xx
+                if (result is Response<*> && result.code() in 500..599) {
+                    AppMetrics.recordHttp5xx("myanimelist", operation, result.code())
+                    if (retryable && attempt < policy.maxRetries) {
+                        attempt++
+                        AppMetrics.recordRetry("myanimelist", operation)
+                        val delayMs = calculateBackoff(attempt)
+                        if (delayMs > 0L) delay(delayMs)
+                        continue
+                    }
+                }
 
-            return result
+                return result
+            }
+        } finally {
+            val durationMs = (System.nanoTime() - startNs) / 1_000_000L
+            AppMetrics.recordLatency("myanimelist", operation, durationMs)
         }
     }
 
@@ -89,7 +109,7 @@ internal class MalApiPolicyWrapper(
         codeVerifier: String,
         grantType: String,
         redirectUri: String
-    ): MalTokenResponse = executeWithPolicy(retryable = false) {
+    ): MalTokenResponse = executeWithPolicy(retryable = false, operation = "exchangeToken") {
         delegate.exchangeToken(clientId, code, codeVerifier, grantType, redirectUri)
     }
 
@@ -97,7 +117,7 @@ internal class MalApiPolicyWrapper(
         clientId: String,
         refreshToken: String,
         grantType: String
-    ): MalTokenResponse = executeWithPolicy(retryable = false) {
+    ): MalTokenResponse = executeWithPolicy(retryable = false, operation = "refreshToken") {
         delegate.refreshToken(clientId, refreshToken, grantType)
     }
 
@@ -108,7 +128,7 @@ internal class MalApiPolicyWrapper(
     override suspend fun getUserProfile(
         authHeader: String,
         fields: String
-    ): MalUserProfile = executeWithPolicy(retryable = true) {
+    ): MalUserProfile = executeWithPolicy(retryable = true, operation = "getUserProfile") {
         delegate.getUserProfile(authHeader, fields)
     }
 
@@ -118,7 +138,7 @@ internal class MalApiPolicyWrapper(
         offset: Int,
         fields: String,
         nsfw: Boolean
-    ): MalAnimeListResponse = executeWithPolicy(retryable = true) {
+    ): MalAnimeListResponse = executeWithPolicy(retryable = true, operation = "getUserAnimeList") {
         delegate.getUserAnimeList(authHeader, limit, offset, fields, nsfw)
     }
 
@@ -128,7 +148,7 @@ internal class MalApiPolicyWrapper(
         offset: Int,
         fields: String,
         nsfw: Boolean
-    ): MalMangaListResponse = executeWithPolicy(retryable = true) {
+    ): MalMangaListResponse = executeWithPolicy(retryable = true, operation = "getUserMangaList") {
         delegate.getUserMangaList(authHeader, limit, offset, fields, nsfw)
     }
 

@@ -1,6 +1,7 @@
 package com.canim.app.data.local
 
 import android.util.Log
+import com.canim.app.data.metrics.AppMetrics
 import com.canim.app.data.model.MalTracking
 import com.canim.app.data.model.MediaType
 import com.canim.app.data.repository.MalAuthManager
@@ -274,9 +275,11 @@ class LibrarySyncEngine(
     private fun handleSendFailure(mutation: PendingMutation, cause: Throwable?) {
         val newAttempts = mutation.attempts + 1
         if (newAttempts < maxAttempts) {
+            AppMetrics.recordRetry("local_sync", mutation.mutationType)
             pendingMutationDao.incrementAttemptsAndRequeue(mutation.id)
             Log.w(TAG, "sendMutation: FAILURE id=${mutation.id} malId=${mutation.malId} attempts=$newAttempts/${maxAttempts}: ${cause?.message}")
         } else {
+            AppMetrics.recordHttp5xx("local_sync", mutation.mutationType, 500)
             pendingMutationDao.markFailedPermanently(mutation.id)
             Log.e(TAG, "sendMutation: FAILED_PERMANENTLY id=${mutation.id} malId=${mutation.malId} after $newAttempts attempts: ${cause?.message}")
         }

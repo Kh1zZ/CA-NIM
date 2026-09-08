@@ -17,6 +17,7 @@ import kotlinx.coroutines.coroutineScope
 import okhttp3.OkHttpClient
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
+import com.canim.app.data.metrics.AppMetrics
 
 data class AniListErrorDetail(
     val message: String,
@@ -62,16 +63,48 @@ object AniListMetrics {
     val parseErrorCount: Long get() = _parseErrorCount.get()
     val retryCount: Long get() = _retryCount.get()
 
-    fun recordRequest() = _requestCount.incrementAndGet()
-    fun recordDuplicateInFlight() = _duplicateInFlightCount.incrementAndGet()
-    fun recordCacheHit() = _cacheHitCount.incrementAndGet()
-    fun recordCacheMiss() = _cacheMissCount.incrementAndGet()
-    fun recordTimeout() = _timeoutCount.incrementAndGet()
-    fun recordRateLimit() = _rateLimitCount.incrementAndGet()
-    fun recordHttp5xx() = _http5xxCount.incrementAndGet()
+    fun recordRequest() {
+        _requestCount.incrementAndGet()
+        AppMetrics.recordRequest("anilist", "graphql")
+    }
+
+    fun recordDuplicateInFlight() {
+        _duplicateInFlightCount.incrementAndGet()
+        AppMetrics.recordDeduplication("anilist", "graphql")
+    }
+
+    fun recordCacheHit() {
+        _cacheHitCount.incrementAndGet()
+        AppMetrics.recordCacheHit("anilist")
+    }
+
+    fun recordCacheMiss() {
+        _cacheMissCount.incrementAndGet()
+        AppMetrics.recordCacheMiss("anilist")
+    }
+
+    fun recordTimeout() {
+        _timeoutCount.incrementAndGet()
+        AppMetrics.recordTimeout("anilist", "graphql")
+    }
+
+    fun recordRateLimit() {
+        _rateLimitCount.incrementAndGet()
+        AppMetrics.recordRateLimit("anilist", "graphql")
+    }
+
+    fun recordHttp5xx() {
+        _http5xxCount.incrementAndGet()
+        AppMetrics.recordHttp5xx("anilist", "graphql")
+    }
+
     fun recordGraphQLError() = _graphQLErrorCount.incrementAndGet()
     fun recordParseError() = _parseErrorCount.incrementAndGet()
-    fun recordRetry() = _retryCount.incrementAndGet()
+
+    fun recordRetry() {
+        _retryCount.incrementAndGet()
+        AppMetrics.recordRetry("anilist", "graphql")
+    }
 
     fun reset() {
         _requestCount.set(0)
@@ -84,6 +117,7 @@ object AniListMetrics {
         _graphQLErrorCount.set(0)
         _parseErrorCount.set(0)
         _retryCount.set(0)
+        AppMetrics.reset()
     }
 }
 

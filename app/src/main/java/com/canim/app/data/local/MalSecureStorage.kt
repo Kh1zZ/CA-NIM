@@ -10,20 +10,33 @@ import com.canim.app.data.model.MalUser
 class MalSecureStorage(private val context: Context) {
 
     private val prefs: SharedPreferences = try {
-        val masterKey = MasterKey.Builder(context)
+        createEncryptedPrefs(context)
+    } catch (e: Exception) {
+        Log.e("MalSecureStorage", "Failed to initialize EncryptedSharedPreferences, resetting corrupted store: ${e.message}")
+        try {
+            val sharedPrefsFile = java.io.File(context.filesDir.parent, "shared_prefs/$PREFS_FILENAME.xml")
+            if (sharedPrefsFile.exists()) {
+                sharedPrefsFile.delete()
+            }
+            createEncryptedPrefs(context)
+        } catch (e2: Exception) {
+            Log.e("MalSecureStorage", "Recovery failed, falling back to private SharedPreferences", e2)
+            context.getSharedPreferences(PREFS_FILENAME_FALLBACK, Context.MODE_PRIVATE)
+        }
+    }
+
+    private fun createEncryptedPrefs(ctx: Context): SharedPreferences {
+        val masterKey = MasterKey.Builder(ctx)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
             .build()
 
-        EncryptedSharedPreferences.create(
-            context,
+        return EncryptedSharedPreferences.create(
+            ctx,
             PREFS_FILENAME,
             masterKey,
             EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         )
-    } catch (e: Exception) {
-        Log.e("MalSecureStorage", "Failed to initialize EncryptedSharedPreferences, falling back to private SharedPreferences", e)
-        context.getSharedPreferences(PREFS_FILENAME_FALLBACK, Context.MODE_PRIVATE)
     }
 
     companion object {

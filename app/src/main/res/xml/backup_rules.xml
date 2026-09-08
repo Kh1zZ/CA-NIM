@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Exclude sensitive encrypted shared preferences whose master keys are device-bound in Android Keystore -->
+    <exclude domain="sharedpref" path="canim_mal_secure_prefs.xml" />
+    <exclude domain="sharedpref" path="canim_mal_prefs.xml" />
+</full-backup-content>

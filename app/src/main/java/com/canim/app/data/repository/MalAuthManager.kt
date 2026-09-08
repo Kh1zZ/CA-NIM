@@ -6,6 +6,7 @@ import com.canim.app.data.cache.CacheManager
 import com.canim.app.data.local.MalSecureStorage
 import com.canim.app.data.model.*
 import com.canim.app.data.remote.ApiClient
+import com.canim.app.util.LogRedactor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import retrofit2.Response
@@ -83,14 +84,18 @@ open class MalAuthManager(
 
     /**
      * Exchanges the authorization code for tokens and fetches user profile.
-     * Enforces strict OAuth state verification (aborts on mismatch).
+     * Enforces strict OAuth state verification (aborts on mismatch or missing state).
      */
     suspend fun handleOAuthCallback(code: String, state: String?): Result<MalUser> = withContext(Dispatchers.IO) {
         try {
             val savedState = secureStorage.getPkceState()
-            if (!savedState.isNullOrEmpty() && !state.isNullOrEmpty() && savedState != state) {
+            if (savedState.isNullOrEmpty()) {
                 secureStorage.clearPkce()
-                throw IllegalStateException("OAuth state mismatch (dikirim: $savedState, diterima: $state). Login dibatalkan.")
+                throw IllegalStateException("Sesi login OAuth tidak valid atau telah kedaluwarsa. Silakan coba login kembali.")
+            }
+            if (state.isNullOrEmpty() || savedState != state) {
+                secureStorage.clearPkce()
+                throw IllegalStateException("OAuth state mismatch atau parameter state kosong. Login dibatalkan.")
             }
 
             val verifier = secureStorage.getPkceVerifier()
@@ -138,14 +143,16 @@ open class MalAuthManager(
 
             Result.success(malUser)
         } catch (e: Exception) {
-            val errorMsg = if (e is retrofit2.HttpException) {
+            secureStorage.clearPkce()
+            val rawErrorMsg = if (e is retrofit2.HttpException) {
                 val errorBody = try { e.response()?.errorBody()?.string() } catch (_: Exception) { null }
                 "HTTP ${e.code()}: ${errorBody ?: e.message()}"
             } else {
                 e.message ?: e.toString()
             }
-            Log.e("MalAuthManager", "Gagal menukar token MAL: $errorMsg", e)
-            Result.failure(Exception(errorMsg, e))
+            val sanitizedMsg = LogRedactor.redact(rawErrorMsg)
+            Log.e("MalAuthManager", "Gagal menukar token MAL: $sanitizedMsg")
+            Result.failure(Exception(sanitizedMsg, e))
         }
     }
 
@@ -172,7 +179,7 @@ open class MalAuthManager(
             )
             refreshResponse.accessToken
         } catch (e: Exception) {
-            Log.e("MalAuthManager", "Gagal refresh token MAL: ${e.message}")
+            Log.e("MalAuthManager", "Gagal refresh token MAL: ${LogRedactor.redact(e.message)}")
             currentToken
         }
     }
@@ -192,7 +199,7 @@ open class MalAuthManager(
             )
             refreshResponse.accessToken
         } catch (e: Exception) {
-            Log.e("MalAuthManager", "Force refresh token MAL gagal: ${e.message}")
+            Log.e("MalAuthManager", "Force refresh token MAL gagal: ${LogRedactor.redact(e.message)}")
             null
         }
     }
