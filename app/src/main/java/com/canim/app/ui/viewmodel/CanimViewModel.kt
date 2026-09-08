@@ -1649,10 +1649,13 @@ class CanimViewModel(
                                         _detailState.update { current ->
                                             val currentExt = current.extendedDetail
                                             val merged = (currentExt ?: malDetail).copy(
+                                                coverImage = malDetail.coverImage?.takeIf { it.isNotBlank() } ?: currentExt?.coverImage ?: "",
                                                 malScore = malDetail.malScore ?: currentExt?.malScore,
                                                 malRank = malDetail.malRank ?: currentExt?.malRank,
                                                 malPopularity = malDetail.malPopularity ?: currentExt?.malPopularity,
                                                 malMembers = malDetail.malMembers ?: currentExt?.malMembers,
+                                                synopsis = malDetail.synopsis?.takeIf { it.isNotBlank() } ?: currentExt?.synopsis ?: "",
+                                                airingStatus = malDetail.airingStatus ?: currentExt?.airingStatus,
                                                 isFromFallback = currentExt == null || currentExt.isFromFallback
                                             )
                                             cacheDetail(resolvedItem, merged)
@@ -1665,10 +1668,13 @@ class CanimViewModel(
                                         _uiState.update { current ->
                                             val currentExt = current.extendedDetail
                                             val merged = (currentExt ?: malDetail).copy(
+                                                coverImage = malDetail.coverImage?.takeIf { it.isNotBlank() } ?: currentExt?.coverImage ?: "",
                                                 malScore = malDetail.malScore ?: currentExt?.malScore,
                                                 malRank = malDetail.malRank ?: currentExt?.malRank,
                                                 malPopularity = malDetail.malPopularity ?: currentExt?.malPopularity,
                                                 malMembers = malDetail.malMembers ?: currentExt?.malMembers,
+                                                synopsis = malDetail.synopsis?.takeIf { it.isNotBlank() } ?: currentExt?.synopsis ?: "",
+                                                airingStatus = malDetail.airingStatus ?: currentExt?.airingStatus,
                                                 isFromFallback = currentExt == null || currentExt.isFromFallback
                                             )
                                             current.copy(
@@ -1701,10 +1707,13 @@ class CanimViewModel(
                                             _detailState.update { current ->
                                                 val currentExt = current.extendedDetail ?: aniDetail
                                                 val merged = currentExt.copy(
+                                                    coverImage = malDetail.coverImage?.takeIf { it.isNotBlank() } ?: currentExt.coverImage,
                                                     malScore = malDetail.malScore ?: currentExt.malScore,
                                                     malRank = malDetail.malRank ?: currentExt.malRank,
                                                     malPopularity = malDetail.malPopularity ?: currentExt.malPopularity,
-                                                    malMembers = malDetail.malMembers ?: currentExt.malMembers
+                                                    malMembers = malDetail.malMembers ?: currentExt.malMembers,
+                                                    synopsis = malDetail.synopsis?.takeIf { it.isNotBlank() } ?: currentExt.synopsis,
+                                                    airingStatus = malDetail.airingStatus ?: currentExt.airingStatus
                                                 )
                                                 cacheDetail(resolvedItem, merged)
                                                 cacheDetail(item, merged)
@@ -1713,10 +1722,13 @@ class CanimViewModel(
                                             _uiState.update { current ->
                                                 val currentExt = current.extendedDetail ?: aniDetail
                                                 val merged = currentExt.copy(
+                                                    coverImage = malDetail.coverImage?.takeIf { it.isNotBlank() } ?: currentExt.coverImage,
                                                     malScore = malDetail.malScore ?: currentExt.malScore,
                                                     malRank = malDetail.malRank ?: currentExt.malRank,
                                                     malPopularity = malDetail.malPopularity ?: currentExt.malPopularity,
-                                                    malMembers = malDetail.malMembers ?: currentExt.malMembers
+                                                    malMembers = malDetail.malMembers ?: currentExt.malMembers,
+                                                    synopsis = malDetail.synopsis?.takeIf { it.isNotBlank() } ?: currentExt.synopsis,
+                                                    airingStatus = malDetail.airingStatus ?: currentExt.airingStatus
                                                 )
                                                 current.copy(extendedDetail = merged)
                                             }
@@ -1728,10 +1740,13 @@ class CanimViewModel(
                             _detailState.update { current ->
                                 val currentExt = current.extendedDetail
                                 val merged = aniDetail.copy(
+                                    coverImage = currentExt?.coverImage?.takeIf { it.isNotBlank() } ?: aniDetail.coverImage,
                                     malScore = currentExt?.malScore ?: aniDetail.malScore,
                                     malRank = currentExt?.malRank ?: aniDetail.rank,
                                     malPopularity = currentExt?.malPopularity ?: aniDetail.popularity,
-                                    malMembers = currentExt?.malMembers ?: aniDetail.watchers
+                                    malMembers = currentExt?.malMembers ?: aniDetail.watchers,
+                                    synopsis = currentExt?.synopsis?.takeIf { it.isNotBlank() } ?: aniDetail.synopsis,
+                                    airingStatus = currentExt?.airingStatus ?: aniDetail.airingStatus
                                 )
                                 cacheDetail(resolvedItem, merged)
                                 cacheDetail(item, merged)
@@ -1743,10 +1758,13 @@ class CanimViewModel(
                             _uiState.update { current ->
                                 val currentExt = current.extendedDetail
                                 val merged = aniDetail.copy(
+                                    coverImage = currentExt?.coverImage?.takeIf { it.isNotBlank() } ?: aniDetail.coverImage,
                                     malScore = currentExt?.malScore ?: aniDetail.malScore,
                                     malRank = currentExt?.malRank ?: aniDetail.rank,
                                     malPopularity = currentExt?.malPopularity ?: aniDetail.popularity,
-                                    malMembers = currentExt?.malMembers ?: aniDetail.watchers
+                                    malMembers = currentExt?.malMembers ?: aniDetail.watchers,
+                                    synopsis = currentExt?.synopsis?.takeIf { it.isNotBlank() } ?: aniDetail.synopsis,
+                                    airingStatus = currentExt?.airingStatus ?: aniDetail.airingStatus
                                 )
                                 current.copy(
                                     extendedDetail = merged,
@@ -1772,7 +1790,7 @@ class CanimViewModel(
                                     val currentExt = _detailState.value.extendedDetail
                                     val media = resolvedItem as? MediaItem
                                     val itemTitle = media?.title ?: currentExt?.title ?: ""
-                                    val itemImageUrl = media?.imageUrl ?: currentExt?.coverImage ?: ""
+                                    val itemImageUrl = currentExt?.coverImage?.takeIf { it.isNotBlank() } ?: media?.imageUrl ?: ""
                                     val metadata = MediaMetadata(
                                         title = itemTitle,
                                         titleEnglish = media?.titleEnglish ?: currentExt?.titleEnglish,

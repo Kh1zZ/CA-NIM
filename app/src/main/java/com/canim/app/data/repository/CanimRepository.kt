@@ -381,7 +381,7 @@ class CanimRepository(
             if (aniItem != null) {
                 val updatedMetadata = item.metadata.copy(
                     titleEnglish = aniItem.titleEnglish ?: item.metadata.titleEnglish,
-                    imageUrl = aniItem.imageUrl.ifBlank { item.metadata.imageUrl },
+                    imageUrl = item.metadata.imageUrl.ifBlank { aniItem.imageUrl },
                     totalEpisodes = aniItem.episodes ?: item.metadata.totalEpisodes,
                     totalChapters = aniItem.chapters ?: item.metadata.totalChapters,
                     totalVolumes = aniItem.volumes ?: item.metadata.totalVolumes,
@@ -1071,20 +1071,25 @@ class CanimRepository(
 
                 val merged = if (aniDetail != null && malExt != null) {
                     aniDetail.copy(
+                        // Cover: MAL fully authoritative, AniList is fallback
+                        coverImage = malExt.coverImage?.takeIf { it.isNotBlank() } ?: aniDetail.coverImage,
                         // Metrics: MAL is authoritative for Rating MAL
-                        malScore = malExt.malScore,
+                        malScore = malExt.malScore ?: aniDetail.malScore,
                         malRank = malExt.malRank ?: aniDetail.rank,
                         malPopularity = malExt.malPopularity ?: aniDetail.popularity,
                         malMembers = malExt.malMembers ?: aniDetail.watchers,
-                        // Visual / rich media: Prioritize AniList, fallback to MAL
+                        // Basic metadata provided by MAL
+                        synopsis = malExt.synopsis?.takeIf { it.isNotBlank() } ?: aniDetail.synopsis,
+                        airingStatus = malExt.airingStatus ?: aniDetail.airingStatus,
+                        startDate = malExt.startDate ?: aniDetail.startDate,
+                        endDate = malExt.endDate ?: aniDetail.endDate,
+                        genres = if (malExt.genres.isNotEmpty()) malExt.genres else aniDetail.genres,
+                        source = malExt.source ?: aniDetail.source,
+                        // Visual / rich media not provided by MAL: AniList
+                        bannerImage = aniDetail.bannerImage ?: malExt.bannerImage,
                         studio = aniDetail.studio ?: malExt.studio,
                         studioId = aniDetail.studioId ?: malExt.studioId,
-                        publisher = aniDetail.publisher ?: malExt.publisher,
-                        airingStatus = aniDetail.airingStatus ?: malExt.airingStatus,
-                        startDate = aniDetail.startDate ?: malExt.startDate,
-                        endDate = aniDetail.endDate ?: malExt.endDate,
-                        genres = if (aniDetail.genres.isNotEmpty()) aniDetail.genres else malExt.genres,
-                        source = aniDetail.source ?: malExt.source
+                        publisher = aniDetail.publisher ?: malExt.publisher
                     )
                 } else {
                     aniDetail ?: malExt
