@@ -126,9 +126,9 @@ class DualEngineResilienceTest {
     }
 
     @Test
-    fun testVersionBumpV618xs() {
-        assertEquals("v6.1.8.xs", BuildConfig.VERSION_NAME)
-        assertEquals(32, BuildConfig.VERSION_CODE)
+    fun testVersionBumpV619() {
+        assertEquals("v6.1.9", BuildConfig.VERSION_NAME)
+        assertEquals(33, BuildConfig.VERSION_CODE)
     }
 
     @Test
