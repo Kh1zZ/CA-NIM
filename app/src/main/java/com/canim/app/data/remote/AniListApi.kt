@@ -173,10 +173,11 @@ object AniListClient {
         page: Int = 1,
         perPage: Int = 25,
         randomSort: String? = null,
-        forceRefresh: Boolean = false
+        forceRefresh: Boolean = false,
+        mediaType: MediaType? = null
     ): List<MediaItem> =
         com.canim.app.data.remote.anilist.AniListApolloClient.getDiscoverMedia(
-            category, filter, page, perPage, randomSort, forceRefresh
+            category, filter, page, perPage, randomSort, forceRefresh, mediaType
         )
 
     /**

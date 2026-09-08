@@ -296,9 +296,16 @@ class CanimRepository(
         category: DiscoverCategory,
         filter: DiscoverFilter = DiscoverFilter(),
         page: Int = 1,
-        randomSort: String? = null
+        randomSort: String? = null,
+        mediaType: MediaType? = null
     ): String {
-        return "${category.key}_${filter.genre}_${filter.format}_${filter.year}_${filter.season}_${filter.minScore}_${randomSort}_p$page"
+        val resolvedType = mediaType ?: if (
+            filter.format == "MANGA" ||
+            category == DiscoverCategory.TOP_MANGA ||
+            category == DiscoverCategory.RECENTLY_DONE_MANGA ||
+            category == DiscoverCategory.NEWLY_ADDED_MANGA
+        ) MediaType.MANGA else MediaType.ANIME
+        return "${resolvedType.name.lowercase()}_${category.key}_${filter.genre}_${filter.format}_${filter.year}_${filter.season}_${filter.minScore}_${randomSort}_p$page"
     }
 
     suspend fun searchAnime(
@@ -517,9 +524,10 @@ class CanimRepository(
         filter: DiscoverFilter = DiscoverFilter(),
         page: Int = 1,
         forceRefresh: Boolean = false,
-        randomSort: String? = null
+        randomSort: String? = null,
+        mediaType: MediaType? = null
     ): List<MediaItem> = withContext(Dispatchers.IO) {
-        val cacheKey = discoverFilterKey(category, filter, page, randomSort)
+        val cacheKey = discoverFilterKey(category, filter, page, randomSort, mediaType)
         if (!forceRefresh) {
             val swrHit = CacheManager.getDiscoverSwr(cacheKey)
             if (swrHit != null) {
@@ -529,6 +537,7 @@ class CanimRepository(
                     val capFilter = filter
                     val capPage = page
                     val capRandomSort = randomSort
+                    val capMediaType = mediaType
                     val capKey = cacheKey
                     val capStale = swrHit.data
                     val canonicalDiscoverKey = CacheManager.discoverKey(cacheKey)
@@ -539,7 +548,8 @@ class CanimRepository(
                                 filter = capFilter,
                                 page = capPage,
                                 randomSort = capRandomSort,
-                                forceRefresh = true
+                                forceRefresh = true,
+                                mediaType = capMediaType
                             )
                             if (fresh.isNotEmpty()) {
                                 CacheManager.putDiscover(capKey, fresh)
@@ -554,7 +564,7 @@ class CanimRepository(
             }
         }
 
-        fetchDiscoverInternal(category, filter, page, randomSort, forceRefresh)
+        fetchDiscoverInternal(category, filter, page, randomSort, forceRefresh, mediaType)
     }
 
     private suspend fun fetchDiscoverInternal(
@@ -562,9 +572,10 @@ class CanimRepository(
         filter: DiscoverFilter,
         page: Int,
         randomSort: String?,
-        forceRefresh: Boolean
+        forceRefresh: Boolean,
+        mediaType: MediaType? = null
     ): List<MediaItem> {
-        val cacheKey = discoverFilterKey(category, filter, page, randomSort)
+        val cacheKey = discoverFilterKey(category, filter, page, randomSort, mediaType)
         val limit = 25
         val offset = (page - 1) * limit
 
@@ -624,7 +635,8 @@ class CanimRepository(
                 filter = filter,
                 page = page,
                 randomSort = randomSort,
-                forceRefresh = forceRefresh
+                forceRefresh = forceRefresh,
+                mediaType = mediaType
             )
         }.getOrDefault(emptyList())
 

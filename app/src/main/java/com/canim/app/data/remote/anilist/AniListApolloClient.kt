@@ -790,7 +790,8 @@ object AniListApolloClient {
         page: Int = 1,
         perPage: Int = 25,
         randomSort: String? = null,
-        forceRefresh: Boolean = false
+        forceRefresh: Boolean = false,
+        mediaType: MediaType? = null
     ): List<MediaItem> = withContext(Dispatchers.IO) {
         val calendar = Calendar.getInstance()
         val currentYear = calendar.get(Calendar.YEAR)
@@ -803,7 +804,13 @@ object AniListApolloClient {
             else     -> Triple("FALL", "WINTER", currentYear + 1)
         }
 
-        val cacheKey = "${category.key}_${filter.genre}_${filter.format}_${filter.year}_${filter.season}_${filter.minScore}_${randomSort}_p$page"
+        val isManga = mediaType == MediaType.MANGA ||
+            filter.format == "MANGA" ||
+            category == DiscoverCategory.TOP_MANGA ||
+            category == DiscoverCategory.RECENTLY_DONE_MANGA ||
+            category == DiscoverCategory.NEWLY_ADDED_MANGA
+        val typePrefix = if (isManga) "manga" else "anime"
+        val cacheKey = "${typePrefix}_${category.key}_${filter.genre}_${filter.format}_${filter.year}_${filter.season}_${filter.minScore}_${randomSort}_p$page"
         if (!forceRefresh) {
             val cached = CacheManager.getDiscover(cacheKey)
             if (cached != null) {
@@ -812,11 +819,6 @@ object AniListApolloClient {
             }
         }
         AniListMetrics.recordCacheMiss()
-
-        val isManga = filter.format == "MANGA" ||
-            category == DiscoverCategory.TOP_MANGA ||
-            category == DiscoverCategory.RECENTLY_DONE_MANGA ||
-            category == DiscoverCategory.NEWLY_ADDED_MANGA
         val apolloType: ApolloMediaType = if (isManga) ApolloMediaType.MANGA else ApolloMediaType.ANIME
         val fallbackType = if (isManga) MediaType.MANGA else MediaType.ANIME
 
