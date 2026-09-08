@@ -159,4 +159,47 @@ class SyncQueueRetryTest {
         // Should complete virtually instantly — no internal sleep in SyncEngine
         assertTrue("SyncEngine.drainQueue should not block (elapsed=$elapsed ms)", elapsed < 500L)
     }
+
+    @Test
+    fun `retryFailedPermanently resets FAILED_PERMANENTLY to PENDING with attempts 0 and triggers drain`() = runTest {
+        mutationDao.enqueueMutation(animeUpdate(malId = 7))
+        fakeMal.updateResult = Result.failure(Exception("network error"))
+
+        // Fail 3 times -> FAILED_PERMANENTLY
+        engine.drainQueue()
+        engine.drainQueue()
+        engine.drainQueue()
+
+        assertTrue("Should not be in pending list", mutationDao.getPendingMutations().isEmpty())
+
+        // Background polling or normal drain MUST NOT retry it
+        val callsBefore = fakeMal.updateCallCount
+        engine.drainQueue()
+        assertEquals("Normal drain never retries FAILED_PERMANENTLY", callsBefore, fakeMal.updateCallCount)
+
+        // Now user triggers explicit force-retry:
+        fakeMal.updateResult = Result.success(Unit)
+        val resetCount = engine.retryFailedPermanently("ANIME")
+        assertEquals(1, resetCount)
+
+        // Verify it was retried and now succeeded
+        assertTrue("Queue should be empty after successful retry", mutationDao.getPendingMutations().isEmpty())
+        assertTrue("Calls should have increased by 1", fakeMal.updateCallCount > callsBefore)
+    }
+
+    @Test
+    fun `retryFailedPermanently does not touch IN_FLIGHT mutations`() = runTest {
+        mutationDao.enqueueMutation(animeUpdate(malId = 8))
+        val mut = mutationDao.getActiveMutationForMalId(8, "ANIME")
+        assertNotNull(mut)
+        mutationDao.markInFlight(mut!!.id)
+
+        // Call reset
+        val resetCount = mutationDao.resetFailedPermanentlyToPending("ANIME")
+        assertEquals("No FAILED_PERMANENTLY mutations to reset", 0, resetCount)
+
+        // IN_FLIGHT mutation is still in flight (active)
+        val activeIds = mutationDao.getActiveMalIds("ANIME")
+        assertTrue(8 in activeIds)
+    }
 }

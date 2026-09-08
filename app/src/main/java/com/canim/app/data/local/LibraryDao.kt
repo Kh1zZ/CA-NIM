@@ -64,6 +64,65 @@ class LibraryDao(private val db: LocalDatabase) {
     }
 
     /**
+     * Atomically upserts a [LibraryEntry] and enqueues its corresponding [PendingMutation]
+     * within a single SQLite transaction.
+     * Invariant: local mutation succeeds AND pending mutation is persisted, or neither is committed.
+     */
+    fun upsertWithMutation(
+        entry: LibraryEntry,
+        mutation: PendingMutation,
+        pendingMutationDao: PendingMutationDao
+    ) {
+        val wdb = db.writableDatabase
+        wdb.beginTransaction()
+        try {
+            val cv = entry.toContentValues()
+            wdb.insertWithOnConflict(
+                TABLE_LIBRARY_ENTRIES,
+                null,
+                cv,
+                android.database.sqlite.SQLiteDatabase.CONFLICT_REPLACE
+            )
+            pendingMutationDao.enqueueMutation(mutation, wdb)
+            wdb.setTransactionSuccessful()
+        } catch (e: Exception) {
+            Log.e("LibraryDao", "upsertWithMutation failed for malId=${entry.malId}: ${e.message}", e)
+            throw e
+        } finally {
+            wdb.endTransaction()
+        }
+    }
+
+    /**
+     * Atomically deletes a [LibraryEntry] and enqueues its corresponding DELETE [PendingMutation]
+     * within a single SQLite transaction.
+     * Invariant: local deletion succeeds AND pending mutation is persisted, or neither is committed.
+     */
+    fun deleteWithMutation(
+        malId: Int,
+        mediaType: String,
+        mutation: PendingMutation,
+        pendingMutationDao: PendingMutationDao
+    ) {
+        val wdb = db.writableDatabase
+        wdb.beginTransaction()
+        try {
+            wdb.delete(
+                TABLE_LIBRARY_ENTRIES,
+                "$COL_LIB_MAL_ID = ? AND $COL_LIB_MEDIA_TYPE = ?",
+                arrayOf(malId.toString(), mediaType)
+            )
+            pendingMutationDao.enqueueMutation(mutation, wdb)
+            wdb.setTransactionSuccessful()
+        } catch (e: Exception) {
+            Log.e("LibraryDao", "deleteWithMutation failed for malId=$malId: ${e.message}", e)
+            throw e
+        } finally {
+            wdb.endTransaction()
+        }
+    }
+
+    /**
      * Returns all library entries for the given [mediaType] ("ANIME" or "MANGA"),
      * ordered by [COL_LIB_LOCAL_UPDATED_AT] descending (most recently modified first).
      */

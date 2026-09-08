@@ -103,6 +103,27 @@ class PendingMutationDaoTest {
         assertEquals(TYPE_DELETE, pending[0].mutationType)
     }
 
+    @Test
+    fun `UPDATE enqueued after IN_FLIGHT DELETE for same malId is preserved as new pending mutation`() {
+        dao.enqueueMutation(delete(malId = 40))
+        val mut = dao.getActiveMutationForMalId(40, "ANIME")
+        assertNotNull(mut)
+        dao.markInFlight(mut!!.id)
+
+        // DELETE is IN_FLIGHT. Now a newer UPDATE arrives (e.g. user re-adds/updates)
+        dao.enqueueMutation(update(malId = 40, time = 5000L))
+
+        // Newer UPDATE must be preserved as a pending mutation (not ignored!)
+        val pending = dao.getPendingMutations()
+        assertEquals("UPDATE should be pending in queue", 1, pending.size)
+        assertEquals(TYPE_UPDATE, pending[0].mutationType)
+        assertEquals(STATUS_PENDING, pending[0].status)
+
+        // Verify active IDs include malId 40
+        val activeIds = dao.getActiveMalIds("ANIME")
+        assertTrue(40 in activeIds)
+    }
+
     // ── Separate malIds are independent ──────────────────────────────────────
 
     @Test

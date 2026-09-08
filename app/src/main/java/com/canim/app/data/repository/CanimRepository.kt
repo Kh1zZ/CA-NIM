@@ -107,6 +107,13 @@ class CanimRepository(
 
     suspend fun syncWithMal(): MalSyncResult = malAuthManager.syncWithMal()
 
+    /**
+     * Explicitly requeues FAILED_PERMANENTLY mutations back to PENDING (resetting attempts to 0)
+     * and triggers a drain if online. Only called by explicit user action.
+     */
+    suspend fun retryFailedMutations(mediaType: String? = null): Int =
+        syncEngine?.retryFailedPermanently(mediaType) ?: 0
+
     fun getLastSyncedTime(): Long = malAuthManager.getLastSynced()
 
     fun getCachedTracking(type: String): List<UserMediaItem>? {
@@ -188,8 +195,12 @@ class CanimRepository(
         val dao = libraryDao ?: return MalFetchResult.Failure(Exception("LibraryDao not wired"))
         val mutDao = pendingMutationDao
 
-        // Step 1: drain pending best-effort
-        try { syncEngine?.drainQueue() } catch (_: Exception) {}
+        // Step 1: on explicit force-refresh, requeue FAILED_PERMANENTLY mutations for ANIME
+        // then drain pending best-effort (failures are preserved, not discarded).
+        try {
+            mutDao?.resetFailedPermanentlyToPending("ANIME")
+            syncEngine?.drainQueue()
+        } catch (_: Exception) {}
 
         // Step 2: fetch from MAL
         val result = malAuthManager.fetchUserAnimeList(forceRefresh = true)
@@ -286,7 +297,11 @@ class CanimRepository(
         val dao = libraryDao ?: return MalFetchResult.Failure(Exception("LibraryDao not wired"))
         val mutDao = pendingMutationDao
 
-        try { syncEngine?.drainQueue() } catch (_: Exception) {}
+        // Step 1: on explicit force-refresh, requeue FAILED_PERMANENTLY mutations for MANGA
+        try {
+            mutDao?.resetFailedPermanentlyToPending("MANGA")
+            syncEngine?.drainQueue()
+        } catch (_: Exception) {}
 
         val result = malAuthManager.fetchUserMangaList(forceRefresh = true)
         if (result is MalFetchResult.Failure) return result
@@ -456,8 +471,6 @@ class CanimRepository(
                 finishDate = tracking.finishDate,
                 localUpdatedAt = now
             )
-            dao.upsertEntry(updated)
-
             val mutation = PendingMutation(
                 malId = malId,
                 mediaType = mediaType,
@@ -466,7 +479,9 @@ class CanimRepository(
                 localUpdatedAt = now,
                 createdAt = now
             )
-            mutDao.enqueueMutation(mutation)
+
+            // Atomic: upsert local entry AND enqueue pending mutation in single SQLite transaction
+            dao.upsertWithMutation(updated, mutation, mutDao)
 
             // Best-effort immediate send if online
             swrScope.launch { syncEngine?.trySendImmediate(malId, mediaType) }
@@ -485,8 +500,6 @@ class CanimRepository(
     ): Result<Unit> {
         return try {
             val now = System.currentTimeMillis()
-            dao.deleteEntry(malId, mediaType)
-
             val mutation = PendingMutation(
                 malId = malId,
                 mediaType = mediaType,
@@ -495,7 +508,9 @@ class CanimRepository(
                 localUpdatedAt = now,
                 createdAt = now
             )
-            mutDao.enqueueMutation(mutation)
+
+            // Atomic: delete local entry AND enqueue delete mutation in single SQLite transaction
+            dao.deleteWithMutation(malId, mediaType, mutation, mutDao)
 
             swrScope.launch { syncEngine?.trySendImmediate(malId, mediaType) }
 

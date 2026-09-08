@@ -146,6 +146,57 @@ class SyncEngineOfflineMutationTest {
         assertTrue(mutationDao.getPendingMutations().isEmpty())
     }
 
+    @Test
+    fun `DELETE IN_FLIGHT then UPDATE - both mutations are eventually processed correctly in FIFO order`() = runTest {
+        // Step 1: Enqueue DELETE
+        val deleteMut = PendingMutation(
+            malId = 88,
+            mediaType = "ANIME",
+            mutationType = PendingMutation.TYPE_DELETE,
+            payloadJson = "",
+            localUpdatedAt = 1000L,
+            createdAt = 1000L
+        )
+        mutationDao.enqueueMutation(deleteMut)
+        val deleteEntry = mutationDao.getActiveMutationForMalId(88, "ANIME")
+        assertNotNull(deleteEntry)
+
+        // Step 2: Mark DELETE as IN_FLIGHT (simulating network send underway)
+        mutationDao.markInFlight(deleteEntry!!.id)
+
+        // Step 3: While DELETE is IN_FLIGHT, user executes UPDATE
+        val updateMut = PendingMutation(
+            malId = 88,
+            mediaType = "ANIME",
+            mutationType = PendingMutation.TYPE_UPDATE,
+            payloadJson = """{"status":"watching","score":9,"progress":3}""",
+            localUpdatedAt = 2000L,
+            createdAt = 2000L
+        )
+        mutationDao.enqueueMutation(updateMut)
+
+        // Verify: UPDATE was NOT ignored! Both exist (one IN_FLIGHT, one PENDING).
+        val pendingList = mutationDao.getPendingMutations()
+        assertEquals("Newer UPDATE must be preserved as PENDING", 1, pendingList.size)
+        assertEquals(PendingMutation.TYPE_UPDATE, pendingList[0].mutationType)
+
+        // Step 4: Complete the IN_FLIGHT DELETE
+        mutationDao.markSucceeded(deleteEntry.id)
+        fakeMalManager.deleteCallCount = 1 // simulate DELETE confirmed on server
+
+        // Step 5: Drain queue with network available
+        fakeNetwork.setAvailable(true)
+        fakeMalManager.updateResult = Result.success(Unit)
+        engine.drainQueue()
+
+        // Step 6: Verify UPDATE was dispatched to MAL after DELETE
+        assertEquals("UPDATE must be sent after DELETE completes", 1, fakeMalManager.updateCallCount)
+        assertEquals(88, fakeMalManager.updatedMalIds.first())
+
+        // Step 7: Queue should now be empty
+        assertTrue("Queue should be completely clean", mutationDao.getPendingMutations().isEmpty())
+    }
+
     private fun animeUpdate(malId: Int, time: Long = System.currentTimeMillis()) = PendingMutation(
         malId = malId,
         mediaType = "ANIME",

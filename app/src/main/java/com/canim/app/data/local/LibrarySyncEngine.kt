@@ -143,10 +143,32 @@ class LibrarySyncEngine(
     suspend fun trySendImmediate(malId: Int, mediaType: String): Boolean {
         if (isLoggedOut || !networkChecker.isNetworkAvailable()) return false
         return drainMutex.withLock {
-            val mutation = pendingMutationDao.getActiveMutationForMalId(malId, mediaType)
-                ?: return@withLock true  // Nothing to send — already clean
+            val mutation = pendingMutationDao.getPendingMutations()
+                .firstOrNull { it.malId == malId && it.mediaType == mediaType }
+                ?: return@withLock true  // Nothing pending to send — already in-flight or clean
             sendMutation(mutation)
         }
+    }
+
+    /**
+     * Explicitly resets FAILED_PERMANENTLY mutations back to PENDING (resetting attempts to 0)
+     * and triggers a drain if network is available.
+     *
+     * Rules:
+     * - Never called automatically by the polling loop.
+     * - Only invoked by explicit user actions (force-refresh or manual retry).
+     * - Does NOT affect IN_FLIGHT mutations.
+     *
+     * @return the number of mutations reset to PENDING.
+     */
+    suspend fun retryFailedPermanently(mediaType: String? = null): Int {
+        if (isLoggedOut) return 0
+        val count = pendingMutationDao.resetFailedPermanentlyToPending(mediaType)
+        Log.d(TAG, "retryFailedPermanently: reset $count mutations to PENDING")
+        if (count > 0 && networkChecker.isNetworkAvailable()) {
+            drainQueue()
+        }
+        return count
     }
 
     /**

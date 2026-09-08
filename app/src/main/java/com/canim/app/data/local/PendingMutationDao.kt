@@ -29,7 +29,7 @@ import com.canim.app.data.local.PendingMutation.Companion.TYPE_DELETE
  *
  * All operations are synchronous SQLite calls — callers dispatch to Dispatchers.IO.
  */
-class PendingMutationDao(private val db: LocalDatabase) {
+open class PendingMutationDao(private val db: LocalDatabase) {
 
     /**
      * Enqueues a [PendingMutation] with coalescing logic:
@@ -38,45 +38,73 @@ class PendingMutationDao(private val db: LocalDatabase) {
      *   - If new mutation is UPDATE and existing is DELETE: ignore the new UPDATE (DELETE wins).
      *   - If both are UPDATE: replace existing with the newer one.
      */
-    fun enqueueMutation(mutation: PendingMutation) {
+    open fun enqueueMutation(mutation: PendingMutation, database: android.database.sqlite.SQLiteDatabase? = null) {
         try {
-            val wdb = db.writableDatabase
-            wdb.beginTransaction()
+            val wdb = database ?: db.writableDatabase
+            val manageTransaction = database == null
+            if (manageTransaction) wdb.beginTransaction()
             try {
-                // Find existing active mutation for this (malId, mediaType)
-                val existing = getActiveMutationForMalId(mutation.malId, mutation.mediaType)
+                // Find existing active mutation(s) for this (malId, mediaType)
+                val cursor = wdb.query(
+                    TABLE_PENDING_MUTATIONS,
+                    null,
+                    "$COL_MUT_MAL_ID = ? AND $COL_MUT_MEDIA_TYPE = ? AND $COL_MUT_STATUS IN (?, ?)",
+                    arrayOf(mutation.malId.toString(), mutation.mediaType, STATUS_PENDING, STATUS_IN_FLIGHT),
+                    null, null,
+                    "$COL_MUT_CREATED_AT ASC"
+                )
+                val activeList = cursor.use { c ->
+                    val list = mutableListOf<PendingMutation>()
+                    while (c.moveToNext()) list.add(c.toPendingMutation())
+                    list
+                }
 
-                if (existing != null) {
+                val pendingExisting = activeList.firstOrNull { it.status == STATUS_PENDING }
+                val inFlightExisting = activeList.firstOrNull { it.status == STATUS_IN_FLIGHT }
+
+                if (pendingExisting != null) {
                     when {
-                        // DELETE always wins — remove existing and insert new DELETE
+                        // DELETE always wins — remove existing PENDING and insert new DELETE
                         mutation.mutationType == TYPE_DELETE -> {
                             wdb.delete(
                                 TABLE_PENDING_MUTATIONS,
                                 "$COL_MUT_ID = ?",
-                                arrayOf(existing.id.toString())
+                                arrayOf(pendingExisting.id.toString())
                             )
                             wdb.insert(TABLE_PENDING_MUTATIONS, null, mutation.toContentValues())
                         }
-                        // Existing is DELETE, new is UPDATE — DELETE wins, ignore UPDATE
-                        existing.mutationType == TYPE_DELETE -> {
+                        // Existing PENDING is DELETE, new is UPDATE — DELETE in queue wins, ignore UPDATE
+                        pendingExisting.mutationType == TYPE_DELETE -> {
                             // Do nothing — DELETE already in queue is authoritative
                         }
-                        // Both are UPDATE — replace with newer (higher localUpdatedAt)
+                        // Both are UPDATE — replace existing PENDING with newer UPDATE
                         else -> {
                             wdb.delete(
                                 TABLE_PENDING_MUTATIONS,
                                 "$COL_MUT_ID = ?",
-                                arrayOf(existing.id.toString())
+                                arrayOf(pendingExisting.id.toString())
                             )
                             wdb.insert(TABLE_PENDING_MUTATIONS, null, mutation.toContentValues())
                         }
                     }
+                } else if (inFlightExisting != null) {
+                    // No PENDING mutation exists, but an IN_FLIGHT mutation does.
+                    // If existing is IN_FLIGHT DELETE and new is UPDATE:
+                    // DELETE is already sent to the network. The newer UPDATE MUST be preserved
+                    // as a new PENDING mutation so it executes after DELETE completes (FIFO).
+                    // If existing is IN_FLIGHT UPDATE and new is DELETE:
+                    // Insert DELETE as a new PENDING mutation to execute after IN_FLIGHT completes.
+                    // If existing is IN_FLIGHT UPDATE and new is UPDATE:
+                    // Insert new UPDATE as PENDING to execute after IN_FLIGHT completes.
+                    wdb.insert(TABLE_PENDING_MUTATIONS, null, mutation.toContentValues())
                 } else {
+                    // No active mutations exist — insert new mutation
                     wdb.insert(TABLE_PENDING_MUTATIONS, null, mutation.toContentValues())
                 }
-                wdb.setTransactionSuccessful()
+
+                if (manageTransaction) wdb.setTransactionSuccessful()
             } finally {
-                wdb.endTransaction()
+                if (manageTransaction) wdb.endTransaction()
             }
         } catch (e: Exception) {
             Log.e("PendingMutationDao", "enqueueMutation failed for malId=${mutation.malId}: ${e.message}", e)
@@ -201,6 +229,38 @@ class PendingMutationDao(private val db: LocalDatabase) {
             )
         } catch (e: Exception) {
             Log.e("PendingMutationDao", "resetInFlightToPending failed: ${e.message}", e)
+        }
+    }
+
+    /**
+     * Resets FAILED_PERMANENTLY mutations back to PENDING and resets attempts to 0.
+     * Only called on explicit user force-refresh/retry. Never called automatically.
+     * Does NOT touch IN_FLIGHT mutations.
+     *
+     * @param mediaType optional filter ("ANIME" or "MANGA"), or null for all.
+     * @return count of mutations moved back to PENDING.
+     */
+    fun resetFailedPermanentlyToPending(mediaType: String? = null): Int {
+        return try {
+            val (where, args) = if (mediaType != null) {
+                Pair(
+                    "$COL_MUT_STATUS = ? AND $COL_MUT_MEDIA_TYPE = ?",
+                    arrayOf(STATUS_FAILED_PERMANENTLY, mediaType)
+                )
+            } else {
+                Pair(
+                    "$COL_MUT_STATUS = ?",
+                    arrayOf(STATUS_FAILED_PERMANENTLY)
+                )
+            }
+            val cv = ContentValues().apply {
+                put(COL_MUT_STATUS, STATUS_PENDING)
+                put(COL_MUT_ATTEMPTS, 0)
+            }
+            db.writableDatabase.update(TABLE_PENDING_MUTATIONS, cv, where, args)
+        } catch (e: Exception) {
+            Log.e("PendingMutationDao", "resetFailedPermanentlyToPending failed: ${e.message}", e)
+            0
         }
     }
 
