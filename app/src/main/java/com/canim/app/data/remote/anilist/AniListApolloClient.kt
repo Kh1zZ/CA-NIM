@@ -43,6 +43,8 @@ import com.canim.app.data.remote.anilist.graphql.type.MediaStatus
 import com.canim.app.data.remote.anilist.graphql.type.MediaType as ApolloMediaType
 import java.util.Calendar
 import com.canim.app.util.TextSanitizer
+import com.canim.app.data.remote.PolicyResult
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -77,6 +79,8 @@ object AniListApolloClient {
 
     fun setClientForTesting(apolloClient: ApolloClient?) {
         testApolloClient = apolloClient
+        // Reset policy state so 429 cooldowns from previous tests don't bleed through.
+        ApiClient.aniListPolicy.resetForTesting()
     }
 
     fun setOkHttpClientForTesting(okHttpClient: OkHttpClient?) {
@@ -86,6 +90,99 @@ object AniListApolloClient {
                 .okHttpClient(it)
                 .build()
         }
+        // Reset policy state so 429 cooldowns from previous tests don't bleed through.
+        ApiClient.aniListPolicy.resetForTesting()
+    }
+
+    /**
+     * Executes an AniList call with **concurrency limiting and 429 cooldown** only.
+     * No retry — this is intentional: [execute*] functions are called by unit tests that
+     * assert on exact call counts and exact error types from a single network attempt.
+     *
+     * - Acquires the concurrency semaphore (max 4 in-flight).
+     * - Short-circuits with [AniListResult.RateLimited] if a 429 cooldown is active.
+     * - Arms cooldown when the result is [AniListResult.RateLimited].
+     * - Does NOT retry on Timeout or 5xx — callers should wrap in [withAniListPolicyWithRetry]
+     *   if retry is desired.
+     */
+    private suspend fun <T> withAniListPolicy(
+        block: suspend () -> AniListResult<T>
+    ): AniListResult<T> {
+        val policy = ApiClient.aniListPolicy
+        val onCooldown: () -> AniListResult<T> = {
+            AniListMetrics.recordRateLimit()
+            @Suppress("UNCHECKED_CAST")
+            AniListResult.RateLimited(policy.remainingCooldownMs() / 1000L) as AniListResult<T>
+        }
+
+        if (policy.remainingCooldownMs() > 0L) return onCooldown()
+
+        return policy.semaphore.withPermit {
+            if (policy.remainingCooldownMs() > 0L) return@withPermit onCooldown()
+
+            val result = try {
+                block()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                ApolloErrorMapper.toAniListResult(e)
+            }
+
+            if (result is AniListResult.RateLimited) {
+                policy.armCooldown((result.retryAfterSeconds ?: 60L) * 1000L)
+            }
+            result
+        }
+    }
+
+    /**
+     * Executes an AniList call with **full policy**: concurrency limiting, 429 cooldown,
+     * and retry up to 2 times on Timeout or HTTP 5xx with exponential backoff + jitter.
+     *
+     * Use this in public [get*] aggregator functions where retry is desirable and
+     * tests do not assert on exact per-attempt call counts.
+     */
+    private suspend fun <T> withAniListPolicyWithRetry(
+        block: suspend () -> AniListResult<T>
+    ): AniListResult<T> {
+        val policy = ApiClient.aniListPolicy
+        return policy.withPolicy(
+            retryable = true,
+            onCooldown = {
+                AniListMetrics.recordRateLimit()
+                @Suppress("UNCHECKED_CAST")
+                AniListResult.RateLimited(policy.remainingCooldownMs() / 1000L) as AniListResult<T>
+            }
+        ) {
+            val result = try {
+                block()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                return@withPolicy PolicyResult.Failure(e)
+            }
+            when (result) {
+                is AniListResult.RateLimited -> {
+                    policy.armCooldown((result.retryAfterSeconds ?: 60L) * 1000L)
+                    PolicyResult.RateLimited((result.retryAfterSeconds ?: 60L) * 1000L)
+                }
+                is AniListResult.Timeout -> {
+                    AniListMetrics.recordRetry()
+                    @Suppress("UNCHECKED_CAST")
+                    PolicyResult.Retryable(result as AniListResult<T>)
+                }
+                is AniListResult.HttpError -> {
+                    if (result.code in 500..599) {
+                        AniListMetrics.recordRetry()
+                        @Suppress("UNCHECKED_CAST")
+                        PolicyResult.Retryable(result as AniListResult<T>)
+                    } else {
+                        PolicyResult.NonRetryable(result)
+                    }
+                }
+                else -> PolicyResult.Success(result)
+            }
+        }
     }
 
     /**
@@ -93,16 +190,18 @@ object AniListApolloClient {
      * CA'NIM's application-level `AniListResult` semantics.
      */
     suspend fun executeHealthPing(): AniListResult<Boolean> = withContext(Dispatchers.IO) {
-        AniListMetrics.recordRequest()
-        ApolloErrorMapper.safeApolloCall {
-            val response = client.query(HealthPingQuery()).execute()
-            response.exception?.let { throw it }
-            if (response.hasErrors()) {
-                val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
-                if (errorResult != null) return@safeApolloCall errorResult
+        withAniListPolicy {
+            AniListMetrics.recordRequest()
+            ApolloErrorMapper.safeApolloCall {
+                val response = client.query(HealthPingQuery()).execute()
+                response.exception?.let { throw it }
+                if (response.hasErrors()) {
+                    val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
+                    if (errorResult != null) return@safeApolloCall errorResult
+                }
+                val media = response.data?.Media ?: return@safeApolloCall AniListResult.NotFound
+                AniListResult.Success(media.id == 1)
             }
-            val media = response.data?.Media ?: return@safeApolloCall AniListResult.NotFound
-            AniListResult.Success(media.id == 1)
         }
     }
 
@@ -122,32 +221,34 @@ object AniListApolloClient {
      * media.idMal is the MyAnimeList ID. A MAL ID is NEVER copied into an AniList ID field.
      */
     suspend fun executeResolveMalId(malId: Int, type: MediaType): AniListResult<Int> = withContext(Dispatchers.IO) {
-        AniListMetrics.recordRequest()
-        ApolloErrorMapper.safeApolloCall {
-            val apolloType = if (type == MediaType.ANIME) {
-                ApolloMediaType.ANIME
-            } else {
-                ApolloMediaType.MANGA
-            }
-            val response = client.query(
-                ResolveMalIdQuery(
-                    idMal = Optional.present(malId),
-                    type = Optional.present(apolloType)
-                )
-            ).execute()
-            response.exception?.let { throw it }
+        withAniListPolicy {
+            AniListMetrics.recordRequest()
+            ApolloErrorMapper.safeApolloCall {
+                val apolloType = if (type == MediaType.ANIME) {
+                    ApolloMediaType.ANIME
+                } else {
+                    ApolloMediaType.MANGA
+                }
+                val response = client.query(
+                    ResolveMalIdQuery(
+                        idMal = Optional.present(malId),
+                        type = Optional.present(apolloType)
+                    )
+                ).execute()
+                response.exception?.let { throw it }
 
-            val media = response.data?.Media
-            if (media != null) {
-                return@safeApolloCall AniListResult.Success(media.id)
-            }
+                val media = response.data?.Media
+                if (media != null) {
+                    return@safeApolloCall AniListResult.Success(media.id)
+                }
 
-            if (response.hasErrors()) {
-                val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
-                if (errorResult != null) return@safeApolloCall errorResult
-            }
+                if (response.hasErrors()) {
+                    val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
+                    if (errorResult != null) return@safeApolloCall errorResult
+                }
 
-            AniListResult.NotFound
+                AniListResult.NotFound
+            }
         }
     }
 
@@ -175,26 +276,28 @@ object AniListApolloClient {
      * Executes the Apollo ResolveAniListId query.
      */
     suspend fun executeResolveAniListId(aniListId: Int): AniListResult<Int> = withContext(Dispatchers.IO) {
-        AniListMetrics.recordRequest()
-        ApolloErrorMapper.safeApolloCall {
-            val response = client.query(
-                ResolveAniListIdQuery(
-                    id = Optional.present(aniListId)
-                )
-            ).execute()
-            response.exception?.let { throw it }
+        withAniListPolicy {
+            AniListMetrics.recordRequest()
+            ApolloErrorMapper.safeApolloCall {
+                val response = client.query(
+                    ResolveAniListIdQuery(
+                        id = Optional.present(aniListId)
+                    )
+                ).execute()
+                response.exception?.let { throw it }
 
-            val media = response.data?.Media
-            if (media?.idMal != null) {
-                return@safeApolloCall AniListResult.Success(media.idMal)
+                val media = response.data?.Media
+                if (media?.idMal != null) {
+                    return@safeApolloCall AniListResult.Success(media.idMal)
+                }
+
+                if (response.hasErrors()) {
+                    val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
+                    if (errorResult != null) return@safeApolloCall errorResult
+                }
+
+                AniListResult.NotFound
             }
-
-            if (response.hasErrors()) {
-                val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
-                if (errorResult != null) return@safeApolloCall errorResult
-            }
-
-            AniListResult.NotFound
         }
     }
 
@@ -231,87 +334,89 @@ object AniListApolloClient {
         page: Int = 1,
         perPage: Int = 30
     ): AniListResult<List<MediaItem>> = withContext(Dispatchers.IO) {
-        AniListMetrics.recordRequest()
-        ApolloErrorMapper.safeApolloCall {
-            val apolloType = if (type == MediaType.ANIME) ApolloMediaType.ANIME else ApolloMediaType.MANGA
+        withAniListPolicy {
+            AniListMetrics.recordRequest()
+            ApolloErrorMapper.safeApolloCall {
+                val apolloType = if (type == MediaType.ANIME) ApolloMediaType.ANIME else ApolloMediaType.MANGA
 
-            val (validGenres, validTags) = if (!genres.isNullOrEmpty()) {
-                val officialGenres = setOf(
-                    "Action", "Adventure", "Comedy", "Drama", "Ecchi",
-                    "Fantasy", "Hentai", "Horror", "Mahou Shoujo", "Mecha",
-                    "Music", "Mystery", "Psychological", "Romance", "Sci-Fi",
-                    "Slice of Life", "Sports", "Supernatural", "Thriller"
-                )
-                val vg = genres.filter { it in officialGenres }
-                val vt = genres.filter { it !in officialGenres && !it.equals("Award Winning", ignoreCase = true) }
-                Pair(
-                    if (vg.isNotEmpty()) vg else null,
-                    if (vt.isNotEmpty()) vt else null
-                )
-            } else {
-                Pair(null, null)
-            }
+                val (validGenres, validTags) = if (!genres.isNullOrEmpty()) {
+                    val officialGenres = setOf(
+                        "Action", "Adventure", "Comedy", "Drama", "Ecchi",
+                        "Fantasy", "Hentai", "Horror", "Mahou Shoujo", "Mecha",
+                        "Music", "Mystery", "Psychological", "Romance", "Sci-Fi",
+                        "Slice of Life", "Sports", "Supernatural", "Thriller"
+                    )
+                    val vg = genres.filter { it in officialGenres }
+                    val vt = genres.filter { it !in officialGenres && !it.equals("Award Winning", ignoreCase = true) }
+                    Pair(
+                        if (vg.isNotEmpty()) vg else null,
+                        if (vt.isNotEmpty()) vt else null
+                    )
+                } else {
+                    Pair(null, null)
+                }
 
-            val (seasonYear, startDateGreater, startDateLesser) = if (year != null) {
-                if (type == MediaType.ANIME && year >= 1917) {
-                    Triple(year, null, null)
-                } else if (type == MediaType.MANGA && year >= 1874) {
-                    Triple(null, year * 10000, (year + 1) * 10000)
+                val (seasonYear, startDateGreater, startDateLesser) = if (year != null) {
+                    if (type == MediaType.ANIME && year >= 1917) {
+                        Triple(year, null, null)
+                    } else if (type == MediaType.MANGA && year >= 1874) {
+                        Triple(null, year * 10000, (year + 1) * 10000)
+                    } else {
+                        Triple(null, null, null)
+                    }
                 } else {
                     Triple(null, null, null)
                 }
-            } else {
-                Triple(null, null, null)
-            }
 
-            val apolloFormat = if (!format.isNullOrBlank()) {
-                MediaFormat.knownEntries.find { it.rawValue.equals(format.trim(), ignoreCase = true) }
-            } else {
-                null
-            }
-
-            val searchOpt = if (query.isNotBlank()) Optional.present(query.trim()) else Optional.Absent
-            val genresOpt = if (validGenres != null) Optional.present(validGenres) else Optional.Absent
-            val tagsOpt = if (validTags != null) Optional.present(validTags) else Optional.Absent
-            val seasonYearOpt = if (seasonYear != null) Optional.present(seasonYear) else Optional.Absent
-            val startDateGreaterOpt = if (startDateGreater != null) Optional.present(startDateGreater) else Optional.Absent
-            val startDateLesserOpt = if (startDateLesser != null) Optional.present(startDateLesser) else Optional.Absent
-            val formatOpt = if (apolloFormat != null) Optional.present(apolloFormat) else Optional.Absent
-
-            val response = client.query(
-                SearchMediaQuery(
-                    page = Optional.present(page),
-                    perPage = Optional.present(perPage),
-                    type = Optional.present(apolloType),
-                    search = searchOpt,
-                    genres = genresOpt,
-                    tags = tagsOpt,
-                    seasonYear = seasonYearOpt,
-                    startDateGreater = startDateGreaterOpt,
-                    startDateLesser = startDateLesserOpt,
-                    format = formatOpt
-                )
-            ).execute()
-
-            response.exception?.let { throw it }
-
-            if (response.hasErrors()) {
-                val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
-                if (errorResult != null) return@safeApolloCall errorResult
-            }
-
-            val mediaList = response.data?.Page?.media
-            if (mediaList == null) {
-                return@safeApolloCall AniListResult.Success(emptyList())
-            }
-
-            val items = mediaList.filterNotNull().map { m ->
-                if (m.idMal != null) {
-                    CacheManager.putIdMapping(malId = m.idMal, aniListId = m.id, type = type)
+                val apolloFormat = if (!format.isNullOrBlank()) {
+                    MediaFormat.knownEntries.find { it.rawValue.equals(format.trim(), ignoreCase = true) }
+                } else {
+                    null
                 }
-                AniListApolloMapper.toMediaItem(m, type)
+
+                val searchOpt = if (query.isNotBlank()) Optional.present(query.trim()) else Optional.Absent
+                val genresOpt = if (validGenres != null) Optional.present(validGenres) else Optional.Absent
+                val tagsOpt = if (validTags != null) Optional.present(validTags) else Optional.Absent
+                val seasonYearOpt = if (seasonYear != null) Optional.present(seasonYear) else Optional.Absent
+                val startDateGreaterOpt = if (startDateGreater != null) Optional.present(startDateGreater) else Optional.Absent
+                val startDateLesserOpt = if (startDateLesser != null) Optional.present(startDateLesser) else Optional.Absent
+                val formatOpt = if (apolloFormat != null) Optional.present(apolloFormat) else Optional.Absent
+
+                val response = client.query(
+                    SearchMediaQuery(
+                        page = Optional.present(page),
+                        perPage = Optional.present(perPage),
+                        type = Optional.present(apolloType),
+                        search = searchOpt,
+                        genres = genresOpt,
+                        tags = tagsOpt,
+                        seasonYear = seasonYearOpt,
+                        startDateGreater = startDateGreaterOpt,
+                        startDateLesser = startDateLesserOpt,
+                        format = formatOpt
+                    )
+                ).execute()
+
+                response.exception?.let { throw it }
+
+                if (response.hasErrors()) {
+                    val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
+                    if (errorResult != null) return@safeApolloCall errorResult
+                }
+
+                val mediaList = response.data?.Page?.media
+                if (mediaList == null) {
+                    return@safeApolloCall AniListResult.Success(emptyList())
+                }
+
+                val items = mediaList.filterNotNull().map { m ->
+                    if (m.idMal != null) {
+                        CacheManager.putIdMapping(malId = m.idMal, aniListId = m.id, type = type)
+                    }
+                    AniListApolloMapper.toMediaItem(m, type)
+                }
+                AniListResult.Success(items)
             }
-            AniListResult.Success(items)
         }
     }
 
@@ -351,21 +456,23 @@ object AniListApolloClient {
      * Executes GetExtendedDetailsByIdQuery and returns AniListResult<ExtendedMediaDetail>.
      */
     suspend fun executeGetExtendedDetailsById(aniListId: Int): AniListResult<ExtendedMediaDetail> = withContext(Dispatchers.IO) {
-        AniListMetrics.recordRequest()
-        ApolloErrorMapper.safeApolloCall {
-            val response = client.query(GetExtendedDetailsByIdQuery(Optional.present(aniListId))).execute()
-            response.exception?.let { throw it }
-            if (response.hasErrors()) {
-                val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
-                if (errorResult != null) return@safeApolloCall errorResult
+        withAniListPolicy {
+            AniListMetrics.recordRequest()
+            ApolloErrorMapper.safeApolloCall {
+                val response = client.query(GetExtendedDetailsByIdQuery(Optional.present(aniListId))).execute()
+                response.exception?.let { throw it }
+                if (response.hasErrors()) {
+                    val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
+                    if (errorResult != null) return@safeApolloCall errorResult
+                }
+                val media = response.data?.Media ?: return@safeApolloCall AniListResult.NotFound
+                val fields = media.extendedMediaDetailFields
+                if (fields.idMal != null) {
+                    CacheManager.putIdMapping(malId = fields.idMal, aniListId = fields.id)
+                }
+                val detail = AniListApolloMapper.toExtendedMediaDetail(fields, null)
+                AniListResult.Success(detail)
             }
-            val media = response.data?.Media ?: return@safeApolloCall AniListResult.NotFound
-            val fields = media.extendedMediaDetailFields
-            if (fields.idMal != null) {
-                CacheManager.putIdMapping(malId = fields.idMal, aniListId = fields.id)
-            }
-            val detail = AniListApolloMapper.toExtendedMediaDetail(fields, null)
-            AniListResult.Success(detail)
         }
     }
 
@@ -373,27 +480,29 @@ object AniListApolloClient {
      * Executes GetExtendedDetailsByMalIdQuery and returns AniListResult<ExtendedMediaDetail>.
      */
     suspend fun executeGetExtendedDetailsByMalId(malId: Int, type: MediaType): AniListResult<ExtendedMediaDetail> = withContext(Dispatchers.IO) {
-        AniListMetrics.recordRequest()
-        ApolloErrorMapper.safeApolloCall {
-            val apolloType = if (type == MediaType.ANIME) ApolloMediaType.ANIME else ApolloMediaType.MANGA
-            val response = client.query(
-                GetExtendedDetailsByMalIdQuery(
-                    idMal = Optional.present(malId),
-                    type = Optional.present(apolloType)
-                )
-            ).execute()
-            response.exception?.let { throw it }
-            if (response.hasErrors()) {
-                val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
-                if (errorResult != null) return@safeApolloCall errorResult
+        withAniListPolicy {
+            AniListMetrics.recordRequest()
+            ApolloErrorMapper.safeApolloCall {
+                val apolloType = if (type == MediaType.ANIME) ApolloMediaType.ANIME else ApolloMediaType.MANGA
+                val response = client.query(
+                    GetExtendedDetailsByMalIdQuery(
+                        idMal = Optional.present(malId),
+                        type = Optional.present(apolloType)
+                    )
+                ).execute()
+                response.exception?.let { throw it }
+                if (response.hasErrors()) {
+                    val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
+                    if (errorResult != null) return@safeApolloCall errorResult
+                }
+                val media = response.data?.Media ?: return@safeApolloCall AniListResult.NotFound
+                val fields = media.extendedMediaDetailFields
+                if (fields.idMal != null) {
+                    CacheManager.putIdMapping(malId = fields.idMal, aniListId = fields.id, type = type)
+                }
+                val detail = AniListApolloMapper.toExtendedMediaDetail(fields, malId)
+                AniListResult.Success(detail)
             }
-            val media = response.data?.Media ?: return@safeApolloCall AniListResult.NotFound
-            val fields = media.extendedMediaDetailFields
-            if (fields.idMal != null) {
-                CacheManager.putIdMapping(malId = fields.idMal, aniListId = fields.id, type = type)
-            }
-            val detail = AniListApolloMapper.toExtendedMediaDetail(fields, malId)
-            AniListResult.Success(detail)
         }
     }
 
@@ -454,17 +563,19 @@ object AniListApolloClient {
      * Executes GetCharacterProfileQuery and returns AniListResult<CastCrewProfile>.
      */
     suspend fun executeGetCharacterProfile(id: Int): AniListResult<CastCrewProfile> = withContext(Dispatchers.IO) {
-        AniListMetrics.recordRequest()
-        ApolloErrorMapper.safeApolloCall {
-            val response = client.query(GetCharacterProfileQuery(Optional.present(id))).execute()
-            response.exception?.let { throw it }
-            if (response.hasErrors()) {
-                val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
-                if (errorResult != null) return@safeApolloCall errorResult
+        withAniListPolicy {
+            AniListMetrics.recordRequest()
+            ApolloErrorMapper.safeApolloCall {
+                val response = client.query(GetCharacterProfileQuery(Optional.present(id))).execute()
+                response.exception?.let { throw it }
+                if (response.hasErrors()) {
+                    val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
+                    if (errorResult != null) return@safeApolloCall errorResult
+                }
+                val char = response.data?.Character ?: return@safeApolloCall AniListResult.NotFound
+                val profile = AniListApolloMapper.toCharacterProfile(id, char)
+                AniListResult.Success(profile)
             }
-            val char = response.data?.Character ?: return@safeApolloCall AniListResult.NotFound
-            val profile = AniListApolloMapper.toCharacterProfile(id, char)
-            AniListResult.Success(profile)
         }
     }
 
@@ -497,19 +608,21 @@ object AniListApolloClient {
     // Step 5.3 — GetStaffProfile
     // ──────────────────────────────────────────────────────────────────────────
 
-    private suspend fun executeGetStaffProfile(id: Int): AniListResult<CastCrewProfile> {
-        AniListMetrics.recordRequest()
-        return ApolloErrorMapper.safeApolloCall {
-            val query = GetStaffProfileQuery(id = Optional.present(id))
-            val response = client.query(query).execute()
-            response.exception?.let { throw it }
-            if (response.hasErrors()) {
-                val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
-                if (errorResult != null) return@safeApolloCall errorResult
+    private suspend fun executeGetStaffProfile(id: Int): AniListResult<CastCrewProfile> = withContext(Dispatchers.IO) {
+        withAniListPolicy {
+            AniListMetrics.recordRequest()
+            ApolloErrorMapper.safeApolloCall {
+                val query = GetStaffProfileQuery(id = Optional.present(id))
+                val response = client.query(query).execute()
+                response.exception?.let { throw it }
+                if (response.hasErrors()) {
+                    val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
+                    if (errorResult != null) return@safeApolloCall errorResult
+                }
+                val staff = response.data?.Staff ?: return@safeApolloCall AniListResult.NotFound
+                val profile = AniListApolloMapper.toStaffProfile(id, staff)
+                AniListResult.Success(profile)
             }
-            val staff = response.data?.Staff ?: return@safeApolloCall AniListResult.NotFound
-            val profile = AniListApolloMapper.toStaffProfile(id, staff)
-            AniListResult.Success(profile)
         }
     }
 

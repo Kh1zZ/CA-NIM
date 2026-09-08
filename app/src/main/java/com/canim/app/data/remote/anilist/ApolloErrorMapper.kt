@@ -29,7 +29,10 @@ object ApolloErrorMapper {
                 when (throwable.statusCode) {
                     429 -> {
                         AniListMetrics.recordRateLimit()
-                        AniListResult.RateLimited(60)
+                        val retryAfterSec = throwable.headers
+                            .firstOrNull { it.name.equals("Retry-After", ignoreCase = true) }
+                            ?.value?.trim()?.toLongOrNull() ?: 60L
+                        AniListResult.RateLimited(retryAfterSec)
                     }
                     404 -> AniListResult.NotFound
                     in 500..599 -> {
@@ -107,4 +110,17 @@ object ApolloErrorMapper {
             toAniListResult(e)
         }
     }
+
+    /**
+     * Extracts the `Retry-After` header value (in **milliseconds**) from an [ApolloHttpException].
+     * Returns 0 if the header is absent or the exception is not HTTP-based.
+     */
+    fun parseRetryAfterMs(exception: Throwable): Long {
+        if (exception !is ApolloHttpException) return 0L
+        val headerSeconds = exception.headers
+            .firstOrNull { it.name.equals("Retry-After", ignoreCase = true) }
+            ?.value?.trim()?.toLongOrNull() ?: return 0L
+        return headerSeconds * 1000L
+    }
 }
+
