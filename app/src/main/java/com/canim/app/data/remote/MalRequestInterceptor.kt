@@ -1,17 +1,24 @@
 package com.canim.app.data.remote
 
-import kotlinx.coroutines.runBlocking
 import okhttp3.Interceptor
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.Protocol
 import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
+import java.io.IOException
+import java.net.SocketTimeoutException
+import kotlin.math.min
+import kotlin.random.Random
 
 /**
  * OkHttp [Interceptor] that enforces the MAL per-host request policy:
  *
- * - Blocks the request thread while a 429 cooldown is active (runBlocking delay).
- * - On 429: arms cooldown from `Retry-After` header, then returns the 429 response
- *   without consuming the body so callers can still inspect it.
+ * - Non-blocking 429 cooldown: if active, immediately returns HTTP 429 with `Retry-After`
+ *   header without blocking the OkHttp dispatcher thread.
+ * - On 429 response from server: arms cooldown from `Retry-After` header, returns 429 response
+ *   immediately without consuming the body so callers can still inspect it.
  * - On 5xx or timeout on **idempotent** (GET) requests: retries up to 2 times with
- *   exponential backoff + jitter via [RequestPolicy].
+ *   exponential backoff + jitter via [RequestPolicy] parameters.
  * - PUT/DELETE mutations are **never** retried.
  * - Sensitive headers (Authorization, X-MAL-CLIENT-ID) are NOT logged here.
  *
@@ -26,40 +33,50 @@ internal class MalRequestInterceptor(
         val request = chain.request()
         val isIdempotent = request.method == "GET"
 
-        // If in cooldown, wait until it clears (block OkHttp dispatcher thread briefly).
+        // Non-blocking 429 cooldown check before touching network
         val remaining = policy.remainingCooldownMs()
         if (remaining > 0L) {
-            runBlocking { kotlinx.coroutines.delay(remaining) }
+            val retryAfterSeconds = maxOf(1L, (remaining + 999) / 1000)
+            return Response.Builder()
+                .request(request)
+                .protocol(Protocol.HTTP_1_1)
+                .code(429)
+                .message("Too Many Requests (cooldown active)")
+                .header("Retry-After", retryAfterSeconds.toString())
+                .body("{}".toResponseBody("application/json; charset=utf-8".toMediaTypeOrNull()))
+                .build()
         }
 
         var attempt = 0
         var lastResponse: Response? = null
 
         while (true) {
+            // Check cooldown again before each attempt
             val cooldown = policy.remainingCooldownMs()
             if (cooldown > 0L) {
-                runBlocking { kotlinx.coroutines.delay(cooldown) }
+                lastResponse?.close()
+                val retryAfterSeconds = maxOf(1L, (cooldown + 999) / 1000)
+                return Response.Builder()
+                    .request(request)
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(429)
+                    .message("Too Many Requests (cooldown active)")
+                    .header("Retry-After", retryAfterSeconds.toString())
+                    .body("{}".toResponseBody("application/json; charset=utf-8".toMediaTypeOrNull()))
+                    .build()
             }
 
             val response = try {
                 chain.proceed(request)
-            } catch (e: java.net.SocketTimeoutException) {
+            } catch (e: SocketTimeoutException) {
                 if (!isIdempotent || attempt >= 2) throw e
                 attempt++
-                runBlocking {
-                    val backoff = minOf(1_000L * (1L shl (attempt - 1)), 8_000L)
-                    val jitter = kotlin.random.Random.nextLong(-300L, 301L)
-                    kotlinx.coroutines.delay(maxOf(0L, backoff + jitter))
-                }
+                sleepBackoff(attempt)
                 continue
-            } catch (e: java.io.IOException) {
+            } catch (e: IOException) {
                 if (!isIdempotent || attempt >= 2) throw e
                 attempt++
-                runBlocking {
-                    val backoff = minOf(1_000L * (1L shl (attempt - 1)), 8_000L)
-                    val jitter = kotlin.random.Random.nextLong(-300L, 301L)
-                    kotlinx.coroutines.delay(maxOf(0L, backoff + jitter))
-                }
+                sleepBackoff(attempt)
                 continue
             }
 
@@ -69,18 +86,12 @@ internal class MalRequestInterceptor(
                 response.code == 429 -> {
                     val retryAfterMs = parseRetryAfterMs(response.header("Retry-After"))
                     policy.armCooldown(retryAfterMs)
-                    return response // return 429 to caller; do NOT retry mutations or reads
+                    return response // return 429 to caller immediately; do NOT retry mutations or reads
                 }
                 response.code in 500..599 && isIdempotent && attempt < 2 -> {
                     response.close()
                     attempt++
-                    runBlocking {
-                        val backoff = minOf(1_000L * (1L shl (attempt - 1)), 8_000L)
-                        val jitter = kotlin.random.Random.nextLong(-300L, 301L)
-                        kotlinx.coroutines.delay(maxOf(0L, backoff + jitter))
-                    }
-                    // Note: chain.proceed cannot be called twice on the same chain;
-                    // we reconstruct a new call via proceed on the same request object.
+                    sleepBackoff(attempt)
                     continue
                 }
                 else -> return response
@@ -89,5 +100,19 @@ internal class MalRequestInterceptor(
 
         @Suppress("UNREACHABLE_CODE")
         return lastResponse!!
+    }
+
+    private fun sleepBackoff(attempt: Int) {
+        if (policy.baseBackoffMs <= 0L) return
+        val backoff = min(policy.baseBackoffMs * (1L shl (attempt - 1)), policy.maxBackoffMs)
+        val jitter = if (policy.jitterMs > 0L) Random.nextLong(-policy.jitterMs, policy.jitterMs + 1) else 0L
+        val delayMs = maxOf(0L, backoff + jitter)
+        if (delayMs > 0L) {
+            try {
+                Thread.sleep(delayMs)
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            }
+        }
     }
 }

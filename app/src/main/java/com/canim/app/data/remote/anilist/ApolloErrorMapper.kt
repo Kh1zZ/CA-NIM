@@ -20,8 +20,14 @@ object ApolloErrorMapper {
     /**
      * Converts any caught [Throwable] into an appropriate [AniListResult] failure state.
      * Re-throws [CancellationException] to preserve coroutine structured concurrency.
+     *
+     * @param recordMetrics If false, suppresses incrementing error metric counters
+     *                      (used during intermediate retry attempts).
      */
-    fun toAniListResult(throwable: Throwable): AniListResult<Nothing> {
+    fun toAniListResult(
+        throwable: Throwable,
+        recordMetrics: Boolean = true
+    ): AniListResult<Nothing> {
         if (throwable is CancellationException) throw throwable
 
         return when (throwable) {
@@ -36,7 +42,7 @@ object ApolloErrorMapper {
                     }
                     404 -> AniListResult.NotFound
                     in 500..599 -> {
-                        AniListMetrics.recordHttp5xx()
+                        if (recordMetrics) AniListMetrics.recordHttp5xx()
                         AniListResult.HttpError(
                             throwable.statusCode,
                             throwable.message ?: "HTTP Error ${throwable.statusCode}",
@@ -53,7 +59,7 @@ object ApolloErrorMapper {
             is ApolloNetworkException -> {
                 val cause = throwable.cause
                 if (cause is SocketTimeoutException) {
-                    AniListMetrics.recordTimeout()
+                    if (recordMetrics) AniListMetrics.recordTimeout()
                     AniListResult.Timeout(isReadTimeout = true)
                 } else {
                     AniListResult.NetworkError(cause ?: throwable)
@@ -62,20 +68,20 @@ object ApolloErrorMapper {
             is ApolloException -> {
                 val cause = throwable.cause
                 if (cause is SocketTimeoutException) {
-                    AniListMetrics.recordTimeout()
+                    if (recordMetrics) AniListMetrics.recordTimeout()
                     AniListResult.Timeout(isReadTimeout = true)
                 } else {
                     AniListResult.NetworkError(cause ?: throwable)
                 }
             }
             is SocketTimeoutException -> {
-                AniListMetrics.recordTimeout()
+                if (recordMetrics) AniListMetrics.recordTimeout()
                 AniListResult.Timeout(isReadTimeout = true)
             }
             else -> {
                 val cause = throwable.cause
                 if (cause is SocketTimeoutException) {
-                    AniListMetrics.recordTimeout()
+                    if (recordMetrics) AniListMetrics.recordTimeout()
                     AniListResult.Timeout(isReadTimeout = true)
                 } else {
                     AniListResult.NetworkError(throwable)
@@ -101,13 +107,16 @@ object ApolloErrorMapper {
     /**
      * Wraps an Apollo query execution and maps any thrown exceptions cleanly into [AniListResult].
      */
-    inline fun <T> safeApolloCall(block: () -> AniListResult<T>): AniListResult<T> {
+    inline fun <T> safeApolloCall(
+        recordMetrics: Boolean = true,
+        block: () -> AniListResult<T>
+    ): AniListResult<T> {
         return try {
             block()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
-            toAniListResult(e)
+            toAniListResult(e, recordMetrics)
         }
     }
 

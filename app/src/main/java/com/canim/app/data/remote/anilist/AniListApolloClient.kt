@@ -81,6 +81,7 @@ object AniListApolloClient {
         testApolloClient = apolloClient
         // Reset policy state so 429 cooldowns from previous tests don't bleed through.
         ApiClient.aniListPolicy.resetForTesting()
+        ApiClient.malPolicy.resetForTesting()
     }
 
     fun setOkHttpClientForTesting(okHttpClient: OkHttpClient?) {
@@ -92,27 +93,27 @@ object AniListApolloClient {
         }
         // Reset policy state so 429 cooldowns from previous tests don't bleed through.
         ApiClient.aniListPolicy.resetForTesting()
+        ApiClient.malPolicy.resetForTesting()
     }
 
     /**
-     * Executes an AniList call with **concurrency limiting and 429 cooldown** only.
-     * No retry — this is intentional: [execute*] functions are called by unit tests that
-     * assert on exact call counts and exact error types from a single network attempt.
-     *
-     * - Acquires the concurrency semaphore (max 4 in-flight).
-     * - Short-circuits with [AniListResult.RateLimited] if a 429 cooldown is active.
-     * - Arms cooldown when the result is [AniListResult.RateLimited].
-     * - Does NOT retry on Timeout or 5xx — callers should wrap in [withAniListPolicyWithRetry]
-     *   if retry is desired.
+     * Executes a read-only AniList call under the shared [ApiClient.aniListPolicy]:
+     * - Concurrency limiting via Semaphore (max 4 in-flight).
+     * - Non-blocking 429 cooldown check: immediately returns [AniListResult.RateLimited] if in cooldown.
+     * - Arms cooldown on 429 response.
+     * - Retries transient failures (Timeout, HTTP 5xx) up to 2 times with exponential backoff + jitter.
+     * - Mutations are never retried (retryable = false).
+     * - Error metric counters are incremented only on final failure to reflect true operation status.
+     * - Preserves coroutine cancellation.
      */
     private suspend fun <T> withAniListPolicy(
-        block: suspend () -> AniListResult<T>
+        retryable: Boolean = true,
+        block: suspend (isFinalAttempt: Boolean) -> AniListResult<T>
     ): AniListResult<T> {
         val policy = ApiClient.aniListPolicy
         val onCooldown: () -> AniListResult<T> = {
             AniListMetrics.recordRateLimit()
-            @Suppress("UNCHECKED_CAST")
-            AniListResult.RateLimited(policy.remainingCooldownMs() / 1000L) as AniListResult<T>
+            AniListResult.RateLimited(policy.remainingCooldownMs() / 1000L)
         }
 
         if (policy.remainingCooldownMs() > 0L) return onCooldown()
@@ -120,79 +121,50 @@ object AniListApolloClient {
         return policy.semaphore.withPermit {
             if (policy.remainingCooldownMs() > 0L) return@withPermit onCooldown()
 
-            val result = try {
-                block()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                ApolloErrorMapper.toAniListResult(e)
-            }
-
-            if (result is AniListResult.RateLimited) {
-                policy.armCooldown((result.retryAfterSeconds ?: 60L) * 1000L)
-            }
-            result
-        }
-    }
-
-    /**
-     * Executes an AniList call with **full policy**: concurrency limiting, 429 cooldown,
-     * and retry up to 2 times on Timeout or HTTP 5xx with exponential backoff + jitter.
-     *
-     * Use this in public [get*] aggregator functions where retry is desirable and
-     * tests do not assert on exact per-attempt call counts.
-     */
-    private suspend fun <T> withAniListPolicyWithRetry(
-        block: suspend () -> AniListResult<T>
-    ): AniListResult<T> {
-        val policy = ApiClient.aniListPolicy
-        return policy.withPolicy(
-            retryable = true,
-            onCooldown = {
-                AniListMetrics.recordRateLimit()
-                @Suppress("UNCHECKED_CAST")
-                AniListResult.RateLimited(policy.remainingCooldownMs() / 1000L) as AniListResult<T>
-            }
-        ) {
-            val result = try {
-                block()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                return@withPolicy PolicyResult.Failure(e)
-            }
-            when (result) {
-                is AniListResult.RateLimited -> {
-                    policy.armCooldown((result.retryAfterSeconds ?: 60L) * 1000L)
-                    PolicyResult.RateLimited((result.retryAfterSeconds ?: 60L) * 1000L)
+            var attempt = 0
+            while (true) {
+                val isFinalAttempt = !retryable || attempt >= 2
+                val result = try {
+                    block(isFinalAttempt)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    ApolloErrorMapper.toAniListResult(e, recordMetrics = isFinalAttempt)
                 }
-                is AniListResult.Timeout -> {
-                    AniListMetrics.recordRetry()
-                    @Suppress("UNCHECKED_CAST")
-                    PolicyResult.Retryable(result as AniListResult<T>)
-                }
-                is AniListResult.HttpError -> {
-                    if (result.code in 500..599) {
-                        AniListMetrics.recordRetry()
-                        @Suppress("UNCHECKED_CAST")
-                        PolicyResult.Retryable(result as AniListResult<T>)
-                    } else {
-                        PolicyResult.NonRetryable(result)
+
+                when {
+                    result is AniListResult.RateLimited -> {
+                        policy.armCooldown((result.retryAfterSeconds ?: 60L) * 1000L)
+                        return@withPermit result
                     }
+                    (result is AniListResult.Timeout || (result is AniListResult.HttpError && result.code in 500..599))
+                        && retryable && attempt < 2 -> {
+                        attempt++
+                        AniListMetrics.recordRetry()
+                        if (policy.baseBackoffMs > 0L) {
+                            val backoff = minOf(policy.baseBackoffMs * (1L shl (attempt - 1)), policy.maxBackoffMs)
+                            val jitter = if (policy.jitterMs > 0L) kotlin.random.Random.nextLong(-policy.jitterMs, policy.jitterMs + 1) else 0L
+                            val delayMs = maxOf(0L, backoff + jitter)
+                            if (delayMs > 0L) kotlinx.coroutines.delay(delayMs)
+                        }
+                    }
+                    else -> return@withPermit result
                 }
-                else -> PolicyResult.Success(result)
             }
+            @Suppress("UNREACHABLE_CODE")
+            error("Unreachable")
         }
     }
 
     /**
      * Executes the Apollo HealthPing operation and maps the response into
      * CA'NIM's application-level `AniListResult` semantics.
+     * Health check does not auto-retry internally to avoid duplicating retry/delay in CanimRepository.
      */
     suspend fun executeHealthPing(): AniListResult<Boolean> = withContext(Dispatchers.IO) {
-        withAniListPolicy {
-            AniListMetrics.recordRequest()
-            ApolloErrorMapper.safeApolloCall {
+        AniListMetrics.recordRequest()
+        withAniListPolicy(retryable = false) { isFinalAttempt ->
+            ApolloErrorMapper.safeApolloCall(recordMetrics = isFinalAttempt) {
                 val response = client.query(HealthPingQuery()).execute()
                 response.exception?.let { throw it }
                 if (response.hasErrors()) {
@@ -221,9 +193,9 @@ object AniListApolloClient {
      * media.idMal is the MyAnimeList ID. A MAL ID is NEVER copied into an AniList ID field.
      */
     suspend fun executeResolveMalId(malId: Int, type: MediaType): AniListResult<Int> = withContext(Dispatchers.IO) {
-        withAniListPolicy {
-            AniListMetrics.recordRequest()
-            ApolloErrorMapper.safeApolloCall {
+        AniListMetrics.recordRequest()
+        withAniListPolicy { isFinalAttempt ->
+            ApolloErrorMapper.safeApolloCall(recordMetrics = isFinalAttempt) {
                 val apolloType = if (type == MediaType.ANIME) {
                     ApolloMediaType.ANIME
                 } else {
@@ -276,9 +248,9 @@ object AniListApolloClient {
      * Executes the Apollo ResolveAniListId query.
      */
     suspend fun executeResolveAniListId(aniListId: Int): AniListResult<Int> = withContext(Dispatchers.IO) {
-        withAniListPolicy {
-            AniListMetrics.recordRequest()
-            ApolloErrorMapper.safeApolloCall {
+        AniListMetrics.recordRequest()
+        withAniListPolicy { isFinalAttempt ->
+            ApolloErrorMapper.safeApolloCall(recordMetrics = isFinalAttempt) {
                 val response = client.query(
                     ResolveAniListIdQuery(
                         id = Optional.present(aniListId)
@@ -334,9 +306,9 @@ object AniListApolloClient {
         page: Int = 1,
         perPage: Int = 30
     ): AniListResult<List<MediaItem>> = withContext(Dispatchers.IO) {
-        withAniListPolicy {
-            AniListMetrics.recordRequest()
-            ApolloErrorMapper.safeApolloCall {
+        AniListMetrics.recordRequest()
+        withAniListPolicy { isFinalAttempt ->
+            ApolloErrorMapper.safeApolloCall(recordMetrics = isFinalAttempt) {
                 val apolloType = if (type == MediaType.ANIME) ApolloMediaType.ANIME else ApolloMediaType.MANGA
 
                 val (validGenres, validTags) = if (!genres.isNullOrEmpty()) {
@@ -456,9 +428,9 @@ object AniListApolloClient {
      * Executes GetExtendedDetailsByIdQuery and returns AniListResult<ExtendedMediaDetail>.
      */
     suspend fun executeGetExtendedDetailsById(aniListId: Int): AniListResult<ExtendedMediaDetail> = withContext(Dispatchers.IO) {
-        withAniListPolicy {
-            AniListMetrics.recordRequest()
-            ApolloErrorMapper.safeApolloCall {
+        AniListMetrics.recordRequest()
+        withAniListPolicy { isFinalAttempt ->
+            ApolloErrorMapper.safeApolloCall(recordMetrics = isFinalAttempt) {
                 val response = client.query(GetExtendedDetailsByIdQuery(Optional.present(aniListId))).execute()
                 response.exception?.let { throw it }
                 if (response.hasErrors()) {
@@ -480,9 +452,9 @@ object AniListApolloClient {
      * Executes GetExtendedDetailsByMalIdQuery and returns AniListResult<ExtendedMediaDetail>.
      */
     suspend fun executeGetExtendedDetailsByMalId(malId: Int, type: MediaType): AniListResult<ExtendedMediaDetail> = withContext(Dispatchers.IO) {
-        withAniListPolicy {
-            AniListMetrics.recordRequest()
-            ApolloErrorMapper.safeApolloCall {
+        AniListMetrics.recordRequest()
+        withAniListPolicy { isFinalAttempt ->
+            ApolloErrorMapper.safeApolloCall(recordMetrics = isFinalAttempt) {
                 val apolloType = if (type == MediaType.ANIME) ApolloMediaType.ANIME else ApolloMediaType.MANGA
                 val response = client.query(
                     GetExtendedDetailsByMalIdQuery(
@@ -563,9 +535,9 @@ object AniListApolloClient {
      * Executes GetCharacterProfileQuery and returns AniListResult<CastCrewProfile>.
      */
     suspend fun executeGetCharacterProfile(id: Int): AniListResult<CastCrewProfile> = withContext(Dispatchers.IO) {
-        withAniListPolicy {
-            AniListMetrics.recordRequest()
-            ApolloErrorMapper.safeApolloCall {
+        AniListMetrics.recordRequest()
+        withAniListPolicy { isFinalAttempt ->
+            ApolloErrorMapper.safeApolloCall(recordMetrics = isFinalAttempt) {
                 val response = client.query(GetCharacterProfileQuery(Optional.present(id))).execute()
                 response.exception?.let { throw it }
                 if (response.hasErrors()) {
@@ -609,9 +581,9 @@ object AniListApolloClient {
     // ──────────────────────────────────────────────────────────────────────────
 
     private suspend fun executeGetStaffProfile(id: Int): AniListResult<CastCrewProfile> = withContext(Dispatchers.IO) {
-        withAniListPolicy {
-            AniListMetrics.recordRequest()
-            ApolloErrorMapper.safeApolloCall {
+        AniListMetrics.recordRequest()
+        withAniListPolicy { isFinalAttempt ->
+            ApolloErrorMapper.safeApolloCall(recordMetrics = isFinalAttempt) {
                 val query = GetStaffProfileQuery(id = Optional.present(id))
                 val response = client.query(query).execute()
                 response.exception?.let { throw it }

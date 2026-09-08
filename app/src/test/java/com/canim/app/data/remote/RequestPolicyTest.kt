@@ -127,7 +127,7 @@ class RequestPolicyTest {
     fun `429 cooldown — RateLimited result arms cooldown and returns onCooldown`() = runTest(testDispatcher) {
         val policy = makePolicy()
 
-        var onCooldownCalled = false
+        var onCooldownCalled: Boolean
         policy.withPolicy(
             retryable = true,
             onCooldown = {

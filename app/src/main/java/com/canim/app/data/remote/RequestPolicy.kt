@@ -23,9 +23,9 @@ import kotlin.random.Random
 class RequestPolicy(
     private val maxConcurrent: Int = 4,
     private val maxRetries: Int = 2,
-    private val baseBackoffMs: Long = 1_000L,
-    private val maxBackoffMs: Long = 8_000L,
-    private val jitterMs: Long = 300L,
+    internal var baseBackoffMs: Long = 1_000L,
+    internal var maxBackoffMs: Long = 8_000L,
+    internal var jitterMs: Long = 300L,
     /** Clock abstraction — override in tests to avoid real wall-clock delays. */
     internal var clock: () -> Long = { System.currentTimeMillis() }
 ) {
@@ -47,11 +47,14 @@ class RequestPolicy(
     }
 
     /**
-     * Resets all policy state (cooldown, etc.) for use in unit tests.
+     * Resets all policy state (cooldown, backoff) for use in unit tests.
      * Call this in @Before / @After to prevent cross-test contamination via shared singletons.
      */
     fun resetForTesting() {
         cooldownUntilMs = 0L
+        baseBackoffMs = 0L
+        maxBackoffMs = 0L
+        jitterMs = 0L
     }
 
     /** Returns remaining cooldown in ms, or 0 if not in cooldown. */
@@ -60,7 +63,7 @@ class RequestPolicy(
     /**
      * Executes [block] under this policy:
      *
-     * 1. If in 429 cooldown, immediately returns [onCooldown] result.
+     * 1. If in 429 cooldown, immediately returns [onCooldown] result (non-blocking).
      * 2. Acquires the concurrency semaphore.
      * 3. Executes [block], applying retry logic if [retryable] is true.
      *
@@ -78,7 +81,7 @@ class RequestPolicy(
 
         return semaphore.withPermit {
             var attempt = 0
-            var lastResult: PolicyResult<T>? = null
+            var lastResult: PolicyResult<T>?
 
             while (true) {
                 if (remainingCooldownMs() > 0L) return@withPermit onCooldown()
