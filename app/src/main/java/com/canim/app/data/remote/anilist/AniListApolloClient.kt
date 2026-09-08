@@ -8,13 +8,10 @@ import com.apollographql.apollo.exception.ApolloNetworkException
 import com.apollographql.apollo.network.okHttpClient
 import com.canim.app.data.cache.CacheManager
 import com.canim.app.data.model.CastCrewProfile
-import com.canim.app.data.model.CharacterCastItem
 import com.canim.app.data.model.ExtendedMediaDetail
 import com.canim.app.data.model.FilmographyItem
 import com.canim.app.data.model.MediaItem
-import com.canim.app.data.model.MediaRelationItem
 import com.canim.app.data.model.MediaType
-import com.canim.app.data.model.StaffMemberItem
 import com.canim.app.data.remote.ApiClient
 import com.canim.app.data.remote.AniListClient
 import com.canim.app.data.remote.AniListErrorDetail
