@@ -21,25 +21,8 @@ import kotlinx.coroutines.withContext
 class CanimRepository(
     val malAuthManager: MalAuthManager
 ) {
-    private val inFlightRequests = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Deferred<Any?>>()
-
-    suspend fun <T> deduplicateInFlight(key: String, block: suspend () -> T): T = coroutineScope {
-        val existing = inFlightRequests[key]
-        if (existing != null && existing.isActive) {
-            @Suppress("UNCHECKED_CAST")
-            return@coroutineScope existing.await() as T
-        }
-
-        val deferred = async(Dispatchers.IO) {
-            try {
-                block()
-            } finally {
-                inFlightRequests.remove(key)
-            }
-        }
-        inFlightRequests[key] = deferred
-        deferred.await()
-    }
+    suspend fun <T> deduplicateInFlight(key: String, block: suspend () -> T): T =
+        AniListClient.deduplicateInFlight(key, block)
 
     fun buildMalAuthorizeUrl(): String = malAuthManager.buildAuthorizeUrl()
 
@@ -137,7 +120,7 @@ class CanimRepository(
     ): List<UserMediaItem> = withContext(Dispatchers.IO) {
         val malIds = items.mapNotNull { it.malId }
         val unEnrichedMalIds = malIds.filter { mId ->
-            val aniId = CacheManager.getAniListIdForMalId(mId)
+            val aniId = CacheManager.getAniListIdForMalId(mId, type)
             val cached = CacheManager.getDetail(CacheManager.detailKey(aniId, mId))
             cached == null
         }
@@ -543,8 +526,8 @@ class CanimRepository(
         type: MediaType,
         forceRefresh: Boolean = false
     ): ExtendedMediaDetail? = withContext(Dispatchers.IO) {
-        val resolvedAniListId = aniListId ?: (malId?.let { CacheManager.getAniListIdForMalId(it) })
-        val resolvedMalId = malId ?: (resolvedAniListId?.let { CacheManager.getMalIdForAniListId(it) })
+        val resolvedAniListId = aniListId ?: (malId?.let { CacheManager.getAniListIdForMalId(it, type) })
+        val resolvedMalId = malId ?: (resolvedAniListId?.let { CacheManager.getMalIdForAniListId(it, type) })
         val primaryCacheKey = CacheManager.detailKey(resolvedAniListId, resolvedMalId)
 
         if (!forceRefresh) {
@@ -602,7 +585,7 @@ class CanimRepository(
                     val effectiveAni = merged.anilistId
                     val effectiveMal = merged.malId
                     if (effectiveAni != null && effectiveMal != null) {
-                        CacheManager.putIdMapping(effectiveMal, effectiveAni)
+                        CacheManager.putIdMapping(effectiveMal, effectiveAni, type)
                     }
                     CacheManager.putDetail(CacheManager.detailKey(effectiveAni, effectiveMal), merged)
                     if (effectiveAni != null) {

@@ -51,14 +51,13 @@ fragment ExtendedMediaDetailFields on Media {
       name
     }
   }
-  characters(sort: [ROLE], perPage: 12) {
+  characters(sort: [ROLE], perPage: 25) {
     edges {
       role
       node {
         id
         name {
           full
-          native
         }
         image {
           medium
@@ -69,7 +68,6 @@ fragment ExtendedMediaDetailFields on Media {
         id
         name {
           full
-          native
         }
         image {
           medium
@@ -78,14 +76,13 @@ fragment ExtendedMediaDetailFields on Media {
       }
     }
   }
-  staff(sort: [ROLE], perPage: 10) {
+  staff(sort: [ROLE], perPage: 25) {
     edges {
       role
       node {
         id
         name {
           full
-          native
         }
         image {
           medium

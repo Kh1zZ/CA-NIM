@@ -24,7 +24,7 @@ object MediaResolver {
         if (malId <= 0) return@withContext null
 
         // 1. Check cached mapping
-        val cached = CacheManager.getAniListIdForMalId(malId)
+        val cached = CacheManager.getAniListIdForMalId(malId, type)
         if (cached != null) return@withContext cached
 
         // 2. Check negative cache
@@ -35,7 +35,7 @@ object MediaResolver {
         val result = AniListClient.resolveIdMal(malId, type)
         when (result) {
             is AniListResult.Success -> {
-                CacheManager.putIdMapping(malId = malId, aniListId = result.data)
+                CacheManager.putIdMapping(malId = malId, aniListId = result.data, type = type)
                 result.data
             }
             is AniListResult.NotFound -> {

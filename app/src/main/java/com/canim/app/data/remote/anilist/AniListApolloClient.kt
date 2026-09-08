@@ -1,4 +1,4 @@
-﻿package com.canim.app.data.remote.anilist
+package com.canim.app.data.remote.anilist
 
 import com.apollographql.apollo.ApolloClient
 import com.apollographql.apollo.api.Optional
@@ -97,52 +97,15 @@ object AniListApolloClient {
      */
     suspend fun executeHealthPing(): AniListResult<Boolean> = withContext(Dispatchers.IO) {
         AniListMetrics.recordRequest()
-        try {
+        ApolloErrorMapper.safeApolloCall {
             val response = client.query(HealthPingQuery()).execute()
             response.exception?.let { throw it }
             if (response.hasErrors()) {
-                AniListMetrics.recordGraphQLError()
-                val errorDetails = response.errors?.map { AniListErrorDetail(it.message, null) } ?: emptyList()
-                return@withContext AniListResult.GraphQLError(errorDetails)
+                val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
+                if (errorResult != null) return@safeApolloCall errorResult
             }
-            val media = response.data?.Media
-            if (media == null) {
-                return@withContext AniListResult.NotFound
-            }
+            val media = response.data?.Media ?: return@safeApolloCall AniListResult.NotFound
             AniListResult.Success(media.id == 1)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: ApolloHttpException) {
-            when (e.statusCode) {
-                429 -> {
-                    AniListMetrics.recordRateLimit()
-                    AniListResult.RateLimited(60)
-                }
-                404 -> AniListResult.NotFound
-                in 500..599 -> {
-                    AniListMetrics.recordHttp5xx()
-                    AniListResult.HttpError(e.statusCode, e.message ?: "HTTP Error ${e.statusCode}", emptyList())
-                }
-                else -> AniListResult.HttpError(e.statusCode, e.message ?: "HTTP Error ${e.statusCode}", emptyList())
-            }
-        } catch (e: ApolloNetworkException) {
-            val cause = e.cause
-            if (cause is SocketTimeoutException) {
-                AniListMetrics.recordTimeout()
-                AniListResult.Timeout(isReadTimeout = true)
-            } else {
-                AniListResult.NetworkError(cause ?: e)
-            }
-        } catch (e: ApolloException) {
-            val cause = e.cause
-            if (cause is SocketTimeoutException) {
-                AniListMetrics.recordTimeout()
-                AniListResult.Timeout(isReadTimeout = true)
-            } else {
-                AniListResult.NetworkError(cause ?: e)
-            }
-        } catch (e: Exception) {
-            AniListResult.NetworkError(e)
         }
     }
 
@@ -163,7 +126,7 @@ object AniListApolloClient {
      */
     suspend fun executeResolveMalId(malId: Int, type: MediaType): AniListResult<Int> = withContext(Dispatchers.IO) {
         AniListMetrics.recordRequest()
-        try {
+        ApolloErrorMapper.safeApolloCall {
             val apolloType = if (type == MediaType.ANIME) {
                 ApolloMediaType.ANIME
             } else {
@@ -179,53 +142,15 @@ object AniListApolloClient {
 
             val media = response.data?.Media
             if (media != null) {
-                return@withContext AniListResult.Success(media.id)
+                return@safeApolloCall AniListResult.Success(media.id)
             }
 
             if (response.hasErrors()) {
-                val errors = response.errors ?: emptyList()
-                if (errors.any { it.message.contains("Not Found", ignoreCase = true) }) {
-                    return@withContext AniListResult.NotFound
-                }
-                AniListMetrics.recordGraphQLError()
-                val errorDetails = errors.map { AniListErrorDetail(it.message, null) }
-                return@withContext AniListResult.GraphQLError(errorDetails)
+                val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
+                if (errorResult != null) return@safeApolloCall errorResult
             }
 
             AniListResult.NotFound
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: ApolloHttpException) {
-            when (e.statusCode) {
-                429 -> {
-                    AniListMetrics.recordRateLimit()
-                    AniListResult.RateLimited(60)
-                }
-                404 -> AniListResult.NotFound
-                in 500..599 -> {
-                    AniListMetrics.recordHttp5xx()
-                    AniListResult.HttpError(e.statusCode, e.message ?: "HTTP Error ${e.statusCode}", emptyList())
-                }
-                else -> AniListResult.HttpError(e.statusCode, e.message ?: "HTTP Error ${e.statusCode}", emptyList())
-            }
-        } catch (e: ApolloNetworkException) {
-            val cause = e.cause
-            if (cause is SocketTimeoutException) {
-                AniListMetrics.recordTimeout()
-                AniListResult.Timeout(isReadTimeout = true)
-            } else {
-                AniListResult.NetworkError(cause ?: e)
-            }
-        } catch (e: ApolloException) {
-            val cause = e.cause
-            if (cause is SocketTimeoutException) {
-                AniListMetrics.recordTimeout()
-                AniListResult.Timeout(isReadTimeout = true)
-            } else {
-                AniListResult.NetworkError(cause ?: e)
-            }
-        } catch (e: Exception) {
-            AniListResult.NetworkError(e)
         }
     }
 
@@ -233,7 +158,7 @@ object AniListApolloClient {
      * Resolves a MAL ID to AniList ID with cache hit/miss tracking and in-flight deduplication.
      */
     suspend fun resolveIdMal(malId: Int, type: MediaType): AniListResult<Int> = withContext(Dispatchers.IO) {
-        val cached = CacheManager.getAniListIdForMalId(malId)
+        val cached = CacheManager.getAniListIdForMalId(malId, type)
         if (cached != null) {
             AniListMetrics.recordCacheHit()
             return@withContext AniListResult.Success(cached)
@@ -243,7 +168,7 @@ object AniListApolloClient {
         AniListClient.deduplicateInFlight("resolve_mal_${malId}_${type.name}") {
             val result = executeResolveMalId(malId, type)
             if (result is AniListResult.Success) {
-                CacheManager.putIdMapping(malId = malId, aniListId = result.data)
+                CacheManager.putIdMapping(malId = malId, aniListId = result.data, type = type)
             }
             result
         }
@@ -254,7 +179,7 @@ object AniListApolloClient {
      */
     suspend fun executeResolveAniListId(aniListId: Int): AniListResult<Int> = withContext(Dispatchers.IO) {
         AniListMetrics.recordRequest()
-        try {
+        ApolloErrorMapper.safeApolloCall {
             val response = client.query(
                 ResolveAniListIdQuery(
                     id = Optional.present(aniListId)
@@ -264,53 +189,15 @@ object AniListApolloClient {
 
             val media = response.data?.Media
             if (media?.idMal != null) {
-                return@withContext AniListResult.Success(media.idMal)
+                return@safeApolloCall AniListResult.Success(media.idMal)
             }
 
             if (response.hasErrors()) {
-                val errors = response.errors ?: emptyList()
-                if (errors.any { it.message.contains("Not Found", ignoreCase = true) }) {
-                    return@withContext AniListResult.NotFound
-                }
-                AniListMetrics.recordGraphQLError()
-                val errorDetails = errors.map { AniListErrorDetail(it.message, null) }
-                return@withContext AniListResult.GraphQLError(errorDetails)
+                val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
+                if (errorResult != null) return@safeApolloCall errorResult
             }
 
             AniListResult.NotFound
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: ApolloHttpException) {
-            when (e.statusCode) {
-                429 -> {
-                    AniListMetrics.recordRateLimit()
-                    AniListResult.RateLimited(60)
-                }
-                404 -> AniListResult.NotFound
-                in 500..599 -> {
-                    AniListMetrics.recordHttp5xx()
-                    AniListResult.HttpError(e.statusCode, e.message ?: "HTTP Error ${e.statusCode}", emptyList())
-                }
-                else -> AniListResult.HttpError(e.statusCode, e.message ?: "HTTP Error ${e.statusCode}", emptyList())
-            }
-        } catch (e: ApolloNetworkException) {
-            val cause = e.cause
-            if (cause is SocketTimeoutException) {
-                AniListMetrics.recordTimeout()
-                AniListResult.Timeout(isReadTimeout = true)
-            } else {
-                AniListResult.NetworkError(cause ?: e)
-            }
-        } catch (e: ApolloException) {
-            val cause = e.cause
-            if (cause is SocketTimeoutException) {
-                AniListMetrics.recordTimeout()
-                AniListResult.Timeout(isReadTimeout = true)
-            } else {
-                AniListResult.NetworkError(cause ?: e)
-            }
-        } catch (e: Exception) {
-            AniListResult.NetworkError(e)
         }
     }
 
@@ -348,7 +235,7 @@ object AniListApolloClient {
         perPage: Int = 30
     ): AniListResult<List<MediaItem>> = withContext(Dispatchers.IO) {
         AniListMetrics.recordRequest()
-        try {
+        ApolloErrorMapper.safeApolloCall {
             val apolloType = if (type == MediaType.ANIME) ApolloMediaType.ANIME else ApolloMediaType.MANGA
 
             val (validGenres, validTags) = if (!genres.isNullOrEmpty()) {
@@ -412,51 +299,17 @@ object AniListApolloClient {
             response.exception?.let { throw it }
 
             if (response.hasErrors()) {
-                AniListMetrics.recordGraphQLError()
-                val errorDetails = response.errors?.map { AniListErrorDetail(it.message, null) } ?: emptyList()
-                return@withContext AniListResult.GraphQLError(errorDetails)
+                val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
+                if (errorResult != null) return@safeApolloCall errorResult
             }
 
             val mediaList = response.data?.Page?.media
             if (mediaList == null) {
-                return@withContext AniListResult.Success(emptyList())
+                return@safeApolloCall AniListResult.Success(emptyList())
             }
 
             val items = mediaList.filterNotNull().map { mapApolloMediaToItem(it, type) }
             AniListResult.Success(items)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: ApolloHttpException) {
-            when (e.statusCode) {
-                429 -> {
-                    AniListMetrics.recordRateLimit()
-                    AniListResult.RateLimited(60)
-                }
-                404 -> AniListResult.NotFound
-                in 500..599 -> {
-                    AniListMetrics.recordHttp5xx()
-                    AniListResult.HttpError(e.statusCode, e.message ?: "HTTP Error ${e.statusCode}", emptyList())
-                }
-                else -> AniListResult.HttpError(e.statusCode, e.message ?: "HTTP Error ${e.statusCode}", emptyList())
-            }
-        } catch (e: ApolloNetworkException) {
-            val cause = e.cause
-            if (cause is SocketTimeoutException) {
-                AniListMetrics.recordTimeout()
-                AniListResult.Timeout(isReadTimeout = true)
-            } else {
-                AniListResult.NetworkError(cause ?: e)
-            }
-        } catch (e: ApolloException) {
-            val cause = e.cause
-            if (cause is SocketTimeoutException) {
-                AniListMetrics.recordTimeout()
-                AniListResult.Timeout(isReadTimeout = true)
-            } else {
-                AniListResult.NetworkError(cause ?: e)
-            }
-        } catch (e: Exception) {
-            AniListResult.NetworkError(e)
         }
     }
 
@@ -519,7 +372,7 @@ object AniListApolloClient {
 
         // Cache ID mapping
         if (m.idMal != null) {
-            CacheManager.putIdMapping(malId = m.idMal, aniListId = m.id)
+            CacheManager.putIdMapping(malId = m.idMal, aniListId = m.id, type = fallbackType)
         }
 
         return MediaItem(
@@ -549,55 +402,16 @@ object AniListApolloClient {
      */
     suspend fun executeGetExtendedDetailsById(aniListId: Int): AniListResult<ExtendedMediaDetail> = withContext(Dispatchers.IO) {
         AniListMetrics.recordRequest()
-        try {
+        ApolloErrorMapper.safeApolloCall {
             val response = client.query(GetExtendedDetailsByIdQuery(Optional.present(aniListId))).execute()
             response.exception?.let { throw it }
             if (response.hasErrors()) {
-                AniListMetrics.recordGraphQLError()
-                val errorDetails = response.errors?.map { AniListErrorDetail(it.message, null) } ?: emptyList()
-                val is404 = errorDetails.any { it.message.trim().trimEnd('.').equals("Not Found", ignoreCase = true) }
-                if (is404) return@withContext AniListResult.NotFound
-                return@withContext AniListResult.GraphQLError(errorDetails)
+                val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
+                if (errorResult != null) return@safeApolloCall errorResult
             }
-            val media = response.data?.Media
-            if (media == null) {
-                return@withContext AniListResult.NotFound
-            }
+            val media = response.data?.Media ?: return@safeApolloCall AniListResult.NotFound
             val detail = mapApolloExtendedDetailsToDomain(media.extendedMediaDetailFields, null)
             AniListResult.Success(detail)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: ApolloHttpException) {
-            when (e.statusCode) {
-                429 -> {
-                    AniListMetrics.recordRateLimit()
-                    AniListResult.RateLimited(60)
-                }
-                404 -> AniListResult.NotFound
-                in 500..599 -> {
-                    AniListMetrics.recordHttp5xx()
-                    AniListResult.HttpError(e.statusCode, e.message ?: "HTTP Error ${e.statusCode}", emptyList())
-                }
-                else -> AniListResult.HttpError(e.statusCode, e.message ?: "HTTP Error ${e.statusCode}", emptyList())
-            }
-        } catch (e: ApolloNetworkException) {
-            val cause = e.cause
-            if (cause is SocketTimeoutException) {
-                AniListMetrics.recordTimeout()
-                AniListResult.Timeout(isReadTimeout = true)
-            } else {
-                AniListResult.NetworkError(cause ?: e)
-            }
-        } catch (e: ApolloException) {
-            val cause = e.cause
-            if (cause is SocketTimeoutException) {
-                AniListMetrics.recordTimeout()
-                AniListResult.Timeout(isReadTimeout = true)
-            } else {
-                AniListResult.NetworkError(cause ?: e)
-            }
-        } catch (e: Exception) {
-            AniListResult.NetworkError(e)
         }
     }
 
@@ -606,7 +420,7 @@ object AniListApolloClient {
      */
     suspend fun executeGetExtendedDetailsByMalId(malId: Int, type: MediaType): AniListResult<ExtendedMediaDetail> = withContext(Dispatchers.IO) {
         AniListMetrics.recordRequest()
-        try {
+        ApolloErrorMapper.safeApolloCall {
             val apolloType = if (type == MediaType.ANIME) ApolloMediaType.ANIME else ApolloMediaType.MANGA
             val response = client.query(
                 GetExtendedDetailsByMalIdQuery(
@@ -616,51 +430,12 @@ object AniListApolloClient {
             ).execute()
             response.exception?.let { throw it }
             if (response.hasErrors()) {
-                AniListMetrics.recordGraphQLError()
-                val errorDetails = response.errors?.map { AniListErrorDetail(it.message, null) } ?: emptyList()
-                val is404 = errorDetails.any { it.message.trim().trimEnd('.').equals("Not Found", ignoreCase = true) }
-                if (is404) return@withContext AniListResult.NotFound
-                return@withContext AniListResult.GraphQLError(errorDetails)
+                val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
+                if (errorResult != null) return@safeApolloCall errorResult
             }
-            val media = response.data?.Media
-            if (media == null) {
-                return@withContext AniListResult.NotFound
-            }
+            val media = response.data?.Media ?: return@safeApolloCall AniListResult.NotFound
             val detail = mapApolloExtendedDetailsToDomain(media.extendedMediaDetailFields, malId)
             AniListResult.Success(detail)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: ApolloHttpException) {
-            when (e.statusCode) {
-                429 -> {
-                    AniListMetrics.recordRateLimit()
-                    AniListResult.RateLimited(60)
-                }
-                404 -> AniListResult.NotFound
-                in 500..599 -> {
-                    AniListMetrics.recordHttp5xx()
-                    AniListResult.HttpError(e.statusCode, e.message ?: "HTTP Error ${e.statusCode}", emptyList())
-                }
-                else -> AniListResult.HttpError(e.statusCode, e.message ?: "HTTP Error ${e.statusCode}", emptyList())
-            }
-        } catch (e: ApolloNetworkException) {
-            val cause = e.cause
-            if (cause is SocketTimeoutException) {
-                AniListMetrics.recordTimeout()
-                AniListResult.Timeout(isReadTimeout = true)
-            } else {
-                AniListResult.NetworkError(cause ?: e)
-            }
-        } catch (e: ApolloException) {
-            val cause = e.cause
-            if (cause is SocketTimeoutException) {
-                AniListMetrics.recordTimeout()
-                AniListResult.Timeout(isReadTimeout = true)
-            } else {
-                AniListResult.NetworkError(cause ?: e)
-            }
-        } catch (e: Exception) {
-            AniListResult.NetworkError(e)
         }
     }
 
@@ -839,20 +614,14 @@ object AniListApolloClient {
      */
     suspend fun executeGetCharacterProfile(id: Int): AniListResult<CastCrewProfile> = withContext(Dispatchers.IO) {
         AniListMetrics.recordRequest()
-        try {
+        ApolloErrorMapper.safeApolloCall {
             val response = client.query(GetCharacterProfileQuery(Optional.present(id))).execute()
             response.exception?.let { throw it }
             if (response.hasErrors()) {
-                AniListMetrics.recordGraphQLError()
-                val errorDetails = response.errors?.map { AniListErrorDetail(it.message, null) } ?: emptyList()
-                val is404 = errorDetails.any { it.message.trim().trimEnd('.').equals("Not Found", ignoreCase = true) }
-                if (is404) return@withContext AniListResult.NotFound
-                return@withContext AniListResult.GraphQLError(errorDetails)
+                val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
+                if (errorResult != null) return@safeApolloCall errorResult
             }
-            val char = response.data?.Character
-            if (char == null) {
-                return@withContext AniListResult.NotFound
-            }
+            val char = response.data?.Character ?: return@safeApolloCall AniListResult.NotFound
 
             val fullName = char.name?.full?.takeIf { it.isNotBlank() } ?: "Karakter"
             val nativeName = char.name?.native?.takeIf { it.isNotBlank() }
@@ -907,39 +676,6 @@ object AniListApolloClient {
                 filmography = filmography
             )
             AniListResult.Success(profile)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: ApolloHttpException) {
-            when (e.statusCode) {
-                429 -> {
-                    AniListMetrics.recordRateLimit()
-                    AniListResult.RateLimited(60)
-                }
-                404 -> AniListResult.NotFound
-                in 500..599 -> {
-                    AniListMetrics.recordHttp5xx()
-                    AniListResult.HttpError(e.statusCode, e.message ?: "HTTP Error ${e.statusCode}", emptyList())
-                }
-                else -> AniListResult.HttpError(e.statusCode, e.message ?: "HTTP Error ${e.statusCode}", emptyList())
-            }
-        } catch (e: ApolloNetworkException) {
-            val cause = e.cause
-            if (cause is SocketTimeoutException) {
-                AniListMetrics.recordTimeout()
-                AniListResult.Timeout(isReadTimeout = true)
-            } else {
-                AniListResult.NetworkError(cause ?: e)
-            }
-        } catch (e: ApolloException) {
-            val cause = e.cause
-            if (cause is SocketTimeoutException) {
-                AniListMetrics.recordTimeout()
-                AniListResult.Timeout(isReadTimeout = true)
-            } else {
-                AniListResult.NetworkError(cause ?: e)
-            }
-        } catch (e: Exception) {
-            AniListResult.NetworkError(e)
         }
     }
 
@@ -974,14 +710,15 @@ object AniListApolloClient {
 
     private suspend fun executeGetStaffProfile(id: Int): AniListResult<CastCrewProfile> {
         AniListMetrics.recordRequest()
-        return try {
+        return ApolloErrorMapper.safeApolloCall {
             val query = GetStaffProfileQuery(id = Optional.present(id))
             val response = client.query(query).execute()
-            val staff = response.data?.Staff
-            if (staff == null) {
-                AniListMetrics.recordHttp5xx()
-                return AniListResult.NetworkError(Exception("Staff not found for id=$id"))
+            response.exception?.let { throw it }
+            if (response.hasErrors()) {
+                val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
+                if (errorResult != null) return@safeApolloCall errorResult
             }
+            val staff = response.data?.Staff ?: return@safeApolloCall AniListResult.NotFound
 
             val name = staff.name
             val fullName = name?.full?.takeIf { it.isNotBlank() } ?: "Staff"
@@ -1007,7 +744,7 @@ object AniListApolloClient {
                         ?: charNode.image?.medium?.takeIf { it.isNotBlank() }
                     val roleStr = edge.role?.rawValue ?: "MAIN"
 
-                    // Each character edge has media: [Media] â€” take first
+                    // Each character edge has media: [Media] — take first
                     val mediaList = edge.media ?: emptyList()
                     for (m in mediaList) {
                         if (m == null) continue
@@ -1089,21 +826,7 @@ object AniListApolloClient {
                 gender = null,        // not in this schema version
                 filmography = filmography.distinctBy { it.id }
             )
-                        AniListResult.Success(profile)
-        } catch (e: ApolloHttpException) {
-            AniListMetrics.recordHttp5xx()
-            AniListResult.HttpError(e.statusCode, e.message)
-        } catch (e: ApolloNetworkException) {
-            AniListMetrics.recordTimeout()
-            val cause = e.cause
-            if (cause is SocketTimeoutException) {
-                AniListMetrics.recordTimeout()
-                AniListResult.Timeout(isReadTimeout = true)
-            } else {
-                AniListResult.NetworkError(cause ?: e)
-            }
-        } catch (e: Exception) {
-            AniListResult.NetworkError(e)
+            AniListResult.Success(profile)
         }
     }
 
@@ -1160,8 +883,9 @@ object AniListApolloClient {
         val genresList = node.genres?.filterNotNull() ?: emptyList()
         val year = node.startDate?.year?.takeIf { it > 0 }
 
-        CacheManager.putIdMapping(mId, mId) // ensure anilist id is registered
-        malId?.let { CacheManager.putIdMapping(it, mId) }
+        if (malId != null && malId > 0) {
+            CacheManager.putIdMapping(malId = malId, aniListId = mId, type = mType)
+        }
 
         return MediaItem(
             malId = malId,
@@ -1252,23 +976,20 @@ object AniListApolloClient {
                     favourites = favourites,
                     isAnimationStudio = isAnimationStudio
                 )
-                                CacheManager.putStudioFilmography(resolvedId, page, result)
+                CacheManager.putStudioFilmography(resolvedId, page, result)
                 result
-            } catch (e: ApolloHttpException) {
-                AniListMetrics.recordHttp5xx()
-                null
-            } catch (e: ApolloNetworkException) {
-                AniListMetrics.recordTimeout()
-                null
-            } catch (e: Exception) {
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                ApolloErrorMapper.toAniListResult(e)
                 null
             }
         }
     }
 
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    // Step 5.5 â€” SearchStudios
-    // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ──────────────────────────────────────────────────────────────────────────
+    // Step 5.5 — SearchStudios
+    // ──────────────────────────────────────────────────────────────────────────
 
     suspend fun searchStudios(
         query: String,
@@ -1318,19 +1039,15 @@ object AniListApolloClient {
                     StudioBioRegistry.saveToPersistentCache(info)
                     results.add(info)
                 }
-                                results
-            } catch (e: ApolloHttpException) {
-                AniListMetrics.recordHttp5xx()
-                emptyList()
-            } catch (e: ApolloNetworkException) {
-                AniListMetrics.recordTimeout()
-                emptyList()
-            } catch (e: Exception) {
+                results
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                ApolloErrorMapper.toAniListResult(e)
                 emptyList()
             }
         }
     }
-
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     // Step 5.6 â€” GetDiscoverMedia
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1362,7 +1079,7 @@ object AniListApolloClient {
         }
 
         val studioName = m.studios?.nodes?.firstOrNull()?.name
-        if (m.idMal != null) CacheManager.putIdMapping(m.idMal, m.id)
+        if (m.idMal != null) CacheManager.putIdMapping(malId = m.idMal, aniListId = m.id, type = fallbackType)
 
         return MediaItem(
             malId = m.idMal,
@@ -1498,13 +1215,10 @@ object AniListApolloClient {
                 val items = mediaList.filterNotNull().map { mapApolloDiscoverMediaToItem(it, fallbackType) }
                                 if (items.isNotEmpty()) CacheManager.putDiscover(cacheKey, items)
                 items
-            } catch (e: ApolloHttpException) {
-                AniListMetrics.recordHttp5xx()
-                emptyList()
-            } catch (e: ApolloNetworkException) {
-                AniListMetrics.recordTimeout()
-                emptyList()
-            } catch (e: Exception) {
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                ApolloErrorMapper.toAniListResult(e)
                 emptyList()
             }
         }
@@ -1541,7 +1255,7 @@ object AniListApolloClient {
         }
 
         val studioName = m.studios?.nodes?.firstOrNull()?.name
-        if (m.idMal != null) CacheManager.putIdMapping(m.idMal, m.id)
+        if (m.idMal != null) CacheManager.putIdMapping(malId = m.idMal, aniListId = m.id, type = fallbackType)
 
         return MediaItem(
             malId = m.idMal,
@@ -1590,14 +1304,11 @@ object AniListApolloClient {
                         val item = mapApolloBatchMediaToItem(m, type)
                         m.idMal?.let { malId -> chunkResult[malId] = item }
                     }
-                                        chunkResult
-                } catch (e: ApolloHttpException) {
-                    AniListMetrics.recordHttp5xx()
-                    mutableMapOf()
-                } catch (e: ApolloNetworkException) {
-                    AniListMetrics.recordTimeout()
-                    mutableMapOf()
-                } catch (e: Exception) {
+                    chunkResult
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
+                    ApolloErrorMapper.toAniListResult(e)
                     mutableMapOf()
                 }
             }

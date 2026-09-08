@@ -4,6 +4,7 @@ import android.content.Context
 import coil.Coil
 import com.canim.app.data.model.ExtendedMediaDetail
 import com.canim.app.data.model.MediaItem
+import com.canim.app.data.model.MediaType
 import com.canim.app.data.model.UserMediaItem
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
@@ -95,8 +96,8 @@ object CacheManager {
     private val detailCache = createLruMap<String, CacheEntry<ExtendedMediaDetail>>(MAX_DETAIL_ENTRIES)
     private val studioCache = createLruMap<String, CacheEntry<StudioFilmographyPage>>(MAX_STUDIO_ENTRIES)
     private val malFallbackCache = createLruMap<String, CacheEntry<MediaItem>>(MAX_METADATA_ENTRIES)
-    private val idMappingMalToAniList = createLruMap<Int, CacheEntry<Int>>(MAX_ID_MAPPINGS)
-    private val idMappingAniListToMal = createLruMap<Int, CacheEntry<Int>>(MAX_ID_MAPPINGS)
+    private val idMappingMalToAniList = createLruMap<String, CacheEntry<Int>>(MAX_ID_MAPPINGS)
+    private val idMappingAniListToMal = createLruMap<String, CacheEntry<Int>>(MAX_ID_MAPPINGS)
     private val negativeCache = createLruMap<String, CacheEntry<Boolean>>(MAX_METADATA_ENTRIES)
     private val trackingCache = createLruMap<String, CacheEntry<List<UserMediaItem>>>(MAX_TRACKING_ENTRIES)
 
@@ -356,30 +357,68 @@ object CacheManager {
     }
 
     // --- ID Mapping AniList <-> MAL ---
-    fun getAniListIdForMalId(malId: Int): Int? {
-        val entry = idMappingMalToAniList[malId] ?: return null
+    private fun malIdKey(malId: Int, type: MediaType?): String =
+        if (type != null) "mal_${type.name}_$malId" else "mal_ANY_$malId"
+
+    private fun aniListIdKey(aniListId: Int, type: MediaType?): String =
+        if (type != null) "ani_${type.name}_$aniListId" else "ani_ANY_$aniListId"
+
+    fun getAniListIdForMalId(malId: Int, type: MediaType? = null): Int? {
+        if (type != null) {
+            val typedKey = malIdKey(malId, type)
+            val entry = idMappingMalToAniList[typedKey]
+            if (entry != null) {
+                return if (entry.isExpired) {
+                    idMappingMalToAniList.remove(typedKey)
+                    null
+                } else {
+                    entry.data
+                }
+            }
+        }
+        val fallbackKey = malIdKey(malId, null)
+        val entry = idMappingMalToAniList[fallbackKey] ?: return null
         return if (entry.isExpired) {
-            idMappingMalToAniList.remove(malId)
+            idMappingMalToAniList.remove(fallbackKey)
             null
         } else {
             entry.data
         }
     }
 
-    fun getMalIdForAniListId(aniListId: Int): Int? {
-        val entry = idMappingAniListToMal[aniListId] ?: return null
+    fun getMalIdForAniListId(aniListId: Int, type: MediaType? = null): Int? {
+        if (type != null) {
+            val typedKey = aniListIdKey(aniListId, type)
+            val entry = idMappingAniListToMal[typedKey]
+            if (entry != null) {
+                return if (entry.isExpired) {
+                    idMappingAniListToMal.remove(typedKey)
+                    null
+                } else {
+                    entry.data
+                }
+            }
+        }
+        val fallbackKey = aniListIdKey(aniListId, null)
+        val entry = idMappingAniListToMal[fallbackKey] ?: return null
         return if (entry.isExpired) {
-            idMappingAniListToMal.remove(aniListId)
+            idMappingAniListToMal.remove(fallbackKey)
             null
         } else {
             entry.data
         }
     }
 
-    fun putIdMapping(malId: Int?, aniListId: Int?) {
+    fun putIdMapping(malId: Int?, aniListId: Int?, type: MediaType? = null) {
         if (malId != null && malId > 0 && aniListId != null && aniListId > 0) {
-            idMappingMalToAniList[malId] = CacheEntry(aniListId, ttlMillis = TTL_ID_MAPPING)
-            idMappingAniListToMal[aniListId] = CacheEntry(malId, ttlMillis = TTL_ID_MAPPING)
+            val entryAni = CacheEntry(aniListId, ttlMillis = TTL_ID_MAPPING)
+            val entryMal = CacheEntry(malId, ttlMillis = TTL_ID_MAPPING)
+            if (type != null) {
+                idMappingMalToAniList[malIdKey(malId, type)] = entryAni
+                idMappingAniListToMal[aniListIdKey(aniListId, type)] = entryMal
+            }
+            idMappingMalToAniList[malIdKey(malId, null)] = entryAni
+            idMappingAniListToMal[aniListIdKey(aniListId, null)] = entryMal
         }
     }
 

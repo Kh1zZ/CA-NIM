@@ -16,7 +16,6 @@ query GetStaffProfile($id: Int) {
       edges {
         role
         node {
-          id
           name {
             full
           }

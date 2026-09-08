@@ -364,4 +364,93 @@ class ApolloIdResolutionTest {
         assertTrue(followUp is AniListResult.Success)
         assertEquals(9999, (followUp as AniListResult.Success).data)
     }
+
+    // 13. Studio filmography does not self-map AniList ID as MAL ID (Regression P0)
+    @Test
+    fun test13_StudioFilmographyDoesNotSelfMapAniListIdAsMalId() = runBlocking {
+        mockInterceptor.handler = { req, _ ->
+            Response.Builder()
+                .request(req)
+                .protocol(Protocol.HTTP_1_1)
+                .code(200)
+                .message("OK")
+                .body("""
+                    {
+                      "data": {
+                        "Studio": {
+                          "id": 569,
+                          "name": "MAPPA",
+                          "isAnimationStudio": true,
+                          "siteUrl": "http://www.mappa.co.jp/",
+                          "favourites": 12000,
+                          "media": {
+                            "pageInfo": {
+                              "hasNextPage": false,
+                              "currentPage": 1,
+                              "total": 1
+                            },
+                            "nodes": [
+                              {
+                                "id": 16498,
+                                "idMal": 52991,
+                                "title": { "romaji": "Chainsaw Man", "english": "Chainsaw Man" },
+                                "coverImage": { "large": "https://img.jpg" },
+                                "format": "TV",
+                                "type": "ANIME",
+                                "status": "FINISHED",
+                                "episodes": 12,
+                                "chapters": null,
+                                "averageScore": 86,
+                                "popularity": 300000,
+                                "genres": ["Action"],
+                                "startDate": { "year": 2022 }
+                              }
+                            ]
+                          }
+                        }
+                      }
+                    }
+                """.trimIndent().toResponseBody(jsonMediaType))
+                .build()
+        }
+
+        val page = AniListApolloClient.fetchStudioFilmography(studioId = 569, page = 1)
+        assertNotNull(page)
+        assertEquals(1, page!!.items.size)
+
+        // MAL ID 52991 -> AniList ID 16498 must be mapped correctly
+        assertEquals(16498, CacheManager.getAniListIdForMalId(52991))
+        assertEquals(52991, CacheManager.getMalIdForAniListId(16498))
+
+        // P0 check: AniList ID 16498 must NEVER be mapped as MAL ID 16498 (no self-mapping)
+        assertNull("AniList ID must not be registered as its own MAL ID", CacheManager.getAniListIdForMalId(16498))
+    }
+
+    // 14. Enforce correct direction: MAL ID -> AniList ID
+    @Test
+    fun test14_EnforceCorrectDirectionMalIdToAniListId() {
+        CacheManager.putIdMapping(malId = 52991, aniListId = 16498)
+
+        // Correct direction
+        assertEquals(16498, CacheManager.getAniListIdForMalId(52991))
+        assertEquals(52991, CacheManager.getMalIdForAniListId(16498))
+
+        // Reverse queries should NOT cross-pollinate
+        assertNull(CacheManager.getAniListIdForMalId(16498))
+        assertNull(CacheManager.getMalIdForAniListId(52991))
+    }
+
+    // 15. MediaType namespace isolation (Anime vs Manga ID isolation)
+    @Test
+    fun test15_MediaTypeNamespaceIsolation() {
+        // Suppose MAL Anime 1 is Cowboy Bebop (AniList 1), but MAL Manga 1 is Monster (AniList 30001)
+        CacheManager.putIdMapping(malId = 1, aniListId = 1, type = MediaType.ANIME)
+        CacheManager.putIdMapping(malId = 1, aniListId = 30001, type = MediaType.MANGA)
+
+        assertEquals(1, CacheManager.getAniListIdForMalId(1, MediaType.ANIME))
+        assertEquals(30001, CacheManager.getAniListIdForMalId(1, MediaType.MANGA))
+
+        assertEquals(1, CacheManager.getMalIdForAniListId(1, MediaType.ANIME))
+        assertEquals(1, CacheManager.getMalIdForAniListId(30001, MediaType.MANGA))
+    }
 }
