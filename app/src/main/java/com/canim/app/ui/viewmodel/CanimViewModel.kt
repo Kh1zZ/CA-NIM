@@ -1625,49 +1625,142 @@ class CanimViewModel(
                 val token = ++detailRequestToken
                 detailJob = viewModelScope.launch(Dispatchers.IO) {
                     try {
-                        // FAST PATH (Phase 1): Fetch AniList details immediately (cast, crew, rankings, recommendations)
-                        val aniDetail = com.canim.app.data.remote.AniListClient.getExtendedDetails(anilistId, malId, type)
-                        if (aniDetail != null && token == detailRequestToken) {
-                            _uiState.update { current ->
-                                val currentExt = current.extendedDetail
-                                val mergedFast = aniDetail.copy(
-                                    malScore = currentExt?.malScore ?: aniDetail.malScore,
-                                    malRank = currentExt?.malRank ?: aniDetail.rank
-                                )
-                                cacheDetail(resolvedItem, mergedFast)
-                                cacheDetail(item, mergedFast)
-                                _detailState.update {
-                                    it.copy(
-                                        extendedDetail = mergedFast,
-                                        isLoadingExtendedDetail = false
-                                    )
-                                }
-                                current.copy(
-                                    extendedDetail = mergedFast,
-                                    isLoadingExtendedDetail = false
-                                )
+                        val initialMalId = malId ?: (anilistId?.let { CacheManager.getMalIdForAniListId(it, type) })
+                        var effectiveMalId = initialMalId
+
+                        // 1. Concurrently launch MAL fetch if MAL ID is known
+                        val malDeferred = if (initialMalId != null) {
+                            async {
+                                repository.getMalExtendedDetailFallback(initialMalId, type)
+                            }
+                        } else null
+
+                        // 2. Concurrently launch AniList fetch
+                        val aniDeferred = async {
+                            com.canim.app.data.remote.AniListClient.getExtendedDetails(anilistId, initialMalId, type)
+                        }
+
+                        // Worker A: As soon as MAL responds, update UI with MAL metrics and detail immediately!
+                        if (malDeferred != null) {
+                            launch {
+                                try {
+                                    val malDetail = malDeferred.await()
+                                    if (malDetail != null && token == detailRequestToken) {
+                                        _detailState.update { current ->
+                                            val currentExt = current.extendedDetail
+                                            val merged = (currentExt ?: malDetail).copy(
+                                                malScore = malDetail.malScore ?: currentExt?.malScore,
+                                                malRank = malDetail.malRank ?: currentExt?.malRank,
+                                                malPopularity = malDetail.malPopularity ?: currentExt?.malPopularity,
+                                                malMembers = malDetail.malMembers ?: currentExt?.malMembers,
+                                                isFromFallback = currentExt == null || currentExt.isFromFallback
+                                            )
+                                            cacheDetail(resolvedItem, merged)
+                                            cacheDetail(item, merged)
+                                            current.copy(
+                                                extendedDetail = merged,
+                                                isLoadingExtendedDetail = false
+                                            )
+                                        }
+                                        _uiState.update { current ->
+                                            val currentExt = current.extendedDetail
+                                            val merged = (currentExt ?: malDetail).copy(
+                                                malScore = malDetail.malScore ?: currentExt?.malScore,
+                                                malRank = malDetail.malRank ?: currentExt?.malRank,
+                                                malPopularity = malDetail.malPopularity ?: currentExt?.malPopularity,
+                                                malMembers = malDetail.malMembers ?: currentExt?.malMembers,
+                                                isFromFallback = currentExt == null || currentExt.isFromFallback
+                                            )
+                                            current.copy(
+                                                extendedDetail = merged,
+                                                isLoadingExtendedDetail = false
+                                            )
+                                        }
+                                    }
+                                } catch (_: Exception) {}
                             }
                         }
 
-                        // SECONDARY PATH (Phase 2): Asynchronously enrich with authoritative MAL details (score, rank, members)
-                        val effectiveMalId = aniDetail?.malId ?: malId
-                        val detail = repository.getExtendedDetails(anilistId, effectiveMalId, type)
+                        // Worker B: Wait for AniList and merge rich media
+                        val aniDetail = try {
+                            aniDeferred.await()
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            Log.w("CanimViewModel", "AniList detail fetch failed: ${LogRedactor.redact(e.message ?: "")}")
+                            null
+                        }
 
-                        // Final merge with authoritative MAL metrics
-                        if (detail != null && token == detailRequestToken) {
-                            cacheDetail(resolvedItem, detail)
-                            cacheDetail(item, detail)
-                            _detailState.update {
-                                it.copy(
-                                    extendedDetail = detail,
+                        if (aniDetail != null && token == detailRequestToken) {
+                            if (effectiveMalId == null && aniDetail.malId != null) {
+                                effectiveMalId = aniDetail.malId
+                                launch {
+                                    try {
+                                        val malDetail = repository.getMalExtendedDetailFallback(aniDetail.malId, type)
+                                        if (malDetail != null && token == detailRequestToken) {
+                                            _detailState.update { current ->
+                                                val currentExt = current.extendedDetail ?: aniDetail
+                                                val merged = currentExt.copy(
+                                                    malScore = malDetail.malScore ?: currentExt.malScore,
+                                                    malRank = malDetail.malRank ?: currentExt.malRank,
+                                                    malPopularity = malDetail.malPopularity ?: currentExt.malPopularity,
+                                                    malMembers = malDetail.malMembers ?: currentExt.malMembers
+                                                )
+                                                cacheDetail(resolvedItem, merged)
+                                                cacheDetail(item, merged)
+                                                current.copy(extendedDetail = merged)
+                                            }
+                                            _uiState.update { current ->
+                                                val currentExt = current.extendedDetail ?: aniDetail
+                                                val merged = currentExt.copy(
+                                                    malScore = malDetail.malScore ?: currentExt.malScore,
+                                                    malRank = malDetail.malRank ?: currentExt.malRank,
+                                                    malPopularity = malDetail.malPopularity ?: currentExt.malPopularity,
+                                                    malMembers = malDetail.malMembers ?: currentExt.malMembers
+                                                )
+                                                current.copy(extendedDetail = merged)
+                                            }
+                                        }
+                                    } catch (_: Exception) {}
+                                }
+                            }
+
+                            _detailState.update { current ->
+                                val currentExt = current.extendedDetail
+                                val merged = aniDetail.copy(
+                                    malScore = currentExt?.malScore ?: aniDetail.malScore,
+                                    malRank = currentExt?.malRank ?: aniDetail.rank,
+                                    malPopularity = currentExt?.malPopularity ?: aniDetail.popularity,
+                                    malMembers = currentExt?.malMembers ?: aniDetail.watchers
+                                )
+                                cacheDetail(resolvedItem, merged)
+                                cacheDetail(item, merged)
+                                current.copy(
+                                    extendedDetail = merged,
                                     isLoadingExtendedDetail = false
                                 )
                             }
-                            _uiState.update {
-                                it.copy(
-                                    extendedDetail = detail,
+                            _uiState.update { current ->
+                                val currentExt = current.extendedDetail
+                                val merged = aniDetail.copy(
+                                    malScore = currentExt?.malScore ?: aniDetail.malScore,
+                                    malRank = currentExt?.malRank ?: aniDetail.rank,
+                                    malPopularity = currentExt?.malPopularity ?: aniDetail.popularity,
+                                    malMembers = currentExt?.malMembers ?: aniDetail.watchers
+                                )
+                                current.copy(
+                                    extendedDetail = merged,
                                     isLoadingExtendedDetail = false
                                 )
+                            }
+                        } else if (aniDetail == null && effectiveMalId != null && malDeferred != null) {
+                            // AniList failed or timed out: wait for MAL fallback to finish
+                            val malDetail = malDeferred.await()
+                            if (malDetail != null && token == detailRequestToken) {
+                                cacheDetail(resolvedItem, malDetail)
+                                cacheDetail(item, malDetail)
+                                _detailState.update { it.copy(extendedDetail = malDetail, isLoadingExtendedDetail = false) }
+                                _uiState.update { it.copy(extendedDetail = malDetail, isLoadingExtendedDetail = false) }
                             }
                         }
 
@@ -1676,29 +1769,30 @@ class CanimViewModel(
                             try {
                                 val tracking = repository.getMalTrackingStatus(effectiveMalId, type)
                                 if (tracking != null) {
+                                    val currentExt = _detailState.value.extendedDetail
                                     val media = resolvedItem as? MediaItem
-                                    val itemTitle = media?.title ?: detail?.title ?: ""
-                                    val itemImageUrl = media?.imageUrl ?: detail?.coverImage ?: ""
+                                    val itemTitle = media?.title ?: currentExt?.title ?: ""
+                                    val itemImageUrl = media?.imageUrl ?: currentExt?.coverImage ?: ""
                                     val metadata = MediaMetadata(
                                         title = itemTitle,
-                                        titleEnglish = media?.titleEnglish ?: detail?.titleEnglish,
-                                        titleNative = detail?.nativeTitle,
+                                        titleEnglish = media?.titleEnglish ?: currentExt?.titleEnglish,
+                                        titleNative = currentExt?.nativeTitle,
                                         imageUrl = itemImageUrl,
                                         type = type,
-                                        score = detail?.malScore ?: media?.score,
-                                        synopsis = media?.synopsis ?: detail?.synopsis,
+                                        score = currentExt?.malScore ?: media?.score,
+                                        synopsis = media?.synopsis ?: currentExt?.synopsis,
                                         totalEpisodes = media?.episodes,
                                         totalChapters = media?.chapters,
-                                        status = media?.status ?: detail?.airingStatus,
-                                        year = media?.year ?: detail?.startDate?.take(4)?.toIntOrNull(),
+                                        status = media?.status ?: currentExt?.airingStatus,
+                                        year = media?.year ?: currentExt?.startDate?.take(4)?.toIntOrNull(),
                                         season = media?.season,
-                                        genres = if (media?.genres?.isNotEmpty() == true) media.genres else (detail?.genres ?: emptyList()),
-                                        format = media?.format ?: detail?.source,
-                                        studio = media?.studio ?: detail?.studio
+                                        genres = if (media?.genres?.isNotEmpty() == true) media.genres else (currentExt?.genres ?: emptyList()),
+                                        format = media?.format ?: currentExt?.source,
+                                        studio = media?.studio ?: currentExt?.studio
                                     )
                                     val newUserItem = UserMediaItem(
                                         identity = MediaRef(
-                                            anilistId = anilistId ?: detail?.anilistId,
+                                            anilistId = anilistId ?: currentExt?.anilistId,
                                             malId = effectiveMalId
                                         ),
                                         metadata = metadata,

@@ -1005,6 +1005,9 @@ class CanimRepository(
             ?: (resolvedMalId?.let { CacheManager.getDetail(CacheManager.detailKey(null, it)) })
     }
 
+    suspend fun getMalExtendedDetailFallback(malId: Int, type: MediaType): ExtendedMediaDetail? =
+        malAuthManager.getExtendedDetailFallback(malId, type)
+
     // --- Extended Details: Primary AniList, Fallback to MAL ---
     suspend fun getExtendedDetails(
         aniListId: Int?,
@@ -1057,8 +1060,8 @@ class CanimRepository(
                     } else null
                 }
 
-                val aniDetail = aniDeferred.await()
-                var malExt = malDeferred.await()
+                val aniDetail = try { aniDeferred.await() } catch (_: Exception) { null }
+                var malExt = try { malDeferred.await() } catch (_: Exception) { null }
 
                 // If MAL ID wasn't known beforehand, but AniList returned it, fetch MAL fallback
                 val effectiveMalId = aniDetail?.malId ?: resolvedMalId
