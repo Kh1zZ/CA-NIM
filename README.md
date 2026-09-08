@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.1.9%20(Build%2033)-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.2.0%20(Build%2034)-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#tech-stack--dependensi"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#uiux-architecture--fluid-continuity"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
@@ -217,6 +217,16 @@ Verifikasi lokal diwajibkan menjalankan suite pengujian unit otomatis sebelum me
 ---
 
 ## 📝 10. Catatan Perubahan
+
+### v6.2.0 (Build 34)
+- **Mitigasi Tangguh GitHub API HTTP 403 Rate Limit**:
+  - Menyematkan Web Redirect Resolver yang memverifikasi rilis terbaru melalui jalur web standar GitHub tanpa memotong kuota REST API 60 request/jam.
+  - Mengimplementasikan Conditional GET dengan ETag (`If-None-Match`); respons `304 Not Modified` tidak memotong kuota permintaan.
+  - Menyediakan fallback otomatis ke CDN Landing Page publik (`CA-NIM-LP`) saat REST API terkena HTTP 403/429/404.
+  - Memformat pesan notifikasi UI agar ramah dan informatif bagi pengguna.
+- **Konsolidasi Seluruh Arsitektur Dual-Engine ke Branch Utama**:
+  - Menggabungkan seluruh pembaruan Phase 4 (OAuth2 PKCE, offline sync mutation, Room persistence) dan Phase 5 (observability & bounded fallbacks) ke branch rilis utama.
+- **Integritas Pengujian Unit**: Seluruh 322 pengujian unit lulus 100%.
 
 ### v6.1.9 (Build 33)
 - **Desinkronisasi Paralel MAL & AniList di Halaman Detail**:

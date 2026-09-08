@@ -908,7 +908,13 @@ class CanimViewModel(
                 _uiState.update { it.copy(isCheckingUpdate = false) }
                 _updateState.update { it.copy(isChecking = false) }
                 if (manual) {
-                    showSnackbar("Gagal memeriksa pembaruan: ${result.exceptionOrNull()?.message ?: "Jaringan bermasalah"}")
+                    val rawMsg = result.exceptionOrNull()?.message ?: "Jaringan bermasalah"
+                    val userMsg = if (rawMsg.contains("403") || rawMsg.contains("rate limit", ignoreCase = true)) {
+                        "Batas permintaan GitHub terlampaui. Coba beberapa saat lagi."
+                    } else {
+                        rawMsg
+                    }
+                    showSnackbar("Gagal memeriksa pembaruan: $userMsg")
                 }
             }
         }

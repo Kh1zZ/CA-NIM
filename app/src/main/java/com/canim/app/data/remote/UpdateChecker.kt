@@ -28,6 +28,16 @@ data class UpdateInfo(
 object UpdateChecker {
 
     private const val GITHUB_LATEST_RELEASE_URL = "https://api.github.com/repos/Kh1zZ/CA-NIM/releases/latest"
+    private const val GITHUB_WEB_RELEASE_URL = "https://github.com/Kh1zZ/CA-NIM/releases/latest"
+    private const val GITHUB_LP_FALLBACK_URL = "https://raw.githubusercontent.com/Kh1zZ/CA-NIM-LP/main/index.html"
+
+    @Volatile
+    private var cachedUpdateInfo: UpdateInfo? = null
+    @Volatile
+    private var lastCheckTime: Long = 0L
+    @Volatile
+    private var lastEtag: String? = null
+    private const val CACHE_TTL_MS = 10 * 60 * 1000L // 10 menit cache
 
     /**
      * Verifies that the download URL uses HTTPS and belongs to trusted GitHub domains.
@@ -84,9 +94,42 @@ object UpdateChecker {
     }
 
     /**
-     * Queries GitHub Releases API for the latest published release and finds any attached .apk asset.
+     * Queries GitHub Releases API for the latest published release with multiple resilient layers:
+     * 1. In-memory SWR cache to avoid repeated calls within TTL.
+     * 2. Web redirect resolution (bypasses GitHub REST API 60 req/hr rate limit).
+     * 3. ETag conditional GET (304 Not Modified does not consume GitHub rate limit).
+     * 4. Automatic fallback to Landing Page (raw CDN) on HTTP 403 / 429 / 404.
      */
     suspend fun checkLatestRelease(currentVersion: String): Result<UpdateInfo> = withContext(Dispatchers.IO) {
+        val now = System.currentTimeMillis()
+        val cached = cachedUpdateInfo
+
+        // 1. Return in-memory cached info if within TTL
+        if (cached != null && (now - lastCheckTime < CACHE_TTL_MS)) {
+            val isNewer = compareSemver(current = currentVersion, latest = cached.latestVersion) > 0
+            return@withContext Result.success(cached.copy(isUpdateAvailable = isNewer, currentVersion = currentVersion))
+        }
+
+        // 2. Try web redirect first (does not count toward GitHub API 60 req/hr limit)
+        val webTag = resolveTagViaWebRedirect()
+        if (!webTag.isNullOrBlank()) {
+            val isNewer = compareSemver(current = currentVersion, latest = webTag) > 0
+            val info = UpdateInfo(
+                isUpdateAvailable = isNewer,
+                currentVersion = currentVersion,
+                latestVersion = webTag,
+                htmlUrl = "https://github.com/Kh1zZ/CA-NIM/releases/tag/$webTag",
+                releaseNotes = "Pembaruan rilis CA'NIM $webTag.",
+                releaseName = "CA'NIM $webTag",
+                apkDownloadUrl = "https://github.com/Kh1zZ/CA-NIM/releases/download/$webTag/canim-universal-release-$webTag.apk",
+                apkName = "canim-universal-release-$webTag.apk",
+                apkSize = 0L
+            )
+            cachedUpdateInfo = info
+            lastCheckTime = now
+            return@withContext Result.success(info)
+        }
+
         AppMetrics.recordRequest("github", "checkLatestRelease")
         val startNs = System.nanoTime()
         var connection: HttpURLConnection? = null
@@ -95,17 +138,62 @@ object UpdateChecker {
             connection = (url.openConnection() as HttpURLConnection).apply {
                 requestMethod = "GET"
                 setRequestProperty("Accept", "application/vnd.github.v3+json")
-                setRequestProperty("User-Agent", "CA-NIM-App")
+                setRequestProperty("User-Agent", "CA-NIM-App/$currentVersion (Android)")
+                lastEtag?.let { etag ->
+                    setRequestProperty("If-None-Match", etag)
+                }
                 connectTimeout = 8000
                 readTimeout = 8000
             }
 
             val responseCode = connection.responseCode
+
+            // 304 Not Modified: reuse cached data without consuming rate limit
+            if (responseCode == HttpURLConnection.HTTP_NOT_MODIFIED && cached != null) {
+                lastCheckTime = now
+                val isNewer = compareSemver(current = currentVersion, latest = cached.latestVersion) > 0
+                return@withContext Result.success(cached.copy(isUpdateAvailable = isNewer, currentVersion = currentVersion))
+            }
+
+            // 403 Forbidden / 429 Rate Limit Exceeded
+            if (responseCode == 403 || responseCode == 429) {
+                if (responseCode == 429) {
+                    AppMetrics.recordRateLimit("github", "checkLatestRelease")
+                }
+                if (cached != null) {
+                    val isNewer = compareSemver(current = currentVersion, latest = cached.latestVersion) > 0
+                    return@withContext Result.success(cached.copy(isUpdateAvailable = isNewer, currentVersion = currentVersion))
+                }
+
+                val fallback = fetchFallbackFromLandingPage(currentVersion)
+                if (fallback != null) {
+                    cachedUpdateInfo = fallback
+                    lastCheckTime = now
+                    return@withContext Result.success(fallback)
+                }
+
+                return@withContext Result.failure(
+                    Exception("Batas permintaan GitHub API terlampaui (rate limit). Coba beberapa saat lagi atau cek langsung di GitHub.")
+                )
+            }
+
+            // Other HTTP errors (e.g. 404 if no release published yet)
             if (responseCode != HttpURLConnection.HTTP_OK) {
                 if (responseCode in 500..599) {
                     AppMetrics.recordHttp5xx("github", "checkLatestRelease", responseCode)
                 }
-                return@withContext Result.failure(Exception("HTTP $responseCode dari GitHub API"))
+                val fallback = fetchFallbackFromLandingPage(currentVersion)
+                if (fallback != null) {
+                    cachedUpdateInfo = fallback
+                    lastCheckTime = now
+                    return@withContext Result.success(fallback)
+                }
+                return@withContext Result.failure(Exception("HTTP $responseCode saat memeriksa pembaruan"))
+            }
+
+            val etag = connection.getHeaderField("ETag")
+            if (!etag.isNullOrBlank()) {
+                lastEtag = etag
             }
 
             val responseBody = connection.inputStream.bufferedReader().use { it.readText() }
@@ -116,6 +204,12 @@ object UpdateChecker {
             val releaseNotes = json.optString("body", "")
 
             if (tagName.isBlank()) {
+                val fallback = fetchFallbackFromLandingPage(currentVersion)
+                if (fallback != null) {
+                    cachedUpdateInfo = fallback
+                    lastCheckTime = now
+                    return@withContext Result.success(fallback)
+                }
                 return@withContext Result.failure(Exception("Tag rilis tidak ditemukan"))
             }
 
@@ -139,29 +233,109 @@ object UpdateChecker {
 
             val isNewer = compareSemver(current = currentVersion, latest = tagName) > 0
 
-            Result.success(
-                UpdateInfo(
-                    isUpdateAvailable = isNewer,
-                    currentVersion = currentVersion,
-                    latestVersion = tagName,
-                    htmlUrl = htmlUrl,
-                    releaseNotes = releaseNotes,
-                    releaseName = releaseName,
-                    apkDownloadUrl = apkUrl,
-                    apkName = apkFileName,
-                    apkSize = apkFileSize
-                )
+            val info = UpdateInfo(
+                isUpdateAvailable = isNewer,
+                currentVersion = currentVersion,
+                latestVersion = tagName,
+                htmlUrl = htmlUrl,
+                releaseNotes = releaseNotes,
+                releaseName = releaseName,
+                apkDownloadUrl = apkUrl,
+                apkName = apkFileName,
+                apkSize = apkFileSize
             )
+
+            cachedUpdateInfo = info
+            lastCheckTime = now
+            Result.success(info)
         } catch (e: Exception) {
             if (e is java.net.SocketTimeoutException) {
                 AppMetrics.recordTimeout("github", "checkLatestRelease")
             }
-            Result.failure(e)
+            val fallback = fetchFallbackFromLandingPage(currentVersion)
+            if (fallback != null) {
+                cachedUpdateInfo = fallback
+                lastCheckTime = now
+                Result.success(fallback)
+            } else {
+                Result.failure(e)
+            }
         } finally {
             val durationMs = (System.nanoTime() - startNs) / 1_000_000L
             AppMetrics.recordLatency("github", "checkLatestRelease", durationMs)
             connection?.disconnect()
         }
+    }
+
+    /**
+     * Resolves latest release tag via GitHub Web HTTP redirect (bypasses REST API rate limit).
+     */
+    private fun resolveTagViaWebRedirect(): String? {
+        var conn: HttpURLConnection? = null
+        try {
+            val url = URL(GITHUB_WEB_RELEASE_URL)
+            conn = (url.openConnection() as HttpURLConnection).apply {
+                instanceFollowRedirects = false
+                requestMethod = "HEAD"
+                setRequestProperty("User-Agent", "Mozilla/5.0 (Android; Mobile)")
+                connectTimeout = 5000
+                readTimeout = 5000
+            }
+            val code = conn.responseCode
+            if (code in 301..308) {
+                val loc = conn.getHeaderField("Location") ?: ""
+                if (loc.contains("/releases/tag/")) {
+                    val tag = loc.substringAfterLast("/releases/tag/").trim()
+                    if (tag.isNotBlank()) return tag
+                }
+            }
+        } catch (_: Exception) {} finally {
+            conn?.disconnect()
+        }
+        return null
+    }
+
+    /**
+     * Fallback to Landing Page (raw CDN) which is never rate-limited.
+     */
+    private fun fetchFallbackFromLandingPage(currentVersion: String): UpdateInfo? {
+        var conn: HttpURLConnection? = null
+        try {
+            val url = URL(GITHUB_LP_FALLBACK_URL)
+            conn = (url.openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                setRequestProperty("User-Agent", "CA-NIM-App/$currentVersion (Android)")
+                connectTimeout = 6000
+                readTimeout = 6000
+            }
+            if (conn.responseCode == HttpURLConnection.HTTP_OK) {
+                val html = conn.inputStream.bufferedReader().use { it.readText() }
+                val tagRegex = Regex("""tagName:\s*['"]([^'"]+)['"]""")
+                val tagName = tagRegex.find(html)?.groupValues?.getOrNull(1)?.trim()
+                if (!tagName.isNullOrBlank()) {
+                    val dlRegex = Regex("""downloadUrl:\s*['"]([^'"]+)['"]""")
+                    val fileRegex = Regex("""fileName:\s*['"]([^'"]+)['"]""")
+                    val apkUrl = dlRegex.find(html)?.groupValues?.getOrNull(1)
+                    val apkName = fileRegex.find(html)?.groupValues?.getOrNull(1) ?: "canim-release-$tagName.apk"
+
+                    val isNewer = compareSemver(current = currentVersion, latest = tagName) > 0
+                    return UpdateInfo(
+                        isUpdateAvailable = isNewer,
+                        currentVersion = currentVersion,
+                        latestVersion = tagName,
+                        htmlUrl = "https://github.com/Kh1zZ/CA-NIM/releases/tag/$tagName",
+                        releaseNotes = "Pembaruan rilis CA'NIM $tagName.",
+                        releaseName = "CA'NIM $tagName",
+                        apkDownloadUrl = apkUrl,
+                        apkName = apkName,
+                        apkSize = 0L
+                    )
+                }
+            }
+        } catch (_: Exception) {} finally {
+            conn?.disconnect()
+        }
+        return null
     }
 
     /**
