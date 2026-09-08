@@ -16,6 +16,22 @@ import com.canim.app.BuildConfig
 import com.canim.app.data.remote.UpdateChecker
 import com.canim.app.data.remote.UpdateInfo
 import androidx.compose.runtime.Immutable
+import com.canim.app.ui.viewmodel.detail.DetailEvent
+import com.canim.app.ui.viewmodel.detail.DetailUiState
+import com.canim.app.ui.viewmodel.discover.DiscoverEvent
+import com.canim.app.ui.viewmodel.discover.DiscoverUiState
+import com.canim.app.ui.viewmodel.gacha.GachaEvent
+import com.canim.app.ui.viewmodel.gacha.GachaUiState
+import com.canim.app.ui.viewmodel.global.GlobalEvent
+import com.canim.app.ui.viewmodel.global.GlobalUiState
+import com.canim.app.ui.viewmodel.library.LibraryEvent
+import com.canim.app.ui.viewmodel.library.LibraryUiState
+import com.canim.app.ui.viewmodel.search.SearchEvent
+import com.canim.app.ui.viewmodel.search.SearchUiState
+import com.canim.app.ui.viewmodel.studio.StudioEvent
+import com.canim.app.ui.viewmodel.studio.StudioUiState
+import com.canim.app.ui.viewmodel.update.UpdateEvent
+import com.canim.app.ui.viewmodel.update.UpdateUiState
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -122,6 +138,43 @@ class CanimViewModel(
     )
     val uiState: StateFlow<CanimUiState> = _uiState.asStateFlow()
 
+    // Isolated Search Feature State
+    private val _searchState = MutableStateFlow(SearchUiState())
+    val searchState: StateFlow<SearchUiState> = _searchState.asStateFlow()
+
+    // Isolated Discover Feature State
+    private val _discoverState = MutableStateFlow(DiscoverUiState())
+    val discoverState: StateFlow<DiscoverUiState> = _discoverState.asStateFlow()
+
+    // Isolated Detail Feature State
+    private val _detailState = MutableStateFlow(DetailUiState())
+    val detailState: StateFlow<DetailUiState> = _detailState.asStateFlow()
+
+    // Isolated Library Feature State
+    private val _libraryState = MutableStateFlow(LibraryUiState())
+    val libraryState: StateFlow<LibraryUiState> = _libraryState.asStateFlow()
+
+    // Isolated Gacha Feature State
+    private val _gachaState = MutableStateFlow(GachaUiState())
+    val gachaState: StateFlow<GachaUiState> = _gachaState.asStateFlow()
+
+    // Isolated Studio Feature State
+    private val _studioState = MutableStateFlow(StudioUiState())
+    val studioState: StateFlow<StudioUiState> = _studioState.asStateFlow()
+
+    // Isolated AppUpdate Feature State
+    private val _updateState = MutableStateFlow(UpdateUiState())
+    val updateState: StateFlow<UpdateUiState> = _updateState.asStateFlow()
+
+    // Isolated Global App State (Auth, Health, Navigation)
+    private val _globalState = MutableStateFlow(
+        GlobalUiState(
+            malUser = repository.getMalUser(),
+            appMode = if (repository.getMalUser().isLoggedIn) "online_sync" else "offline"
+        )
+    )
+    val globalState: StateFlow<GlobalUiState> = _globalState.asStateFlow()
+
     // Centralized Navigation Back Stack (ScreenRoute)
     private val _screenStack = MutableStateFlow<List<ScreenRoute>>(emptyList())
     val screenStack: StateFlow<List<ScreenRoute>> = _screenStack.asStateFlow()
@@ -226,6 +279,7 @@ class CanimViewModel(
         // Initialize Gacha Credits
         val gachaMgr = gachaCreditManager ?: try { GachaCreditManager.getInstance(CanimApplication.instance) } catch (_: Exception) { null }
         val currentCredits = gachaMgr?.getCredits() ?: 5
+        _gachaState.update { it.copy(credits = currentCredits) }
         _uiState.update { it.copy(gachaCredits = currentCredits) }
 
         // Initialize Update Preferences & Auto-check
@@ -250,16 +304,17 @@ class CanimViewModel(
                     flow {
                         val trimmed = trigger.query.trim()
                         val type = trigger.type
-                        val state = _uiState.value
-                        val hasFilters = state.searchGenres.isNotEmpty() || state.searchYear != null || state.searchFormat != null
+                        val searchState = _searchState.value
+                        val hasFilters = searchState.genres.isNotEmpty() || searchState.year != null || searchState.format != null
                         if (trimmed.length < 2 && !hasFilters) {
                             emit(emptyList<MediaItem>())
                         } else {
+                            _searchState.update { it.copy(isSearching = true) }
                             _uiState.update { it.copy(isSearching = true) }
                             val results = if (type == MediaType.ANIME) {
-                                repository.searchAnime(trimmed, state.searchGenres, state.searchYear, state.searchFormat, forceRefresh = trigger.forceRefresh)
+                                repository.searchAnime(trimmed, searchState.genres, searchState.year, searchState.format, forceRefresh = trigger.forceRefresh)
                             } else {
-                                repository.searchManga(trimmed, state.searchGenres, state.searchYear, state.searchFormat, forceRefresh = trigger.forceRefresh)
+                                repository.searchManga(trimmed, searchState.genres, searchState.year, searchState.format, forceRefresh = trigger.forceRefresh)
                             }
                             emit(results)
                         }
@@ -267,6 +322,7 @@ class CanimViewModel(
                 }
                 .flowOn(Dispatchers.IO)
                 .collect { results ->
+                    _searchState.update { it.copy(results = results, isSearching = false) }
                     _uiState.update { it.copy(searchResults = results, isSearching = false) }
                 }
         }
@@ -287,29 +343,36 @@ class CanimViewModel(
             repository.cacheRefreshEvents.collect { event ->
                 when (event.type) {
                     CacheRefreshType.SEARCH -> {
-                        val state = _uiState.value
-                        val trimmed = state.searchQuery.trim()
-                        val type = state.searchType.name
-                        val genres = state.searchGenres
-                        val year = state.searchYear
-                        val format = state.searchFormat
+                        val searchState = _searchState.value
+                        val trimmed = searchState.query.trim()
+                        val type = searchState.type.name
+                        val genres = searchState.genres
+                        val year = searchState.year
+                        val format = searchState.format
                         val filterKey = repository.searchFilterKey(trimmed, genres, year, format)
                         val searchKey = CacheManager.searchKey(filterKey, type)
                         if (event.key == searchKey || event.key == filterKey) {
                             val fresh = CacheManager.getSearch(filterKey, type)
                             if (fresh != null) {
+                                _searchState.update { it.copy(results = fresh) }
                                 _uiState.update { it.copy(searchResults = fresh) }
                             }
                         }
                     }
                     CacheRefreshType.DISCOVER -> {
                         val token = discoverRequestToken
-                        val state = _uiState.value
-                        val categoryKey = repository.discoverFilterKey(state.selectedDiscoverCategory, state.discoverFilter, page = 1)
+                        val discoverState = _discoverState.value
+                        val categoryKey = repository.discoverFilterKey(discoverState.selectedCategory, discoverState.filter, page = 1)
                         val discoverKey = CacheManager.discoverKey(categoryKey)
                         if (event.key == discoverKey || event.key == categoryKey) {
                             val fresh = CacheManager.getDiscover(categoryKey)
                             if (fresh != null && token == discoverRequestToken) {
+                                _discoverState.update {
+                                    it.copy(
+                                        items = fresh,
+                                        canLoadMore = fresh.size >= 20
+                                    )
+                                }
                                 _uiState.update {
                                     it.copy(
                                         discoverItems = fresh,
@@ -336,6 +399,12 @@ class CanimViewModel(
                                 val fresh = CacheManager.getDetail(event.key)
                                 if (fresh != null && token == detailRequestToken) {
                                     selected?.let { cacheDetail(it, fresh) }
+                                    _detailState.update {
+                                        it.copy(
+                                            extendedDetail = fresh,
+                                            isLoadingExtendedDetail = false
+                                        )
+                                    }
                                     _uiState.update {
                                         it.copy(
                                             extendedDetail = fresh,
@@ -356,6 +425,7 @@ class CanimViewModel(
             val aniDown = repository.isAniListUnavailable()
             val malDown = repository.isMalUnavailable()
             _uiState.update { it.copy(isAniListDown = aniDown, isMalDown = malDown) }
+            _globalState.update { it.copy(isAniListDown = aniDown, isMalDown = malDown) }
         }
     }
 
@@ -365,17 +435,23 @@ class CanimViewModel(
     fun loadUserLibrary(forceRefresh: Boolean = false) {
         viewModelScope.launch {
             val user = repository.getMalUser()
+            _libraryState.update { it.copy(isLoading = true) }
+            _uiState.update { it.copy(isLoadingLibrary = true) }
+            _globalState.update { it.copy(isLoadingLibrary = true) }
             if (user.isLoggedIn) {
                 // SWR: If cached items exist and synced within 30 minutes, skip network on startup unless forced
                 val hasCachedData = _uiState.value.animeList.isNotEmpty() || _uiState.value.mangaList.isNotEmpty()
                 val lastSynced = repository.getLastSyncedTime()
                 val isCacheFresh = (System.currentTimeMillis() - lastSynced) < 30 * 60 * 1000L
                 if (!forceRefresh && hasCachedData && isCacheFresh) {
+                    _libraryState.update { it.copy(isLoading = false) }
                     _uiState.update { it.copy(isLoadingLibrary = false, syncStatus = SyncStatus.IDLE) }
+                    _globalState.update { it.copy(isLoadingLibrary = false, syncStatus = SyncStatus.IDLE) }
                     return@launch
                 }
 
                 _uiState.update { it.copy(isLoadingLibrary = true, syncStatus = SyncStatus.SYNCING) }
+                _globalState.update { it.copy(isLoadingLibrary = true, syncStatus = SyncStatus.SYNCING) }
                 val animeDeferred = async(Dispatchers.IO) { repository.getUserAnimeList(forceRefresh) }
                 val mangaDeferred = async(Dispatchers.IO) { repository.getUserMangaList(forceRefresh) }
 
@@ -414,12 +490,15 @@ class CanimViewModel(
                 mangas.forEach { gachaMgr?.initBaselineProgress(it.id, it.progress) }
 
                 updateLibraryData(animes, mangas)
+                _libraryState.update { it.copy(isLoading = false) }
                 _uiState.update { it.copy(isLoadingLibrary = false, syncStatus = finalSyncStatus) }
+                _globalState.update { it.copy(isLoadingLibrary = false, syncStatus = finalSyncStatus) }
 
                 if (finalSyncStatus == SyncStatus.SUCCESS) {
                     launch {
                         delay(3000L)
                         _uiState.update { if (it.syncStatus == SyncStatus.SUCCESS) it.copy(syncStatus = SyncStatus.IDLE) else it }
+                        _globalState.update { if (it.syncStatus == SyncStatus.SUCCESS) it.copy(syncStatus = SyncStatus.IDLE) else it }
                     }
                 }
             } else {
@@ -427,7 +506,9 @@ class CanimViewModel(
                 if (_uiState.value.animeList.isEmpty() && _uiState.value.mangaList.isEmpty()) {
                     updateLibraryData(repository.getDemoAnime(), repository.getDemoManga())
                 }
+                _libraryState.update { it.copy(isLoading = false) }
                 _uiState.update { it.copy(isLoadingLibrary = false, syncStatus = SyncStatus.IDLE) }
+                _globalState.update { it.copy(isLoadingLibrary = false, syncStatus = SyncStatus.IDLE) }
             }
         }
     }
@@ -471,6 +552,17 @@ class CanimViewModel(
             )
 
             withContext(Dispatchers.Main) {
+                _libraryState.update { current ->
+                    current.copy(
+                        animeList = animes,
+                        mangaList = mangas,
+                        watchingAnime = watching,
+                        readingManga = reading,
+                        completedAnimeMalIds = completedAnimeIds,
+                        completedMangaMalIds = completedMangaIds,
+                        stats = stats
+                    )
+                }
                 _uiState.update { current ->
                     current.copy(
                         animeList = animes,
@@ -486,29 +578,70 @@ class CanimViewModel(
         }
     }
 
+    // --- Library Feature Events & State Operations ---
+    fun onLibraryEvent(event: LibraryEvent) {
+        when (event) {
+            is LibraryEvent.SetFilterType -> {
+                _libraryState.update { it.copy(filterType = event.type) }
+                _uiState.update { it.copy(libraryFilterType = event.type) }
+            }
+            is LibraryEvent.SetStatusFilter -> {
+                _libraryState.update { it.copy(statusFilter = event.status) }
+                _uiState.update { it.copy(libraryStatusFilter = event.status) }
+            }
+            is LibraryEvent.SetSearchQuery -> {
+                _libraryState.update { it.copy(searchQuery = event.query) }
+                _uiState.update { it.copy(librarySearchQuery = event.query) }
+            }
+            is LibraryEvent.SetSortBy -> {
+                _libraryState.update { it.copy(sortBy = event.sort) }
+                _uiState.update { it.copy(librarySortBy = event.sort) }
+            }
+            is LibraryEvent.SaveAnime -> {
+                saveAnime(event.item)
+            }
+            is LibraryEvent.SaveManga -> {
+                saveManga(event.item)
+            }
+            is LibraryEvent.DeleteAnime -> {
+                deleteAnime(event.animeId)
+            }
+            is LibraryEvent.DeleteManga -> {
+                deleteManga(event.mangaId)
+            }
+            is LibraryEvent.IncrementProgress -> {
+                quickIncrementAnime(event.identifier)
+            }
+            is LibraryEvent.ReloadLibrary -> {
+                loadUserLibrary(forceRefresh = true)
+            }
+        }
+    }
+
     // --- Navigation & Filter Controls ---
     fun setTab(tab: String) {
         clearScreenStack()
         _uiState.update { it.copy(activeTab = tab) }
+        _globalState.update { it.copy(activeTab = tab) }
         if (tab == "discover" && _uiState.value.discoverItems.isEmpty() && !_uiState.value.isDiscoverLoading) {
             loadDiscoverCategory(_uiState.value.selectedDiscoverCategory, _uiState.value.discoverFilter)
         }
     }
 
     fun setLibraryFilterType(type: MediaType) {
-        _uiState.update { it.copy(libraryFilterType = type) }
+        onLibraryEvent(LibraryEvent.SetFilterType(type))
     }
 
     fun setLibraryStatusFilter(status: String?) {
-        _uiState.update { it.copy(libraryStatusFilter = status) }
+        onLibraryEvent(LibraryEvent.SetStatusFilter(status))
     }
 
     fun setLibrarySearch(query: String) {
-        _uiState.update { it.copy(librarySearchQuery = query) }
+        onLibraryEvent(LibraryEvent.SetSearchQuery(query))
     }
 
     fun setLibrarySort(sort: String) {
-        _uiState.update { it.copy(librarySortBy = sort) }
+        onLibraryEvent(LibraryEvent.SetSortBy(sort))
     }
 
     // --- Bidirectional Optimistic Tracking Actions ---
@@ -531,6 +664,7 @@ class CanimViewModel(
         val awarded = gachaMgr?.recordProgressAndAwardCredits(item.id, updatedItem.tracking.progress) ?: 0
         if (awarded > 0) {
             val newBal = gachaMgr?.getCredits() ?: (_uiState.value.gachaCredits + awarded)
+            _gachaState.update { it.copy(credits = newBal) }
             _uiState.update { it.copy(gachaCredits = newBal) }
             showSnackbar("+1 Episode ditambahkan! (+$awarded Tiket Gacha)")
         } else {
@@ -598,6 +732,7 @@ class CanimViewModel(
         val awarded = gachaMgr?.recordProgressAndAwardCredits(item.id, updatedItem.tracking.progress) ?: 0
         if (awarded > 0) {
             val newBal = gachaMgr?.getCredits() ?: (_uiState.value.gachaCredits + awarded)
+            _gachaState.update { it.copy(credits = newBal) }
             _uiState.update { it.copy(gachaCredits = newBal) }
             showSnackbar("+1 Chapter ditambahkan! (+$awarded Tiket Gacha)")
         } else {
@@ -706,12 +841,23 @@ class CanimViewModel(
     }
 
     // --- In-App Update Checker Methods ---
+    fun onUpdateEvent(event: UpdateEvent) {
+        when (event) {
+            is UpdateEvent.CheckForUpdates -> checkForUpdates(manual = event.manual)
+            is UpdateEvent.SetAutoUpdateCheck -> setAutoUpdateCheck(enabled = event.enabled)
+            is UpdateEvent.DismissDialog -> dismissUpdateDialog()
+            is UpdateEvent.StartDownload -> startDownloadUpdate(context = event.context)
+            is UpdateEvent.InstallUpdate -> installDownloadedUpdate(context = event.context)
+        }
+    }
+
     private fun initUpdateChecker() {
         val prefs = try {
             CanimApplication.instance.getSharedPreferences("canim_update_prefs", Context.MODE_PRIVATE)
         } catch (_: Exception) { null }
         val isAutoEnabled = prefs?.getBoolean("auto_check_updates", true) ?: true
         _uiState.update { it.copy(isAutoUpdateCheckEnabled = isAutoEnabled) }
+        _updateState.update { it.copy(isAutoCheckEnabled = isAutoEnabled) }
 
         if (isAutoEnabled) {
             val lastCheck = prefs?.getLong("last_update_check_time", 0L) ?: 0L
@@ -728,11 +874,13 @@ class CanimViewModel(
             prefs?.edit()?.putBoolean("auto_check_updates", enabled)?.apply()
         } catch (_: Exception) {}
         _uiState.update { it.copy(isAutoUpdateCheckEnabled = enabled) }
+        _updateState.update { it.copy(isAutoCheckEnabled = enabled) }
     }
 
     fun checkForUpdates(manual: Boolean = true) {
-        if (_uiState.value.isCheckingUpdate) return
+        if (_uiState.value.isCheckingUpdate || _updateState.value.isChecking) return
         _uiState.update { it.copy(isCheckingUpdate = true) }
+        _updateState.update { it.copy(isChecking = true) }
         viewModelScope.launch {
             val result = UpdateChecker.checkLatestRelease(BuildConfig.VERSION_NAME)
             val info = result.getOrNull()
@@ -744,17 +892,20 @@ class CanimViewModel(
 
                 if (info.isUpdateAvailable) {
                     _uiState.update { it.copy(updateInfo = info, isCheckingUpdate = false) }
+                    _updateState.update { it.copy(updateInfo = info, isChecking = false) }
                     if (manual) {
                         showSnackbar("Pembaruan tersedia: ${info.latestVersion}!")
                     }
                 } else {
                     _uiState.update { it.copy(isCheckingUpdate = false) }
+                    _updateState.update { it.copy(isChecking = false) }
                     if (manual) {
                         showSnackbar("CA\'NIM sudah versi terbaru (${BuildConfig.VERSION_NAME})")
                     }
                 }
             } else {
                 _uiState.update { it.copy(isCheckingUpdate = false) }
+                _updateState.update { it.copy(isChecking = false) }
                 if (manual) {
                     showSnackbar("Gagal memeriksa pembaruan: ${result.exceptionOrNull()?.message ?: "Jaringan bermasalah"}")
                 }
@@ -764,19 +915,27 @@ class CanimViewModel(
 
     fun dismissUpdateDialog() {
         _uiState.update { it.copy(updateInfo = null, isDownloadingUpdate = false, downloadedApkFile = null) }
+        _updateState.update { it.copy(updateInfo = null, isDownloading = false, downloadedApkFile = null) }
     }
 
     fun startDownloadUpdate(context: Context) {
-        val info = _uiState.value.updateInfo ?: return
+        val info = _updateState.value.updateInfo ?: _uiState.value.updateInfo ?: return
         val downloadUrl = info.apkDownloadUrl ?: info.htmlUrl
         val apkName = info.apkName ?: "canim-release-${info.latestVersion}.apk"
 
-        if (_uiState.value.isDownloadingUpdate) return
+        if (_uiState.value.isDownloadingUpdate || _updateState.value.isDownloading) return
 
         _uiState.update {
             it.copy(
                 isDownloadingUpdate = true,
                 updateDownloadProgress = 0f,
+                downloadedApkFile = null
+            )
+        }
+        _updateState.update {
+            it.copy(
+                isDownloading = true,
+                downloadProgress = 0f,
                 downloadedApkFile = null
             )
         }
@@ -788,6 +947,7 @@ class CanimViewModel(
                 fileName = apkName,
                 onProgress = { progress ->
                     _uiState.update { it.copy(updateDownloadProgress = progress) }
+                    _updateState.update { it.copy(downloadProgress = progress) }
                 }
             )
 
@@ -797,6 +957,13 @@ class CanimViewModel(
                         it.copy(
                             isDownloadingUpdate = false,
                             updateDownloadProgress = 1f,
+                            downloadedApkFile = file
+                        )
+                    }
+                    _updateState.update {
+                        it.copy(
+                            isDownloading = false,
+                            downloadProgress = 1f,
                             downloadedApkFile = file
                         )
                     }
@@ -810,6 +977,12 @@ class CanimViewModel(
                             updateDownloadProgress = 0f
                         )
                     }
+                    _updateState.update {
+                        it.copy(
+                            isDownloading = false,
+                            downloadProgress = 0f
+                        )
+                    }
                     showSnackbar("Gagal mengunduh update: ${error.message}")
                 }
             )
@@ -817,7 +990,7 @@ class CanimViewModel(
     }
 
     fun installDownloadedUpdate(context: Context) {
-        val file = _uiState.value.downloadedApkFile ?: return
+        val file = _updateState.value.downloadedApkFile ?: _uiState.value.downloadedApkFile ?: return
         val result = UpdateChecker.installApk(context, file)
         if (result.isFailure) {
             showSnackbar("Gagal membuka installer APK: ${result.exceptionOrNull()?.message}")
@@ -985,42 +1158,111 @@ class CanimViewModel(
         }
     }
 
-    // --- Search ---
-    fun onSearchQueryChange(query: String, type: MediaType, forceRefresh: Boolean = false) {
-        val typeChanged = _uiState.value.searchType != type
-        _uiState.update {
-            if (typeChanged) {
-                it.copy(
-                    searchQuery = query,
-                    searchType = type,
-                    searchGenres = emptyList(),
-                    searchYear = null,
-                    searchFormat = null
-                )
-            } else {
-                it.copy(searchQuery = query, searchType = type)
+    // --- Search Feature Events & State Operations ---
+    fun onSearchEvent(event: SearchEvent) {
+        when (event) {
+            is SearchEvent.QueryChanged -> {
+                val typeChanged = _searchState.value.type != event.type
+                _searchState.update { current ->
+                    if (typeChanged) {
+                        current.copy(
+                            query = event.query,
+                            type = event.type,
+                            genres = emptyList(),
+                            year = null,
+                            format = null
+                        )
+                    } else {
+                        current.copy(query = event.query, type = event.type)
+                    }
+                }
+                _uiState.update { current ->
+                    if (typeChanged) {
+                        current.copy(
+                            searchQuery = event.query,
+                            searchType = event.type,
+                            searchGenres = emptyList(),
+                            searchYear = null,
+                            searchFormat = null
+                        )
+                    } else {
+                        current.copy(searchQuery = event.query, searchType = event.type)
+                    }
+                }
+                _searchQueryFlow.value = SearchTrigger(event.query, event.type, forceRefresh = event.forceRefresh)
+            }
+            is SearchEvent.TypeChanged -> {
+                if (_searchState.value.type != event.type) {
+                    _searchState.update {
+                        it.copy(
+                            type = event.type,
+                            genres = emptyList(),
+                            year = null,
+                            format = null
+                        )
+                    }
+                    _uiState.update {
+                        it.copy(
+                            searchType = event.type,
+                            searchGenres = emptyList(),
+                            searchYear = null,
+                            searchFormat = null
+                        )
+                    }
+                    _searchQueryFlow.value = SearchTrigger(_searchState.value.query, event.type)
+                }
+            }
+            is SearchEvent.FilterApplied -> {
+                _searchState.update {
+                    it.copy(
+                        genres = event.genres,
+                        year = event.year,
+                        format = event.format
+                    )
+                }
+                _uiState.update {
+                    it.copy(
+                        searchGenres = event.genres,
+                        searchYear = event.year,
+                        searchFormat = event.format
+                    )
+                }
+                _searchQueryFlow.value = SearchTrigger(_searchState.value.query, _searchState.value.type)
+            }
+            is SearchEvent.FilterReset -> {
+                _searchState.update {
+                    it.copy(
+                        genres = emptyList(),
+                        year = null,
+                        format = null
+                    )
+                }
+                _uiState.update {
+                    it.copy(
+                        searchGenres = emptyList(),
+                        searchYear = null,
+                        searchFormat = null
+                    )
+                }
+                _searchQueryFlow.value = SearchTrigger(_searchState.value.query, _searchState.value.type)
+            }
+            is SearchEvent.Refresh -> {
+                val s = _searchState.value
+                _searchQueryFlow.value = SearchTrigger(s.query, s.type, forceRefresh = true)
             }
         }
-        _searchQueryFlow.value = SearchTrigger(query, type, forceRefresh = forceRefresh)
+    }
+
+    fun onSearchQueryChange(query: String, type: MediaType, forceRefresh: Boolean = false) {
+        onSearchEvent(SearchEvent.QueryChanged(query, type, forceRefresh))
     }
 
     fun refreshSearch() {
-        val state = _uiState.value
-        _searchQueryFlow.value = SearchTrigger(state.searchQuery, state.searchType, forceRefresh = true)
+        onSearchEvent(SearchEvent.Refresh)
     }
 
     fun setSearchType(type: MediaType) {
-        if (_uiState.value.searchType != type) {
-            _uiState.update {
-                it.copy(
-                    searchType = type,
-                    searchGenres = emptyList(),
-                    searchYear = null,
-                    searchFormat = null
-                )
-            }
-            _searchQueryFlow.value = SearchTrigger(_uiState.value.searchQuery, type)
-        }
+        onSearchEvent(SearchEvent.TypeChanged(type))
     }
 
     fun search(query: String, type: MediaType) {
@@ -1028,172 +1270,250 @@ class CanimViewModel(
     }
 
     fun applySearchFilters(genres: List<String>, year: Int?, format: String?) {
-        _uiState.update {
-            it.copy(
-                searchGenres = genres,
-                searchYear = year,
-                searchFormat = format
-            )
-        }
-        _searchQueryFlow.value = SearchTrigger(_uiState.value.searchQuery, _uiState.value.searchType)
+        onSearchEvent(SearchEvent.FilterApplied(genres, year, format))
     }
 
     fun resetSearchFilters() {
-        _uiState.update {
-            it.copy(
-                searchGenres = emptyList(),
-                searchYear = null,
-                searchFormat = null
-            )
-        }
-        _searchQueryFlow.value = SearchTrigger(_uiState.value.searchQuery, _uiState.value.searchType)
+        onSearchEvent(SearchEvent.FilterReset)
     }
 
-    // --- Discover & Fixed Race-Safe Randomizer ---
-    fun loadDiscoverCategory(
-        category: DiscoverCategory,
-        filter: DiscoverFilter = _uiState.value.discoverFilter,
-        forceRefresh: Boolean = false
-    ) {
-        discoverJob?.cancel()
-        val token = ++discoverRequestToken
+    // --- Discover Feature Events & State Operations ---
+    fun onDiscoverEvent(event: DiscoverEvent) {
+        when (event) {
+            is DiscoverEvent.CategorySelected -> {
+                discoverJob?.cancel()
+                val token = ++discoverRequestToken
+                val category = event.category
+                val filter = event.filter ?: _discoverState.value.filter
 
-        _uiState.update {
-            it.copy(
-                selectedDiscoverCategory = category,
-                discoverFilter = filter,
-                isDiscoverLoading = true,
-                discoverPage = 1,
-                canLoadMoreDiscover = true
-            )
-        }
-
-        discoverJob = viewModelScope.launch(Dispatchers.IO) {
-            val items = repository.getDiscoverMedia(category, filter, page = 1, forceRefresh = forceRefresh)
-            if (token == discoverRequestToken) {
-                _uiState.update {
+                _discoverState.update {
                     it.copy(
-                        discoverItems = items,
-                        isDiscoverLoading = false,
-                        canLoadMoreDiscover = items.size >= 20
+                        selectedCategory = category,
+                        filter = filter,
+                        isLoading = true,
+                        page = 1,
+                        canLoadMore = true
                     )
                 }
+                _uiState.update {
+                    it.copy(
+                        selectedDiscoverCategory = category,
+                        discoverFilter = filter,
+                        isDiscoverLoading = true,
+                        discoverPage = 1,
+                        canLoadMoreDiscover = true
+                    )
+                }
+
+                discoverJob = viewModelScope.launch(Dispatchers.IO) {
+                    val items = repository.getDiscoverMedia(category, filter, page = 1, forceRefresh = event.forceRefresh)
+                    if (token == discoverRequestToken) {
+                        _discoverState.update {
+                            it.copy(
+                                items = items,
+                                isLoading = false,
+                                canLoadMore = items.size >= 20
+                            )
+                        }
+                        _uiState.update {
+                            it.copy(
+                                discoverItems = items,
+                                isDiscoverLoading = false,
+                                canLoadMoreDiscover = items.size >= 20
+                            )
+                        }
+                    }
+                }
+            }
+            is DiscoverEvent.FilterUpdated -> {
+                onDiscoverEvent(
+                    DiscoverEvent.CategorySelected(
+                        category = _discoverState.value.selectedCategory,
+                        filter = event.filter,
+                        forceRefresh = false
+                    )
+                )
+            }
+            is DiscoverEvent.LoadMore -> {
+                val current = _discoverState.value
+                if (current.isLoading || current.isLoadingMore || !current.canLoadMore) return
+                val nextPage = current.page + 1
+                val token = discoverRequestToken
+
+                _discoverState.update { it.copy(isLoadingMore = true) }
+                _uiState.update { it.copy(isDiscoverLoadingMore = true) }
+
+                viewModelScope.launch(Dispatchers.IO) {
+                    val nextItems = repository.getDiscoverMedia(
+                        current.selectedCategory,
+                        current.filter,
+                        page = nextPage
+                    )
+
+                    if (token == discoverRequestToken) {
+                        val existingIds = current.items.map { it.malId ?: it.anilistId }.toSet()
+                        val newFiltered = nextItems.filter { !existingIds.contains(it.malId ?: it.anilistId) }
+
+                        _discoverState.update {
+                            it.copy(
+                                items = it.items + newFiltered,
+                                page = nextPage,
+                                canLoadMore = nextItems.isNotEmpty(),
+                                isLoadingMore = false
+                            )
+                        }
+                        _uiState.update {
+                            it.copy(
+                                discoverItems = it.discoverItems + newFiltered,
+                                discoverPage = nextPage,
+                                canLoadMoreDiscover = nextItems.isNotEmpty(),
+                                isDiscoverLoadingMore = false
+                            )
+                        }
+                    }
+                }
+            }
+            is DiscoverEvent.Refresh -> {
+                val current = _discoverState.value
+                onDiscoverEvent(
+                    DiscoverEvent.CategorySelected(
+                        category = current.selectedCategory,
+                        filter = current.filter,
+                        forceRefresh = true
+                    )
+                )
             }
         }
+    }
+
+    fun loadDiscoverCategory(
+        category: DiscoverCategory,
+        filter: DiscoverFilter = _discoverState.value.filter,
+        forceRefresh: Boolean = false
+    ) {
+        onDiscoverEvent(DiscoverEvent.CategorySelected(category, filter, forceRefresh))
     }
 
     fun loadMoreDiscover() {
-        val current = _uiState.value
-        if (current.isDiscoverLoading || current.isDiscoverLoadingMore || !current.canLoadMoreDiscover) return
-        val nextPage = current.discoverPage + 1
-        val token = discoverRequestToken
+        onDiscoverEvent(DiscoverEvent.LoadMore)
+    }
 
-        _uiState.update { it.copy(isDiscoverLoadingMore = true) }
-        viewModelScope.launch(Dispatchers.IO) {
-            val nextItems = repository.getDiscoverMedia(
-                current.selectedDiscoverCategory,
-                current.discoverFilter,
-                page = nextPage
-            )
-
-            if (token == discoverRequestToken) {
-                val existingIds = current.discoverItems.map { it.malId ?: it.anilistId }.toSet()
-                val newFiltered = nextItems.filter { !existingIds.contains(it.malId ?: it.anilistId) }
-
-                _uiState.update {
-                    it.copy(
-                        discoverItems = it.discoverItems + newFiltered,
-                        discoverPage = nextPage,
-                        canLoadMoreDiscover = nextItems.isNotEmpty(),
-                        isDiscoverLoadingMore = false
-                    )
+    // --- Gacha Feature Events & State Operations ---
+    fun onGachaEvent(event: GachaEvent) {
+        when (event) {
+            is GachaEvent.OpenGacha -> {
+                pushScreen(ScreenRoute.Flashcard)
+                if (_gachaState.value.deck.isEmpty() && _gachaState.value.credits > 0) {
+                    onGachaEvent(GachaEvent.LoadDeck)
                 }
+            }
+            is GachaEvent.ConsumeCredit -> {
+                consumeGachaCredit()
+            }
+            is GachaEvent.SwipeDismiss -> {
+                _gachaState.update {
+                    val updatedDeck = it.deck.filter { card -> card.id != event.item.id }
+                    it.copy(deck = updatedDeck)
+                }
+                _uiState.update {
+                    val updatedDeck = it.flashcardDeck.filter { card -> card.id != event.item.id }
+                    it.copy(flashcardDeck = updatedDeck)
+                }
+                if (_gachaState.value.deck.isEmpty() && _gachaState.value.credits > 0) {
+                    onGachaEvent(GachaEvent.LoadDeck)
+                }
+            }
+            is GachaEvent.LoadDeck -> {
+                viewModelScope.launch(Dispatchers.IO) {
+                    _gachaState.update { it.copy(isLoading = true) }
+                    _uiState.update { it.copy(isFlashcardLoading = true) }
+                    val currentSeason = repository.getDiscoverMedia(DiscoverCategory.CURRENT_SEASON, DiscoverFilter(), page = 1)
+                    val upcoming = repository.getDiscoverMedia(DiscoverCategory.UPCOMING, DiscoverFilter(), page = 1)
+                    val completedIds = _uiState.value.completedAnimeMalIds
+                    val libraryIds = _uiState.value.animeList.mapNotNull { it.malId }.toSet()
+                    var rawPool = (currentSeason + upcoming)
+                        .filter { item ->
+                            val mId = item.malId
+                            mId == null || (!completedIds.contains(mId) && !libraryIds.contains(mId))
+                        }
+                        .distinctBy { it.malId ?: it.anilistId }
+
+                    if (rawPool.isEmpty()) {
+                        val trending = repository.getDiscoverMedia(DiscoverCategory.TRENDING_NOW, DiscoverFilter(), page = 1)
+                        val topAnime = repository.getDiscoverMedia(DiscoverCategory.TOP_ANIME, DiscoverFilter(), page = 1)
+                        rawPool = (trending + topAnime)
+                            .filter { item ->
+                                val mId = item.malId
+                                mId == null || (!completedIds.contains(mId) && !libraryIds.contains(mId))
+                            }
+                            .distinctBy { it.malId ?: it.anilistId }
+                    }
+
+                    if (rawPool.isEmpty()) {
+                        rawPool = repository.getDemoAnime().map { demo ->
+                            MediaItem(
+                                malId = demo.malId,
+                                anilistId = demo.anilistId,
+                                title = demo.title,
+                                titleEnglish = demo.metadata.titleEnglish,
+                                imageUrl = demo.imageUrl,
+                                type = MediaType.ANIME,
+                                score = demo.metadata.score,
+                                synopsis = demo.synopsis,
+                                episodes = demo.totalEpisodes,
+                                status = demo.status,
+                                year = demo.metadata.year,
+                                genres = demo.metadata.genres,
+                                studio = demo.studio
+                            )
+                        }
+                    }
+
+                    val pool = rawPool.shuffled().take(15)
+
+                    _gachaState.update {
+                        it.copy(
+                            deck = pool,
+                            isLoading = false
+                        )
+                    }
+                    _uiState.update {
+                        it.copy(
+                            flashcardDeck = pool,
+                            isFlashcardLoading = false
+                        )
+                    }
+                }
+            }
+            is GachaEvent.UpdateCredits -> {
+                _gachaState.update { it.copy(credits = event.newCredits) }
+                _uiState.update { it.copy(gachaCredits = event.newCredits) }
             }
         }
     }
 
-        // --- Flashcard Gacha System (v5.0.0) ---
+    // --- Flashcard Gacha System (v5.0.0) ---
     fun openFlashcard() {
-        pushScreen(ScreenRoute.Flashcard)
-        if (_uiState.value.flashcardDeck.isEmpty() && _uiState.value.gachaCredits > 0) {
-            loadFlashcardDeck()
-        }
+        onGachaEvent(GachaEvent.OpenGacha)
     }
 
     fun consumeGachaCredit(): Boolean {
         val gachaMgr = gachaCreditManager ?: try { GachaCreditManager.getInstance(CanimApplication.instance) } catch (_: Exception) { null }
-        val success = gachaMgr?.consumeCredit() ?: (_uiState.value.gachaCredits > 0)
+        val success = gachaMgr?.consumeCredit() ?: (_gachaState.value.credits > 0)
         if (success) {
-            val updated = gachaMgr?.getCredits() ?: (_uiState.value.gachaCredits - 1).coerceAtLeast(0)
+            val updated = gachaMgr?.getCredits() ?: (_gachaState.value.credits - 1).coerceAtLeast(0)
+            _gachaState.update { it.copy(credits = updated) }
             _uiState.update { it.copy(gachaCredits = updated) }
         }
         return success
     }
 
     fun swipeDismissFlashcard(item: MediaItem) {
-        _uiState.update {
-            val updatedDeck = it.flashcardDeck.filter { card -> card.id != item.id }
-            it.copy(flashcardDeck = updatedDeck)
-        }
-        if (_uiState.value.flashcardDeck.isEmpty() && _uiState.value.gachaCredits > 0) {
-            loadFlashcardDeck()
-        }
+        onGachaEvent(GachaEvent.SwipeDismiss(item))
     }
 
     fun loadFlashcardDeck() {
-        viewModelScope.launch(Dispatchers.IO) {
-            _uiState.update { it.copy(isFlashcardLoading = true) }
-            val currentSeason = repository.getDiscoverMedia(DiscoverCategory.CURRENT_SEASON, DiscoverFilter(), page = 1)
-            val upcoming = repository.getDiscoverMedia(DiscoverCategory.UPCOMING, DiscoverFilter(), page = 1)
-            val completedIds = _uiState.value.completedAnimeMalIds
-            val libraryIds = _uiState.value.animeList.mapNotNull { it.malId }.toSet()
-            var rawPool = (currentSeason + upcoming)
-                .filter { item ->
-                    val mId = item.malId
-                    mId == null || (!completedIds.contains(mId) && !libraryIds.contains(mId))
-                }
-                .distinctBy { it.malId ?: it.anilistId }
-
-            if (rawPool.isEmpty()) {
-                val trending = repository.getDiscoverMedia(DiscoverCategory.TRENDING_NOW, DiscoverFilter(), page = 1)
-                val topAnime = repository.getDiscoverMedia(DiscoverCategory.TOP_ANIME, DiscoverFilter(), page = 1)
-                rawPool = (trending + topAnime)
-                    .filter { item ->
-                        val mId = item.malId
-                        mId == null || (!completedIds.contains(mId) && !libraryIds.contains(mId))
-                    }
-                    .distinctBy { it.malId ?: it.anilistId }
-            }
-
-            if (rawPool.isEmpty()) {
-                rawPool = repository.getDemoAnime().map { demo ->
-                    MediaItem(
-                        malId = demo.malId,
-                        anilistId = demo.anilistId,
-                        title = demo.title,
-                        titleEnglish = demo.metadata.titleEnglish,
-                        imageUrl = demo.imageUrl,
-                        type = MediaType.ANIME,
-                        score = demo.metadata.score,
-                        synopsis = demo.synopsis,
-                        episodes = demo.totalEpisodes,
-                        status = demo.status,
-                        year = demo.metadata.year,
-                        genres = demo.metadata.genres,
-                        studio = demo.studio
-                    )
-                }
-            }
-
-            val pool = rawPool.shuffled().take(15)
-
-            _uiState.update {
-                it.copy(
-                    flashcardDeck = pool,
-                    isFlashcardLoading = false
-                )
-            }
-        }
+        onGachaEvent(GachaEvent.LoadDeck)
     }
 
     // --- Centralized Screen Stack Navigation (v4.2.0) ---
@@ -1275,6 +1595,17 @@ class CanimViewModel(
                     cacheDetail(item, initialDetail)
                 }
 
+                _detailState.update {
+                    it.copy(
+                        selectedItem = resolvedItem,
+                        mediaType = type,
+                        isOpen = true,
+                        selectedCastCrewProfile = null,
+                        isLoadingCastCrewProfile = false,
+                        extendedDetail = initialDetail,
+                        isLoadingExtendedDetail = cachedDetail == null
+                    )
+                }
                 _uiState.update {
                     it.copy(
                         selectedDetailItem = resolvedItem,
@@ -1303,6 +1634,12 @@ class CanimViewModel(
                             )
                             cacheDetail(resolvedItem, mergedFast)
                             cacheDetail(item, mergedFast)
+                            _detailState.update {
+                                it.copy(
+                                    extendedDetail = mergedFast,
+                                    isLoadingExtendedDetail = false
+                                )
+                            }
                             current.copy(
                                 extendedDetail = mergedFast,
                                 isLoadingExtendedDetail = false
@@ -1318,6 +1655,12 @@ class CanimViewModel(
                     if (detail != null && token == detailRequestToken) {
                         cacheDetail(resolvedItem, detail)
                         cacheDetail(item, detail)
+                        _detailState.update {
+                            it.copy(
+                                extendedDetail = detail,
+                                isLoadingExtendedDetail = false
+                            )
+                        }
                         _uiState.update {
                             it.copy(
                                 extendedDetail = detail,
@@ -1360,6 +1703,9 @@ class CanimViewModel(
                                     tracking = tracking
                                 )
                                 resolvedItem = newUserItem
+                                _detailState.update {
+                                    it.copy(selectedItem = newUserItem)
+                                }
                                 _uiState.update {
                                     it.copy(selectedDetailItem = newUserItem)
                                 }
@@ -1369,6 +1715,14 @@ class CanimViewModel(
                 }
             }
             is ScreenRoute.CastCrew -> {
+                _detailState.update {
+                    it.copy(
+                        selectedItem = null,
+                        isOpen = false,
+                        selectedCastCrewProfile = null,
+                        isLoadingCastCrewProfile = true
+                    )
+                }
                 _uiState.update {
                     it.copy(
                         selectedDetailItem = null,
@@ -1385,6 +1739,12 @@ class CanimViewModel(
                     } else {
                         repository.getCharacterProfile(route.id)
                     }
+                    _detailState.update {
+                        it.copy(
+                            selectedCastCrewProfile = profile,
+                            isLoadingCastCrewProfile = false
+                        )
+                    }
                     _uiState.update {
                         it.copy(
                             selectedCastCrewProfile = profile,
@@ -1394,6 +1754,7 @@ class CanimViewModel(
                 }
             }
             is ScreenRoute.FullCastList -> {
+                _globalState.update { it.copy(isStatsOpen = false, isAddTitleSheetOpen = false) }
                 _uiState.update {
                     it.copy(
                         isStatsOpen = false,
@@ -1402,6 +1763,7 @@ class CanimViewModel(
                 }
             }
             is ScreenRoute.Stats -> {
+                _globalState.update { it.copy(isStatsOpen = true, isAddTitleSheetOpen = false) }
                 _uiState.update {
                     it.copy(
                         isStatsOpen = true,
@@ -1413,6 +1775,7 @@ class CanimViewModel(
                 }
             }
             is ScreenRoute.AddTitleSheet -> {
+                _globalState.update { it.copy(isAddTitleSheetOpen = true, isStatsOpen = false) }
                 _uiState.update {
                     it.copy(
                         isAddTitleSheetOpen = true,
@@ -1424,6 +1787,10 @@ class CanimViewModel(
                 }
             }
             is ScreenRoute.Flashcard -> {
+                _detailState.update {
+                    it.copy(isOpen = false)
+                }
+                _globalState.update { it.copy(isStatsOpen = false, isAddTitleSheetOpen = false) }
                 _uiState.update {
                     it.copy(
                         isStatsOpen = false,
@@ -1441,8 +1808,33 @@ class CanimViewModel(
             null -> {
                 detailJob?.cancel()
                 studioJob?.cancel()
+                _detailState.update {
+                    it.copy(
+                        selectedItem = null,
+                        isOpen = false,
+                        extendedDetail = null,
+                        isLoadingExtendedDetail = false,
+                        selectedCastCrewProfile = null,
+                        isLoadingCastCrewProfile = false
+                    )
+                }
+                _studioState.update {
+                    it.copy(
+                        studioId = null,
+                        studioName = "",
+                        bio = null,
+                        items = emptyList(),
+                        totalEntries = 0,
+                        isLoading = false,
+                        isLoadingMore = false,
+                        page = 1,
+                        canLoadMore = true
+                    )
+                }
+                _globalState.update { it.copy(isStatsOpen = false, isAddTitleSheetOpen = false) }
                 _uiState.update {
                     it.copy(
+                        selectedDetailItem = null,
                         isDetailOpen = false,
                         isLoadingExtendedDetail = false,
                         selectedCastCrewProfile = null,
@@ -1466,20 +1858,11 @@ class CanimViewModel(
 
     // --- Cast & Crew Bio Navigation ---
     fun openCastCrewProfile(id: Int, isStaff: Boolean) {
-        pushScreen(ScreenRoute.CastCrew(id, isStaff))
+        onDetailEvent(DetailEvent.OpenCastCrewProfile(id, isStaff))
     }
 
     fun closeCastCrewProfile() {
-        if (_screenStack.value.lastOrNull() is ScreenRoute.CastCrew) {
-            popScreen()
-        } else {
-            _uiState.update {
-                it.copy(
-                    selectedCastCrewProfile = null,
-                    isLoadingCastCrewProfile = false
-                )
-            }
-        }
+        onDetailEvent(DetailEvent.CloseCastCrewProfile)
     }
 
     // --- Stats Screen Navigation ---
@@ -1493,6 +1876,7 @@ class CanimViewModel(
             popScreen()
         } else {
             _uiState.update { it.copy(isStatsOpen = false) }
+            _globalState.update { it.copy(isStatsOpen = false) }
         }
     }
 
@@ -1506,6 +1890,7 @@ class CanimViewModel(
             popScreen()
         } else {
             _uiState.update { it.copy(isAddTitleSheetOpen = false) }
+            _globalState.update { it.copy(isAddTitleSheetOpen = false) }
         }
     }
 
@@ -1519,184 +1904,347 @@ class CanimViewModel(
         pushScreen(ScreenRoute.FullCastList(mediaTitle, castList, staffList, isCrewInitial))
     }
 
+    // --- Studio Feature Events & State Operations ---
+    fun onStudioEvent(event: StudioEvent) {
+        when (event) {
+            is StudioEvent.OpenStudio -> {
+                val bio = try { StudioBioRegistry.getStudioInfo(event.studioId, event.studioName) } catch (_: Exception) { null }
+                _studioState.update {
+                    it.copy(
+                        studioId = event.studioId,
+                        studioName = event.studioName,
+                        bio = bio,
+                        sort = StudioFilmographySort.YEAR_DESC
+                    )
+                }
+                _uiState.update {
+                    it.copy(
+                        studioFilmographyBio = bio,
+                        studioFilmographySort = StudioFilmographySort.YEAR_DESC
+                    )
+                }
+                pushScreen(ScreenRoute.StudioFilmography(event.studioId, event.studioName))
+            }
+            is StudioEvent.CloseStudio -> {
+                studioJob?.cancel()
+                if (_screenStack.value.lastOrNull() is ScreenRoute.StudioFilmography) {
+                    popScreen()
+                } else {
+                    _studioState.update {
+                        it.copy(
+                            studioId = null,
+                            studioName = "",
+                            bio = null,
+                            items = emptyList(),
+                            totalEntries = 0,
+                            isLoading = false,
+                            isLoadingMore = false,
+                            page = 1,
+                            canLoadMore = true
+                        )
+                    }
+                    _uiState.update {
+                        it.copy(
+                            studioFilmographyStudioId = null,
+                            studioFilmographyStudioName = "",
+                            studioFilmographyBio = null,
+                            studioFilmographyItems = emptyList(),
+                            studioFilmographyTotalEntries = 0,
+                            isStudioFilmographyLoading = false,
+                            isStudioFilmographyLoadingMore = false,
+                            studioFilmographyPage = 1,
+                            canLoadMoreStudioFilmography = true
+                        )
+                    }
+                }
+            }
+            is StudioEvent.SetSort -> {
+                _studioState.update { it.copy(sort = event.sort) }
+                _uiState.update { it.copy(studioFilmographySort = event.sort) }
+                val sId = _studioState.value.studioId ?: _uiState.value.studioFilmographyStudioId
+                val sName = _studioState.value.studioName.ifEmpty { _uiState.value.studioFilmographyStudioName }
+                if (sId != null) {
+                    loadStudioFilmography(sId, sName, page = 1)
+                }
+            }
+            is StudioEvent.LoadFilmography -> {
+                val page = event.page
+                val studioId = event.studioId
+                val studioName = event.studioName
+                if (page == 1) {
+                    studioJob?.cancel()
+                    val bio = _studioState.value.bio
+                        ?: _uiState.value.studioFilmographyBio
+                        ?: try { StudioBioRegistry.getStudioInfo(studioId, studioName) } catch (_: Exception) { null }
+                    _studioState.update {
+                        it.copy(
+                            studioId = studioId,
+                            studioName = studioName,
+                            bio = bio,
+                            isLoading = true,
+                            items = emptyList(),
+                            totalEntries = 0,
+                            page = 1,
+                            canLoadMore = true
+                        )
+                    }
+                    _uiState.update {
+                        it.copy(
+                            studioFilmographyStudioId = studioId,
+                            studioFilmographyStudioName = studioName,
+                            studioFilmographyBio = bio,
+                            isStudioFilmographyLoading = true,
+                            studioFilmographyItems = emptyList(),
+                            studioFilmographyTotalEntries = 0,
+                            studioFilmographyPage = 1,
+                            canLoadMoreStudioFilmography = true
+                        )
+                    }
+                } else {
+                    _studioState.update { it.copy(isLoadingMore = true) }
+                    _uiState.update { it.copy(isStudioFilmographyLoadingMore = true) }
+                }
+
+                studioJob = viewModelScope.launch(Dispatchers.IO) {
+                    val sort = _studioState.value.sort
+                    val pageResult = repository.getStudioFilmography(studioId = studioId, page = page, sort = sort)
+                    val currentStudio = _studioState.value
+                    val newItems = if (page == 1) {
+                        pageResult?.items ?: emptyList()
+                    } else {
+                        val existingIds = currentStudio.items.map { it.id }.toSet()
+                        val added = (pageResult?.items ?: emptyList()).filter { it.id !in existingIds }
+                        currentStudio.items + added
+                    }
+                    val totalEntries = if (page == 1) (pageResult?.total ?: 0) else currentStudio.totalEntries
+                    val updatedBio = currentStudio.bio?.let { currBio ->
+                        currBio.copy(
+                            totalAnime = if (totalEntries > 0) totalEntries else currBio.totalAnime,
+                            officialSite = pageResult?.siteUrl ?: currBio.officialSite,
+                            favourites = pageResult?.favourites ?: currBio.favourites
+                        )
+                    }
+
+                    _studioState.update {
+                        it.copy(
+                            bio = updatedBio ?: it.bio,
+                            items = newItems,
+                            totalEntries = if (totalEntries > 0) totalEntries else newItems.size,
+                            isLoading = false,
+                            isLoadingMore = false,
+                            page = page,
+                            canLoadMore = pageResult?.hasNextPage ?: false
+                        )
+                    }
+                    _uiState.update {
+                        it.copy(
+                            studioFilmographyBio = updatedBio ?: it.studioFilmographyBio,
+                            studioFilmographyItems = newItems,
+                            studioFilmographyTotalEntries = if (totalEntries > 0) totalEntries else newItems.size,
+                            isStudioFilmographyLoading = false,
+                            isStudioFilmographyLoadingMore = false,
+                            studioFilmographyPage = page,
+                            canLoadMoreStudioFilmography = pageResult?.hasNextPage ?: false
+                        )
+                    }
+                }
+            }
+            is StudioEvent.LoadMore -> {
+                val s = _studioState.value
+                if (s.isLoading || s.isLoadingMore || !s.canLoadMore) return
+                val studioId = s.studioId ?: _uiState.value.studioFilmographyStudioId ?: return
+                val studioName = s.studioName.ifEmpty { _uiState.value.studioFilmographyStudioName }
+                onStudioEvent(StudioEvent.LoadFilmography(studioId, studioName, s.page + 1))
+            }
+            is StudioEvent.SearchStudios -> {
+                studioSearchJob?.cancel()
+                val trimmed = event.query.trim()
+                if (trimmed.isBlank()) {
+                    _studioState.update {
+                        it.copy(
+                            searchResults = emptyList(),
+                            isSearchingStudios = false
+                        )
+                    }
+                    _uiState.update {
+                        it.copy(
+                            studioSearchResults = emptyList(),
+                            isSearchingStudios = false
+                        )
+                    }
+                    return
+                }
+
+                val localMatches = try {
+                    StudioBioRegistry.searchCuratedStudios(trimmed)
+                } catch (_: Exception) {
+                    emptyList()
+                }
+                _studioState.update {
+                    it.copy(
+                        searchResults = localMatches,
+                        isSearchingStudios = true
+                    )
+                }
+                _uiState.update {
+                    it.copy(
+                        studioSearchResults = localMatches,
+                        isSearchingStudios = true
+                    )
+                }
+
+                studioSearchJob = viewModelScope.launch(Dispatchers.IO) {
+                    delay(250L)
+                    val remoteResults = try {
+                        repository.searchStudios(trimmed)
+                    } catch (_: Exception) {
+                        emptyList()
+                    }
+
+                    val merged = (localMatches + remoteResults).distinctBy { it.studioId }
+
+                    _studioState.update {
+                        it.copy(
+                            searchResults = merged,
+                            isSearchingStudios = false
+                        )
+                    }
+                    _uiState.update {
+                        it.copy(
+                            studioSearchResults = merged,
+                            isSearchingStudios = false
+                        )
+                    }
+                }
+            }
+            is StudioEvent.ClearStudioSearch -> {
+                studioSearchJob?.cancel()
+                _studioState.update {
+                    it.copy(
+                        searchResults = emptyList(),
+                        isSearchingStudios = false
+                    )
+                }
+                _uiState.update {
+                    it.copy(
+                        studioSearchResults = emptyList(),
+                        isSearchingStudios = false
+                    )
+                }
+            }
+        }
+    }
+
     // --- Studio Filmography (v5.0.0) ---
     fun openStudio(studioId: Int, studioName: String) {
-        val bio = try { StudioBioRegistry.getStudioInfo(studioId, studioName) } catch (_: Exception) { null }
-        _uiState.update {
-            it.copy(
-                studioFilmographyBio = bio,
-                studioFilmographySort = StudioFilmographySort.YEAR_DESC
-            )
-        }
-        pushScreen(ScreenRoute.StudioFilmography(studioId, studioName))
+        onStudioEvent(StudioEvent.OpenStudio(studioId, studioName))
     }
 
     fun setStudioFilmographySort(sort: StudioFilmographySort) {
-        _uiState.update { it.copy(studioFilmographySort = sort) }
-        val sId = _uiState.value.studioFilmographyStudioId
-        val sName = _uiState.value.studioFilmographyStudioName
-        if (sId != null) {
-            loadStudioFilmography(sId, sName, page = 1)
-        }
+        onStudioEvent(StudioEvent.SetSort(sort))
     }
 
     // --- Studio Live Search (v5.1.1) ---
     fun searchStudios(query: String) {
-        studioSearchJob?.cancel()
-        val trimmed = query.trim()
-        if (trimmed.isBlank()) {
-            _uiState.update {
-                it.copy(
-                    studioSearchResults = emptyList(),
-                    isSearchingStudios = false
-                )
-            }
-            return
-        }
-
-        // 1. Instant 0ms local match from curated registry
-        val localMatches = try {
-            StudioBioRegistry.searchCuratedStudios(trimmed)
-        } catch (_: Exception) {
-            emptyList()
-        }
-        _uiState.update {
-            it.copy(
-                studioSearchResults = localMatches,
-                isSearchingStudios = true
-            )
-        }
-
-        // 2. Query global AniList database in background with light debounce
-        studioSearchJob = viewModelScope.launch(Dispatchers.IO) {
-            delay(250L)
-            val remoteResults = try {
-                repository.searchStudios(trimmed)
-            } catch (_: Exception) {
-                emptyList()
-            }
-
-            // Merge local and remote, deduplicated by studioId
-            val merged = (localMatches + remoteResults).distinctBy { it.studioId }
-
-            _uiState.update {
-                it.copy(
-                    studioSearchResults = merged,
-                    isSearchingStudios = false
-                )
-            }
-        }
+        onStudioEvent(StudioEvent.SearchStudios(query))
     }
 
     fun clearStudioSearch() {
-        studioSearchJob?.cancel()
-        _uiState.update {
-            it.copy(
-                studioSearchResults = emptyList(),
-                isSearchingStudios = false
-            )
-        }
+        onStudioEvent(StudioEvent.ClearStudioSearch)
     }
 
     fun closeStudio() {
-        studioJob?.cancel()
-        if (_screenStack.value.lastOrNull() is ScreenRoute.StudioFilmography) {
-            popScreen()
-        } else {
-            _uiState.update {
-                it.copy(
-                    studioFilmographyStudioId = null,
-                    studioFilmographyStudioName = "",
-                    studioFilmographyBio = null,
-                    studioFilmographyItems = emptyList(),
-                    studioFilmographyTotalEntries = 0,
-                    isStudioFilmographyLoading = false,
-                    isStudioFilmographyLoadingMore = false,
-                    studioFilmographyPage = 1,
-                    canLoadMoreStudioFilmography = true
-                )
-            }
-        }
+        onStudioEvent(StudioEvent.CloseStudio)
     }
 
     fun loadStudioFilmography(studioId: Int, studioName: String, page: Int = 1) {
-        if (page == 1) {
-            studioJob?.cancel()
-            val bio = _uiState.value.studioFilmographyBio
-                ?: try { StudioBioRegistry.getStudioInfo(studioId, studioName) } catch (_: Exception) { null }
-            _uiState.update {
-                it.copy(
-                    studioFilmographyStudioId = studioId,
-                    studioFilmographyStudioName = studioName,
-                    studioFilmographyBio = bio,
-                    isStudioFilmographyLoading = true,
-                    studioFilmographyItems = emptyList(),
-                    studioFilmographyTotalEntries = 0,
-                    studioFilmographyPage = 1,
-                    canLoadMoreStudioFilmography = true
-                )
-            }
-        } else {
-            _uiState.update { it.copy(isStudioFilmographyLoadingMore = true) }
-        }
-
-        studioJob = viewModelScope.launch(Dispatchers.IO) {
-            val sort = _uiState.value.studioFilmographySort
-            val pageResult = repository.getStudioFilmography(studioId = studioId, page = page, sort = sort)
-            _uiState.update { currentState ->
-                val newItems = if (page == 1) {
-                    pageResult?.items ?: emptyList()
-                } else {
-                    val existingIds = currentState.studioFilmographyItems.map { item -> item.id }.toSet()
-                    val added = (pageResult?.items ?: emptyList()).filter { item -> item.id !in existingIds }
-                    currentState.studioFilmographyItems + added
-                }
-                val totalEntries = if (page == 1) (pageResult?.total ?: 0) else currentState.studioFilmographyTotalEntries
-                val updatedBio = currentState.studioFilmographyBio?.let { currBio ->
-                    currBio.copy(
-                        totalAnime = if (totalEntries > 0) totalEntries else currBio.totalAnime,
-                        officialSite = pageResult?.siteUrl ?: currBio.officialSite,
-                        favourites = pageResult?.favourites ?: currBio.favourites
-                    )
-                }
-                currentState.copy(
-                    studioFilmographyBio = updatedBio ?: currentState.studioFilmographyBio,
-                    studioFilmographyItems = newItems,
-                    studioFilmographyTotalEntries = if (totalEntries > 0) totalEntries else newItems.size,
-                    isStudioFilmographyLoading = false,
-                    isStudioFilmographyLoadingMore = false,
-                    studioFilmographyPage = page,
-                    canLoadMoreStudioFilmography = pageResult?.hasNextPage ?: false
-                )
-            }
-        }
+        onStudioEvent(StudioEvent.LoadFilmography(studioId, studioName, page))
     }
 
     fun loadMoreStudioFilmography() {
-        val s = _uiState.value
-        if (s.isStudioFilmographyLoading || s.isStudioFilmographyLoadingMore || !s.canLoadMoreStudioFilmography) return
-        val studioId = s.studioFilmographyStudioId ?: return
-        loadStudioFilmography(studioId, s.studioFilmographyStudioName, s.studioFilmographyPage + 1)
+        onStudioEvent(StudioEvent.LoadMore)
+    }
+
+    // --- Detail Feature Events & State Operations ---
+    fun onDetailEvent(event: DetailEvent) {
+        when (event) {
+            is DetailEvent.OpenDetail -> {
+                pushScreen(ScreenRoute.Detail(event.item, event.type))
+            }
+            is DetailEvent.CloseDetail -> {
+                if (_screenStack.value.lastOrNull() is ScreenRoute.Detail) {
+                    popScreen()
+                } else {
+                    detailJob?.cancel()
+                    _detailState.update {
+                        it.copy(
+                            selectedItem = null,
+                            isOpen = false,
+                            extendedDetail = null,
+                            isLoadingExtendedDetail = false
+                        )
+                    }
+                    _uiState.update {
+                        it.copy(
+                            selectedDetailItem = null,
+                            isDetailOpen = false,
+                            extendedDetail = null,
+                            isLoadingExtendedDetail = false
+                        )
+                    }
+                }
+            }
+            is DetailEvent.OpenCastCrewProfile -> {
+                pushScreen(ScreenRoute.CastCrew(event.id, event.isStaff))
+            }
+            is DetailEvent.CloseCastCrewProfile -> {
+                if (_screenStack.value.lastOrNull() is ScreenRoute.CastCrew) {
+                    popScreen()
+                } else {
+                    _detailState.update {
+                        it.copy(
+                            selectedCastCrewProfile = null,
+                            isLoadingCastCrewProfile = false
+                        )
+                    }
+                    _uiState.update {
+                        it.copy(
+                            selectedCastCrewProfile = null,
+                            isLoadingCastCrewProfile = false
+                        )
+                    }
+                }
+            }
+            is DetailEvent.ItemUpdated -> {
+                _detailState.update { it.copy(selectedItem = event.updatedItem) }
+                _uiState.update { it.copy(selectedDetailItem = event.updatedItem) }
+            }
+        }
     }
 
     // --- Details ---
     fun openDetail(item: Any, type: MediaType) {
-        pushScreen(ScreenRoute.Detail(item, type))
+        onDetailEvent(DetailEvent.OpenDetail(item, type))
     }
 
     fun closeDetail() {
-        if (_screenStack.value.lastOrNull() is ScreenRoute.Detail) {
-            popScreen()
-        } else {
-            detailJob?.cancel()
-            _uiState.update {
-                it.copy(
-                    selectedDetailItem = null,
-                    isDetailOpen = false,
-                    extendedDetail = null,
-                    isLoadingExtendedDetail = false
-                )
+        onDetailEvent(DetailEvent.CloseDetail)
+    }
+
+    // --- Global Feature Events & State Operations ---
+    fun onGlobalEvent(event: GlobalEvent) {
+        when (event) {
+            is GlobalEvent.SetActiveTab -> setTab(event.tab)
+            is GlobalEvent.SetStatsOpen -> {
+                if (event.isOpen) openStats() else closeStats()
             }
+            is GlobalEvent.SetAddTitleSheetOpen -> {
+                if (event.isOpen) openAddTitleSheet() else closeAddTitleSheet()
+            }
+            is GlobalEvent.SetAppMode -> setAppMode(event.mode)
+            is GlobalEvent.ShowSnackbar -> showSnackbar(event.message)
+            is GlobalEvent.DismissSnackbar -> dismissSnackbar()
+            is GlobalEvent.RefreshHealth -> checkApiHealth()
         }
     }
 
@@ -1716,6 +2264,7 @@ class CanimViewModel(
     fun handleOAuthCallback(code: String, state: String?) {
         viewModelScope.launch {
             _uiState.update { it.copy(isExchangingToken = true) }
+            _globalState.update { it.copy(isExchangingToken = true) }
             val result = repository.handleMalOAuthCallback(code, state)
             if (result.isSuccess) {
                 val user = result.getOrThrow()
@@ -1726,10 +2275,18 @@ class CanimViewModel(
                         isExchangingToken = false
                     )
                 }
+                _globalState.update {
+                    it.copy(
+                        malUser = user,
+                        appMode = "online_sync",
+                        isExchangingToken = false
+                    )
+                }
                 showSnackbar("Login MAL berhasil! Memuat library...")
                 loadUserLibrary(forceRefresh = true)
             } else {
                 _uiState.update { it.copy(isExchangingToken = false) }
+                _globalState.update { it.copy(isExchangingToken = false) }
                 showSnackbar("Gagal login MyAnimeList: ${result.exceptionOrNull()?.message}")
             }
         }
@@ -1743,6 +2300,12 @@ class CanimViewModel(
                 appMode = "offline"
             )
         }
+        _globalState.update {
+            it.copy(
+                malUser = MalUser(),
+                appMode = "offline"
+            )
+        }
         showSnackbar("Akun MyAnimeList telah logout.")
         // Revert to demo data
         updateLibraryData(repository.getDemoAnime(), repository.getDemoManga())
@@ -1751,8 +2314,10 @@ class CanimViewModel(
     fun syncWithMal() {
         viewModelScope.launch {
             _uiState.update { it.copy(isSyncingMal = true) }
+            _globalState.update { it.copy(isSyncingMal = true) }
             val result = repository.syncWithMal()
             _uiState.update { it.copy(isSyncingMal = false) }
+            _globalState.update { it.copy(isSyncingMal = false) }
             if (result.isSuccess) {
                 showSnackbar("Sync MAL selesai: ${result.animeSynced} anime & ${result.mangaSynced} manga")
                 loadUserLibrary(forceRefresh = true)
@@ -1764,6 +2329,7 @@ class CanimViewModel(
 
     fun setAppMode(mode: String) {
         _uiState.update { it.copy(appMode = mode) }
+        _globalState.update { it.copy(appMode = mode) }
     }
 
     fun loadDemoData() {
@@ -1797,10 +2363,12 @@ class CanimViewModel(
 
     fun showSnackbar(message: String) {
         _uiState.update { it.copy(snackbarMessage = message) }
+        _globalState.update { it.copy(snackbarMessage = message) }
     }
 
     fun dismissSnackbar() {
         _uiState.update { it.copy(snackbarMessage = null) }
+        _globalState.update { it.copy(snackbarMessage = null) }
     }
 }
 
