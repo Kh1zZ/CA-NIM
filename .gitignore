@@ -58,10 +58,26 @@ Thumbs.db
 *.tmp
 *.temp
 
-# Local AI / Agent Rules
+# Local AI / Agent Rules & State
 GEMINI.md
 gemini.md
 AGENTS.md
 agents.md
+.codegraph/
+.serena/
+.agents/
+
+# IDE / Editor
+.vscode/
+
+# Node / JS
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Memory / Performance Profiling
+*.hprof
+captures/
 
 
