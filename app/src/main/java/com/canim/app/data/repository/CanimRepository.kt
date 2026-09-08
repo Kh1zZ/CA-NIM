@@ -1,15 +1,44 @@
 package com.canim.app.data.repository
 
 import android.content.Context
+import android.util.Log
 import com.canim.app.data.cache.CacheManager
+import com.canim.app.util.LogRedactor
+import kotlinx.coroutines.CancellationException
 import com.canim.app.data.model.*
 import com.canim.app.data.cache.StudioFilmographyPage
+import com.canim.app.data.local.LibraryDao
+import com.canim.app.data.local.LibraryEntry
+import com.canim.app.data.local.LibrarySyncEngine
+import com.canim.app.data.local.PendingMutation
+import com.canim.app.data.local.PendingMutationDao
 import com.canim.app.data.remote.ApiClient
 import com.canim.app.data.remote.AniListClient
+import com.google.gson.Gson
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
+
+enum class CacheRefreshType {
+    SEARCH,
+    DISCOVER,
+    DETAIL
+}
+
+data class CacheRefreshEvent(
+    val key: String,
+    val type: CacheRefreshType
+)
 
 /**
  * Single source of coordination for CA'NIM.
@@ -19,27 +48,51 @@ import kotlinx.coroutines.withContext
  * - CA'NIM acts as a client/UI layer.
  */
 class CanimRepository(
-    val malAuthManager: MalAuthManager
+    val malAuthManager: MalAuthManager,
+    private val swrScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+    // Phase 4 Local-First: nullable so existing tests remain unaffected
+    private val libraryDao: LibraryDao? = null,
+    private val pendingMutationDao: PendingMutationDao? = null,
+    private val syncEngine: LibrarySyncEngine? = null
 ) {
-    private val inFlightRequests = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Deferred<Any?>>()
+    private val gson = Gson()
+    /**
+     * SharedFlow for SWR cache refresh events. Buffer size 64 with DROP_OLDEST policy.
+     * Emitted after background SWR refresh writes fresh data to CacheManager.
+     */
+    private val _cacheRefreshEvents = kotlinx.coroutines.flow.MutableSharedFlow<CacheRefreshEvent>(
+        extraBufferCapacity = 64,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
+    )
+    val cacheRefreshEvents: kotlinx.coroutines.flow.SharedFlow<CacheRefreshEvent> = _cacheRefreshEvents.asSharedFlow()
 
-    suspend fun <T> deduplicateInFlight(key: String, block: suspend () -> T): T = coroutineScope {
-        val existing = inFlightRequests[key]
-        if (existing != null && existing.isActive) {
-            @Suppress("UNCHECKED_CAST")
-            return@coroutineScope existing.await() as T
-        }
+    /**
+     * Active in-flight SWR background refresh jobs keyed by canonical cache key.
+     * Prevents overlapping refreshes on the same key by cancelling previous in-flight jobs.
+     */
+    internal val swrJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
 
-        val deferred = async(Dispatchers.IO) {
+    internal fun launchSwrJob(key: String, block: suspend CoroutineScope.() -> Unit): Job {
+        swrJobs[key]?.cancel()
+        val job = swrScope.launch {
             try {
                 block()
             } finally {
-                inFlightRequests.remove(key)
+                swrJobs.remove(key, coroutineContext[Job])
             }
         }
-        inFlightRequests[key] = deferred
-        deferred.await()
+        swrJobs[key] = job
+        return job
     }
+
+    internal suspend fun emitCacheRefreshEvent(event: CacheRefreshEvent) {
+        _cacheRefreshEvents.emit(event)
+    }
+
+    fun getActiveSwrJob(key: String): Job? = swrJobs[key]
+
+    suspend fun <T> deduplicateInFlight(key: String, block: suspend () -> T): T =
+        AniListClient.deduplicateInFlight(key, block)
 
     fun buildMalAuthorizeUrl(): String = malAuthManager.buildAuthorizeUrl()
 
@@ -49,10 +102,20 @@ class CanimRepository(
     fun getMalUser(): MalUser = malAuthManager.getCurrentUser()
 
     fun logoutMal() {
+        // Phase 4: notify SyncEngine first so it can cancel in-flight job
+        // and clear local DB before auth credentials are wiped.
+        syncEngine?.onLogout()
         malAuthManager.logout()
     }
 
     suspend fun syncWithMal(): MalSyncResult = malAuthManager.syncWithMal()
+
+    /**
+     * Explicitly requeues FAILED_PERMANENTLY mutations back to PENDING (resetting attempts to 0)
+     * and triggers a drain if online. Only called by explicit user action.
+     */
+    suspend fun retryFailedMutations(mediaType: String? = null): Int =
+        syncEngine?.retryFailedPermanently(mediaType) ?: 0
 
     fun getLastSyncedTime(): Long = malAuthManager.getLastSynced()
 
@@ -74,13 +137,39 @@ class CanimRepository(
      * Loads the user's anime list from MAL as source of truth, enriched with AniList metadata.
      * Batches metadata requests via AniList GraphQL (50 per batch) to avoid API request storms.
      */
+    /**
+     * Loads the user's anime list.
+     *
+     * Phase 4 local-first behavior:
+     * - [forceRefresh] = false: reads from local DB first if available; falls back to MAL fetch.
+     * - [forceRefresh] = true: uses safe reconcile flow — drain pending queue first (best-effort),
+     *   then fetch MAL, then reconcile (entries with active pending mutations are NOT overwritten).
+     *   If the fetch fails, local state is preserved unchanged.
+     */
     suspend fun getUserAnimeList(forceRefresh: Boolean = false): MalFetchResult<List<UserMediaItem>> = withContext(Dispatchers.IO) {
+        val dao = libraryDao
+        if (dao != null && !forceRefresh) {
+            // Phase 4: serve from local DB if we have data
+            val localEntries = dao.getAllEntries("ANIME")
+            if (localEntries.isNotEmpty()) {
+                val items = localEntries.map { it.toUserMediaItem { json -> parseJsonList(json) } }
+                CacheManager.putTracking("ANIME", items)
+                return@withContext MalFetchResult.Success(items, items.size)
+            }
+        }
+
+        if (dao != null && forceRefresh) {
+            return@withContext safeReconcileAnime()
+        }
+
+        // Fallback: original behavior (no DAO wired, or first-run before DB is populated)
         val result = malAuthManager.fetchUserAnimeList(forceRefresh = forceRefresh)
         when (result) {
             is MalFetchResult.Failure -> result
             is MalFetchResult.Success -> {
                 val enriched = enrichWithAniListMetadata(result.data, MediaType.ANIME)
                 CacheManager.putTracking("ANIME", enriched)
+                dao?.let { upsertLibraryEntries(it, enriched, "ANIME") }
                 runCatching { com.canim.app.CanimApplication.instance }.getOrNull()?.let {
                     CacheManager.saveTrackingToDisk(it, "ANIME", enriched)
                 }
@@ -89,6 +178,7 @@ class CanimRepository(
             is MalFetchResult.Partial -> {
                 val enriched = enrichWithAniListMetadata(result.data, MediaType.ANIME)
                 CacheManager.putTracking("ANIME", enriched)
+                dao?.let { upsertLibraryEntries(it, enriched, "ANIME") }
                 runCatching { com.canim.app.CanimApplication.instance }.getOrNull()?.let {
                     CacheManager.saveTrackingToDisk(it, "ANIME", enriched)
                 }
@@ -98,15 +188,97 @@ class CanimRepository(
     }
 
     /**
+     * Safe force-refresh reconciliation for Anime:
+     * 1. Drain pending queue best-effort (failures are preserved, not discarded).
+     * 2. Fetch MAL — if fetch fails, return failure without touching local state.
+     * 3. Reconcile: entries with active pending mutations are NOT overwritten by server data.
+     * 4. Update DB + CacheManager + disk only on confirmed success.
+     */
+    private suspend fun safeReconcileAnime(): MalFetchResult<List<UserMediaItem>> {
+        val dao = libraryDao ?: return MalFetchResult.Failure(Exception("LibraryDao not wired"))
+        val mutDao = pendingMutationDao
+
+        // Step 1: on explicit force-refresh, requeue FAILED_PERMANENTLY mutations for ANIME
+        // then drain pending best-effort (failures are preserved, not discarded).
+        try {
+            mutDao?.resetFailedPermanentlyToPending("ANIME")
+            syncEngine?.drainQueue()
+        } catch (_: Exception) {}
+
+        // Step 2: fetch from MAL
+        val result = malAuthManager.fetchUserAnimeList(forceRefresh = true)
+        if (result is MalFetchResult.Failure) return result  // local state untouched
+
+        val serverItems = when (result) {
+            is MalFetchResult.Success -> result.data
+            is MalFetchResult.Partial -> result.data
+            else -> emptyList()
+        }
+
+        // Step 3: reconcile — entries with active pending mutations keep local data
+        val activePendingMalIds = mutDao?.getActiveMalIds("ANIME") ?: emptySet()
+        val enrichedServer = enrichWithAniListMetadata(serverItems, MediaType.ANIME)
+
+        // Overwrite entries WITHOUT active pending; preserve entries WITH active pending
+        enrichedServer.forEach { serverItem ->
+            val malId = serverItem.malId ?: return@forEach
+            if (malId !in activePendingMalIds) {
+                dao.upsertEntry(serverItem.toLibraryEntry("ANIME"))
+            }
+        }
+        // Remove entries from DB that are no longer in MAL list (and have no pending)
+        val serverMalIds = enrichedServer.mapNotNull { it.malId }.toSet()
+        val localMalIds = dao.getAllMalIds("ANIME")
+        (localMalIds - serverMalIds).forEach { orphanId ->
+            if (orphanId !in activePendingMalIds) {
+                dao.deleteEntry(orphanId, "ANIME")
+            }
+        }
+
+        // Step 4: read final state from DB (blend of server + preserved local)
+        val finalItems = dao.getAllEntries("ANIME").map { it.toUserMediaItem { json -> parseJsonList(json) } }
+        CacheManager.putTracking("ANIME", finalItems)
+        runCatching { com.canim.app.CanimApplication.instance }.getOrNull()?.let {
+            CacheManager.saveTrackingToDisk(it, "ANIME", finalItems)
+        }
+        mutDao?.clearSucceeded()
+
+        return when (result) {
+            is MalFetchResult.Success -> MalFetchResult.Success(finalItems, finalItems.size)
+            is MalFetchResult.Partial -> MalFetchResult.Partial(finalItems, finalItems.size, result.error)
+            else -> MalFetchResult.Success(finalItems, finalItems.size)
+        }
+    }
+
+    /**
      * Loads the user's manga list from MAL as source of truth, enriched with AniList metadata.
      */
+    /**
+     * Loads the user's manga list.
+     * Phase 4: same local-first + safe reconcile logic as [getUserAnimeList].
+     */
     suspend fun getUserMangaList(forceRefresh: Boolean = false): MalFetchResult<List<UserMediaItem>> = withContext(Dispatchers.IO) {
+        val dao = libraryDao
+        if (dao != null && !forceRefresh) {
+            val localEntries = dao.getAllEntries("MANGA")
+            if (localEntries.isNotEmpty()) {
+                val items = localEntries.map { it.toUserMediaItem { json -> parseJsonList(json) } }
+                CacheManager.putTracking("MANGA", items)
+                return@withContext MalFetchResult.Success(items, items.size)
+            }
+        }
+
+        if (dao != null && forceRefresh) {
+            return@withContext safeReconcileManga()
+        }
+
         val result = malAuthManager.fetchUserMangaList(forceRefresh = forceRefresh)
         when (result) {
             is MalFetchResult.Failure -> result
             is MalFetchResult.Success -> {
                 val enriched = enrichWithAniListMetadata(result.data, MediaType.MANGA)
                 CacheManager.putTracking("MANGA", enriched)
+                dao?.let { upsertLibraryEntries(it, enriched, "MANGA") }
                 runCatching { com.canim.app.CanimApplication.instance }.getOrNull()?.let {
                     CacheManager.saveTrackingToDisk(it, "MANGA", enriched)
                 }
@@ -115,11 +287,62 @@ class CanimRepository(
             is MalFetchResult.Partial -> {
                 val enriched = enrichWithAniListMetadata(result.data, MediaType.MANGA)
                 CacheManager.putTracking("MANGA", enriched)
+                dao?.let { upsertLibraryEntries(it, enriched, "MANGA") }
                 runCatching { com.canim.app.CanimApplication.instance }.getOrNull()?.let {
                     CacheManager.saveTrackingToDisk(it, "MANGA", enriched)
                 }
                 MalFetchResult.Partial(enriched, result.fetchedItems, result.error)
             }
+        }
+    }
+
+    private suspend fun safeReconcileManga(): MalFetchResult<List<UserMediaItem>> {
+        val dao = libraryDao ?: return MalFetchResult.Failure(Exception("LibraryDao not wired"))
+        val mutDao = pendingMutationDao
+
+        // Step 1: on explicit force-refresh, requeue FAILED_PERMANENTLY mutations for MANGA
+        try {
+            mutDao?.resetFailedPermanentlyToPending("MANGA")
+            syncEngine?.drainQueue()
+        } catch (_: Exception) {}
+
+        val result = malAuthManager.fetchUserMangaList(forceRefresh = true)
+        if (result is MalFetchResult.Failure) return result
+
+        val serverItems = when (result) {
+            is MalFetchResult.Success -> result.data
+            is MalFetchResult.Partial -> result.data
+            else -> emptyList()
+        }
+
+        val activePendingMalIds = mutDao?.getActiveMalIds("MANGA") ?: emptySet()
+        val enrichedServer = enrichWithAniListMetadata(serverItems, MediaType.MANGA)
+
+        enrichedServer.forEach { serverItem ->
+            val malId = serverItem.malId ?: return@forEach
+            if (malId !in activePendingMalIds) {
+                dao.upsertEntry(serverItem.toLibraryEntry("MANGA"))
+            }
+        }
+        val serverMalIds = enrichedServer.mapNotNull { it.malId }.toSet()
+        val localMalIds = dao.getAllMalIds("MANGA")
+        (localMalIds - serverMalIds).forEach { orphanId ->
+            if (orphanId !in activePendingMalIds) {
+                dao.deleteEntry(orphanId, "MANGA")
+            }
+        }
+
+        val finalItems = dao.getAllEntries("MANGA").map { it.toUserMediaItem { json -> parseJsonList(json) } }
+        CacheManager.putTracking("MANGA", finalItems)
+        runCatching { com.canim.app.CanimApplication.instance }.getOrNull()?.let {
+            CacheManager.saveTrackingToDisk(it, "MANGA", finalItems)
+        }
+        mutDao?.clearSucceeded()
+
+        return when (result) {
+            is MalFetchResult.Success -> MalFetchResult.Success(finalItems, finalItems.size)
+            is MalFetchResult.Partial -> MalFetchResult.Partial(finalItems, finalItems.size, result.error)
+            else -> MalFetchResult.Success(finalItems, finalItems.size)
         }
     }
 
@@ -137,7 +360,7 @@ class CanimRepository(
     ): List<UserMediaItem> = withContext(Dispatchers.IO) {
         val malIds = items.mapNotNull { it.malId }
         val unEnrichedMalIds = malIds.filter { mId ->
-            val aniId = CacheManager.getAniListIdForMalId(mId)
+            val aniId = CacheManager.getAniListIdForMalId(mId, type)
             val cached = CacheManager.getDetail(CacheManager.detailKey(aniId, mId))
             cached == null
         }
@@ -158,7 +381,7 @@ class CanimRepository(
             if (aniItem != null) {
                 val updatedMetadata = item.metadata.copy(
                     titleEnglish = aniItem.titleEnglish ?: item.metadata.titleEnglish,
-                    imageUrl = aniItem.imageUrl.ifBlank { item.metadata.imageUrl },
+                    imageUrl = item.metadata.imageUrl.ifBlank { aniItem.imageUrl },
                     totalEpisodes = aniItem.episodes ?: item.metadata.totalEpisodes,
                     totalChapters = aniItem.chapters ?: item.metadata.totalChapters,
                     totalVolumes = aniItem.volumes ?: item.metadata.totalVolumes,
@@ -178,24 +401,133 @@ class CanimRepository(
         }
     }
 
-    // --- Tracking Mutations (Bidirectional MAL Operations) ---
-    suspend fun updateAnimeTracking(malId: Int, tracking: MalTracking): Result<Unit> =
+    // --- Tracking Mutations (Phase 4: Local-First → Queue → Best-Effort Immediate Send) ---
+
+    /**
+     * Updates anime tracking locally first, then enqueues for sync to MAL.
+     * Returns [Result.success] as soon as the local write is confirmed.
+     * The actual HTTP call is handled by [LibrarySyncEngine] in the background.
+     *
+     * Falls back to direct MAL call if local DB is not wired (test / no-DAO mode).
+     */
+    suspend fun updateAnimeTracking(malId: Int, tracking: MalTracking): Result<Unit> = withContext(Dispatchers.IO) {
+        val dao = libraryDao
+        val mutDao = pendingMutationDao
+        if (dao != null && mutDao != null) {
+            // Phase 4 path: write locally, enqueue mutation
+            return@withContext localFirstUpdate(malId, "ANIME", tracking, dao, mutDao)
+        }
+        // Fallback: direct MAL call (original behavior)
         malAuthManager.updateAnimeTracking(malId, tracking)
+    }
 
-    suspend fun updateMangaTracking(malId: Int, tracking: MalTracking): Result<Unit> =
+    suspend fun updateMangaTracking(malId: Int, tracking: MalTracking): Result<Unit> = withContext(Dispatchers.IO) {
+        val dao = libraryDao
+        val mutDao = pendingMutationDao
+        if (dao != null && mutDao != null) {
+            return@withContext localFirstUpdate(malId, "MANGA", tracking, dao, mutDao)
+        }
         malAuthManager.updateMangaTracking(malId, tracking)
+    }
 
-    suspend fun deleteAnimeTracking(malId: Int): Result<Unit> =
+    suspend fun deleteAnimeTracking(malId: Int): Result<Unit> = withContext(Dispatchers.IO) {
+        val dao = libraryDao
+        val mutDao = pendingMutationDao
+        if (dao != null && mutDao != null) {
+            return@withContext localFirstDelete(malId, "ANIME", dao, mutDao)
+        }
         malAuthManager.deleteAnimeTracking(malId)
+    }
 
-    suspend fun deleteMangaTracking(malId: Int): Result<Unit> =
+    suspend fun deleteMangaTracking(malId: Int): Result<Unit> = withContext(Dispatchers.IO) {
+        val dao = libraryDao
+        val mutDao = pendingMutationDao
+        if (dao != null && mutDao != null) {
+            return@withContext localFirstDelete(malId, "MANGA", dao, mutDao)
+        }
         malAuthManager.deleteMangaTracking(malId)
+    }
+
+    private suspend fun localFirstUpdate(
+        malId: Int,
+        mediaType: String,
+        tracking: MalTracking,
+        dao: LibraryDao,
+        mutDao: PendingMutationDao
+    ): Result<Unit> {
+        return try {
+            val now = System.currentTimeMillis()
+            // Update tracking fields on existing DB entry (preserves metadata)
+            val existing = dao.getEntry(malId, mediaType)
+            val updated = (existing ?: LibraryEntry(malId = malId, mediaType = mediaType)).copy(
+                status = tracking.status,
+                score = tracking.score,
+                progress = tracking.progress,
+                progressVolumes = tracking.progressVolumes,
+                isRepeating = if (tracking.isRepeating) 1 else 0,
+                numTimesRewatched = tracking.numTimesRewatched,
+                rewatchValue = tracking.rewatchValue,
+                priority = tracking.priority,
+                tagsJson = gson.toJson(tracking.tags ?: emptyList<String>()),
+                comments = tracking.comments,
+                startDate = tracking.startDate,
+                finishDate = tracking.finishDate,
+                localUpdatedAt = now
+            )
+            val mutation = PendingMutation(
+                malId = malId,
+                mediaType = mediaType,
+                mutationType = PendingMutation.TYPE_UPDATE,
+                payloadJson = gson.toJson(tracking),
+                localUpdatedAt = now,
+                createdAt = now
+            )
+
+            // Atomic: upsert local entry AND enqueue pending mutation in single SQLite transaction
+            dao.upsertWithMutation(updated, mutation, mutDao)
+
+            // Best-effort immediate send if online
+            swrScope.launch { syncEngine?.trySendImmediate(malId, mediaType) }
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private suspend fun localFirstDelete(
+        malId: Int,
+        mediaType: String,
+        dao: LibraryDao,
+        mutDao: PendingMutationDao
+    ): Result<Unit> {
+        return try {
+            val now = System.currentTimeMillis()
+            val mutation = PendingMutation(
+                malId = malId,
+                mediaType = mediaType,
+                mutationType = PendingMutation.TYPE_DELETE,
+                payloadJson = "",
+                localUpdatedAt = now,
+                createdAt = now
+            )
+
+            // Atomic: delete local entry AND enqueue delete mutation in single SQLite transaction
+            dao.deleteWithMutation(malId, mediaType, mutation, mutDao)
+
+            swrScope.launch { syncEngine?.trySendImmediate(malId, mediaType) }
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 
     // --- Helpers for MyAnimeList Node Mapping ---
     private fun mapMalAnimeNodeToMediaItem(node: MalAnimeNode): MediaItem {
         return MediaItem(
             malId = node.id,
-            anilistId = CacheManager.getAniListIdForMalId(node.id) ?: node.id,
+            anilistId = CacheManager.getAniListIdForMalId(node.id),
             title = node.title,
             titleEnglish = node.alternativeTitles?.en ?: node.title,
             imageUrl = node.mainPicture?.large ?: node.mainPicture?.medium ?: "",
@@ -222,7 +554,7 @@ class CanimRepository(
     private fun mapMalMangaNodeToMediaItem(node: MalMangaNode): MediaItem {
         return MediaItem(
             malId = node.id,
-            anilistId = CacheManager.getAniListIdForMalId(node.id) ?: node.id,
+            anilistId = CacheManager.getAniListIdForMalId(node.id),
             title = node.title,
             titleEnglish = node.alternativeTitles?.en ?: node.title,
             imageUrl = node.mainPicture?.large ?: node.mainPicture?.medium ?: "",
@@ -247,22 +579,64 @@ class CanimRepository(
         )
     }
 
+    fun searchFilterKey(query: String, genres: List<String>? = null, year: Int? = null, format: String? = null): String {
+        val trimmed = query.trim()
+        val genresKey = if (genres.isNullOrEmpty()) "" else genres.sorted().joinToString(",")
+        return "${trimmed}_${genresKey}_${year}_${format}"
+    }
+
+    fun discoverFilterKey(
+        category: DiscoverCategory,
+        filter: DiscoverFilter = DiscoverFilter(),
+        page: Int = 1,
+        randomSort: String? = null,
+        mediaType: MediaType? = null
+    ): String {
+        val resolvedType = mediaType ?: if (
+            filter.format == "MANGA" ||
+            category == DiscoverCategory.TOP_MANGA ||
+            category == DiscoverCategory.RECENTLY_DONE_MANGA ||
+            category == DiscoverCategory.NEWLY_ADDED_MANGA
+        ) MediaType.MANGA else MediaType.ANIME
+        return "${resolvedType.name.lowercase()}_${category.key}_${filter.genre}_${filter.format}_${filter.year}_${filter.season}_${filter.minScore}_${randomSort}_p$page"
+    }
+
     suspend fun searchAnime(
         query: String,
         genres: List<String>? = null,
         year: Int? = null,
-        format: String? = null
+        format: String? = null,
+        forceRefresh: Boolean = false
     ): List<MediaItem> = withContext(Dispatchers.IO) {
         val trimmed = query.trim()
-        val filterKey = "${trimmed}_${genres?.sorted()?.joinToString(",")}_${year}_${format}"
+        val filterKey = searchFilterKey(trimmed, genres, year, format)
         if (trimmed.isEmpty() && genres.isNullOrEmpty() && year == null && format == null) return@withContext emptyList()
 
-        val cached = CacheManager.getSearch(filterKey, "ANIME")
-        if (cached != null) return@withContext cached
+        // SWR: serve cached data immediately; trigger background refresh only if stale
+        if (!forceRefresh) {
+            val swrHit = CacheManager.getSearchSwr(filterKey, "ANIME")
+            if (swrHit != null) {
+                if (swrHit.isStale) {
+                    val cacheKey = CacheManager.searchKey(filterKey, "ANIME")
+                    launchSwrJob(cacheKey) {
+                        runCatching {
+                            val fresh = AniListClient.searchMedia(trimmed, MediaType.ANIME, genres, year, format, forceRefresh = true)
+                            if (fresh.isNotEmpty()) {
+                                CacheManager.putSearch(filterKey, "ANIME", fresh)
+                                if (fresh != swrHit.data) {
+                                    _cacheRefreshEvents.emit(CacheRefreshEvent(cacheKey, CacheRefreshType.SEARCH))
+                                }
+                            }
+                        }
+                    }
+                }
+                return@withContext swrHit.data
+            }
+        }
 
         deduplicateInFlight("search_anime_$filterKey") {
             var result = runCatching {
-                AniListClient.searchMedia(trimmed, MediaType.ANIME, genres, year, format)
+                AniListClient.searchMedia(trimmed, MediaType.ANIME, genres, year, format, forceRefresh = forceRefresh)
             }.getOrDefault(emptyList())
 
             val hasExplicitFilters = !genres.isNullOrEmpty() || year != null || !format.isNullOrBlank()
@@ -297,7 +671,11 @@ class CanimRepository(
                         }
                         result = if (hasExplicitFilters) filtered else malItems.take(30)
                     }
-                } catch (_: Exception) {}
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.w("CanimRepository", "MAL search anime fallback failed: ${LogRedactor.redact(e.message ?: "")}")
+                }
             }
 
             if (result.isEmpty()) {
@@ -336,18 +714,38 @@ class CanimRepository(
         query: String,
         genres: List<String>? = null,
         year: Int? = null,
-        format: String? = null
+        format: String? = null,
+        forceRefresh: Boolean = false
     ): List<MediaItem> = withContext(Dispatchers.IO) {
         val trimmed = query.trim()
-        val filterKey = "${trimmed}_${genres?.sorted()?.joinToString(",")}_${year}_${format}"
+        val filterKey = searchFilterKey(trimmed, genres, year, format)
         if (trimmed.isEmpty() && genres.isNullOrEmpty() && year == null && format == null) return@withContext emptyList()
 
-        val cached = CacheManager.getSearch(filterKey, "MANGA")
-        if (cached != null) return@withContext cached
+        // SWR: serve cached data immediately; trigger background refresh only if stale
+        if (!forceRefresh) {
+            val swrHit = CacheManager.getSearchSwr(filterKey, "MANGA")
+            if (swrHit != null) {
+                if (swrHit.isStale) {
+                    val cacheKey = CacheManager.searchKey(filterKey, "MANGA")
+                    launchSwrJob(cacheKey) {
+                        runCatching {
+                            val fresh = AniListClient.searchMedia(trimmed, MediaType.MANGA, genres, year, format, forceRefresh = true)
+                            if (fresh.isNotEmpty()) {
+                                CacheManager.putSearch(filterKey, "MANGA", fresh)
+                                if (fresh != swrHit.data) {
+                                    _cacheRefreshEvents.emit(CacheRefreshEvent(cacheKey, CacheRefreshType.SEARCH))
+                                }
+                            }
+                        }
+                    }
+                }
+                return@withContext swrHit.data
+            }
+        }
 
         deduplicateInFlight("search_manga_$filterKey") {
             var result = runCatching {
-                AniListClient.searchMedia(trimmed, MediaType.MANGA, genres, year, format)
+                AniListClient.searchMedia(trimmed, MediaType.MANGA, genres, year, format, forceRefresh = forceRefresh)
             }.getOrDefault(emptyList())
 
             val hasExplicitFilters = !genres.isNullOrEmpty() || year != null || !format.isNullOrBlank()
@@ -382,7 +780,11 @@ class CanimRepository(
                         }
                         result = if (hasExplicitFilters) filtered else malItems.take(30)
                     }
-                } catch (_: Exception) {}
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.w("CanimRepository", "MAL search manga fallback failed: ${LogRedactor.redact(e.message ?: "")}")
+                }
             }
 
             if (result.isEmpty()) {
@@ -423,14 +825,58 @@ class CanimRepository(
         filter: DiscoverFilter = DiscoverFilter(),
         page: Int = 1,
         forceRefresh: Boolean = false,
-        randomSort: String? = null
+        randomSort: String? = null,
+        mediaType: MediaType? = null
     ): List<MediaItem> = withContext(Dispatchers.IO) {
-        val cacheKey = "${category.key}_${filter.genre}_${filter.format}_${filter.year}_${filter.season}_${filter.minScore}_${randomSort}_p$page"
+        val cacheKey = discoverFilterKey(category, filter, page, randomSort, mediaType)
         if (!forceRefresh) {
-            val cached = CacheManager.getDiscover(cacheKey)
-            if (cached != null) return@withContext cached
+            val swrHit = CacheManager.getDiscoverSwr(cacheKey)
+            if (swrHit != null) {
+                if (swrHit.isStale) {
+                    // Capture variables for background lambda
+                    val capCategory = category
+                    val capFilter = filter
+                    val capPage = page
+                    val capRandomSort = randomSort
+                    val capMediaType = mediaType
+                    val capKey = cacheKey
+                    val capStale = swrHit.data
+                    val canonicalDiscoverKey = CacheManager.discoverKey(cacheKey)
+                    launchSwrJob(canonicalDiscoverKey) {
+                        runCatching {
+                            val fresh = fetchDiscoverInternal(
+                                category = capCategory,
+                                filter = capFilter,
+                                page = capPage,
+                                randomSort = capRandomSort,
+                                forceRefresh = true,
+                                mediaType = capMediaType
+                            )
+                            if (fresh.isNotEmpty()) {
+                                CacheManager.putDiscover(capKey, fresh)
+                                if (fresh != capStale) {
+                                    _cacheRefreshEvents.emit(CacheRefreshEvent(canonicalDiscoverKey, CacheRefreshType.DISCOVER))
+                                }
+                            }
+                        }
+                    }
+                }
+                return@withContext swrHit.data
+            }
         }
 
+        fetchDiscoverInternal(category, filter, page, randomSort, forceRefresh, mediaType)
+    }
+
+    private suspend fun fetchDiscoverInternal(
+        category: DiscoverCategory,
+        filter: DiscoverFilter,
+        page: Int,
+        randomSort: String?,
+        forceRefresh: Boolean,
+        mediaType: MediaType? = null
+    ): List<MediaItem> {
+        val cacheKey = discoverFilterKey(category, filter, page, randomSort, mediaType)
         val limit = 25
         val offset = (page - 1) * limit
 
@@ -455,7 +901,7 @@ class CanimRepository(
                         }
                     }
                     CacheManager.putDiscover(cacheKey, items)
-                    return@withContext items
+                    return items
                 }
             } catch (_: Exception) {}
         } else if (category == DiscoverCategory.TOP_MANGA) {
@@ -478,7 +924,7 @@ class CanimRepository(
                         }
                     }
                     CacheManager.putDiscover(cacheKey, items)
-                    return@withContext items
+                    return items
                 }
             } catch (_: Exception) {}
         }
@@ -490,7 +936,8 @@ class CanimRepository(
                 filter = filter,
                 page = page,
                 randomSort = randomSort,
-                forceRefresh = forceRefresh
+                forceRefresh = forceRefresh,
+                mediaType = mediaType
             )
         }.getOrDefault(emptyList())
 
@@ -518,7 +965,11 @@ class CanimRepository(
                     }
                     else -> {}
                 }
-            } catch (_: Exception) {}
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("CanimRepository", "MAL discover fallback failed: ${LogRedactor.redact(e.message ?: "")}")
+            }
         }
 
         // Offline fallback if network fails completely (except AniList-exclusive categories)
@@ -533,8 +984,29 @@ class CanimRepository(
             CacheManager.putDiscover(cacheKey, results)
         }
 
-        results
+        return results
     }
+
+    /**
+     * Synchronously inspects persistent / memory cache for extended media details.
+     * Enforces strict MediaType namespace isolation when resolving IDs.
+     */
+    fun getCachedExtendedDetail(
+        aniListId: Int?,
+        malId: Int?,
+        type: MediaType? = null
+    ): ExtendedMediaDetail? {
+        val resolvedAniListId = aniListId ?: (malId?.let { CacheManager.getAniListIdForMalId(it, type) })
+        val resolvedMalId = malId ?: (resolvedAniListId?.let { CacheManager.getMalIdForAniListId(it, type) })
+        val primaryCacheKey = CacheManager.detailKey(resolvedAniListId, resolvedMalId)
+
+        return CacheManager.getDetail(primaryCacheKey)
+            ?: (resolvedAniListId?.let { CacheManager.getDetail(CacheManager.detailKey(it, null)) })
+            ?: (resolvedMalId?.let { CacheManager.getDetail(CacheManager.detailKey(null, it)) })
+    }
+
+    suspend fun getMalExtendedDetailFallback(malId: Int, type: MediaType): ExtendedMediaDetail? =
+        malAuthManager.getExtendedDetailFallback(malId, type)
 
     // --- Extended Details: Primary AniList, Fallback to MAL ---
     suspend fun getExtendedDetails(
@@ -543,16 +1015,36 @@ class CanimRepository(
         type: MediaType,
         forceRefresh: Boolean = false
     ): ExtendedMediaDetail? = withContext(Dispatchers.IO) {
-        val resolvedAniListId = aniListId ?: (malId?.let { CacheManager.getAniListIdForMalId(it) })
-        val resolvedMalId = malId ?: (resolvedAniListId?.let { CacheManager.getMalIdForAniListId(it) })
+        val resolvedAniListId = aniListId ?: (malId?.let { CacheManager.getAniListIdForMalId(it, type) })
+        val resolvedMalId = malId ?: (resolvedAniListId?.let { CacheManager.getMalIdForAniListId(it, type) })
         val primaryCacheKey = CacheManager.detailKey(resolvedAniListId, resolvedMalId)
 
         if (!forceRefresh) {
-            val cached = CacheManager.getDetail(primaryCacheKey)
-                ?: (resolvedAniListId?.let { CacheManager.getDetail(CacheManager.detailKey(it, null)) })
-                ?: (resolvedMalId?.let { CacheManager.getDetail(CacheManager.detailKey(null, it)) })
-            if (cached != null && (cached.malScore != null || resolvedMalId == null)) {
-                return@withContext cached
+            // SWR: resolve from multiple cache keys, prefer most specific
+            val swrHit = CacheManager.getDetailSwr(primaryCacheKey)
+                ?: (resolvedAniListId?.let { CacheManager.getDetailSwr(CacheManager.detailKey(it, null)) })
+                ?: (resolvedMalId?.let { CacheManager.getDetailSwr(CacheManager.detailKey(null, it)) })
+            if (swrHit != null && (swrHit.data.malScore != null || resolvedMalId == null)) {
+                if (swrHit.isStale) {
+                    val capAniId = resolvedAniListId
+                    val capMalId = resolvedMalId
+                    val capType = type
+                    val capPrimaryKey = primaryCacheKey
+                    launchSwrJob(capPrimaryKey) {
+                        runCatching {
+                            val fresh = AniListClient.getExtendedDetails(capAniId, capMalId, capType, forceRefresh = true)
+                            if (fresh != null) {
+                                CacheManager.putDetail(capPrimaryKey, fresh)
+                                capAniId?.let { CacheManager.putDetail(CacheManager.detailKey(it, null), fresh) }
+                                capMalId?.let { CacheManager.putDetail(CacheManager.detailKey(null, it), fresh) }
+                                if (fresh != swrHit.data) {
+                                    _cacheRefreshEvents.emit(CacheRefreshEvent(capPrimaryKey, CacheRefreshType.DETAIL))
+                                }
+                            }
+                        }
+                    }
+                }
+                return@withContext swrHit.data
             }
         }
 
@@ -568,8 +1060,8 @@ class CanimRepository(
                     } else null
                 }
 
-                val aniDetail = aniDeferred.await()
-                var malExt = malDeferred.await()
+                val aniDetail = try { aniDeferred.await() } catch (_: Exception) { null }
+                var malExt = try { malDeferred.await() } catch (_: Exception) { null }
 
                 // If MAL ID wasn't known beforehand, but AniList returned it, fetch MAL fallback
                 val effectiveMalId = aniDetail?.malId ?: resolvedMalId
@@ -579,20 +1071,25 @@ class CanimRepository(
 
                 val merged = if (aniDetail != null && malExt != null) {
                     aniDetail.copy(
+                        // Cover: MAL fully authoritative, AniList is fallback
+                        coverImage = malExt.coverImage?.takeIf { it.isNotBlank() } ?: aniDetail.coverImage,
                         // Metrics: MAL is authoritative for Rating MAL
-                        malScore = malExt.malScore,
+                        malScore = malExt.malScore ?: aniDetail.malScore,
                         malRank = malExt.malRank ?: aniDetail.rank,
                         malPopularity = malExt.malPopularity ?: aniDetail.popularity,
                         malMembers = malExt.malMembers ?: aniDetail.watchers,
-                        // Visual / rich media: Prioritize AniList, fallback to MAL
+                        // Basic metadata provided by MAL
+                        synopsis = malExt.synopsis?.takeIf { it.isNotBlank() } ?: aniDetail.synopsis,
+                        airingStatus = malExt.airingStatus ?: aniDetail.airingStatus,
+                        startDate = malExt.startDate ?: aniDetail.startDate,
+                        endDate = malExt.endDate ?: aniDetail.endDate,
+                        genres = if (malExt.genres.isNotEmpty()) malExt.genres else aniDetail.genres,
+                        source = malExt.source ?: aniDetail.source,
+                        // Visual / rich media not provided by MAL: AniList
+                        bannerImage = aniDetail.bannerImage ?: malExt.bannerImage,
                         studio = aniDetail.studio ?: malExt.studio,
                         studioId = aniDetail.studioId ?: malExt.studioId,
-                        publisher = aniDetail.publisher ?: malExt.publisher,
-                        airingStatus = aniDetail.airingStatus ?: malExt.airingStatus,
-                        startDate = aniDetail.startDate ?: malExt.startDate,
-                        endDate = aniDetail.endDate ?: malExt.endDate,
-                        genres = if (aniDetail.genres.isNotEmpty()) aniDetail.genres else malExt.genres,
-                        source = aniDetail.source ?: malExt.source
+                        publisher = aniDetail.publisher ?: malExt.publisher
                     )
                 } else {
                     aniDetail ?: malExt
@@ -602,7 +1099,7 @@ class CanimRepository(
                     val effectiveAni = merged.anilistId
                     val effectiveMal = merged.malId
                     if (effectiveAni != null && effectiveMal != null) {
-                        CacheManager.putIdMapping(effectiveMal, effectiveAni)
+                        CacheManager.putIdMapping(effectiveMal, effectiveAni, type)
                     }
                     CacheManager.putDetail(CacheManager.detailKey(effectiveAni, effectiveMal), merged)
                     if (effectiveAni != null) {
@@ -620,6 +1117,11 @@ class CanimRepository(
 
     suspend fun isAniListUnavailable(): Boolean = withContext(Dispatchers.IO) {
         try {
+            if (AniListClient.pingHealth()) {
+                return@withContext false
+            }
+            // Tolerant retry: wait 1.5s before concluding outage
+            kotlinx.coroutines.delay(1500L)
             !AniListClient.pingHealth()
         } catch (_: Exception) {
             true
@@ -636,6 +1138,10 @@ class CanimRepository(
     }
 
     // --- Cache Management Actions ---
+    suspend fun pruneCache() {
+        CacheManager.pruneExpired()
+    }
+
     fun clearMetadataCache() {
         CacheManager.clearMetadataCache()
     }
@@ -809,5 +1315,72 @@ class CanimRepository(
 
     suspend fun searchStudios(query: String, page: Int = 1, perPage: Int = 20): List<StudioBioInfo> {
         return AniListClient.searchStudios(query, page, perPage)
+    }
+
+    // ── Phase 4 local DB helper functions ─────────────────────────────────────
+
+    /**
+     * Bulk-upserts a list of [UserMediaItem] into [LibraryDao].
+     * Called after a successful MAL fetch to populate/update the local DB.
+     */
+    private fun upsertLibraryEntries(dao: LibraryDao, items: List<UserMediaItem>, mediaType: String) {
+        items.forEach { item ->
+            try {
+                dao.upsertEntry(item.toLibraryEntry(mediaType))
+            } catch (_: Exception) { /* best-effort — do not fail the whole fetch */ }
+        }
+    }
+
+    /**
+     * Converts a [UserMediaItem] to a [LibraryEntry] for local storage.
+     * [mediaType] must be "ANIME" or "MANGA".
+     */
+    private fun UserMediaItem.toLibraryEntry(mediaType: String): LibraryEntry {
+        val t = tracking
+        val m = metadata
+        return LibraryEntry(
+            malId = malId ?: 0,
+            mediaType = mediaType,
+            status = t.status,
+            score = t.score,
+            progress = t.progress,
+            progressVolumes = t.progressVolumes,
+            isRepeating = if (t.isRepeating) 1 else 0,
+            numTimesRewatched = t.numTimesRewatched,
+            rewatchValue = t.rewatchValue,
+            priority = t.priority,
+            tagsJson = gson.toJson(t.tags ?: emptyList<String>()),
+            comments = t.comments,
+            startDate = t.startDate,
+            finishDate = t.finishDate,
+            title = m.title,
+            titleEnglish = m.titleEnglish,
+            imageUrl = m.imageUrl,
+            totalEpisodes = m.totalEpisodes ?: 0,
+            totalChapters = m.totalChapters ?: 0,
+            totalVolumes = m.totalVolumes ?: 0,
+            airingStatus = m.status,
+            year = m.year ?: 0,
+            season = m.season,
+            genresJson = gson.toJson(m.genres),
+            format = m.format,
+            studio = m.studio,
+            anilistId = anilistId,
+            localUpdatedAt = t.updatedAt,
+            syncedAt = 0L
+        )
+    }
+
+    /**
+     * Parses a JSON array string (e.g. `["Action","Fantasy"]`) into a [List<String>].
+     * Returns an empty list on parse failure.
+     */
+    private fun parseJsonList(json: String): List<String> {
+        return try {
+            if (json.isBlank() || json == "[]") emptyList()
+            else gson.fromJson(json, Array<String>::class.java).toList()
+        } catch (_: Exception) {
+            emptyList()
+        }
     }
 }

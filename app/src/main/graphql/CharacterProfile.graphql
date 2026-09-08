@@ -1,0 +1,38 @@
+query GetCharacterProfile($id: Int) {
+  Character(id: $id) {
+    id
+    name {
+      first
+      last
+      full
+      native
+    }
+    image {
+      large
+      medium
+    }
+    description(asHtml: false)
+    media(page: 1, perPage: 25, sort: [POPULARITY_DESC]) {
+      edges {
+        characterRole
+        node {
+          id
+          idMal
+          title {
+            romaji
+            english
+          }
+          coverImage {
+            large
+            medium
+          }
+          startDate {
+            year
+          }
+          format
+          type
+        }
+      }
+    }
+  }
+}

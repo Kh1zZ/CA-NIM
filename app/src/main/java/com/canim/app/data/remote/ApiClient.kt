@@ -12,6 +12,19 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 
 object ApiClient {
+
+    /**
+     * Per-host request policy for AniList (GraphQL).
+     * Max 4 concurrent requests; applied inside [AniListApolloClient] via [RequestPolicy.withPolicy].
+     */
+    val aniListPolicy: RequestPolicy = RequestPolicy(maxConcurrent = 4)
+
+    /**
+     * Per-host request policy for MAL REST API.
+     * Max 3 concurrent requests; applied via [MalRequestInterceptor] in [malOkHttpClient].
+     */
+    val malPolicy: RequestPolicy = RequestPolicy(maxConcurrent = 3)
+
     val okHttpClient: OkHttpClient by lazy {
         val logging = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BASIC else HttpLoggingInterceptor.Level.NONE
@@ -32,12 +45,66 @@ object ApiClient {
             .build()
     }
 
-    val malApi: MalApiService by lazy {
-        Retrofit.Builder()
+    /**
+     * Dedicated OkHttpClient for AniList GraphQL operations.
+     * Tuned timeouts: 10s connect, 15s read, 10s write.
+     * Isolated connection pool and no ineffective HTTP GET cache for GraphQL POST requests.
+     */
+    val aniListOkHttpClient: OkHttpClient by lazy {
+        val logging = HttpLoggingInterceptor().apply {
+            level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BASIC else HttpLoggingInterceptor.Level.NONE
+        }
+        OkHttpClient.Builder()
+            .connectionPool(ConnectionPool(5, 5, TimeUnit.MINUTES))
+            .retryOnConnectionFailure(true)
+            .addInterceptor(logging)
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .writeTimeout(10, TimeUnit.SECONDS)
+            .build()
+    }
+
+    /**
+     * Dedicated OkHttpClient for MAL REST API requests.
+     * Uses [malPolicy] via [MalRequestInterceptor] for 429 cooldown and idempotent retry.
+     * Sensitive headers (Authorization, X-MAL-CLIENT-ID) are passed by callers and
+     * never logged by [MalRequestInterceptor].
+     */
+    val malOkHttpClient: OkHttpClient by lazy {
+        val logging = HttpLoggingInterceptor().apply {
+            // BASIC logs request line + response code only — no headers, no body.
+            // Authorization and X-MAL-CLIENT-ID headers are therefore NOT logged.
+            level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BASIC else HttpLoggingInterceptor.Level.NONE
+        }
+        OkHttpClient.Builder()
+            .connectionPool(ConnectionPool(4, 5, TimeUnit.MINUTES))
+            .retryOnConnectionFailure(false) // retry handled by MalRequestInterceptor
+            .addInterceptor(MalRequestInterceptor(malPolicy))
+            .addNetworkInterceptor(logging)
+            .connectTimeout(8, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.SECONDS)
+            .writeTimeout(10, TimeUnit.SECONDS)
+            .build()
+    }
+
+    private val defaultMalApi: MalApiService by lazy {
+        val retrofitService = Retrofit.Builder()
             .baseUrl("https://api.myanimelist.net/v2/")
-            .client(okHttpClient)
+            .client(malOkHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(MalApiService::class.java)
+        MalApiPolicyWrapper(retrofitService, malPolicy)
+    }
+
+    @Volatile
+    private var testMalApi: MalApiService? = null
+
+    val malApi: MalApiService
+        get() = testMalApi ?: defaultMalApi
+
+    fun setMalApiForTesting(service: MalApiService?) {
+        testMalApi = service
     }
 }
+

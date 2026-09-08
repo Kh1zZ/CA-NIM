@@ -33,6 +33,8 @@ import com.canim.app.ui.theme.*
 import com.canim.app.ui.viewmodel.CanimUiState
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.ui.text.font.FontFamily
+import com.canim.app.data.metrics.AppMetrics
 
 @Composable
 fun SettingsScreen(
@@ -457,6 +459,103 @@ fun SettingsScreen(
                                 uncheckedTrackColor = CardElevated
                             )
                         )
+                    }
+                }
+            }
+        }
+
+        // Observabilitas & Diagnostik Sistem (In-memory, Zero PII)
+        item {
+            var isExpanded by remember { mutableStateOf(false) }
+            var debugSummary by remember { mutableStateOf(AppMetrics.getDebugSummary()) }
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
+                    .testTag("observability_diagnostics_card"),
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Observabilitas & Diagnostik",
+                                color = TextPrimary,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Metrik in-memory, retry, cache, & latency (Zero PII)",
+                                color = TextMuted,
+                                fontSize = 11.sp
+                            )
+                        }
+                        TextButton(
+                            onClick = {
+                                debugSummary = AppMetrics.getDebugSummary()
+                                isExpanded = !isExpanded
+                            }
+                        ) {
+                            Text(
+                                text = if (isExpanded) "Tutup" else "Buka",
+                                color = AccentBlue,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+
+                    if (isExpanded) {
+                        Divider(color = CardBorder)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(CardElevated, RoundedCornerShape(8.dp))
+                                .padding(10.dp)
+                        ) {
+                            Text(
+                                text = debugSummary,
+                                color = TextSecondary,
+                                fontSize = 10.sp,
+                                lineHeight = 14.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    debugSummary = AppMetrics.getDebugSummary()
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, CardBorder),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Segarkan", color = TextSecondary, fontSize = 11.sp)
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    AppMetrics.reset()
+                                    debugSummary = AppMetrics.getDebugSummary()
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, CardBorder),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Reset Metrik", color = StatusDroppedColor, fontSize = 11.sp)
+                            }
+                        }
                     }
                 }
             }

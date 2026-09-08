@@ -1,0 +1,47 @@
+query GetStudioFilmography(
+  $id: Int,
+  $search: String,
+  $page: Int,
+  $perPage: Int,
+  $sort: [MediaSort]
+) {
+  Studio(id: $id, search: $search) {
+    id
+    name
+    isAnimationStudio
+    siteUrl
+    favourites
+    media(page: $page, perPage: $perPage, sort: $sort) {
+      pageInfo {
+        total
+        currentPage
+        lastPage
+        hasNextPage
+      }
+      nodes {
+        id
+        idMal
+        title {
+          romaji
+          english
+        }
+        coverImage {
+          extraLarge
+          large
+          medium
+        }
+        format
+        type
+        status
+        episodes
+        chapters
+        averageScore
+        popularity
+        genres
+        startDate {
+          year
+        }
+      }
+    }
+  }
+}

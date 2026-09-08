@@ -1,0 +1,6 @@
+query ResolveMalId($idMal: Int, $type: MediaType) {
+  Media(idMal: $idMal, type: $type) {
+    id
+    idMal
+  }
+}

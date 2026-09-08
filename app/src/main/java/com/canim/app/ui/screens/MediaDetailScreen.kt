@@ -34,6 +34,7 @@ import com.canim.app.data.model.*
 import com.canim.app.ui.theme.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import com.canim.app.data.cache.CacheManager
 import com.canim.app.util.TextSanitizer
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -751,9 +752,14 @@ fun MediaDetailScreen(
                                         listState.firstVisibleItemIndex,
                                         listState.firstVisibleItemScrollOffset
                                     )
+                                    val effectiveAniId = if (rel.id > 0 && rel.id != rel.malId) {
+                                        rel.id
+                                    } else {
+                                        rel.malId?.let { CacheManager.getAniListIdForMalId(it) }
+                                    }
                                     val relMedia = MediaItem(
                                         malId = rel.malId,
-                                        anilistId = rel.id,
+                                        anilistId = effectiveAniId,
                                         title = rel.title,
                                         imageUrl = rel.imageUrl ?: "",
                                         type = rel.type,

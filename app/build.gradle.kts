@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.apollo)
 }
 
 android {
@@ -11,8 +12,8 @@ android {
         applicationId = "com.canim.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 30
-        versionName = "v6.1.8a"
+        versionCode = 33
+        versionName = "v6.1.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -126,7 +127,18 @@ dependencies {
     // AndroidX Security Crypto (Secure EncryptedSharedPreferences)
     implementation(libs.androidx.security.crypto)
 
+    // Apollo Kotlin 4.x Runtime
+    implementation(libs.apollo.runtime)
+
     // Unit & Robolectric testing
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.11.1")
+    testImplementation(libs.kotlinx.coroutines.test)
+}
+
+apollo {
+    service("anilist") {
+        packageName.set("com.canim.app.data.remote.anilist.graphql")
+        mapScalar("FuzzyDateInt", "kotlin.Int")
+    }
 }

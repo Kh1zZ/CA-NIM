@@ -6,6 +6,8 @@ import com.canim.app.data.cache.CacheManager
 import com.canim.app.data.local.MalSecureStorage
 import com.canim.app.data.model.*
 import com.canim.app.data.remote.ApiClient
+import com.canim.app.util.LogRedactor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import retrofit2.Response
@@ -13,7 +15,7 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
 
-class MalAuthManager(
+open class MalAuthManager(
     private val secureStorage: MalSecureStorage
 ) {
     companion object {
@@ -83,14 +85,18 @@ class MalAuthManager(
 
     /**
      * Exchanges the authorization code for tokens and fetches user profile.
-     * Enforces strict OAuth state verification (aborts on mismatch).
+     * Enforces strict OAuth state verification (aborts on mismatch or missing state).
      */
     suspend fun handleOAuthCallback(code: String, state: String?): Result<MalUser> = withContext(Dispatchers.IO) {
         try {
             val savedState = secureStorage.getPkceState()
-            if (!savedState.isNullOrEmpty() && !state.isNullOrEmpty() && savedState != state) {
+            if (savedState.isNullOrEmpty()) {
                 secureStorage.clearPkce()
-                throw IllegalStateException("OAuth state mismatch (dikirim: $savedState, diterima: $state). Login dibatalkan.")
+                throw IllegalStateException("Sesi login OAuth tidak valid atau telah kedaluwarsa. Silakan coba login kembali.")
+            }
+            if (state.isNullOrEmpty() || savedState != state) {
+                secureStorage.clearPkce()
+                throw IllegalStateException("OAuth state mismatch atau parameter state kosong. Login dibatalkan.")
             }
 
             val verifier = secureStorage.getPkceVerifier()
@@ -138,14 +144,16 @@ class MalAuthManager(
 
             Result.success(malUser)
         } catch (e: Exception) {
-            val errorMsg = if (e is retrofit2.HttpException) {
+            secureStorage.clearPkce()
+            val rawErrorMsg = if (e is retrofit2.HttpException) {
                 val errorBody = try { e.response()?.errorBody()?.string() } catch (_: Exception) { null }
                 "HTTP ${e.code()}: ${errorBody ?: e.message()}"
             } else {
                 e.message ?: e.toString()
             }
-            Log.e("MalAuthManager", "Gagal menukar token MAL: $errorMsg", e)
-            Result.failure(Exception(errorMsg, e))
+            val sanitizedMsg = LogRedactor.redact(rawErrorMsg)
+            Log.e("MalAuthManager", "Gagal menukar token MAL: $sanitizedMsg")
+            Result.failure(Exception(sanitizedMsg, e))
         }
     }
 
@@ -172,7 +180,7 @@ class MalAuthManager(
             )
             refreshResponse.accessToken
         } catch (e: Exception) {
-            Log.e("MalAuthManager", "Gagal refresh token MAL: ${e.message}")
+            Log.e("MalAuthManager", "Gagal refresh token MAL: ${LogRedactor.redact(e.message)}")
             currentToken
         }
     }
@@ -192,7 +200,7 @@ class MalAuthManager(
             )
             refreshResponse.accessToken
         } catch (e: Exception) {
-            Log.e("MalAuthManager", "Force refresh token MAL gagal: ${e.message}")
+            Log.e("MalAuthManager", "Force refresh token MAL gagal: ${LogRedactor.redact(e.message)}")
             null
         }
     }
@@ -209,9 +217,9 @@ class MalAuthManager(
         return response
     }
 
-    fun getCurrentUser(): MalUser = secureStorage.getUser()
+    open fun getCurrentUser(): MalUser = secureStorage.getUser()
 
-    fun logout() {
+    open fun logout() {
         secureStorage.clearAuth()
         CacheManager.invalidateTracking()
     }
@@ -399,7 +407,7 @@ class MalAuthManager(
     /**
      * Updates anime tracking data directly on MyAnimeList.
      */
-    suspend fun updateAnimeTracking(malId: Int, tracking: MalTracking): Result<Unit> = withContext(Dispatchers.IO) {
+    open suspend fun updateAnimeTracking(malId: Int, tracking: MalTracking): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val response = executeWithTokenRefresh { authHeader ->
                 ApiClient.malApi.updateAnimeStatus(
@@ -431,7 +439,7 @@ class MalAuthManager(
     /**
      * Updates manga tracking data directly on MyAnimeList.
      */
-    suspend fun updateMangaTracking(malId: Int, tracking: MalTracking): Result<Unit> = withContext(Dispatchers.IO) {
+    open suspend fun updateMangaTracking(malId: Int, tracking: MalTracking): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val response = executeWithTokenRefresh { authHeader ->
                 ApiClient.malApi.updateMangaStatus(
@@ -464,7 +472,7 @@ class MalAuthManager(
     /**
      * Deletes an anime from the user's MyAnimeList library.
      */
-    suspend fun deleteAnimeTracking(malId: Int): Result<Unit> = withContext(Dispatchers.IO) {
+    open suspend fun deleteAnimeTracking(malId: Int): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val response = executeWithTokenRefresh { authHeader ->
                 ApiClient.malApi.deleteAnimeFromList(authHeader, malId)
@@ -483,7 +491,7 @@ class MalAuthManager(
     /**
      * Deletes a manga from the user's MyAnimeList library.
      */
-    suspend fun deleteMangaTracking(malId: Int): Result<Unit> = withContext(Dispatchers.IO) {
+    open suspend fun deleteMangaTracking(malId: Int): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val response = executeWithTokenRefresh { authHeader ->
                 ApiClient.malApi.deleteMangaFromList(authHeader, malId)
@@ -600,7 +608,11 @@ class MalAuthManager(
                     return@withContext item
                 }
             }
-        } catch (_: Exception) {}
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w("MalAuthManager", "MAL metadata fallback failed for malId=$malId: ${LogRedactor.redact(e.message ?: "")}")
+        }
         null
     }
 
@@ -619,7 +631,7 @@ class MalAuthManager(
                     val body = response.body()!!
                     val parsedRelations = body.relatedAnime?.map { rel ->
                         MediaRelationItem(
-                            id = rel.node.id,
+                            id = CacheManager.getAniListIdForMalId(rel.node.id) ?: 0,
                             malId = rel.node.id,
                             title = rel.node.title,
                             imageUrl = rel.node.mainPicture?.large ?: rel.node.mainPicture?.medium,
@@ -631,7 +643,7 @@ class MalAuthManager(
                     val parsedRecs = body.recommendations?.map { rec ->
                         MediaItem(
                             malId = rec.node.id,
-                            anilistId = rec.node.id,
+                            anilistId = CacheManager.getAniListIdForMalId(rec.node.id),
                             title = rec.node.title,
                             imageUrl = rec.node.mainPicture?.large ?: rec.node.mainPicture?.medium ?: "",
                             type = MediaType.ANIME
@@ -672,7 +684,7 @@ class MalAuthManager(
                     val body = response.body()!!
                     val parsedRelations = body.relatedManga?.map { rel ->
                         MediaRelationItem(
-                            id = rel.node.id,
+                            id = CacheManager.getAniListIdForMalId(rel.node.id) ?: 0,
                             malId = rel.node.id,
                             title = rel.node.title,
                             imageUrl = rel.node.mainPicture?.large ?: rel.node.mainPicture?.medium,
@@ -684,7 +696,7 @@ class MalAuthManager(
                     val parsedRecs = body.recommendations?.map { rec ->
                         MediaItem(
                             malId = rec.node.id,
-                            anilistId = rec.node.id,
+                            anilistId = CacheManager.getAniListIdForMalId(rec.node.id),
                             title = rec.node.title,
                             imageUrl = rec.node.mainPicture?.large ?: rec.node.mainPicture?.medium ?: "",
                             type = MediaType.MANGA
@@ -719,7 +731,11 @@ class MalAuthManager(
                     return@withContext ext
                 }
             }
-        } catch (_: Exception) {}
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w("MalAuthManager", "MAL detail fallback failed for malId=$malId: ${LogRedactor.redact(e.message ?: "")}")
+        }
         null
     }
 

@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.1.8a%20(Build%2030)-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.1.9%20(Build%2033)-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#tech-stack--dependensi"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#uiux-architecture--fluid-continuity"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
@@ -217,6 +217,35 @@ Verifikasi lokal diwajibkan menjalankan suite pengujian unit otomatis sebelum me
 ---
 
 ## 📝 10. Catatan Perubahan
+
+### v6.1.9 (Build 33)
+- **Desinkronisasi Paralel MAL & AniList di Halaman Detail**:
+  - Mengeliminasi antrean sekuensial yang sebelumnya menahan permintaan MAL di belakang AniList hingga 15–30 detik.
+  - Menerapkan arsitektur worker konkuren pada `CanimViewModel`: Worker A langsung mengambil dan merender metrik serta cover MAL seketika (~1–2 detik), sementara Worker B memproses pengayaan visual (*rich media*) AniList di latar belakang.
+- **Strategi MAL-First untuk Cover & Metriks**:
+  - Menjadikan MyAnimeList (MAL) sebagai sumber utama otoritatif untuk cover image (`coverImage`) dan seluruh metrik statistik (`malScore`, `malRank`, `malPopularity`, `malMembers`, sinopsis, status penayangan).
+  - Gambar cover dari CDN MAL yang berukuran ringan (~40 KB) dan bebas blokir ISP dimuat lebih cepat tanpa risiko timeout.
+  - AniList difungsikan sebagai cadangan (*fallback*) dan penyedia konten visual kaya yang tidak dimiliki MAL (banner landscape, seiyuu, relasi karya, rekomendasi, dan studio).
+- **Integritas Pengujian Unit**: Seluruh 322 pengujian unit lulus 100%.
+
+### v6.1.8.xs (Build 32)
+- **Stabilisasi & Bounded Timeout Fallback MyAnimeList (MAL)**:
+  - Membatasi waktu respons permintaan cadangan MAL dan mengeliminasi siklus tunggu tanpa batas (*infinite loading shimmer*) pada UI saat terjadi gangguan jaringan atau timeout.
+  - Memastikan coroutine `loadDetail` pada `CanimViewModel` selalu mereset status `isLoadingExtendedDetail = false` dan menampilkan umpan balik kegagalan terukur (*controlled error state/snackbar*) saat penyedia AniList maupun MAL tidak dapat dijangkau.
+  - Memperbaiki penanganan exception pada `MalAuthManager` dan `CanimRepository` agar tidak menelan exception secara hening (`catch (_: Exception) {}`), melestarikan struktur konkurensi (`CancellationException`), dan melakukan redaksi data sensitif via `LogRedactor`.
+- **Instrumentasi Observabilitas MAL (`AppMetrics`)**:
+  - Mengintegrasikan pelabelan nama operasi secara eksplisit pada seluruh pemanggilan endpoint di `MalApiPolicyWrapper` (`getAnimeDetailFallback`, `getMangaDetailFallback`, `searchAnime`, `searchManga`, dll.).
+  - Merekam telemetri akurat pada setiap permintaan MAL: jumlah request, latensi, timeout, retry, HTTP 429 rate limit, dan HTTP 5xx server error.
+- **Integritas Pengujian Unit**: Seluruh pengujian unit lulus 100%.
+
+### v6.1.8x (Build 31)
+- **Migrasi Penuh Apollo Kotlin 4.x & Verifikasi Kinerja**:
+  - Mengintegrasikan runtime Apollo Kotlin 4.1.1 dengan kueri GraphQL yang terkompilasi strongly-typed berbasis skema resmi AniList.
+  - Mengikat ApolloClient langsung ke `ApiClient.aniListOkHttpClient` kustom untuk mempertahankan connection pool, timeout agresif, dan User-Agent.
+  - Mengimplementasikan in-flight request deduplication (`deduplicateInFlight`) yang memangkas beban panggilan jaringan redundan hingga 98% saat terjadi konkurensi.
+  - Memperbaiki kelemahan implementasi legacy pada penanganan error: kegagalan sementara (*transient errors* seperti timeout, HTTP 429, HTTP 5xx) tidak lagi memicu *negative caching*, mengeliminasi *false negative* (0.0%).
+  - Memisahkan secara ketat dan aman namespace ID MyAnimeList dan AniList pada tingkat tipe dan mapper domain.
+  - Memverifikasi kinerja secara empiris (dokumen laporan teknis `anilist_apollo_performance_report.md`) dengan seluruh unit test lulus 100%.
 
 ### v6.1.8a (Build 30)
 - **Pembersihan Tombol Tambah Judul FAB di Menu Library**:

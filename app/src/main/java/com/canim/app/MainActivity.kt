@@ -58,9 +58,17 @@ data class NavItem(
 class MainActivity : ComponentActivity() {
 
     private val viewModel: CanimViewModel by viewModels {
+        val app = application as CanimApplication
         val secureStorage = MalSecureStorage(applicationContext)
         val malAuthManager = MalAuthManager(secureStorage = secureStorage)
-        val repository = CanimRepository(malAuthManager = malAuthManager)
+        // Phase 4: init SyncEngine (idempotent) before constructing Repository
+        app.initSyncEngine(malAuthManager)
+        val repository = CanimRepository(
+            malAuthManager = malAuthManager,
+            libraryDao = app.libraryDao,
+            pendingMutationDao = app.pendingMutationDao,
+            syncEngine = app.syncEngine
+        )
         val gachaCreditManager = GachaCreditManager.getInstance(applicationContext)
         CanimViewModelFactory(repository, gachaCreditManager)
     }

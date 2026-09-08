@@ -1,0 +1,20 @@
+query SearchStudios($search: String, $page: Int, $perPage: Int) {
+  Page(page: $page, perPage: $perPage) {
+    studios(search: $search) {
+      id
+      name
+      isAnimationStudio
+      favourites
+      siteUrl
+      media(page: 1, perPage: 1, sort: [POPULARITY_DESC]) {
+        nodes {
+          id
+          coverImage {
+            large
+            extraLarge
+          }
+        }
+      }
+    }
+  }
+}
