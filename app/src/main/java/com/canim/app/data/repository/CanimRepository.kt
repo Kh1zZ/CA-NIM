@@ -286,37 +286,57 @@ class CanimRepository(
         )
     }
 
+    fun searchFilterKey(query: String, genres: List<String>? = null, year: Int? = null, format: String? = null): String {
+        val trimmed = query.trim()
+        val genresKey = if (genres.isNullOrEmpty()) "" else genres.sorted().joinToString(",")
+        return "${trimmed}_${genresKey}_${year}_${format}"
+    }
+
+    fun discoverFilterKey(
+        category: DiscoverCategory,
+        filter: DiscoverFilter = DiscoverFilter(),
+        page: Int = 1,
+        randomSort: String? = null
+    ): String {
+        return "${category.key}_${filter.genre}_${filter.format}_${filter.year}_${filter.season}_${filter.minScore}_${randomSort}_p$page"
+    }
+
     suspend fun searchAnime(
         query: String,
         genres: List<String>? = null,
         year: Int? = null,
-        format: String? = null
+        format: String? = null,
+        forceRefresh: Boolean = false
     ): List<MediaItem> = withContext(Dispatchers.IO) {
         val trimmed = query.trim()
-        val filterKey = "${trimmed}_${genres?.sorted()?.joinToString(",")}_${year}_${format}"
+        val filterKey = searchFilterKey(trimmed, genres, year, format)
         if (trimmed.isEmpty() && genres.isNullOrEmpty() && year == null && format == null) return@withContext emptyList()
 
         // SWR: serve cached data immediately; trigger background refresh only if stale
-        val swrHit = CacheManager.getSearchSwr(filterKey, "ANIME")
-        if (swrHit != null) {
-            if (swrHit.isStale) {
-                val cacheKey = CacheManager.searchKey(filterKey, "ANIME")
-                launchSwrJob(cacheKey) {
-                    runCatching {
-                        val fresh = AniListClient.searchMedia(trimmed, MediaType.ANIME, genres, year, format)
-                        if (fresh.isNotEmpty() && fresh.map { it.id } != swrHit.data.map { it.id }) {
-                            CacheManager.putSearch(filterKey, "ANIME", fresh)
-                            _cacheRefreshEvents.emit(CacheRefreshEvent(cacheKey, CacheRefreshType.SEARCH))
+        if (!forceRefresh) {
+            val swrHit = CacheManager.getSearchSwr(filterKey, "ANIME")
+            if (swrHit != null) {
+                if (swrHit.isStale) {
+                    val cacheKey = CacheManager.searchKey(filterKey, "ANIME")
+                    launchSwrJob(cacheKey) {
+                        runCatching {
+                            val fresh = AniListClient.searchMedia(trimmed, MediaType.ANIME, genres, year, format, forceRefresh = true)
+                            if (fresh.isNotEmpty()) {
+                                CacheManager.putSearch(filterKey, "ANIME", fresh)
+                                if (fresh != swrHit.data) {
+                                    _cacheRefreshEvents.emit(CacheRefreshEvent(cacheKey, CacheRefreshType.SEARCH))
+                                }
+                            }
                         }
                     }
                 }
+                return@withContext swrHit.data
             }
-            return@withContext swrHit.data
         }
 
         deduplicateInFlight("search_anime_$filterKey") {
             var result = runCatching {
-                AniListClient.searchMedia(trimmed, MediaType.ANIME, genres, year, format)
+                AniListClient.searchMedia(trimmed, MediaType.ANIME, genres, year, format, forceRefresh = forceRefresh)
             }.getOrDefault(emptyList())
 
             val hasExplicitFilters = !genres.isNullOrEmpty() || year != null || !format.isNullOrBlank()
@@ -390,33 +410,38 @@ class CanimRepository(
         query: String,
         genres: List<String>? = null,
         year: Int? = null,
-        format: String? = null
+        format: String? = null,
+        forceRefresh: Boolean = false
     ): List<MediaItem> = withContext(Dispatchers.IO) {
         val trimmed = query.trim()
-        val filterKey = "${trimmed}_${genres?.sorted()?.joinToString(",")}_${year}_${format}"
+        val filterKey = searchFilterKey(trimmed, genres, year, format)
         if (trimmed.isEmpty() && genres.isNullOrEmpty() && year == null && format == null) return@withContext emptyList()
 
         // SWR: serve cached data immediately; trigger background refresh only if stale
-        val swrHit = CacheManager.getSearchSwr(filterKey, "MANGA")
-        if (swrHit != null) {
-            if (swrHit.isStale) {
-                val cacheKey = CacheManager.searchKey(filterKey, "MANGA")
-                launchSwrJob(cacheKey) {
-                    runCatching {
-                        val fresh = AniListClient.searchMedia(trimmed, MediaType.MANGA, genres, year, format)
-                        if (fresh.isNotEmpty() && fresh.map { it.id } != swrHit.data.map { it.id }) {
-                            CacheManager.putSearch(filterKey, "MANGA", fresh)
-                            _cacheRefreshEvents.emit(CacheRefreshEvent(cacheKey, CacheRefreshType.SEARCH))
+        if (!forceRefresh) {
+            val swrHit = CacheManager.getSearchSwr(filterKey, "MANGA")
+            if (swrHit != null) {
+                if (swrHit.isStale) {
+                    val cacheKey = CacheManager.searchKey(filterKey, "MANGA")
+                    launchSwrJob(cacheKey) {
+                        runCatching {
+                            val fresh = AniListClient.searchMedia(trimmed, MediaType.MANGA, genres, year, format, forceRefresh = true)
+                            if (fresh.isNotEmpty()) {
+                                CacheManager.putSearch(filterKey, "MANGA", fresh)
+                                if (fresh != swrHit.data) {
+                                    _cacheRefreshEvents.emit(CacheRefreshEvent(cacheKey, CacheRefreshType.SEARCH))
+                                }
+                            }
                         }
                     }
                 }
+                return@withContext swrHit.data
             }
-            return@withContext swrHit.data
         }
 
         deduplicateInFlight("search_manga_$filterKey") {
             var result = runCatching {
-                AniListClient.searchMedia(trimmed, MediaType.MANGA, genres, year, format)
+                AniListClient.searchMedia(trimmed, MediaType.MANGA, genres, year, format, forceRefresh = forceRefresh)
             }.getOrDefault(emptyList())
 
             val hasExplicitFilters = !genres.isNullOrEmpty() || year != null || !format.isNullOrBlank()
@@ -494,7 +519,7 @@ class CanimRepository(
         forceRefresh: Boolean = false,
         randomSort: String? = null
     ): List<MediaItem> = withContext(Dispatchers.IO) {
-        val cacheKey = "${category.key}_${filter.genre}_${filter.format}_${filter.year}_${filter.season}_${filter.minScore}_${randomSort}_p$page"
+        val cacheKey = discoverFilterKey(category, filter, page, randomSort)
         if (!forceRefresh) {
             val swrHit = CacheManager.getDiscoverSwr(cacheKey)
             if (swrHit != null) {
@@ -509,16 +534,18 @@ class CanimRepository(
                     val canonicalDiscoverKey = CacheManager.discoverKey(cacheKey)
                     launchSwrJob(canonicalDiscoverKey) {
                         runCatching {
-                            val fresh = AniListClient.getDiscoverMedia(
+                            val fresh = fetchDiscoverInternal(
                                 category = capCategory,
                                 filter = capFilter,
                                 page = capPage,
                                 randomSort = capRandomSort,
-                                forceRefresh = false
+                                forceRefresh = true
                             )
-                            if (fresh.isNotEmpty() && fresh.map { it.id } != capStale.map { it.id }) {
+                            if (fresh.isNotEmpty()) {
                                 CacheManager.putDiscover(capKey, fresh)
-                                _cacheRefreshEvents.emit(CacheRefreshEvent(canonicalDiscoverKey, CacheRefreshType.DISCOVER))
+                                if (fresh != capStale) {
+                                    _cacheRefreshEvents.emit(CacheRefreshEvent(canonicalDiscoverKey, CacheRefreshType.DISCOVER))
+                                }
                             }
                         }
                     }
@@ -527,6 +554,17 @@ class CanimRepository(
             }
         }
 
+        fetchDiscoverInternal(category, filter, page, randomSort, forceRefresh)
+    }
+
+    private suspend fun fetchDiscoverInternal(
+        category: DiscoverCategory,
+        filter: DiscoverFilter,
+        page: Int,
+        randomSort: String?,
+        forceRefresh: Boolean
+    ): List<MediaItem> {
+        val cacheKey = discoverFilterKey(category, filter, page, randomSort)
         val limit = 25
         val offset = (page - 1) * limit
 
@@ -551,7 +589,7 @@ class CanimRepository(
                         }
                     }
                     CacheManager.putDiscover(cacheKey, items)
-                    return@withContext items
+                    return items
                 }
             } catch (_: Exception) {}
         } else if (category == DiscoverCategory.TOP_MANGA) {
@@ -574,7 +612,7 @@ class CanimRepository(
                         }
                     }
                     CacheManager.putDiscover(cacheKey, items)
-                    return@withContext items
+                    return items
                 }
             } catch (_: Exception) {}
         }
@@ -629,7 +667,7 @@ class CanimRepository(
             CacheManager.putDiscover(cacheKey, results)
         }
 
-        results
+        return results
     }
 
     /**
@@ -674,12 +712,14 @@ class CanimRepository(
                     val capPrimaryKey = primaryCacheKey
                     launchSwrJob(capPrimaryKey) {
                         runCatching {
-                            val fresh = AniListClient.getExtendedDetails(capAniId, capMalId, capType, forceRefresh = false)
-                            if (fresh != null && fresh != swrHit.data) {
+                            val fresh = AniListClient.getExtendedDetails(capAniId, capMalId, capType, forceRefresh = true)
+                            if (fresh != null) {
                                 CacheManager.putDetail(capPrimaryKey, fresh)
                                 capAniId?.let { CacheManager.putDetail(CacheManager.detailKey(it, null), fresh) }
                                 capMalId?.let { CacheManager.putDetail(CacheManager.detailKey(null, it), fresh) }
-                                _cacheRefreshEvents.emit(CacheRefreshEvent(capPrimaryKey, CacheRefreshType.DETAIL))
+                                if (fresh != swrHit.data) {
+                                    _cacheRefreshEvents.emit(CacheRefreshEvent(capPrimaryKey, CacheRefreshType.DETAIL))
+                                }
                             }
                         }
                     }

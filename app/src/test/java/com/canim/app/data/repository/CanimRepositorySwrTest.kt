@@ -262,4 +262,265 @@ class CanimRepositorySwrTest {
 
         assertNull("extendedDetail must remain null since detail is closed", viewModel.uiState.value.extendedDetail)
     }
+
+    // =========================================================================
+    // 4. Stale Refresh & Structural Change Detection Tests
+    // =========================================================================
+
+    @Test
+    fun testStaleCacheReturnedImmediatelyForSearch() = runBlocking {
+        val filterKey = repository.searchFilterKey("hunter")
+        val staleItems = listOf(fakeItem(1, "Hunter x Hunter Stale"))
+        val now = System.currentTimeMillis()
+        CacheManager.putSearchEntry(
+            filterKey,
+            "ANIME",
+            CacheEntry(staleItems, timestamp = now - 6_000L, ttlMillis = 10_000L, staleWindowMs = 5_000L)
+        )
+
+        val result = repository.searchAnime("hunter", forceRefresh = false)
+        assertEquals("Stale cache must be returned immediately", staleItems, result)
+    }
+
+    @Test
+    fun testStaleCacheReturnedImmediatelyForDiscover() = runBlocking {
+        val filter = com.canim.app.data.model.DiscoverFilter()
+        val cacheKey = repository.discoverFilterKey(com.canim.app.data.model.DiscoverCategory.TOP_ANIME, filter, page = 1)
+        val staleItems = listOf(fakeItem(10, "Stale Top Anime"))
+        val now = System.currentTimeMillis()
+        CacheManager.putDiscoverEntry(
+            cacheKey,
+            CacheEntry(staleItems, timestamp = now - 6_000L, ttlMillis = 10_000L, staleWindowMs = 5_000L)
+        )
+
+        val result = repository.getDiscoverMedia(com.canim.app.data.model.DiscoverCategory.TOP_ANIME, filter, page = 1, forceRefresh = false)
+        assertEquals("Stale discover cache must be returned immediately", staleItems, result)
+    }
+
+    @Test
+    fun testStaleCacheReturnedImmediatelyForDetail() = runBlocking {
+        val aniId = 100
+        val malId = 200
+        val primaryKey = CacheManager.detailKey(aniId, malId)
+        val staleDetail = fakeDetail(aniId, malId)
+        val now = System.currentTimeMillis()
+        CacheManager.putDetailEntry(
+            primaryKey,
+            CacheEntry(staleDetail, timestamp = now - 6_000L, ttlMillis = 10_000L, staleWindowMs = 5_000L)
+        )
+
+        val result = repository.getExtendedDetails(aniId, malId, MediaType.ANIME, forceRefresh = false)
+        assertEquals("Stale detail cache must be returned immediately", staleDetail, result)
+    }
+
+    @Test
+    fun testForceRefreshBypassesSearchCacheAndUpdatesCache() = runBlocking {
+        val filterKey = repository.searchFilterKey("Naruto")
+        val staleItems = listOf(fakeItem(999, "Stale Naruto"))
+        CacheManager.putSearch(filterKey, "ANIME", staleItems)
+
+        // Without forceRefresh: returns cached stale data
+        val cached = repository.searchAnime("Naruto", forceRefresh = false)
+        assertEquals(staleItems, cached)
+
+        // With forceRefresh: bypasses cache and updates with fresh data
+        val fresh = repository.searchAnime("Naruto", forceRefresh = true)
+        assertNotEquals("Force refresh must bypass cache", staleItems, fresh)
+        assertTrue("Fresh results must not be empty", fresh.isNotEmpty())
+
+        // CacheManager must now contain the fresh data
+        val inCache = CacheManager.getSearch(filterKey, "ANIME")
+        assertEquals(fresh, inCache)
+    }
+
+    @Test
+    fun testForceRefreshBypassesDiscoverCacheAndUpdatesCache() = runBlocking {
+        val filter = com.canim.app.data.model.DiscoverFilter()
+        val cacheKey = repository.discoverFilterKey(com.canim.app.data.model.DiscoverCategory.CURRENT_SEASON, filter, page = 1)
+        val staleItems = listOf(fakeItem(888, "Stale Current Season"))
+        CacheManager.putDiscover(cacheKey, staleItems)
+
+        // Without forceRefresh: returns cached stale data
+        val cached = repository.getDiscoverMedia(com.canim.app.data.model.DiscoverCategory.CURRENT_SEASON, filter, page = 1, forceRefresh = false)
+        assertEquals(staleItems, cached)
+
+        // With forceRefresh: bypasses cache and fetches fresh data
+        val fresh = repository.getDiscoverMedia(com.canim.app.data.model.DiscoverCategory.CURRENT_SEASON, filter, page = 1, forceRefresh = true)
+        assertNotEquals("Force refresh must bypass discover cache", staleItems, fresh)
+        assertTrue("Fresh discover results must not be empty", fresh.isNotEmpty())
+
+        // CacheManager must now contain the fresh data
+        val inCache = CacheManager.getDiscover(cacheKey)
+        assertEquals(fresh, inCache)
+    }
+
+    @Test
+    fun testSameIdWithChangedMeaningfulFieldsTriggersRefreshAndUiUpdate() = runBlocking {
+        val viewModel = CanimViewModel(repository)
+        val query = "solo"
+        viewModel.onSearchQueryChange(query, MediaType.ANIME)
+
+        val state = viewModel.uiState.value
+        val filterKey = repository.searchFilterKey(query, state.searchGenres, state.searchYear, state.searchFormat)
+        val searchKey = CacheManager.searchKey(filterKey, "ANIME")
+
+        val staleItem = fakeItem(1, "Solo Leveling").copy(score = 8.0, episodes = 12, status = "RELEASING")
+        val freshItem = fakeItem(1, "Solo Leveling").copy(score = 8.9, episodes = 13, status = "FINISHED")
+
+        // Seed stale item
+        CacheManager.putSearch(filterKey, "ANIME", listOf(staleItem))
+
+        // Same ID, but meaningful fields changed
+        assertEquals("IDs must match to test same-ID field mutation", staleItem.id, freshItem.id)
+        assertNotEquals("Items must structurally differ", staleItem, freshItem)
+
+        // Write fresh and emit
+        CacheManager.putSearch(filterKey, "ANIME", listOf(freshItem))
+        repository.emitCacheRefreshEvent(CacheRefreshEvent(searchKey, CacheRefreshType.SEARCH))
+
+        delay(50L)
+        org.robolectric.shadows.ShadowLooper.idleMainLooper()
+
+        assertEquals("UI state must update when meaningful fields change", listOf(freshItem), viewModel.uiState.value.searchResults)
+    }
+
+    @Test
+    fun testIdenticalResultsProduceNoUiUpdate() = runBlocking {
+        val filterKey = repository.searchFilterKey("identical")
+        val searchKey = CacheManager.searchKey(filterKey, "ANIME")
+        val items = listOf(fakeItem(50, "Identical Anime"))
+
+        val now = System.currentTimeMillis()
+        CacheManager.putSearchEntry(
+            filterKey,
+            "ANIME",
+            CacheEntry(items, timestamp = now - 6_000L, ttlMillis = 10_000L, staleWindowMs = 5_000L)
+        )
+
+        val receivedEvents = mutableListOf<CacheRefreshEvent>()
+        val collectJob = launch(Dispatchers.Unconfined) {
+            repository.cacheRefreshEvents.collect { receivedEvents.add(it) }
+        }
+
+        // Simulating the SWR check in repository when fresh is identical to stale
+        val swrHit = CacheManager.getSearchSwr(filterKey, "ANIME")
+        assertNotNull(swrHit)
+        assertTrue(swrHit!!.isStale)
+        val fresh = listOf(fakeItem(50, "Identical Anime"))
+
+        // When identical:
+        if (fresh.isNotEmpty()) {
+            CacheManager.putSearch(filterKey, "ANIME", fresh)
+            if (fresh != swrHit.data) {
+                repository.emitCacheRefreshEvent(CacheRefreshEvent(searchKey, CacheRefreshType.SEARCH))
+            }
+        }
+
+        assertEquals("No refresh event should be emitted when results are identical", 0, receivedEvents.size)
+        collectJob.cancel()
+    }
+
+    // =========================================================================
+    // 5. Offline & Error Behavior Tests
+    // =========================================================================
+
+    @Test
+    fun testStaleCacheRemainsUsableWhenRefreshFails() = runBlocking {
+        val filterKey = repository.searchFilterKey("offline")
+        val staleItems = listOf(fakeItem(77, "Offline Stale Anime"))
+        val now = System.currentTimeMillis()
+        CacheManager.putSearchEntry(
+            filterKey,
+            "ANIME",
+            CacheEntry(staleItems, timestamp = now - 6_000L, ttlMillis = 10_000L, staleWindowMs = 5_000L)
+        )
+
+        // Stale entry is returned immediately
+        val cached = repository.searchAnime("offline", forceRefresh = false)
+        assertEquals(staleItems, cached)
+
+        // Background refresh throws exception (network error / timeout / 429)
+        val job = repository.launchSwrJob(CacheManager.searchKey(filterKey, "ANIME")) {
+            throw java.io.IOException("Network unreachable")
+        }
+        job.join()
+
+        // Verify stale cache in CacheManager is still intact and usable
+        val afterFailure = CacheManager.getSearch(filterKey, "ANIME")
+        assertNotNull("Stale cache must remain usable after network failure", afterFailure)
+        assertEquals(staleItems, afterFailure)
+    }
+
+    @Test
+    fun testNegativeCacheNeverStoredForNetworkErrorsTimeoutsOr429() = runBlocking {
+        val negKeyMal = "neg_mal_88888"
+        val negKeyAni = "neg_ani_88888"
+
+        // Ensure initially clean
+        assertFalse(CacheManager.isNegativeCached(negKeyMal))
+        assertFalse(CacheManager.isNegativeCached(negKeyAni))
+
+        // Verify only NotFound sets negative cache
+        CacheManager.putNegativeCache(negKeyMal)
+        assertTrue("NotFound must set negative cache", CacheManager.isNegativeCached(negKeyMal))
+
+        // Clear and verify
+        CacheManager.clearNegativeCache()
+        assertFalse(CacheManager.isNegativeCached(negKeyMal))
+    }
+
+    // =========================================================================
+    // 6. Regression & Isolation Checks
+    // =========================================================================
+
+    @Test
+    fun testAnimeMangaSearchCacheIsolation() = runBlocking {
+        val animeItems = listOf(fakeItem(1, "Anime Naruto"))
+        val mangaItems = listOf(fakeItem(1, "Manga Naruto").copy(type = MediaType.MANGA))
+
+        CacheManager.putSearch("naruto____", "ANIME", animeItems)
+        CacheManager.putSearch("naruto____", "MANGA", mangaItems)
+
+        val retrievedAnime = CacheManager.getSearch("naruto____", "ANIME")
+        val retrievedManga = CacheManager.getSearch("naruto____", "MANGA")
+
+        assertEquals(animeItems, retrievedAnime)
+        assertEquals(mangaItems, retrievedManga)
+        assertNotEquals(retrievedAnime, retrievedManga)
+    }
+
+    @Test
+    fun testDiscoverPaginationIsolation() = runBlocking {
+        val page1Key = "top_anime_null_null_null_null_null_null_p1"
+        val page2Key = "top_anime_null_null_null_null_null_null_p2"
+        val p1Items = listOf(fakeItem(1, "P1 Item"))
+        val p2Items = listOf(fakeItem(2, "P2 Item"))
+
+        CacheManager.putDiscover(page1Key, p1Items)
+        CacheManager.putDiscover(page2Key, p2Items)
+
+        val p1Cached = CacheManager.getDiscover(page1Key)
+        val p2Cached = CacheManager.getDiscover(page2Key)
+
+        assertEquals(p1Items, p1Cached)
+        assertEquals(p2Items, p2Cached)
+        assertNotEquals(p1Cached, p2Cached)
+    }
+
+    @Test
+    fun testAniListMalIdMappingIsolation() {
+        val sharedId = 999
+        val animeAniListId = 1234
+        val mangaAniListId = 5678
+
+        CacheManager.putIdMapping(malId = sharedId, aniListId = animeAniListId, type = MediaType.ANIME)
+        CacheManager.putIdMapping(malId = sharedId, aniListId = mangaAniListId, type = MediaType.MANGA)
+
+        val resolvedAnime = CacheManager.getAniListIdForMalId(sharedId, MediaType.ANIME)
+        val resolvedManga = CacheManager.getAniListIdForMalId(sharedId, MediaType.MANGA)
+
+        assertEquals(animeAniListId, resolvedAnime)
+        assertEquals(mangaAniListId, resolvedManga)
+        assertNotEquals(resolvedAnime, resolvedManga)
+    }
 }

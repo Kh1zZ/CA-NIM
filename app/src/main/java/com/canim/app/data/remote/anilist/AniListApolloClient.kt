@@ -402,13 +402,16 @@ object AniListApolloClient {
         type: MediaType,
         genres: List<String>? = null,
         year: Int? = null,
-        format: String? = null
+        format: String? = null,
+        forceRefresh: Boolean = false
     ): List<MediaItem> = withContext(Dispatchers.IO) {
         val cacheKey = "${query}_${type.name}_${genres?.joinToString(",")}_${year}_${format}"
-        val cached = CacheManager.getSearch(cacheKey, type.name)
-        if (cached != null) {
-            AniListMetrics.recordCacheHit()
-            return@withContext cached
+        if (!forceRefresh) {
+            val cached = CacheManager.getSearch(cacheKey, type.name)
+            if (cached != null) {
+                AniListMetrics.recordCacheHit()
+                return@withContext cached
+            }
         }
         AniListMetrics.recordCacheMiss()
 
@@ -810,7 +813,10 @@ object AniListApolloClient {
         }
         AniListMetrics.recordCacheMiss()
 
-        val isManga = filter.format == "MANGA"
+        val isManga = filter.format == "MANGA" ||
+            category == DiscoverCategory.TOP_MANGA ||
+            category == DiscoverCategory.RECENTLY_DONE_MANGA ||
+            category == DiscoverCategory.NEWLY_ADDED_MANGA
         val apolloType: ApolloMediaType = if (isManga) ApolloMediaType.MANGA else ApolloMediaType.ANIME
         val fallbackType = if (isManga) MediaType.MANGA else MediaType.ANIME
 

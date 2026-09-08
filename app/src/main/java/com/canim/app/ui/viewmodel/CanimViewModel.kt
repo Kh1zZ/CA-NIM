@@ -130,7 +130,8 @@ class CanimViewModel(
     data class SearchTrigger(
         val query: String,
         val type: MediaType,
-        val token: Long = System.nanoTime()
+        val token: Long = System.nanoTime(),
+        val forceRefresh: Boolean = false
     )
     private val _searchQueryFlow = MutableStateFlow(SearchTrigger("", MediaType.ANIME))
 
@@ -256,9 +257,9 @@ class CanimViewModel(
                         } else {
                             _uiState.update { it.copy(isSearching = true) }
                             val results = if (type == MediaType.ANIME) {
-                                repository.searchAnime(trimmed, state.searchGenres, state.searchYear, state.searchFormat)
+                                repository.searchAnime(trimmed, state.searchGenres, state.searchYear, state.searchFormat, forceRefresh = trigger.forceRefresh)
                             } else {
-                                repository.searchManga(trimmed, state.searchGenres, state.searchYear, state.searchFormat)
+                                repository.searchManga(trimmed, state.searchGenres, state.searchYear, state.searchFormat, forceRefresh = trigger.forceRefresh)
                             }
                             emit(results)
                         }
@@ -292,7 +293,7 @@ class CanimViewModel(
                         val genres = state.searchGenres
                         val year = state.searchYear
                         val format = state.searchFormat
-                        val filterKey = "${trimmed}_${genres.sorted().joinToString(",")}_${year}_${format}"
+                        val filterKey = repository.searchFilterKey(trimmed, genres, year, format)
                         val searchKey = CacheManager.searchKey(filterKey, type)
                         if (event.key == searchKey || event.key == filterKey) {
                             val fresh = CacheManager.getSearch(filterKey, type)
@@ -304,7 +305,7 @@ class CanimViewModel(
                     CacheRefreshType.DISCOVER -> {
                         val token = discoverRequestToken
                         val state = _uiState.value
-                        val categoryKey = "${state.selectedDiscoverCategory.key}_${state.discoverFilter.genre}_${state.discoverFilter.format}_${state.discoverFilter.year}_${state.discoverFilter.season}_${state.discoverFilter.minScore}_null_p1"
+                        val categoryKey = repository.discoverFilterKey(state.selectedDiscoverCategory, state.discoverFilter, page = 1)
                         val discoverKey = CacheManager.discoverKey(categoryKey)
                         if (event.key == discoverKey || event.key == categoryKey) {
                             val fresh = CacheManager.getDiscover(categoryKey)
@@ -985,7 +986,7 @@ class CanimViewModel(
     }
 
     // --- Search ---
-    fun onSearchQueryChange(query: String, type: MediaType) {
+    fun onSearchQueryChange(query: String, type: MediaType, forceRefresh: Boolean = false) {
         val typeChanged = _uiState.value.searchType != type
         _uiState.update {
             if (typeChanged) {
@@ -1000,7 +1001,12 @@ class CanimViewModel(
                 it.copy(searchQuery = query, searchType = type)
             }
         }
-        _searchQueryFlow.value = SearchTrigger(query, type)
+        _searchQueryFlow.value = SearchTrigger(query, type, forceRefresh = forceRefresh)
+    }
+
+    fun refreshSearch() {
+        val state = _uiState.value
+        _searchQueryFlow.value = SearchTrigger(state.searchQuery, state.searchType, forceRefresh = true)
     }
 
     fun setSearchType(type: MediaType) {
