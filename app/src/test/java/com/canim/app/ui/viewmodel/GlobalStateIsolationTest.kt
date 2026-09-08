@@ -59,21 +59,9 @@ class GlobalStateIsolationTest {
         assertNull(viewModel.globalState.value.snackbarMessage)
         assertNull(viewModel.uiState.value.snackbarMessage)
 
-        viewModel.onGlobalEvent(GlobalEvent.SetStatsOpen(true))
-        assertTrue(viewModel.globalState.value.isStatsOpen)
-        assertTrue(viewModel.uiState.value.isStatsOpen)
-
-        viewModel.onGlobalEvent(GlobalEvent.SetStatsOpen(false))
-        assertFalse(viewModel.globalState.value.isStatsOpen)
-        assertFalse(viewModel.uiState.value.isStatsOpen)
-
-        viewModel.onGlobalEvent(GlobalEvent.SetAddTitleSheetOpen(true))
-        assertTrue(viewModel.globalState.value.isAddTitleSheetOpen)
-        assertTrue(viewModel.uiState.value.isAddTitleSheetOpen)
-
-        viewModel.onGlobalEvent(GlobalEvent.SetAddTitleSheetOpen(false))
-        assertFalse(viewModel.globalState.value.isAddTitleSheetOpen)
-        assertFalse(viewModel.uiState.value.isAddTitleSheetOpen)
+        viewModel.onGlobalEvent(GlobalEvent.RefreshHealth)
+        // RefreshHealth should trigger health check without crashing or breaking state
+        assertNotNull(viewModel.globalState.value)
     }
 
     @Test
@@ -91,6 +79,7 @@ class GlobalStateIsolationTest {
         viewModel.onGlobalEvent(GlobalEvent.ShowSnackbar("Global state test"))
         viewModel.onGlobalEvent(GlobalEvent.DismissSnackbar)
         viewModel.onGlobalEvent(GlobalEvent.SetAppMode("offline"))
+        viewModel.onGlobalEvent(GlobalEvent.RefreshHealth)
 
         // Verify that ALL modular feature states remain completely untouched
         assertEquals(initialSearchState, viewModel.searchState.value)

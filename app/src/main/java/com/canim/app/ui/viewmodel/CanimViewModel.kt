@@ -437,7 +437,6 @@ class CanimViewModel(
             val user = repository.getMalUser()
             _libraryState.update { it.copy(isLoading = true) }
             _uiState.update { it.copy(isLoadingLibrary = true) }
-            _globalState.update { it.copy(isLoadingLibrary = true) }
             if (user.isLoggedIn) {
                 // SWR: If cached items exist and synced within 30 minutes, skip network on startup unless forced
                 val hasCachedData = _uiState.value.animeList.isNotEmpty() || _uiState.value.mangaList.isNotEmpty()
@@ -446,12 +445,12 @@ class CanimViewModel(
                 if (!forceRefresh && hasCachedData && isCacheFresh) {
                     _libraryState.update { it.copy(isLoading = false) }
                     _uiState.update { it.copy(isLoadingLibrary = false, syncStatus = SyncStatus.IDLE) }
-                    _globalState.update { it.copy(isLoadingLibrary = false, syncStatus = SyncStatus.IDLE) }
+                    _globalState.update { it.copy(syncStatus = SyncStatus.IDLE) }
                     return@launch
                 }
 
                 _uiState.update { it.copy(isLoadingLibrary = true, syncStatus = SyncStatus.SYNCING) }
-                _globalState.update { it.copy(isLoadingLibrary = true, syncStatus = SyncStatus.SYNCING) }
+                _globalState.update { it.copy(syncStatus = SyncStatus.SYNCING) }
                 val animeDeferred = async(Dispatchers.IO) { repository.getUserAnimeList(forceRefresh) }
                 val mangaDeferred = async(Dispatchers.IO) { repository.getUserMangaList(forceRefresh) }
 
@@ -492,7 +491,7 @@ class CanimViewModel(
                 updateLibraryData(animes, mangas)
                 _libraryState.update { it.copy(isLoading = false) }
                 _uiState.update { it.copy(isLoadingLibrary = false, syncStatus = finalSyncStatus) }
-                _globalState.update { it.copy(isLoadingLibrary = false, syncStatus = finalSyncStatus) }
+                _globalState.update { it.copy(syncStatus = finalSyncStatus) }
 
                 if (finalSyncStatus == SyncStatus.SUCCESS) {
                     launch {
@@ -508,7 +507,7 @@ class CanimViewModel(
                 }
                 _libraryState.update { it.copy(isLoading = false) }
                 _uiState.update { it.copy(isLoadingLibrary = false, syncStatus = SyncStatus.IDLE) }
-                _globalState.update { it.copy(isLoadingLibrary = false, syncStatus = SyncStatus.IDLE) }
+                _globalState.update { it.copy(syncStatus = SyncStatus.IDLE) }
             }
         }
     }
@@ -1754,7 +1753,6 @@ class CanimViewModel(
                 }
             }
             is ScreenRoute.FullCastList -> {
-                _globalState.update { it.copy(isStatsOpen = false, isAddTitleSheetOpen = false) }
                 _uiState.update {
                     it.copy(
                         isStatsOpen = false,
@@ -1763,7 +1761,6 @@ class CanimViewModel(
                 }
             }
             is ScreenRoute.Stats -> {
-                _globalState.update { it.copy(isStatsOpen = true, isAddTitleSheetOpen = false) }
                 _uiState.update {
                     it.copy(
                         isStatsOpen = true,
@@ -1775,7 +1772,6 @@ class CanimViewModel(
                 }
             }
             is ScreenRoute.AddTitleSheet -> {
-                _globalState.update { it.copy(isAddTitleSheetOpen = true, isStatsOpen = false) }
                 _uiState.update {
                     it.copy(
                         isAddTitleSheetOpen = true,
@@ -1790,7 +1786,6 @@ class CanimViewModel(
                 _detailState.update {
                     it.copy(isOpen = false)
                 }
-                _globalState.update { it.copy(isStatsOpen = false, isAddTitleSheetOpen = false) }
                 _uiState.update {
                     it.copy(
                         isStatsOpen = false,
@@ -1831,7 +1826,6 @@ class CanimViewModel(
                         canLoadMore = true
                     )
                 }
-                _globalState.update { it.copy(isStatsOpen = false, isAddTitleSheetOpen = false) }
                 _uiState.update {
                     it.copy(
                         selectedDetailItem = null,
@@ -1876,7 +1870,6 @@ class CanimViewModel(
             popScreen()
         } else {
             _uiState.update { it.copy(isStatsOpen = false) }
-            _globalState.update { it.copy(isStatsOpen = false) }
         }
     }
 
@@ -1890,7 +1883,6 @@ class CanimViewModel(
             popScreen()
         } else {
             _uiState.update { it.copy(isAddTitleSheetOpen = false) }
-            _globalState.update { it.copy(isAddTitleSheetOpen = false) }
         }
     }
 
@@ -2235,12 +2227,6 @@ class CanimViewModel(
     fun onGlobalEvent(event: GlobalEvent) {
         when (event) {
             is GlobalEvent.SetActiveTab -> setTab(event.tab)
-            is GlobalEvent.SetStatsOpen -> {
-                if (event.isOpen) openStats() else closeStats()
-            }
-            is GlobalEvent.SetAddTitleSheetOpen -> {
-                if (event.isOpen) openAddTitleSheet() else closeAddTitleSheet()
-            }
             is GlobalEvent.SetAppMode -> setAppMode(event.mode)
             is GlobalEvent.ShowSnackbar -> showSnackbar(event.message)
             is GlobalEvent.DismissSnackbar -> dismissSnackbar()
