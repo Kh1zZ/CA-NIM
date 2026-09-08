@@ -1,7 +1,10 @@
 package com.canim.app.data.repository
 
 import android.content.Context
+import android.util.Log
 import com.canim.app.data.cache.CacheManager
+import com.canim.app.util.LogRedactor
+import kotlinx.coroutines.CancellationException
 import com.canim.app.data.model.*
 import com.canim.app.data.cache.StudioFilmographyPage
 import com.canim.app.data.local.LibraryDao
@@ -668,7 +671,11 @@ class CanimRepository(
                         }
                         result = if (hasExplicitFilters) filtered else malItems.take(30)
                     }
-                } catch (_: Exception) {}
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.w("CanimRepository", "MAL search anime fallback failed: ${LogRedactor.redact(e.message ?: "")}")
+                }
             }
 
             if (result.isEmpty()) {
@@ -773,7 +780,11 @@ class CanimRepository(
                         }
                         result = if (hasExplicitFilters) filtered else malItems.take(30)
                     }
-                } catch (_: Exception) {}
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.w("CanimRepository", "MAL search manga fallback failed: ${LogRedactor.redact(e.message ?: "")}")
+                }
             }
 
             if (result.isEmpty()) {
@@ -954,7 +965,11 @@ class CanimRepository(
                     }
                     else -> {}
                 }
-            } catch (_: Exception) {}
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w("CanimRepository", "MAL discover fallback failed: ${LogRedactor.redact(e.message ?: "")}")
+            }
         }
 
         // Offline fallback if network fails completely (except AniList-exclusive categories)

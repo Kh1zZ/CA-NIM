@@ -61,6 +61,9 @@ internal class MalApiPolicyWrapper(
                     if (delayMs > 0L) delay(delayMs)
                     continue
                 } catch (e: HttpException) {
+                    if (e.code() == 429) {
+                        AppMetrics.recordRateLimit("myanimelist", operation)
+                    }
                     if (e.code() in 500..599) {
                         AppMetrics.recordHttp5xx("myanimelist", operation, e.code())
                     }
@@ -72,15 +75,18 @@ internal class MalApiPolicyWrapper(
                     continue
                 }
 
-                // If result is Retrofit Response<*>, retry on HTTP 5xx
-                if (result is Response<*> && result.code() in 500..599) {
-                    AppMetrics.recordHttp5xx("myanimelist", operation, result.code())
-                    if (retryable && attempt < policy.maxRetries) {
-                        attempt++
-                        AppMetrics.recordRetry("myanimelist", operation)
-                        val delayMs = calculateBackoff(attempt)
-                        if (delayMs > 0L) delay(delayMs)
-                        continue
+                if (result is Response<*>) {
+                    if (result.code() == 429) {
+                        AppMetrics.recordRateLimit("myanimelist", operation)
+                    } else if (result.code() in 500..599) {
+                        AppMetrics.recordHttp5xx("myanimelist", operation, result.code())
+                        if (retryable && attempt < policy.maxRetries) {
+                            attempt++
+                            AppMetrics.recordRetry("myanimelist", operation)
+                            val delayMs = calculateBackoff(attempt)
+                            if (delayMs > 0L) delay(delayMs)
+                            continue
+                        }
                     }
                 }
 
@@ -169,7 +175,7 @@ internal class MalApiPolicyWrapper(
         tags: String?,
         startDate: String?,
         finishDate: String?
-    ): Response<ResponseBody> = executeWithPolicy(retryable = false) {
+    ): Response<ResponseBody> = executeWithPolicy(retryable = false, operation = "updateAnimeStatus") {
         delegate.updateAnimeStatus(
             authHeader, animeId, status, score, numEpisodesWatched,
             isRewatching, numTimesRewatched, priority, comments, tags, startDate, finishDate
@@ -179,7 +185,7 @@ internal class MalApiPolicyWrapper(
     override suspend fun deleteAnimeFromList(
         authHeader: String,
         animeId: Int
-    ): Response<ResponseBody> = executeWithPolicy(retryable = false) {
+    ): Response<ResponseBody> = executeWithPolicy(retryable = false, operation = "deleteAnimeFromList") {
         delegate.deleteAnimeFromList(authHeader, animeId)
     }
 
@@ -197,7 +203,7 @@ internal class MalApiPolicyWrapper(
         tags: String?,
         startDate: String?,
         finishDate: String?
-    ): Response<ResponseBody> = executeWithPolicy(retryable = false) {
+    ): Response<ResponseBody> = executeWithPolicy(retryable = false, operation = "updateMangaStatus") {
         delegate.updateMangaStatus(
             authHeader, mangaId, status, score, numChaptersRead,
             numVolumesRead, isRereading, numTimesReread, priority, comments, tags, startDate, finishDate
@@ -207,7 +213,7 @@ internal class MalApiPolicyWrapper(
     override suspend fun deleteMangaFromList(
         authHeader: String,
         mangaId: Int
-    ): Response<ResponseBody> = executeWithPolicy(retryable = false) {
+    ): Response<ResponseBody> = executeWithPolicy(retryable = false, operation = "deleteMangaFromList") {
         delegate.deleteMangaFromList(authHeader, mangaId)
     }
 
@@ -219,7 +225,7 @@ internal class MalApiPolicyWrapper(
         clientId: String,
         animeId: Int,
         fields: String
-    ): Response<MalAnimeNode> = executeWithPolicy(retryable = true) {
+    ): Response<MalAnimeNode> = executeWithPolicy(retryable = true, operation = "getAnimeDetailFallback") {
         delegate.getAnimeDetailFallback(clientId, animeId, fields)
     }
 
@@ -227,7 +233,7 @@ internal class MalApiPolicyWrapper(
         clientId: String,
         mangaId: Int,
         fields: String
-    ): Response<MalMangaNode> = executeWithPolicy(retryable = true) {
+    ): Response<MalMangaNode> = executeWithPolicy(retryable = true, operation = "getMangaDetailFallback") {
         delegate.getMangaDetailFallback(clientId, mangaId, fields)
     }
 
@@ -235,7 +241,7 @@ internal class MalApiPolicyWrapper(
         authHeader: String,
         animeId: Int,
         fields: String
-    ): Response<MalAnimeNode> = executeWithPolicy(retryable = true) {
+    ): Response<MalAnimeNode> = executeWithPolicy(retryable = true, operation = "getAnimeDetailAuth") {
         delegate.getAnimeDetailAuth(authHeader, animeId, fields)
     }
 
@@ -243,7 +249,7 @@ internal class MalApiPolicyWrapper(
         authHeader: String,
         mangaId: Int,
         fields: String
-    ): Response<MalMangaNode> = executeWithPolicy(retryable = true) {
+    ): Response<MalMangaNode> = executeWithPolicy(retryable = true, operation = "getMangaDetailAuth") {
         delegate.getMangaDetailAuth(authHeader, mangaId, fields)
     }
 
@@ -253,7 +259,7 @@ internal class MalApiPolicyWrapper(
         limit: Int,
         offset: Int,
         fields: String
-    ): Response<MalAnimeListResponse> = executeWithPolicy(retryable = true) {
+    ): Response<MalAnimeListResponse> = executeWithPolicy(retryable = true, operation = "getAnimeRanking") {
         delegate.getAnimeRanking(clientId, rankingType, limit, offset, fields)
     }
 
@@ -263,7 +269,7 @@ internal class MalApiPolicyWrapper(
         limit: Int,
         offset: Int,
         fields: String
-    ): Response<MalMangaListResponse> = executeWithPolicy(retryable = true) {
+    ): Response<MalMangaListResponse> = executeWithPolicy(retryable = true, operation = "getMangaRanking") {
         delegate.getMangaRanking(clientId, rankingType, limit, offset, fields)
     }
 
@@ -273,7 +279,7 @@ internal class MalApiPolicyWrapper(
         limit: Int,
         offset: Int,
         fields: String
-    ): Response<MalAnimeListResponse> = executeWithPolicy(retryable = true) {
+    ): Response<MalAnimeListResponse> = executeWithPolicy(retryable = true, operation = "searchAnime") {
         delegate.searchAnime(clientId, query, limit, offset, fields)
     }
 
@@ -283,7 +289,7 @@ internal class MalApiPolicyWrapper(
         limit: Int,
         offset: Int,
         fields: String
-    ): Response<MalMangaListResponse> = executeWithPolicy(retryable = true) {
+    ): Response<MalMangaListResponse> = executeWithPolicy(retryable = true, operation = "searchManga") {
         delegate.searchManga(clientId, query, limit, offset, fields)
     }
 
@@ -294,7 +300,7 @@ internal class MalApiPolicyWrapper(
         limit: Int,
         offset: Int,
         fields: String
-    ): Response<MalAnimeListResponse> = executeWithPolicy(retryable = true) {
+    ): Response<MalAnimeListResponse> = executeWithPolicy(retryable = true, operation = "getSeasonalAnime") {
         delegate.getSeasonalAnime(clientId, year, season, limit, offset, fields)
     }
 }

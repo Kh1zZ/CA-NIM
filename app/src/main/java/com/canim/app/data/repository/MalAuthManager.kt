@@ -7,6 +7,7 @@ import com.canim.app.data.local.MalSecureStorage
 import com.canim.app.data.model.*
 import com.canim.app.data.remote.ApiClient
 import com.canim.app.util.LogRedactor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import retrofit2.Response
@@ -607,7 +608,11 @@ open class MalAuthManager(
                     return@withContext item
                 }
             }
-        } catch (_: Exception) {}
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w("MalAuthManager", "MAL metadata fallback failed for malId=$malId: ${LogRedactor.redact(e.message ?: "")}")
+        }
         null
     }
 
@@ -726,7 +731,11 @@ open class MalAuthManager(
                     return@withContext ext
                 }
             }
-        } catch (_: Exception) {}
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w("MalAuthManager", "MAL detail fallback failed for malId=$malId: ${LogRedactor.redact(e.message ?: "")}")
+        }
         null
     }
 

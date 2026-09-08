@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.1.8x%20(Build%2031)-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.1.8.xs%20(Build%2032)-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#tech-stack--dependensi"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#uiux-architecture--fluid-continuity"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
@@ -217,6 +217,16 @@ Verifikasi lokal diwajibkan menjalankan suite pengujian unit otomatis sebelum me
 ---
 
 ## 📝 10. Catatan Perubahan
+
+### v6.1.8.xs (Build 32)
+- **Stabilisasi & Bounded Timeout Fallback MyAnimeList (MAL)**:
+  - Membatasi waktu respons permintaan cadangan MAL dan mengeliminasi siklus tunggu tanpa batas (*infinite loading shimmer*) pada UI saat terjadi gangguan jaringan atau timeout.
+  - Memastikan coroutine `loadDetail` pada `CanimViewModel` selalu mereset status `isLoadingExtendedDetail = false` dan menampilkan umpan balik kegagalan terukur (*controlled error state/snackbar*) saat penyedia AniList maupun MAL tidak dapat dijangkau.
+  - Memperbaiki penanganan exception pada `MalAuthManager` dan `CanimRepository` agar tidak menelan exception secara hening (`catch (_: Exception) {}`), melestarikan struktur konkurensi (`CancellationException`), dan melakukan redaksi data sensitif via `LogRedactor`.
+- **Instrumentasi Observabilitas MAL (`AppMetrics`)**:
+  - Mengintegrasikan pelabelan nama operasi secara eksplisit pada seluruh pemanggilan endpoint di `MalApiPolicyWrapper` (`getAnimeDetailFallback`, `getMangaDetailFallback`, `searchAnime`, `searchManga`, dll.).
+  - Merekam telemetri akurat pada setiap permintaan MAL: jumlah request, latensi, timeout, retry, HTTP 429 rate limit, dan HTTP 5xx server error.
+- **Integritas Pengujian Unit**: Seluruh pengujian unit lulus 100%.
 
 ### v6.1.8x (Build 31)
 - **Migrasi Penuh Apollo Kotlin 4.x & Verifikasi Kinerja**:
