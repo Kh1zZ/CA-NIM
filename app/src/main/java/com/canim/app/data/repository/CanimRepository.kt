@@ -8,11 +8,28 @@ import com.canim.app.data.remote.ApiClient
 import com.canim.app.data.remote.AniListClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.concurrent.ConcurrentHashMap
+
+enum class CacheRefreshType {
+    SEARCH,
+    DISCOVER,
+    DETAIL
+}
+
+data class CacheRefreshEvent(
+    val key: String,
+    val type: CacheRefreshType
+)
 
 /**
  * Single source of coordination for CA'NIM.
@@ -22,13 +39,43 @@ import kotlinx.coroutines.withContext
  * - CA'NIM acts as a client/UI layer.
  */
 class CanimRepository(
-    val malAuthManager: MalAuthManager
+    val malAuthManager: MalAuthManager,
+    private val swrScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 ) {
     /**
-     * Dedicated coroutine scope for stale-while-revalidate background refreshes.
-     * Uses SupervisorJob so individual refresh failures don't cancel other refreshes.
+     * SharedFlow for SWR cache refresh events. Buffer size 64 with DROP_OLDEST policy.
+     * Emitted after background SWR refresh writes fresh data to CacheManager.
      */
-    private val swrScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val _cacheRefreshEvents = kotlinx.coroutines.flow.MutableSharedFlow<CacheRefreshEvent>(
+        extraBufferCapacity = 64,
+        onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
+    )
+    val cacheRefreshEvents: kotlinx.coroutines.flow.SharedFlow<CacheRefreshEvent> = _cacheRefreshEvents.asSharedFlow()
+
+    /**
+     * Active in-flight SWR background refresh jobs keyed by canonical cache key.
+     * Prevents overlapping refreshes on the same key by cancelling previous in-flight jobs.
+     */
+    internal val swrJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
+
+    internal fun launchSwrJob(key: String, block: suspend CoroutineScope.() -> Unit): Job {
+        swrJobs[key]?.cancel()
+        val job = swrScope.launch {
+            try {
+                block()
+            } finally {
+                swrJobs.remove(key, coroutineContext[Job])
+            }
+        }
+        swrJobs[key] = job
+        return job
+    }
+
+    internal suspend fun emitCacheRefreshEvent(event: CacheRefreshEvent) {
+        _cacheRefreshEvents.emit(event)
+    }
+
+    fun getActiveSwrJob(key: String): Job? = swrJobs[key]
 
     suspend fun <T> deduplicateInFlight(key: String, block: suspend () -> T): T =
         AniListClient.deduplicateInFlight(key, block)
@@ -253,11 +300,13 @@ class CanimRepository(
         val swrHit = CacheManager.getSearchSwr(filterKey, "ANIME")
         if (swrHit != null) {
             if (swrHit.isStale) {
-                swrScope.launch {
+                val cacheKey = CacheManager.searchKey(filterKey, "ANIME")
+                launchSwrJob(cacheKey) {
                     runCatching {
                         val fresh = AniListClient.searchMedia(trimmed, MediaType.ANIME, genres, year, format)
                         if (fresh.isNotEmpty() && fresh.map { it.id } != swrHit.data.map { it.id }) {
                             CacheManager.putSearch(filterKey, "ANIME", fresh)
+                            _cacheRefreshEvents.emit(CacheRefreshEvent(cacheKey, CacheRefreshType.SEARCH))
                         }
                     }
                 }
@@ -351,11 +400,13 @@ class CanimRepository(
         val swrHit = CacheManager.getSearchSwr(filterKey, "MANGA")
         if (swrHit != null) {
             if (swrHit.isStale) {
-                swrScope.launch {
+                val cacheKey = CacheManager.searchKey(filterKey, "MANGA")
+                launchSwrJob(cacheKey) {
                     runCatching {
                         val fresh = AniListClient.searchMedia(trimmed, MediaType.MANGA, genres, year, format)
                         if (fresh.isNotEmpty() && fresh.map { it.id } != swrHit.data.map { it.id }) {
                             CacheManager.putSearch(filterKey, "MANGA", fresh)
+                            _cacheRefreshEvents.emit(CacheRefreshEvent(cacheKey, CacheRefreshType.SEARCH))
                         }
                     }
                 }
@@ -455,7 +506,8 @@ class CanimRepository(
                     val capRandomSort = randomSort
                     val capKey = cacheKey
                     val capStale = swrHit.data
-                    swrScope.launch {
+                    val canonicalDiscoverKey = CacheManager.discoverKey(cacheKey)
+                    launchSwrJob(canonicalDiscoverKey) {
                         runCatching {
                             val fresh = AniListClient.getDiscoverMedia(
                                 category = capCategory,
@@ -466,6 +518,7 @@ class CanimRepository(
                             )
                             if (fresh.isNotEmpty() && fresh.map { it.id } != capStale.map { it.id }) {
                                 CacheManager.putDiscover(capKey, fresh)
+                                _cacheRefreshEvents.emit(CacheRefreshEvent(canonicalDiscoverKey, CacheRefreshType.DISCOVER))
                             }
                         }
                     }
@@ -619,13 +672,14 @@ class CanimRepository(
                     val capMalId = resolvedMalId
                     val capType = type
                     val capPrimaryKey = primaryCacheKey
-                    swrScope.launch {
+                    launchSwrJob(capPrimaryKey) {
                         runCatching {
                             val fresh = AniListClient.getExtendedDetails(capAniId, capMalId, capType, forceRefresh = false)
                             if (fresh != null && fresh != swrHit.data) {
                                 CacheManager.putDetail(capPrimaryKey, fresh)
                                 capAniId?.let { CacheManager.putDetail(CacheManager.detailKey(it, null), fresh) }
                                 capMalId?.let { CacheManager.putDetail(CacheManager.detailKey(null, it), fresh) }
+                                _cacheRefreshEvents.emit(CacheRefreshEvent(capPrimaryKey, CacheRefreshType.DETAIL))
                             }
                         }
                     }

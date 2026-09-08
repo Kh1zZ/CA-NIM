@@ -133,6 +133,11 @@ object CacheManager {
         searchCache[key] = CacheEntry(items, ttlMillis = TTL_SEARCH)
     }
 
+    internal fun putSearchEntry(query: String, type: String, entry: CacheEntry<List<MediaItem>>) {
+        val key = searchKey(query, type)
+        searchCache[key] = entry
+    }
+
     /**
      * Stale-while-revalidate read for search.
      * Returns [SWRResult] with the cached data and whether it is stale, or null if expired/absent.
@@ -162,6 +167,11 @@ object CacheManager {
     fun putDiscover(categoryKey: String, items: List<MediaItem>) {
         val key = discoverKey(categoryKey)
         discoverCache[key] = CacheEntry(items, ttlMillis = TTL_DISCOVER)
+    }
+
+    internal fun putDiscoverEntry(categoryKey: String, entry: CacheEntry<List<MediaItem>>) {
+        val key = discoverKey(categoryKey)
+        discoverCache[key] = entry
     }
 
     /**
@@ -214,6 +224,10 @@ object CacheManager {
     fun putDetail(key: String, detail: ExtendedMediaDetail) {
         detailCache[key] = CacheEntry(detail, ttlMillis = TTL_DETAIL)
         putDetailDisk(key, detail)
+    }
+
+    internal fun putDetailEntry(key: String, entry: CacheEntry<ExtendedMediaDetail>) {
+        detailCache[key] = entry
     }
 
     /**

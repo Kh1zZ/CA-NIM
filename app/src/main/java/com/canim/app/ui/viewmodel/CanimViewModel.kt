@@ -6,6 +6,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.canim.app.data.model.*
 import com.canim.app.data.repository.CanimRepository
+import com.canim.app.data.repository.CacheRefreshType
+import com.canim.app.data.cache.CacheManager
 import com.canim.app.CanimApplication
 import com.canim.app.data.local.GachaCreditManager
 import com.canim.app.data.repository.StudioBioRegistry
@@ -135,6 +137,7 @@ class CanimViewModel(
     private var discoverJob: Job? = null
     private var discoverRequestToken = 0L
     private var detailJob: Job? = null
+    private var detailRequestToken = 0L
     private var studioJob: Job? = null
     private var studioSearchJob: Job? = null
 
@@ -277,6 +280,74 @@ class CanimViewModel(
 
         // Real-time API outage check (AniList & MAL)
         checkApiHealth()
+
+        // Observe background SWR cache refresh events and update active UI
+        viewModelScope.launch {
+            repository.cacheRefreshEvents.collect { event ->
+                when (event.type) {
+                    CacheRefreshType.SEARCH -> {
+                        val state = _uiState.value
+                        val trimmed = state.searchQuery.trim()
+                        val type = state.searchType.name
+                        val genres = state.searchGenres
+                        val year = state.searchYear
+                        val format = state.searchFormat
+                        val filterKey = "${trimmed}_${genres.sorted().joinToString(",")}_${year}_${format}"
+                        val searchKey = CacheManager.searchKey(filterKey, type)
+                        if (event.key == searchKey || event.key == filterKey) {
+                            val fresh = CacheManager.getSearch(filterKey, type)
+                            if (fresh != null) {
+                                _uiState.update { it.copy(searchResults = fresh) }
+                            }
+                        }
+                    }
+                    CacheRefreshType.DISCOVER -> {
+                        val token = discoverRequestToken
+                        val state = _uiState.value
+                        val categoryKey = "${state.selectedDiscoverCategory.key}_${state.discoverFilter.genre}_${state.discoverFilter.format}_${state.discoverFilter.year}_${state.discoverFilter.season}_${state.discoverFilter.minScore}_null_p1"
+                        val discoverKey = CacheManager.discoverKey(categoryKey)
+                        if (event.key == discoverKey || event.key == categoryKey) {
+                            val fresh = CacheManager.getDiscover(categoryKey)
+                            if (fresh != null && token == discoverRequestToken) {
+                                _uiState.update {
+                                    it.copy(
+                                        discoverItems = fresh,
+                                        canLoadMoreDiscover = fresh.size >= 20
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    CacheRefreshType.DETAIL -> {
+                        val token = detailRequestToken
+                        val state = _uiState.value
+                        if (state.isDetailOpen && token == detailRequestToken) {
+                            val selected = state.selectedDetailItem
+                            val ext = state.extendedDetail
+                            val aniId = ext?.anilistId ?: (selected as? MediaItem)?.anilistId ?: (selected as? UserMediaItem)?.anilistId
+                            val malId = ext?.malId ?: (selected as? MediaItem)?.malId ?: (selected as? UserMediaItem)?.malId
+                            val matchesDetail = (aniId != null && event.key == CacheManager.detailKey(aniId, malId))
+                                || (aniId != null && event.key == CacheManager.detailKey(aniId, null))
+                                || (malId != null && event.key == CacheManager.detailKey(null, malId))
+                                || (aniId != null && event.key.contains("ani_$aniId"))
+                                || (malId != null && event.key.contains("mal_$malId"))
+                            if (matchesDetail) {
+                                val fresh = CacheManager.getDetail(event.key)
+                                if (fresh != null && token == detailRequestToken) {
+                                    selected?.let { cacheDetail(it, fresh) }
+                                    _uiState.update {
+                                        it.copy(
+                                            extendedDetail = fresh,
+                                            isLoadingExtendedDetail = false
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     fun checkApiHealth() {
@@ -1213,10 +1284,11 @@ class CanimViewModel(
                 }
 
                 detailJob?.cancel()
+                val token = ++detailRequestToken
                 detailJob = viewModelScope.launch(Dispatchers.IO) {
                     // FAST PATH (Phase 1): Fetch AniList details immediately (cast, crew, rankings, recommendations)
                     val aniDetail = com.canim.app.data.remote.AniListClient.getExtendedDetails(anilistId, malId, type)
-                    if (aniDetail != null) {
+                    if (aniDetail != null && token == detailRequestToken) {
                         _uiState.update { current ->
                             val currentExt = current.extendedDetail
                             val mergedFast = aniDetail.copy(
@@ -1237,7 +1309,7 @@ class CanimViewModel(
                     val detail = repository.getExtendedDetails(anilistId, effectiveMalId, type)
 
                     // Final merge with authoritative MAL metrics
-                    if (detail != null) {
+                    if (detail != null && token == detailRequestToken) {
                         cacheDetail(resolvedItem, detail)
                         cacheDetail(item, detail)
                         _uiState.update {
