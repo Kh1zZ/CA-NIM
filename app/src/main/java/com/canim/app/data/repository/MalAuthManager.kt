@@ -13,7 +13,7 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
 
-class MalAuthManager(
+open class MalAuthManager(
     private val secureStorage: MalSecureStorage
 ) {
     companion object {
@@ -209,9 +209,9 @@ class MalAuthManager(
         return response
     }
 
-    fun getCurrentUser(): MalUser = secureStorage.getUser()
+    open fun getCurrentUser(): MalUser = secureStorage.getUser()
 
-    fun logout() {
+    open fun logout() {
         secureStorage.clearAuth()
         CacheManager.invalidateTracking()
     }
@@ -399,7 +399,7 @@ class MalAuthManager(
     /**
      * Updates anime tracking data directly on MyAnimeList.
      */
-    suspend fun updateAnimeTracking(malId: Int, tracking: MalTracking): Result<Unit> = withContext(Dispatchers.IO) {
+    open suspend fun updateAnimeTracking(malId: Int, tracking: MalTracking): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val response = executeWithTokenRefresh { authHeader ->
                 ApiClient.malApi.updateAnimeStatus(
@@ -431,7 +431,7 @@ class MalAuthManager(
     /**
      * Updates manga tracking data directly on MyAnimeList.
      */
-    suspend fun updateMangaTracking(malId: Int, tracking: MalTracking): Result<Unit> = withContext(Dispatchers.IO) {
+    open suspend fun updateMangaTracking(malId: Int, tracking: MalTracking): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val response = executeWithTokenRefresh { authHeader ->
                 ApiClient.malApi.updateMangaStatus(
@@ -464,7 +464,7 @@ class MalAuthManager(
     /**
      * Deletes an anime from the user's MyAnimeList library.
      */
-    suspend fun deleteAnimeTracking(malId: Int): Result<Unit> = withContext(Dispatchers.IO) {
+    open suspend fun deleteAnimeTracking(malId: Int): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val response = executeWithTokenRefresh { authHeader ->
                 ApiClient.malApi.deleteAnimeFromList(authHeader, malId)
@@ -483,7 +483,7 @@ class MalAuthManager(
     /**
      * Deletes a manga from the user's MyAnimeList library.
      */
-    suspend fun deleteMangaTracking(malId: Int): Result<Unit> = withContext(Dispatchers.IO) {
+    open suspend fun deleteMangaTracking(malId: Int): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val response = executeWithTokenRefresh { authHeader ->
                 ApiClient.malApi.deleteMangaFromList(authHeader, malId)
