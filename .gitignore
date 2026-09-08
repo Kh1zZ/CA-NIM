@@ -58,6 +58,11 @@ Thumbs.db
 *.tmp
 *.temp
 
+# Markdown files
+*.md
+!README.md
+!readme.md
+
 # Local AI / Agent Rules & State
 GEMINI.md
 gemini.md
