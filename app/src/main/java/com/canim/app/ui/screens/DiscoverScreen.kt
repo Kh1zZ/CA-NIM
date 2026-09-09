@@ -41,6 +41,7 @@ import com.canim.app.data.model.*
 import androidx.compose.ui.graphics.Brush
 import com.canim.app.ui.theme.*
 import com.canim.app.ui.viewmodel.CanimUiState
+import com.canim.app.ui.viewmodel.discover.DiscoverUiState
 
 private val ItemCardShape = RoundedCornerShape(12.dp)
 private val ItemImageShape = RoundedCornerShape(8.dp)
@@ -60,8 +61,15 @@ fun DiscoverScreen(
     onOpenStudio: ((studioId: Int, studioName: String) -> Unit)? = null,
     onSearchStudio: ((String) -> Unit)? = null,
     onGetStudioInfo: ((studioId: Int, studioName: String) -> StudioBioInfo)? = null,
+    discoverState: DiscoverUiState? = null,
     modifier: Modifier = Modifier
 ) {
+    val currentSelectedCategory = discoverState?.selectedCategory ?: state.selectedDiscoverCategory
+    val currentDiscoverItems = discoverState?.items ?: state.discoverItems
+    val currentIsLoading = discoverState?.isLoading ?: state.isDiscoverLoading
+    val currentIsLoadingMore = discoverState?.isLoadingMore ?: state.isDiscoverLoadingMore
+    val currentCanLoadMore = discoverState?.canLoadMore ?: state.canLoadMoreDiscover
+
     var selectedItemForAdd by remember { mutableStateOf<MediaItem?>(null) }
     var selectedItemForEdit by remember { mutableStateOf<MediaItem?>(null) }
     var showStudioPickerSheet by remember { mutableStateOf(false) }
@@ -103,7 +111,7 @@ fun DiscoverScreen(
 
     var discoverMediaType by remember {
         mutableStateOf(
-            if (state.selectedDiscoverCategory in mangaCategories && state.selectedDiscoverCategory !in animeCategories) {
+            if (currentSelectedCategory in mangaCategories && currentSelectedCategory !in animeCategories) {
                 MediaType.MANGA
             } else {
                 MediaType.ANIME
@@ -124,7 +132,7 @@ fun DiscoverScreen(
         }
         .distinctUntilChanged()
         .collect { nearBottom ->
-            if (nearBottom && state.canLoadMoreDiscover && !state.isDiscoverLoadingMore && !state.isDiscoverLoading) {
+            if (nearBottom && currentCanLoadMore && !currentIsLoadingMore && !currentIsLoading) {
                 onLoadMore()
             }
         }
@@ -188,7 +196,7 @@ fun DiscoverScreen(
 
             // Horizontal Category Tabs with Smooth Sliding Highlight Pill
             item {
-                val selectedCatIndex = currentCategories.indexOf(state.selectedDiscoverCategory).coerceAtLeast(0)
+                val selectedCatIndex = currentCategories.indexOf(currentSelectedCategory).coerceAtLeast(0)
                 ScrollableTabRow(
                     selectedTabIndex = selectedCatIndex,
                     edgePadding = 0.dp,
@@ -211,7 +219,7 @@ fun DiscoverScreen(
                 ) {
                     currentCategories.forEach { category ->
                         val isStudio = category == DiscoverCategory.STUDIO
-                        val isSelected = state.selectedDiscoverCategory == category
+                        val isSelected = currentSelectedCategory == category
                         val textColor by animateColorAsState(
                             targetValue = if (isSelected) Color.White else TextSecondary,
                             animationSpec = tween(180),
@@ -260,7 +268,7 @@ fun DiscoverScreen(
                 }
             }
 
-        if (state.isDiscoverLoading) {
+        if (currentIsLoading) {
             item {
                 Box(
                     modifier = Modifier
@@ -274,14 +282,14 @@ fun DiscoverScreen(
                     ) {
                         CircularProgressIndicator(color = currentAccent)
                         Text(
-                            text = "Mengambil data ${state.selectedDiscoverCategory.label}...",
+                            text = "Mengambil data ${currentSelectedCategory.label}...",
                             color = TextSecondary,
                             fontSize = 12.sp
                         )
                     }
                 }
             }
-        } else if (state.discoverItems.isEmpty()) {
+        } else if (currentDiscoverItems.isEmpty()) {
             item {
                 Box(
                     modifier = Modifier
@@ -298,7 +306,7 @@ fun DiscoverScreen(
             }
         } else {
             items(
-                state.discoverItems,
+                currentDiscoverItems,
                 key = { "${it.type}_${it.malId}_${it.anilistId}" },
                 contentType = { "discover_item" }
             ) { media ->
@@ -317,7 +325,7 @@ fun DiscoverScreen(
             }
 
             // Pagination loading more indicator (Request 2)
-            if (state.isDiscoverLoadingMore) {
+            if (currentIsLoadingMore) {
                 item {
                     Box(
                         modifier = Modifier

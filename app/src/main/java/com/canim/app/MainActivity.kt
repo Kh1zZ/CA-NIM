@@ -47,6 +47,8 @@ import com.canim.app.ui.viewmodel.update.UpdateViewModel
 import com.canim.app.ui.viewmodel.gacha.GachaViewModel
 import com.canim.app.ui.viewmodel.detail.DetailViewModel
 import com.canim.app.ui.viewmodel.studio.StudioViewModel
+import com.canim.app.ui.viewmodel.search.SearchViewModel
+import com.canim.app.ui.viewmodel.discover.DiscoverViewModel
 import kotlinx.coroutines.launch
 
 data class NavItem(
@@ -64,6 +66,8 @@ class MainActivity : ComponentActivity() {
     private val gachaViewModel: GachaViewModel by viewModels()
     private val detailViewModel: DetailViewModel by viewModels()
     private val studioViewModel: StudioViewModel by viewModels()
+    private val searchViewModel: SearchViewModel by viewModels()
+    private val discoverViewModel: DiscoverViewModel by viewModels()
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -82,6 +86,8 @@ class MainActivity : ComponentActivity() {
                 val gachaState by gachaViewModel.gachaState.collectAsState()
                 val detailState by detailViewModel.detailState.collectAsState()
                 val studioState by studioViewModel.studioState.collectAsState()
+                val searchState by searchViewModel.searchState.collectAsState()
+                val discoverState by discoverViewModel.discoverState.collectAsState()
                 val screenStack by viewModel.screenStack.collectAsState()
                 val context = LocalContext.current
                 val snackbarHostState = remember { SnackbarHostState() }
@@ -129,6 +135,22 @@ class MainActivity : ComponentActivity() {
                     }
                     launch {
                         studioViewModel.snackbarEvent.collect { msg ->
+                            snackbarHostState.showSnackbar(
+                                message = msg,
+                                duration = SnackbarDuration.Short
+                            )
+                        }
+                    }
+                    launch {
+                        searchViewModel.snackbarEvent.collect { msg ->
+                            snackbarHostState.showSnackbar(
+                                message = msg,
+                                duration = SnackbarDuration.Short
+                            )
+                        }
+                    }
+                    launch {
+                        discoverViewModel.snackbarEvent.collect { msg ->
                             snackbarHostState.showSnackbar(
                                 message = msg,
                                 duration = SnackbarDuration.Short
@@ -348,25 +370,45 @@ class MainActivity : ComponentActivity() {
                                 "search" -> {
                                     SearchScreen(
                                         state = uiState,
-                                        onSearch = { query, type -> viewModel.search(query, type) },
-                                        onAddMedia = { item, status -> viewModel.addFromCatalog(item, status) },
-                                        onSelectItem = { item, type -> viewModel.openDetail(item, type) },
-                                        onSaveAnime = { viewModel.saveAnime(it) },
-                                        onSaveManga = { viewModel.saveManga(it) },
-                                        onApplyFilters = { genres, year, format -> viewModel.applySearchFilters(genres, year, format) },
-                                        onResetFilters = { viewModel.resetSearchFilters() }
-                                    )
-                                }
-                                "discover" -> {
-                                    DiscoverScreen(
-                                        state = uiState,
-                                        onSelectCategory = { cat, filter -> viewModel.loadDiscoverCategory(cat, filter) },
+                                        searchState = searchState,
+                                        onSearch = { query, type ->
+                                            searchViewModel.search(query, type)
+                                            viewModel.search(query, type)
+                                        },
                                         onAddMedia = { item, status -> viewModel.addFromCatalog(item, status) },
                                         onSelectItem = { item, type ->
                                             detailViewModel.openDetail(item, type)
                                             viewModel.openDetail(item, type)
                                         },
-                                        onLoadMore = { viewModel.loadMoreDiscover() },
+                                        onSaveAnime = { viewModel.saveAnime(it) },
+                                        onSaveManga = { viewModel.saveManga(it) },
+                                        onApplyFilters = { genres, year, format ->
+                                            searchViewModel.applySearchFilters(genres, year, format)
+                                            viewModel.applySearchFilters(genres, year, format)
+                                        },
+                                        onResetFilters = {
+                                            searchViewModel.resetSearchFilters()
+                                            viewModel.resetSearchFilters()
+                                        }
+                                    )
+                                }
+                                "discover" -> {
+                                    DiscoverScreen(
+                                        state = uiState,
+                                        discoverState = discoverState,
+                                        onSelectCategory = { cat, filter ->
+                                            discoverViewModel.loadDiscoverCategory(cat, filter)
+                                            viewModel.loadDiscoverCategory(cat, filter)
+                                        },
+                                        onAddMedia = { item, status -> viewModel.addFromCatalog(item, status) },
+                                        onSelectItem = { item, type ->
+                                            detailViewModel.openDetail(item, type)
+                                            viewModel.openDetail(item, type)
+                                        },
+                                        onLoadMore = {
+                                            discoverViewModel.loadMoreDiscover()
+                                            viewModel.loadMoreDiscover()
+                                        },
                                         onSaveAnime = { viewModel.saveAnime(it) },
                                         onSaveManga = { viewModel.saveManga(it) },
                                         onOpenStudio = { studioId, studioName ->

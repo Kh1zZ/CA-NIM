@@ -50,6 +50,7 @@ import androidx.compose.material.icons.filled.FilterList
 import com.canim.app.data.model.UserMediaItem
 import com.canim.app.ui.theme.*
 import com.canim.app.ui.viewmodel.CanimUiState
+import com.canim.app.ui.viewmodel.search.SearchUiState
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -63,19 +64,28 @@ fun SearchScreen(
     onSaveManga: (UserMediaItem) -> Unit = {},
     onApplyFilters: (genres: List<String>, year: Int?, format: String?) -> Unit = { _, _, _ -> },
     onResetFilters: () -> Unit = {},
+    searchState: SearchUiState? = null,
     modifier: Modifier = Modifier
 ) {
-    var searchInput by remember { mutableStateOf(state.searchQuery) }
-    var searchType by remember { mutableStateOf(state.searchType) }
+    val currentQuery = searchState?.query ?: state.searchQuery
+    val currentType = searchState?.type ?: state.searchType
+    val currentResults = searchState?.results ?: state.searchResults
+    val currentIsSearching = searchState?.isSearching ?: state.isSearching
+    val currentGenres = searchState?.genres ?: state.searchGenres
+    val currentYear = searchState?.year ?: state.searchYear
+    val currentFormat = searchState?.format ?: state.searchFormat
+
+    var searchInput by remember { mutableStateOf(currentQuery) }
+    var searchType by remember { mutableStateOf(currentType) }
     val focusManager = LocalFocusManager.current
     var itemToAdd by remember { mutableStateOf<MediaItem?>(null) }
     var itemToEdit by remember { mutableStateOf<MediaItem?>(null) }
     var showFilterSheet by remember { mutableStateOf(false) }
-    var tempGenres by remember(state.searchGenres) { mutableStateOf(state.searchGenres.toSet()) }
-    var tempYear by remember(state.searchYear) { mutableStateOf(state.searchYear) }
-    var typedYearText by remember(state.searchYear) { mutableStateOf(state.searchYear?.toString() ?: "") }
-    var tempFormat by remember(state.searchFormat) { mutableStateOf(state.searchFormat) }
-    val hasActiveFilters = state.searchGenres.isNotEmpty() || state.searchYear != null || state.searchFormat != null
+    var tempGenres by remember(currentGenres) { mutableStateOf(currentGenres.toSet()) }
+    var tempYear by remember(currentYear) { mutableStateOf(currentYear) }
+    var typedYearText by remember(currentYear) { mutableStateOf(currentYear?.toString() ?: "") }
+    var tempFormat by remember(currentFormat) { mutableStateOf(currentFormat) }
+    val hasActiveFilters = currentGenres.isNotEmpty() || currentYear != null || currentFormat != null
 
     val allGenres = remember {
         listOf(
@@ -96,21 +106,21 @@ fun SearchScreen(
     // Automatic debounced live search as user types
     LaunchedEffect(searchInput, searchType) {
         val trimmed = searchInput.trim()
-        if (trimmed.length >= 2 && trimmed != state.searchQuery) {
+        if (trimmed.length >= 2 && trimmed != currentQuery) {
             delay(350)
             onSearch(trimmed, searchType)
-        } else if (trimmed.isEmpty() && state.searchResults.isNotEmpty() && !hasActiveFilters) {
+        } else if (trimmed.isEmpty() && currentResults.isNotEmpty() && !hasActiveFilters) {
             onSearch("", searchType)
         }
     }
 
-    LaunchedEffect(state.searchType) {
-        if (searchType != state.searchType) {
-            searchType = state.searchType
-            tempGenres = state.searchGenres.toSet()
-            tempYear = state.searchYear
-            typedYearText = state.searchYear?.toString() ?: ""
-            tempFormat = state.searchFormat
+    LaunchedEffect(currentType) {
+        if (searchType != currentType) {
+            searchType = currentType
+            tempGenres = currentGenres.toSet()
+            tempYear = currentYear
+            typedYearText = currentYear?.toString() ?: ""
+            tempFormat = currentFormat
         }
     }
 
@@ -265,11 +275,11 @@ fun SearchScreen(
                 // Filter Button (Height/Size: 44.dp)
                 IconButton(
                     onClick = {
-                        searchType = state.searchType
-                        tempGenres = state.searchGenres.toSet()
-                        tempYear = state.searchYear
-                        typedYearText = state.searchYear?.toString() ?: ""
-                        tempFormat = state.searchFormat
+                        searchType = currentType
+                        tempGenres = currentGenres.toSet()
+                        tempYear = currentYear
+                        typedYearText = currentYear?.toString() ?: ""
+                        tempFormat = currentFormat
                         showFilterSheet = true
                     },
                     modifier = Modifier
@@ -341,7 +351,7 @@ fun SearchScreen(
                             }
                         }
                     }
-                    if (state.searchFormat != null) {
+                    if (currentFormat != null) {
                         item {
                             Surface(
                                 color = CardBg,
@@ -349,7 +359,7 @@ fun SearchScreen(
                                 border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
                             ) {
                                 Text(
-                                    text = state.searchFormat,
+                                    text = currentFormat,
                                     color = TextSecondary,
                                     fontSize = 11.sp,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -357,7 +367,7 @@ fun SearchScreen(
                             }
                         }
                     }
-                    if (state.searchYear != null) {
+                    if (currentYear != null) {
                         item {
                             Surface(
                                 color = CardBg,
@@ -365,7 +375,7 @@ fun SearchScreen(
                                 border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
                             ) {
                                 Text(
-                                    text = "${state.searchYear}",
+                                    text = "${currentYear}",
                                     color = TextSecondary,
                                     fontSize = 11.sp,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -373,7 +383,7 @@ fun SearchScreen(
                             }
                         }
                     }
-                    items(state.searchGenres) { g ->
+                    items(currentGenres) { g ->
                         Surface(
                             color = CardBg,
                             shape = RoundedCornerShape(10.dp),
@@ -392,7 +402,7 @@ fun SearchScreen(
         }
 
         // Suggestions when query is empty
-        if (state.searchResults.isEmpty() && !state.isSearching) {
+        if (currentResults.isEmpty() && !currentIsSearching) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
@@ -457,7 +467,7 @@ fun SearchScreen(
         }
 
         // Loading State
-        if (state.isSearching) {
+        if (currentIsSearching) {
             item {
                 Box(
                     modifier = Modifier
@@ -481,10 +491,10 @@ fun SearchScreen(
         }
 
         // Search Results List (Task 2.5: Clicking Card opens Detail Dialog)
-        if (!state.isSearching && state.searchResults.isNotEmpty()) {
+        if (!currentIsSearching && currentResults.isNotEmpty()) {
             item {
                 Text(
-                    text = "Hasil Pencarian (${state.searchResults.size}) - Ketuk judul untuk detail lengkap",
+                    text = "Hasil Pencarian (${currentResults.size}) - Ketuk judul untuk detail lengkap",
                     color = TextSecondary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
@@ -492,7 +502,7 @@ fun SearchScreen(
             }
 
             items(
-                state.searchResults,
+                currentResults,
                 key = { "${it.type}_${it.malId}_${it.anilistId}" },
                 contentType = { "search_card" }
             ) { item ->
@@ -1013,7 +1023,7 @@ fun SearchScreen(
                     onClick = {
                         val parsed = typedYearText.toIntOrNull()
                         val finalYear = if (parsed != null && parsed in minYear..maxYear) parsed else tempYear
-                        if (searchType != state.searchType) {
+                        if (searchType != currentType) {
                             onSearch(searchInput.trim(), searchType)
                         }
                         onApplyFilters(tempGenres.toList(), finalYear, tempFormat)

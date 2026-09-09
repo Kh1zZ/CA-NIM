@@ -11,6 +11,8 @@ import com.canim.app.ui.viewmodel.update.UpdateViewModel
 import com.canim.app.ui.viewmodel.gacha.GachaViewModel
 import com.canim.app.ui.viewmodel.detail.DetailViewModel
 import com.canim.app.ui.viewmodel.studio.StudioViewModel
+import com.canim.app.ui.viewmodel.search.SearchViewModel
+import com.canim.app.ui.viewmodel.discover.DiscoverViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 
@@ -161,3 +163,30 @@ fun createTestStudioViewModel(
         searchStudiosUseCase = SearchStudiosUseCase(repository)
     )
 }
+
+fun createTestSearchViewModel(
+    repository: CanimTestRepository = FakeCanimRepository()
+): SearchViewModel {
+    return SearchViewModel(
+        searchMediaUseCase = SearchMediaUseCase(repository),
+        observeCacheRefreshUseCase = ObserveCacheRefreshUseCase(
+            systemRepository = repository,
+            searchRepository = repository,
+            discoverRepository = repository
+        )
+    )
+}
+
+fun createTestDiscoverViewModel(
+    repository: CanimTestRepository = FakeCanimRepository()
+): DiscoverViewModel {
+    return DiscoverViewModel(
+        getDiscoverCategoryUseCase = GetDiscoverCategoryUseCase(repository),
+        observeCacheRefreshUseCase = ObserveCacheRefreshUseCase(
+            systemRepository = repository,
+            searchRepository = repository,
+            discoverRepository = repository
+        )
+    )
+}
+
