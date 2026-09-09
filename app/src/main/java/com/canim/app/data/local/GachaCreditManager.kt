@@ -73,6 +73,15 @@ class GachaCreditManager(context: Context) {
     }
 
     @Synchronized
+    fun setCredits(amount: Int) {
+        checkAndApplyWeeklyReset()
+        prefs.edit()
+            .putInt(KEY_CREDITS, maxOf(0, amount))
+            .putLong(KEY_LAST_RESET_WEEK, getStartOfCurrentWeekMillis())
+            .apply()
+    }
+
+    @Synchronized
     fun checkAndApplyWeeklyReset() {
         val now = System.currentTimeMillis()
         val currentWeekStart = getStartOfCurrentWeekMillis(now)

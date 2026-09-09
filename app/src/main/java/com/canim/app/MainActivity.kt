@@ -37,16 +37,12 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.canim.app.data.local.GachaCreditManager
-import com.canim.app.data.local.MalSecureStorage
+import dagger.hilt.android.AndroidEntryPoint
 import com.canim.app.data.model.MediaType
-import com.canim.app.data.repository.CanimRepository
-import com.canim.app.data.repository.MalAuthManager
 import com.canim.app.ui.navigation.ScreenRoute
 import com.canim.app.ui.screens.*
 import com.canim.app.ui.theme.*
 import com.canim.app.ui.viewmodel.CanimViewModel
-import com.canim.app.ui.viewmodel.CanimViewModelFactory
 
 data class NavItem(
     val route: String,
@@ -55,23 +51,10 @@ data class NavItem(
     val unselectedIcon: ImageVector
 )
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
 
-    private val viewModel: CanimViewModel by viewModels {
-        val app = application as CanimApplication
-        val secureStorage = MalSecureStorage(applicationContext)
-        val malAuthManager = MalAuthManager(secureStorage = secureStorage)
-        // Phase 4: init SyncEngine (idempotent) before constructing Repository
-        app.initSyncEngine(malAuthManager)
-        val repository = CanimRepository(
-            malAuthManager = malAuthManager,
-            libraryDao = app.libraryDao,
-            pendingMutationDao = app.pendingMutationDao,
-            syncEngine = app.syncEngine
-        )
-        val gachaCreditManager = GachaCreditManager.getInstance(applicationContext)
-        CanimViewModelFactory(repository, gachaCreditManager)
-    }
+    private val viewModel: CanimViewModel by viewModels()
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {

@@ -37,6 +37,9 @@ import com.canim.app.ui.viewmodel.update.UpdateUiState
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
+
 @Immutable
 data class CanimUiState(
     val animeList: List<UserMediaItem> = emptyList(),
@@ -126,10 +129,11 @@ data class CanimUiState(
     val isMalDown: Boolean = false
 )
 
+@HiltViewModel
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
-class CanimViewModel(
+class CanimViewModel @Inject constructor(
     private val repository: CanimRepositoryContract,
-    private val gachaCreditManager: GachaCreditManager? = null
+    private val gachaCreditManager: GachaCreditManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -314,8 +318,7 @@ class CanimViewModel(
         }
 
         // Initialize Gacha Credits
-        val gachaMgr = gachaCreditManager ?: try { GachaCreditManager.getInstance(CanimApplication.instance) } catch (_: Exception) { null }
-        val currentCredits = gachaMgr?.getCredits() ?: 5
+        val currentCredits = gachaCreditManager.getCredits()
         _gachaState.update { it.copy(credits = currentCredits) }
         _uiState.update { it.copy(gachaCredits = currentCredits) }
 
@@ -520,10 +523,8 @@ class CanimViewModel(
 
                 val hasFailure = animeResult is MalFetchResult.Failure && mangaResult is MalFetchResult.Failure
                 val finalSyncStatus = if (hasFailure) SyncStatus.FAILED else SyncStatus.SUCCESS
-
-                val gachaMgr = gachaCreditManager ?: try { GachaCreditManager.getInstance(CanimApplication.instance) } catch (_: Exception) { null }
-                animes.forEach { gachaMgr?.initBaselineProgress(it.id, it.progress) }
-                mangas.forEach { gachaMgr?.initBaselineProgress(it.id, it.progress) }
+                animes.forEach { gachaCreditManager.initBaselineProgress(it.id, it.progress) }
+                mangas.forEach { gachaCreditManager.initBaselineProgress(it.id, it.progress) }
 
                 updateLibraryData(animes, mangas)
                 _libraryState.update { it.copy(isLoading = false) }
@@ -696,10 +697,9 @@ class CanimViewModel(
                 updatedAt = System.currentTimeMillis()
             )
         )
-        val gachaMgr = gachaCreditManager ?: try { GachaCreditManager.getInstance(CanimApplication.instance) } catch (_: Exception) { null }
-        val awarded = gachaMgr?.recordProgressAndAwardCredits(item.id, updatedItem.tracking.progress) ?: 0
+        val awarded = gachaCreditManager.recordProgressAndAwardCredits(item.id, updatedItem.tracking.progress)
         if (awarded > 0) {
-            val newBal = gachaMgr?.getCredits() ?: (_uiState.value.gachaCredits + awarded)
+            val newBal = gachaCreditManager.getCredits()
             _gachaState.update { it.copy(credits = newBal) }
             _uiState.update { it.copy(gachaCredits = newBal) }
             showSnackbar("+1 Episode ditambahkan! (+$awarded Tiket Gacha)")
@@ -764,10 +764,9 @@ class CanimViewModel(
                 updatedAt = System.currentTimeMillis()
             )
         )
-        val gachaMgr = gachaCreditManager ?: try { GachaCreditManager.getInstance(CanimApplication.instance) } catch (_: Exception) { null }
-        val awarded = gachaMgr?.recordProgressAndAwardCredits(item.id, updatedItem.tracking.progress) ?: 0
+        val awarded = gachaCreditManager.recordProgressAndAwardCredits(item.id, updatedItem.tracking.progress)
         if (awarded > 0) {
-            val newBal = gachaMgr?.getCredits() ?: (_uiState.value.gachaCredits + awarded)
+            val newBal = gachaCreditManager.getCredits()
             _gachaState.update { it.copy(credits = newBal) }
             _uiState.update { it.copy(gachaCredits = newBal) }
             showSnackbar("+1 Chapter ditambahkan! (+$awarded Tiket Gacha)")
@@ -1047,10 +1046,9 @@ class CanimViewModel(
         } else {
             currentList + item
         }
-        val gachaMgr = gachaCreditManager ?: try { GachaCreditManager.getInstance(CanimApplication.instance) } catch (_: Exception) { null }
-        val awarded = gachaMgr?.recordProgressAndAwardCredits(item.id, item.tracking.progress) ?: 0
+        val awarded = gachaCreditManager.recordProgressAndAwardCredits(item.id, item.tracking.progress)
         if (awarded > 0) {
-            val newBal = gachaMgr?.getCredits() ?: _uiState.value.gachaCredits
+            val newBal = gachaCreditManager.getCredits()
             _uiState.update { it.copy(gachaCredits = newBal) }
         }
         updateLibraryData(optimisticList, _uiState.value.mangaList)
@@ -1076,10 +1074,9 @@ class CanimViewModel(
         } else {
             currentList + item
         }
-        val gachaMgr = gachaCreditManager ?: try { GachaCreditManager.getInstance(CanimApplication.instance) } catch (_: Exception) { null }
-        val awarded = gachaMgr?.recordProgressAndAwardCredits(item.id, item.tracking.progress) ?: 0
+        val awarded = gachaCreditManager.recordProgressAndAwardCredits(item.id, item.tracking.progress)
         if (awarded > 0) {
-            val newBal = gachaMgr?.getCredits() ?: _uiState.value.gachaCredits
+            val newBal = gachaCreditManager.getCredits()
             _uiState.update { it.copy(gachaCredits = newBal) }
         }
         updateLibraryData(_uiState.value.animeList, optimisticList)
@@ -1528,6 +1525,7 @@ class CanimViewModel(
                 }
             }
             is GachaEvent.UpdateCredits -> {
+                gachaCreditManager.setCredits(event.newCredits)
                 _gachaState.update { it.copy(credits = event.newCredits) }
                 _uiState.update { it.copy(gachaCredits = event.newCredits) }
             }
@@ -1540,10 +1538,9 @@ class CanimViewModel(
     }
 
     fun consumeGachaCredit(): Boolean {
-        val gachaMgr = gachaCreditManager ?: try { GachaCreditManager.getInstance(CanimApplication.instance) } catch (_: Exception) { null }
-        val success = gachaMgr?.consumeCredit() ?: (_gachaState.value.credits > 0)
+        val success = gachaCreditManager.consumeCredit()
         if (success) {
-            val updated = gachaMgr?.getCredits() ?: (_gachaState.value.credits - 1).coerceAtLeast(0)
+            val updated = gachaCreditManager.getCredits()
             _gachaState.update { it.copy(credits = updated) }
             _uiState.update { it.copy(gachaCredits = updated) }
         }
@@ -2527,18 +2524,5 @@ class CanimViewModel(
     fun dismissSnackbar() {
         _uiState.update { it.copy(snackbarMessage = null) }
         _globalState.update { it.copy(snackbarMessage = null) }
-    }
-}
-
-class CanimViewModelFactory(
-    private val repository: CanimRepositoryContract,
-    private val gachaCreditManager: GachaCreditManager? = null
-) : ViewModelProvider.Factory {
-    @Suppress("UNCHECKED_CAST")
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(CanimViewModel::class.java)) {
-            return CanimViewModel(repository, gachaCreditManager) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
     }
 }

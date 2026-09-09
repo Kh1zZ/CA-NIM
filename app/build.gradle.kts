@@ -2,6 +2,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.apollo)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.hilt)
 }
 
 android {
@@ -129,6 +131,10 @@ dependencies {
 
     // Apollo Kotlin 4.x Runtime
     implementation(libs.apollo.runtime)
+
+    // Dagger Hilt
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
 
     // Unit & Robolectric testing
     testImplementation("junit:junit:4.13.2")

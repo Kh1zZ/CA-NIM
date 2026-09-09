@@ -29,6 +29,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.canim.app.domain.repository.CanimRepositoryContract
 import java.util.concurrent.ConcurrentHashMap
+import javax.inject.Inject
+import javax.inject.Singleton
 
 enum class CacheRefreshType {
     SEARCH,
@@ -48,6 +50,7 @@ data class CacheRefreshEvent(
  * - AniList is the primary provider for rich metadata.
  * - CA'NIM acts as a client/UI layer.
  */
+@Singleton
 class CanimRepository(
     val malAuthManager: MalAuthManager,
     private val swrScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
@@ -56,6 +59,20 @@ class CanimRepository(
     private val pendingMutationDao: PendingMutationDao? = null,
     private val syncEngine: LibrarySyncEngine? = null
 ) : CanimRepositoryContract {
+
+    @Inject
+    constructor(
+        malAuthManager: MalAuthManager,
+        libraryDao: LibraryDao,
+        pendingMutationDao: PendingMutationDao,
+        syncEngine: LibrarySyncEngine
+    ) : this(
+        malAuthManager = malAuthManager,
+        swrScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
+        libraryDao = libraryDao,
+        pendingMutationDao = pendingMutationDao,
+        syncEngine = syncEngine
+    )
     private val gson = Gson()
     /**
      * SharedFlow for SWR cache refresh events. Buffer size 64 with DROP_OLDEST policy.

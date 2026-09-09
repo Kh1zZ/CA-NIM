@@ -34,7 +34,8 @@ class GachaStateIsolationTest {
         val storage = MalSecureStorage(app)
         val malAuth = MalAuthManager(storage)
         repository = CanimRepository(malAuth)
-        viewModel = CanimViewModel(repository)
+        val gachaCreditManager = com.canim.app.data.local.GachaCreditManager.getInstance(app)
+        viewModel = CanimViewModel(repository, gachaCreditManager)
     }
 
     @After

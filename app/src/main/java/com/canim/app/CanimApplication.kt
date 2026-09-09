@@ -7,17 +7,14 @@ import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import coil.util.DebugLogger
-import com.canim.app.data.local.ConnectivityNetworkChecker
-import com.canim.app.data.local.LibraryDao
-import com.canim.app.data.local.LibrarySyncEngine
-import com.canim.app.data.local.LocalDatabase
-import com.canim.app.data.local.PendingMutationDao
+import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
+@HiltAndroidApp
 class CanimApplication : Application(), ImageLoaderFactory {
 
     companion object {
@@ -32,48 +29,10 @@ class CanimApplication : Application(), ImageLoaderFactory {
      */
     val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    // ── Phase 4: Local-First Library Database ─────────────────────────────────
-
-    val localDatabase: LocalDatabase by lazy {
-        try { LocalDatabase(this) } catch (e: Exception) {
-            android.util.Log.e("CanimApplication", "LocalDatabase init failed: ${e.message}", e)
-            throw e
-        }
-    }
-
-    val libraryDao: LibraryDao by lazy { LibraryDao(localDatabase) }
-
-    val pendingMutationDao: PendingMutationDao by lazy { PendingMutationDao(localDatabase) }
-
-    val networkChecker: ConnectivityNetworkChecker by lazy { ConnectivityNetworkChecker(this) }
-
-    // SyncEngine is wired lazily; MalAuthManager is provided at Repository construction time.
-    // Access via CanimApplication.instance.syncEngine from MainActivity where Repository is built.
-    // SyncEngine.start() is called from MainActivity after the Repository is constructed.
-    var syncEngine: LibrarySyncEngine? = null
-        private set
-
-    /**
-     * Called from MainActivity (or wherever the Repository is instantiated) to wire and start
-     * the SyncEngine with the correct [com.canim.app.data.repository.MalAuthManager] reference.
-     */
-    fun initSyncEngine(malAuthManager: com.canim.app.data.repository.MalAuthManager) {
-        if (syncEngine != null) return  // idempotent
-        syncEngine = LibrarySyncEngine(
-            pendingMutationDao = pendingMutationDao,
-            libraryDao = libraryDao,
-            malAuthManager = malAuthManager,
-            networkChecker = networkChecker,
-            appScope = appScope
-        )
-        syncEngine?.start()
-    }
-
-    // ── end Phase 4 ───────────────────────────────────────────────────────────
-
     override fun onCreate() {
         super.onCreate()
         instance = this
+        // TODO Phase 6: migrate CacheManager.init to DI
         com.canim.app.data.cache.CacheManager.init(this)
     }
 
