@@ -18,7 +18,7 @@ import com.canim.app.data.model.UserMediaItem
 import com.canim.app.data.repository.CacheRefreshEvent
 import kotlinx.coroutines.flow.SharedFlow
 
-interface CanimRepositoryContract : LibraryRepository {
+interface CanimRepositoryContract : LibraryRepository, SearchRepository, DiscoverRepository {
     val cacheRefreshEvents: SharedFlow<CacheRefreshEvent>
 
     fun buildMalAuthorizeUrl(): String
@@ -34,46 +34,6 @@ interface CanimRepositoryContract : LibraryRepository {
     suspend fun getCharacterProfile(characterId: Int, forceRefresh: Boolean = false): CastCrewProfile?
 
     suspend fun getStaffProfile(staffId: Int, forceRefresh: Boolean = false): CastCrewProfile?
-
-    fun searchFilterKey(
-        query: String,
-        genres: List<String>? = null,
-        year: Int? = null,
-        format: String? = null
-    ): String
-
-    fun discoverFilterKey(
-        category: DiscoverCategory,
-        filter: DiscoverFilter = DiscoverFilter(),
-        page: Int = 1,
-        randomSort: String? = null,
-        mediaType: MediaType? = null
-    ): String
-
-    suspend fun searchAnime(
-        query: String,
-        genres: List<String>? = null,
-        year: Int? = null,
-        format: String? = null,
-        forceRefresh: Boolean = false
-    ): List<MediaItem>
-
-    suspend fun searchManga(
-        query: String,
-        genres: List<String>? = null,
-        year: Int? = null,
-        format: String? = null,
-        forceRefresh: Boolean = false
-    ): List<MediaItem>
-
-    suspend fun getDiscoverMedia(
-        category: DiscoverCategory,
-        filter: DiscoverFilter = DiscoverFilter(),
-        page: Int = 1,
-        forceRefresh: Boolean = false,
-        randomSort: String? = null,
-        mediaType: MediaType? = null
-    ): List<MediaItem>
 
     fun getCachedExtendedDetail(
         aniListId: Int?,

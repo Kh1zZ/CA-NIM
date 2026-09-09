@@ -4,11 +4,11 @@ import com.canim.app.data.model.DiscoverCategory
 import com.canim.app.data.model.DiscoverFilter
 import com.canim.app.data.model.MediaItem
 import com.canim.app.data.model.MediaType
-import com.canim.app.domain.repository.CanimRepositoryContract
+import com.canim.app.domain.repository.DiscoverRepository
 import javax.inject.Inject
 
 class GetDiscoverCategoryUseCase @Inject constructor(
-    private val repository: CanimRepositoryContract
+    private val repository: DiscoverRepository
 ) {
     suspend operator fun invoke(
         category: DiscoverCategory,
@@ -39,4 +39,10 @@ class GetDiscoverCategoryUseCase @Inject constructor(
         randomSort = randomSort,
         mediaType = mediaType
     )
+
+    fun getCachedDiscover(categoryKey: String): List<MediaItem>? =
+        repository.getCachedDiscover(categoryKey)
+
+    fun matchesDiscoverKey(eventKey: String, categoryKey: String): Boolean =
+        repository.matchesDiscoverKey(eventKey, categoryKey)
 }

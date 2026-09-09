@@ -29,7 +29,11 @@ open class FakeCanimRepository : CanimRepositoryContract {
     override suspend fun deleteAnimeTracking(malId: Int): Result<Unit> = Result.success(Unit)
     override suspend fun deleteMangaTracking(malId: Int): Result<Unit> = Result.success(Unit)
     override fun searchFilterKey(query: String, genres: List<String>?, year: Int?, format: String?): String = ""
+    override fun getCachedSearch(filterKey: String, type: String): List<MediaItem>? = null
+    override fun matchesSearchKey(eventKey: String, filterKey: String, type: String): Boolean = false
     override fun discoverFilterKey(category: DiscoverCategory, filter: DiscoverFilter, page: Int, randomSort: String?, mediaType: MediaType?): String = ""
+    override fun getCachedDiscover(categoryKey: String): List<MediaItem>? = null
+    override fun matchesDiscoverKey(eventKey: String, categoryKey: String): Boolean = false
     override suspend fun searchAnime(query: String, genres: List<String>?, year: Int?, format: String?, forceRefresh: Boolean): List<MediaItem> = emptyList()
     override suspend fun searchManga(query: String, genres: List<String>?, year: Int?, format: String?, forceRefresh: Boolean): List<MediaItem> = emptyList()
     override suspend fun getDiscoverMedia(category: DiscoverCategory, filter: DiscoverFilter, page: Int, forceRefresh: Boolean, randomSort: String?, mediaType: MediaType?): List<MediaItem> = emptyList()

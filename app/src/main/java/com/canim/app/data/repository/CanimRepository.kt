@@ -662,6 +662,14 @@ class CanimRepository(
         return "${trimmed}_${genresKey}_${year}_${format}"
     }
 
+    override fun getCachedSearch(filterKey: String, type: String): List<MediaItem>? =
+        CacheManager.getSearch(filterKey, type)
+
+    override fun matchesSearchKey(eventKey: String, filterKey: String, type: String): Boolean {
+        val searchKey = CacheManager.searchKey(filterKey, type)
+        return eventKey == searchKey || eventKey == filterKey
+    }
+
     override fun discoverFilterKey(
         category: DiscoverCategory,
         filter: DiscoverFilter,
@@ -676,6 +684,14 @@ class CanimRepository(
             category == DiscoverCategory.NEWLY_ADDED_MANGA
         ) MediaType.MANGA else MediaType.ANIME
         return "${resolvedType.name.lowercase()}_${category.key}_${filter.genre}_${filter.format}_${filter.year}_${filter.season}_${filter.minScore}_${randomSort}_p$page"
+    }
+
+    override fun getCachedDiscover(categoryKey: String): List<MediaItem>? =
+        CacheManager.getDiscover(categoryKey)
+
+    override fun matchesDiscoverKey(eventKey: String, categoryKey: String): Boolean {
+        val discoverKey = CacheManager.discoverKey(categoryKey)
+        return eventKey == discoverKey || eventKey == categoryKey
     }
 
     override suspend fun searchAnime(

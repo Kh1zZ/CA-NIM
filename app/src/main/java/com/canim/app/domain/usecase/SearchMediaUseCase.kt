@@ -2,11 +2,11 @@ package com.canim.app.domain.usecase
 
 import com.canim.app.data.model.MediaItem
 import com.canim.app.data.model.MediaType
-import com.canim.app.domain.repository.CanimRepositoryContract
+import com.canim.app.domain.repository.SearchRepository
 import javax.inject.Inject
 
 class SearchMediaUseCase @Inject constructor(
-    private val repository: CanimRepositoryContract
+    private val repository: SearchRepository
 ) {
     suspend operator fun invoke(
         query: String,
@@ -29,4 +29,10 @@ class SearchMediaUseCase @Inject constructor(
         year: Int? = null,
         format: String? = null
     ): String = repository.searchFilterKey(query, genres, year, format)
+
+    fun getCachedSearch(filterKey: String, type: String): List<MediaItem>? =
+        repository.getCachedSearch(filterKey, type)
+
+    fun matchesSearchKey(eventKey: String, filterKey: String, type: String): Boolean =
+        repository.matchesSearchKey(eventKey, filterKey, type)
 }

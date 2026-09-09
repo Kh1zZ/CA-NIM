@@ -10,6 +10,10 @@ import javax.inject.Singleton
 
 import com.canim.app.data.repository.LibraryRepositoryImpl
 import com.canim.app.domain.repository.LibraryRepository
+import com.canim.app.data.repository.SearchRepositoryImpl
+import com.canim.app.domain.repository.SearchRepository
+import com.canim.app.data.repository.DiscoverRepositoryImpl
+import com.canim.app.domain.repository.DiscoverRepository
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -26,4 +30,16 @@ abstract class RepositoryModule {
     abstract fun bindLibraryRepository(
         libraryRepositoryImpl: LibraryRepositoryImpl
     ): LibraryRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSearchRepository(
+        searchRepositoryImpl: SearchRepositoryImpl
+    ): SearchRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindDiscoverRepository(
+        discoverRepositoryImpl: DiscoverRepositoryImpl
+    ): DiscoverRepository
 }
