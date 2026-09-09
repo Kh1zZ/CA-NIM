@@ -1,10 +1,10 @@
 package com.canim.app.domain.usecase
 
-import com.canim.app.domain.repository.CanimRepositoryContract
+import com.canim.app.domain.repository.SystemRepository
 import javax.inject.Inject
 
 class CheckApiHealthUseCase @Inject constructor(
-    private val repository: CanimRepositoryContract
+    private val repository: SystemRepository
 ) {
     suspend fun isAniListUnavailable(): Boolean = repository.isAniListUnavailable()
 

@@ -1,11 +1,11 @@
 package com.canim.app.domain.usecase
 
 import android.content.Context
-import com.canim.app.domain.repository.CanimRepositoryContract
+import com.canim.app.domain.repository.SystemRepository
 import javax.inject.Inject
 
 class ClearCacheUseCase @Inject constructor(
-    private val repository: CanimRepositoryContract
+    private val repository: SystemRepository
 ) {
     suspend fun prune() {
         repository.pruneCache()

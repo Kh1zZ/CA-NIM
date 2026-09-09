@@ -12,6 +12,10 @@ import com.canim.app.data.repository.DetailRepositoryImpl
 import com.canim.app.domain.repository.DetailRepository
 import com.canim.app.data.repository.StudioRepositoryImpl
 import com.canim.app.domain.repository.StudioRepository
+import com.canim.app.data.repository.AuthRepositoryImpl
+import com.canim.app.domain.repository.AuthRepository
+import com.canim.app.data.repository.SystemRepositoryImpl
+import com.canim.app.domain.repository.SystemRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -57,4 +61,16 @@ abstract class RepositoryModule {
     abstract fun bindStudioRepository(
         studioRepositoryImpl: StudioRepositoryImpl
     ): StudioRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAuthRepository(
+        authRepositoryImpl: AuthRepositoryImpl
+    ): AuthRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindSystemRepository(
+        systemRepositoryImpl: SystemRepositoryImpl
+    ): SystemRepository
 }

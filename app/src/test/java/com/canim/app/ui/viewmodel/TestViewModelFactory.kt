@@ -75,7 +75,10 @@ fun createTestCanimViewModel(
         getStudioFilmographyUseCase = GetStudioFilmographyUseCase(repository),
         searchStudiosUseCase = SearchStudiosUseCase(repository),
         consumeGachaCreditUseCase = ConsumeGachaCreditUseCase(gachaCreditManager),
-        loadFlashcardDeckUseCase = LoadFlashcardDeckUseCase(repository),
+        loadFlashcardDeckUseCase = LoadFlashcardDeckUseCase(
+            discoverRepository = repository,
+            libraryRepository = repository
+        ),
         getMalUserUseCase = GetMalUserUseCase(repository),
         loginMalUseCase = LoginMalUseCase(repository),
         handleMalOAuthCallbackUseCase = HandleMalOAuthCallbackUseCase(repository),
@@ -86,6 +89,10 @@ fun createTestCanimViewModel(
         installUpdateUseCase = InstallUpdateUseCase(),
         checkApiHealthUseCase = CheckApiHealthUseCase(repository),
         clearCacheUseCase = ClearCacheUseCase(repository),
-        observeCacheRefreshUseCase = ObserveCacheRefreshUseCase(repository)
+        observeCacheRefreshUseCase = ObserveCacheRefreshUseCase(
+            systemRepository = repository,
+            searchRepository = repository,
+            discoverRepository = repository
+        )
     )
 }

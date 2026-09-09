@@ -4,15 +4,17 @@ import com.canim.app.data.model.DiscoverCategory
 import com.canim.app.data.model.DiscoverFilter
 import com.canim.app.data.model.MediaItem
 import com.canim.app.data.model.MediaType
-import com.canim.app.domain.repository.CanimRepositoryContract
+import com.canim.app.domain.repository.DiscoverRepository
+import com.canim.app.domain.repository.LibraryRepository
 import javax.inject.Inject
 
 class LoadFlashcardDeckUseCase @Inject constructor(
-    private val repository: CanimRepositoryContract
+    private val discoverRepository: DiscoverRepository,
+    private val libraryRepository: LibraryRepository
 ) {
     suspend operator fun invoke(excludedMalIds: Set<Int> = emptySet()): List<MediaItem> {
-        val currentSeason = repository.getDiscoverMedia(DiscoverCategory.CURRENT_SEASON, DiscoverFilter(), page = 1)
-        val upcoming = repository.getDiscoverMedia(DiscoverCategory.UPCOMING, DiscoverFilter(), page = 1)
+        val currentSeason = discoverRepository.getDiscoverMedia(DiscoverCategory.CURRENT_SEASON, DiscoverFilter(), page = 1)
+        val upcoming = discoverRepository.getDiscoverMedia(DiscoverCategory.UPCOMING, DiscoverFilter(), page = 1)
 
         var rawPool = (currentSeason + upcoming)
             .filter { item ->
@@ -22,8 +24,8 @@ class LoadFlashcardDeckUseCase @Inject constructor(
             .distinctBy { it.malId ?: it.anilistId }
 
         if (rawPool.isEmpty()) {
-            val trending = repository.getDiscoverMedia(DiscoverCategory.TRENDING_NOW, DiscoverFilter(), page = 1)
-            val topAnime = repository.getDiscoverMedia(DiscoverCategory.TOP_ANIME, DiscoverFilter(), page = 1)
+            val trending = discoverRepository.getDiscoverMedia(DiscoverCategory.TRENDING_NOW, DiscoverFilter(), page = 1)
+            val topAnime = discoverRepository.getDiscoverMedia(DiscoverCategory.TOP_ANIME, DiscoverFilter(), page = 1)
             rawPool = (trending + topAnime)
                 .filter { item ->
                     val mId = item.malId
@@ -33,7 +35,7 @@ class LoadFlashcardDeckUseCase @Inject constructor(
         }
 
         if (rawPool.isEmpty()) {
-            rawPool = repository.getDemoAnime().map { demo ->
+            rawPool = libraryRepository.getDemoAnime().map { demo ->
                 MediaItem(
                     malId = demo.malId,
                     anilistId = demo.anilistId,
