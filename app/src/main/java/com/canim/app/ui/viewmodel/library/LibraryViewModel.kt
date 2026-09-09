@@ -18,9 +18,7 @@ class LibraryViewModel @Inject constructor(
     private val getLibraryUseCase: GetLibraryUseCase,
     private val saveLibraryItemUseCase: SaveLibraryItemUseCase,
     private val deleteLibraryItemUseCase: DeleteLibraryItemUseCase,
-    private val updateTrackingUseCase: UpdateTrackingUseCase,
-    private val consumeGachaCreditUseCase: ConsumeGachaCreditUseCase,
-    private val getMalUserUseCase: GetMalUserUseCase
+    private val updateTrackingUseCase: UpdateTrackingUseCase
 ) : ViewModel() {
 
     private val _libraryState = MutableStateFlow(LibraryUiState())
@@ -43,9 +41,9 @@ class LibraryViewModel @Inject constructor(
 
     fun loadUserLibrary(forceRefresh: Boolean = false) {
         viewModelScope.launch {
-            val user = getMalUserUseCase()
             _libraryState.update { it.copy(isLoading = true) }
-            if (user.isLoggedIn) {
+            val isLoggedIn = getLibraryUseCase.isUserLoggedIn()
+            if (isLoggedIn) {
                 // SWR: If cached items exist and synced within 30 minutes, skip network on startup unless forced
                 val hasCachedData = _libraryState.value.animeList.isNotEmpty() || _libraryState.value.mangaList.isNotEmpty()
                 val lastSynced = getLibraryUseCase.getLastSyncedTime()
@@ -84,9 +82,6 @@ class LibraryViewModel @Inject constructor(
                         _libraryState.value.mangaList
                     }
                 }
-
-                animes.forEach { consumeGachaCreditUseCase.initBaselineProgress(it.id, it.progress) }
-                mangas.forEach { consumeGachaCreditUseCase.initBaselineProgress(it.id, it.progress) }
 
                 updateLibraryData(animes, mangas)
                 _libraryState.update { it.copy(isLoading = false) }
@@ -219,7 +214,7 @@ class LibraryViewModel @Inject constructor(
                 updatedAt = System.currentTimeMillis()
             )
         )
-        val awarded = consumeGachaCreditUseCase.recordProgressAndAwardCredits(item.id, updatedItem.tracking.progress)
+        val awarded = updateTrackingUseCase.recordProgressAndAwardCredits(item.id, updatedItem.tracking.progress)
         if (awarded > 0) {
             showSnackbar("+1 Episode ditambahkan! (+$awarded Tiket Gacha)")
         } else {
@@ -229,13 +224,11 @@ class LibraryViewModel @Inject constructor(
         val optimisticList = currentList.map { if (it.id == item.id) updatedItem else it }
         updateLibraryData(optimisticList, _libraryState.value.mangaList)
 
-        if (item.malId != null && getMalUserUseCase().isLoggedIn) {
-            viewModelScope.launch {
-                val result = updateTrackingUseCase.updateAnime(item.malId!!, updatedItem.tracking)
-                if (result.isFailure) {
-                    updateLibraryData(currentList, _libraryState.value.mangaList)
-                    showSnackbar("Gagal update MAL: ${result.exceptionOrNull()?.message ?: "Kesalahan jaringan"}")
-                }
+        viewModelScope.launch {
+            val result = updateTrackingUseCase.updateAnime(item.malId, updatedItem.tracking)
+            if (result.isFailure) {
+                updateLibraryData(currentList, _libraryState.value.mangaList)
+                showSnackbar("Gagal update MAL: ${result.exceptionOrNull()?.message ?: "Kesalahan jaringan"}")
             }
         }
     }
@@ -254,13 +247,11 @@ class LibraryViewModel @Inject constructor(
         updateLibraryData(optimisticList, _libraryState.value.mangaList)
         showSnackbar("-1 Episode dikurangkan!")
 
-        if (item.malId != null && getMalUserUseCase().isLoggedIn) {
-            viewModelScope.launch {
-                val result = updateTrackingUseCase.updateAnime(item.malId!!, updatedItem.tracking)
-                if (result.isFailure) {
-                    updateLibraryData(currentList, _libraryState.value.mangaList)
-                    showSnackbar("Gagal update MAL: ${result.exceptionOrNull()?.message}")
-                }
+        viewModelScope.launch {
+            val result = updateTrackingUseCase.updateAnime(item.malId, updatedItem.tracking)
+            if (result.isFailure) {
+                updateLibraryData(currentList, _libraryState.value.mangaList)
+                showSnackbar("Gagal update MAL: ${result.exceptionOrNull()?.message ?: "Kesalahan jaringan"}")
             }
         }
     }
@@ -279,7 +270,7 @@ class LibraryViewModel @Inject constructor(
                 updatedAt = System.currentTimeMillis()
             )
         )
-        val awarded = consumeGachaCreditUseCase.recordProgressAndAwardCredits(item.id, updatedItem.tracking.progress)
+        val awarded = updateTrackingUseCase.recordProgressAndAwardCredits(item.id, updatedItem.tracking.progress)
         if (awarded > 0) {
             showSnackbar("+1 Chapter ditambahkan! (+$awarded Tiket Gacha)")
         } else {
@@ -289,13 +280,11 @@ class LibraryViewModel @Inject constructor(
         val optimisticList = currentList.map { if (it.id == item.id) updatedItem else it }
         updateLibraryData(_libraryState.value.animeList, optimisticList)
 
-        if (item.malId != null && getMalUserUseCase().isLoggedIn) {
-            viewModelScope.launch {
-                val result = updateTrackingUseCase.updateManga(item.malId!!, updatedItem.tracking)
-                if (result.isFailure) {
-                    updateLibraryData(_libraryState.value.animeList, currentList)
-                    showSnackbar("Gagal update MAL: ${result.exceptionOrNull()?.message}")
-                }
+        viewModelScope.launch {
+            val result = updateTrackingUseCase.updateManga(item.malId, updatedItem.tracking)
+            if (result.isFailure) {
+                updateLibraryData(_libraryState.value.animeList, currentList)
+                showSnackbar("Gagal update MAL: ${result.exceptionOrNull()?.message ?: "Kesalahan jaringan"}")
             }
         }
     }
@@ -314,13 +303,11 @@ class LibraryViewModel @Inject constructor(
         updateLibraryData(_libraryState.value.animeList, optimisticList)
         showSnackbar("-1 Chapter dikurangkan!")
 
-        if (item.malId != null && getMalUserUseCase().isLoggedIn) {
-            viewModelScope.launch {
-                val result = updateTrackingUseCase.updateManga(item.malId!!, updatedItem.tracking)
-                if (result.isFailure) {
-                    updateLibraryData(_libraryState.value.animeList, currentList)
-                    showSnackbar("Gagal update MAL: ${result.exceptionOrNull()?.message}")
-                }
+        viewModelScope.launch {
+            val result = updateTrackingUseCase.updateManga(item.malId, updatedItem.tracking)
+            if (result.isFailure) {
+                updateLibraryData(_libraryState.value.animeList, currentList)
+                showSnackbar("Gagal update MAL: ${result.exceptionOrNull()?.message ?: "Kesalahan jaringan"}")
             }
         }
     }
@@ -334,17 +321,15 @@ class LibraryViewModel @Inject constructor(
         } else {
             currentList + preparedItem
         }
-        consumeGachaCreditUseCase.recordProgressAndAwardCredits(preparedItem.id, preparedItem.tracking.progress)
+        saveLibraryItemUseCase.recordProgressAndAwardCredits(preparedItem.id, preparedItem.tracking.progress)
         updateLibraryData(optimisticList, _libraryState.value.mangaList)
         showSnackbar("Perubahan \"${preparedItem.title}\" disimpan!")
 
-        if (preparedItem.malId != null && getMalUserUseCase().isLoggedIn) {
-            viewModelScope.launch {
-                val result = saveLibraryItemUseCase.saveAnime(preparedItem.malId!!, preparedItem.tracking)
-                if (result.isFailure) {
-                    updateLibraryData(currentList, _libraryState.value.mangaList)
-                    showSnackbar("Gagal menyimpan ke MAL: ${result.exceptionOrNull()?.message}")
-                }
+        viewModelScope.launch {
+            val result = saveLibraryItemUseCase.saveAnime(preparedItem.malId, preparedItem.tracking)
+            if (result.isFailure) {
+                updateLibraryData(currentList, _libraryState.value.mangaList)
+                showSnackbar("Gagal menyimpan ke MAL: ${result.exceptionOrNull()?.message ?: "Kesalahan jaringan"}")
             }
         }
     }
@@ -358,17 +343,15 @@ class LibraryViewModel @Inject constructor(
         } else {
             currentList + preparedItem
         }
-        consumeGachaCreditUseCase.recordProgressAndAwardCredits(preparedItem.id, preparedItem.tracking.progress)
+        saveLibraryItemUseCase.recordProgressAndAwardCredits(preparedItem.id, preparedItem.tracking.progress)
         updateLibraryData(_libraryState.value.animeList, optimisticList)
         showSnackbar("Perubahan \"${preparedItem.title}\" disimpan!")
 
-        if (preparedItem.malId != null && getMalUserUseCase().isLoggedIn) {
-            viewModelScope.launch {
-                val result = saveLibraryItemUseCase.saveManga(preparedItem.malId!!, preparedItem.tracking)
-                if (result.isFailure) {
-                    updateLibraryData(_libraryState.value.animeList, currentList)
-                    showSnackbar("Gagal menyimpan ke MAL: ${result.exceptionOrNull()?.message}")
-                }
+        viewModelScope.launch {
+            val result = saveLibraryItemUseCase.saveManga(preparedItem.malId, preparedItem.tracking)
+            if (result.isFailure) {
+                updateLibraryData(_libraryState.value.animeList, currentList)
+                showSnackbar("Gagal menyimpan ke MAL: ${result.exceptionOrNull()?.message ?: "Kesalahan jaringan"}")
             }
         }
     }
@@ -380,13 +363,11 @@ class LibraryViewModel @Inject constructor(
         updateLibraryData(optimisticList, _libraryState.value.mangaList)
         showSnackbar("\"${item.title}\" dihapus dari Library")
 
-        if (item.malId != null && getMalUserUseCase().isLoggedIn) {
-            viewModelScope.launch {
-                val result = deleteLibraryItemUseCase.deleteAnime(item.malId!!)
-                if (result.isFailure) {
-                    updateLibraryData(currentList, _libraryState.value.mangaList)
-                    showSnackbar("Gagal menghapus dari MAL: ${result.exceptionOrNull()?.message}")
-                }
+        viewModelScope.launch {
+            val result = deleteLibraryItemUseCase.deleteAnime(item.malId)
+            if (result.isFailure) {
+                updateLibraryData(currentList, _libraryState.value.mangaList)
+                showSnackbar("Gagal menghapus dari MAL: ${result.exceptionOrNull()?.message ?: "Kesalahan jaringan"}")
             }
         }
     }
@@ -398,13 +379,11 @@ class LibraryViewModel @Inject constructor(
         updateLibraryData(_libraryState.value.animeList, optimisticList)
         showSnackbar("\"${item.title}\" dihapus dari Library")
 
-        if (item.malId != null && getMalUserUseCase().isLoggedIn) {
-            viewModelScope.launch {
-                val result = deleteLibraryItemUseCase.deleteManga(item.malId!!)
-                if (result.isFailure) {
-                    updateLibraryData(_libraryState.value.animeList, currentList)
-                    showSnackbar("Gagal menghapus dari MAL: ${result.exceptionOrNull()?.message}")
-                }
+        viewModelScope.launch {
+            val result = deleteLibraryItemUseCase.deleteManga(item.malId)
+            if (result.isFailure) {
+                updateLibraryData(_libraryState.value.animeList, currentList)
+                showSnackbar("Gagal menghapus dari MAL: ${result.exceptionOrNull()?.message ?: "Kesalahan jaringan"}")
             }
         }
     }

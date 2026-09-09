@@ -588,6 +588,7 @@ class MainActivity : ComponentActivity() {
                                         type = currentScreen.type,
                                         extendedDetail = detailExtended,
                                         isLoadingExtendedDetail = detailIsLoading,
+                                        libraryViewModel = libraryViewModel,
                                         onSaveAnime = {
                                             libraryViewModel.saveAnime(it)
                                             viewModel.saveAnime(it)

@@ -79,23 +79,25 @@ fun createTestCanimViewModel(
     repository: CanimTestRepository = FakeCanimRepository(),
     gachaCreditManager: GachaCreditManager
 ): CanimViewModel {
+    val consumeGachaCreditUseCase = ConsumeGachaCreditUseCase(gachaCreditManager)
+    val getMalUserUseCase = GetMalUserUseCase(repository)
     return CanimViewModel(
-        getLibraryUseCase = GetLibraryUseCase(repository),
-        saveLibraryItemUseCase = SaveLibraryItemUseCase(repository),
-        deleteLibraryItemUseCase = DeleteLibraryItemUseCase(repository),
-        updateTrackingUseCase = UpdateTrackingUseCase(repository),
+        getLibraryUseCase = GetLibraryUseCase(repository, consumeGachaCreditUseCase, getMalUserUseCase),
+        saveLibraryItemUseCase = SaveLibraryItemUseCase(repository, consumeGachaCreditUseCase, getMalUserUseCase),
+        deleteLibraryItemUseCase = DeleteLibraryItemUseCase(repository, getMalUserUseCase),
+        updateTrackingUseCase = UpdateTrackingUseCase(repository, consumeGachaCreditUseCase, getMalUserUseCase),
         searchMediaUseCase = SearchMediaUseCase(repository),
         getDiscoverCategoryUseCase = GetDiscoverCategoryUseCase(repository),
         getExtendedDetailUseCase = GetExtendedDetailUseCase(repository),
         getCastCrewProfileUseCase = GetCastCrewProfileUseCase(repository),
         getStudioFilmographyUseCase = GetStudioFilmographyUseCase(repository),
         searchStudiosUseCase = SearchStudiosUseCase(repository),
-        consumeGachaCreditUseCase = ConsumeGachaCreditUseCase(gachaCreditManager),
+        consumeGachaCreditUseCase = consumeGachaCreditUseCase,
         loadFlashcardDeckUseCase = LoadFlashcardDeckUseCase(
             discoverRepository = repository,
             libraryRepository = repository
         ),
-        getMalUserUseCase = GetMalUserUseCase(repository),
+        getMalUserUseCase = getMalUserUseCase,
         loginMalUseCase = LoginMalUseCase(repository),
         handleMalOAuthCallbackUseCase = HandleMalOAuthCallbackUseCase(repository),
         logoutMalUseCase = LogoutMalUseCase(repository),
@@ -146,7 +148,6 @@ fun createTestDetailViewModel(
     return DetailViewModel(
         getExtendedDetailUseCase = GetExtendedDetailUseCase(repository),
         getCastCrewProfileUseCase = GetCastCrewProfileUseCase(repository),
-        getLibraryUseCase = GetLibraryUseCase(repository),
         observeCacheRefreshUseCase = ObserveCacheRefreshUseCase(
             systemRepository = repository,
             searchRepository = repository,
@@ -194,13 +195,13 @@ fun createTestLibraryViewModel(
     repository: CanimTestRepository = FakeCanimRepository(),
     gachaCreditManager: GachaCreditManager
 ): LibraryViewModel {
+    val consumeGachaCreditUseCase = ConsumeGachaCreditUseCase(gachaCreditManager)
+    val getMalUserUseCase = GetMalUserUseCase(repository)
     return LibraryViewModel(
-        getLibraryUseCase = GetLibraryUseCase(repository),
-        saveLibraryItemUseCase = SaveLibraryItemUseCase(repository),
-        deleteLibraryItemUseCase = DeleteLibraryItemUseCase(repository),
-        updateTrackingUseCase = UpdateTrackingUseCase(repository),
-        consumeGachaCreditUseCase = ConsumeGachaCreditUseCase(gachaCreditManager),
-        getMalUserUseCase = GetMalUserUseCase(repository)
+        getLibraryUseCase = GetLibraryUseCase(repository, consumeGachaCreditUseCase, getMalUserUseCase),
+        saveLibraryItemUseCase = SaveLibraryItemUseCase(repository, consumeGachaCreditUseCase, getMalUserUseCase),
+        deleteLibraryItemUseCase = DeleteLibraryItemUseCase(repository, getMalUserUseCase),
+        updateTrackingUseCase = UpdateTrackingUseCase(repository, consumeGachaCreditUseCase, getMalUserUseCase)
     )
 }
 

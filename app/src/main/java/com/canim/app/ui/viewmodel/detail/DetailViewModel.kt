@@ -7,7 +7,6 @@ import com.canim.app.data.model.*
 import com.canim.app.data.repository.CacheRefreshType
 import com.canim.app.domain.usecase.GetCastCrewProfileUseCase
 import com.canim.app.domain.usecase.GetExtendedDetailUseCase
-import com.canim.app.domain.usecase.GetLibraryUseCase
 import com.canim.app.domain.usecase.ObserveCacheRefreshUseCase
 import com.canim.app.util.LogRedactor
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -25,7 +24,6 @@ import javax.inject.Inject
 class DetailViewModel @Inject constructor(
     private val getExtendedDetailUseCase: GetExtendedDetailUseCase,
     private val getCastCrewProfileUseCase: GetCastCrewProfileUseCase,
-    private val getLibraryUseCase: GetLibraryUseCase,
     private val observeCacheRefreshUseCase: ObserveCacheRefreshUseCase
 ) : ViewModel() {
 
@@ -139,39 +137,8 @@ class DetailViewModel @Inject constructor(
     fun getAniListIdForMalId(malId: Int): Int? =
         getExtendedDetailUseCase.getAniListIdForMalId(malId)
 
-    private fun findAnimeItem(identifier: Any): UserMediaItem? {
-        val list = getLibraryUseCase.getCachedTracking("ANIME") ?: getLibraryUseCase.getDemoAnime()
-        return when (identifier) {
-            is UserMediaItem -> identifier
-            is MediaItem -> list.firstOrNull {
-                (identifier.malId != null && it.malId == identifier.malId) ||
-                (identifier.anilistId != null && it.anilistId == identifier.anilistId) ||
-                it.title.equals(identifier.title, ignoreCase = true)
-            }
-            is String -> list.firstOrNull { it.id == identifier || it.malId?.toString() == identifier }
-            is Int -> list.firstOrNull { it.malId == identifier || it.anilistId == identifier }
-            else -> null
-        }
-    }
-
-    private fun findMangaItem(identifier: Any): UserMediaItem? {
-        val list = getLibraryUseCase.getCachedTracking("MANGA") ?: getLibraryUseCase.getDemoManga()
-        return when (identifier) {
-            is UserMediaItem -> identifier
-            is MediaItem -> list.firstOrNull {
-                (identifier.malId != null && it.malId == identifier.malId) ||
-                (identifier.anilistId != null && it.anilistId == identifier.anilistId) ||
-                it.title.equals(identifier.title, ignoreCase = true)
-            }
-            is String -> list.firstOrNull { it.id == identifier || it.malId?.toString() == identifier }
-            is Int -> list.firstOrNull { it.malId == identifier || it.anilistId == identifier }
-            else -> null
-        }
-    }
-
     fun openDetail(item: Any, type: MediaType) {
-        val localItem = if (type == MediaType.ANIME) findAnimeItem(item) else findMangaItem(item)
-        var resolvedItem: Any = localItem ?: item
+        val resolvedItem: Any = item
 
         val anilistId = when (resolvedItem) {
             is UserMediaItem -> resolvedItem.anilistId

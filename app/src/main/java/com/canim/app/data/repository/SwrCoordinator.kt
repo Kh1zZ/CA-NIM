@@ -29,6 +29,8 @@ class SwrCoordinator @Inject constructor() {
         val job = swrScope.launch {
             try {
                 block()
+            } catch (_: Exception) {
+                // Background SWR refresh failure is ignored to keep stale cache
             } finally {
                 swrJobs.remove(key, coroutineContext[Job])
             }

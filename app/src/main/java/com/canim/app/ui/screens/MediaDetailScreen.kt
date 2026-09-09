@@ -34,6 +34,8 @@ import com.canim.app.data.model.*
 import com.canim.app.ui.theme.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import com.canim.app.ui.viewmodel.library.LibraryViewModel
+import com.canim.app.ui.viewmodel.library.LibraryUiState
 import com.canim.app.util.TextSanitizer
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -43,6 +45,7 @@ fun MediaDetailScreen(
     type: MediaType,
     extendedDetail: ExtendedMediaDetail?,
     isLoadingExtendedDetail: Boolean,
+    libraryViewModel: LibraryViewModel? = null,
     onSaveAnime: (UserMediaItem) -> Unit,
     onSaveManga: (UserMediaItem) -> Unit,
     onDeleteAnime: (String) -> Unit,
@@ -62,7 +65,25 @@ fun MediaDetailScreen(
     val themeAccent = if (isManga) MangaAccentDarkBlue else AccentBlue
     val themeBorder = if (isManga) MangaCardBorder else CardBorder
 
-    val userItem: UserMediaItem? = item as? UserMediaItem
+    val libraryState = libraryViewModel?.libraryState?.collectAsState()?.value
+    val localUserItem: UserMediaItem? = remember(item, type, libraryState?.animeList, libraryState?.mangaList) {
+        if (item is UserMediaItem) {
+            item
+        } else {
+            val list = if (isAnime) libraryState?.animeList ?: emptyList() else libraryState?.mangaList ?: emptyList()
+            when (item) {
+                is MediaItem -> list.firstOrNull {
+                    (item.malId != null && it.malId == item.malId) ||
+                    (item.anilistId != null && it.anilistId == item.anilistId) ||
+                    it.title.equals(item.title, ignoreCase = true)
+                }
+                is String -> list.firstOrNull { it.id == item || it.malId?.toString() == item }
+                is Int -> list.firstOrNull { it.malId == item || it.anilistId == item }
+                else -> null
+            }
+        }
+    }
+    val userItem: UserMediaItem? = localUserItem ?: (item as? UserMediaItem)
     val mediaItem: MediaItem? = item as? MediaItem
 
     val itemKey = remember(item) {
@@ -110,6 +131,15 @@ fun MediaDetailScreen(
     var trackingScore by remember { mutableIntStateOf(userItem?.score ?: 0) }
     var trackingProgress by remember { mutableIntStateOf(userItem?.progress ?: 0) }
     var trackingNotes by remember { mutableStateOf(userItem?.notes ?: "") }
+
+    LaunchedEffect(userItem) {
+        if (userItem != null) {
+            trackingStatus = userItem.status
+            trackingScore = userItem.score
+            trackingProgress = userItem.progress
+            trackingNotes = userItem.notes
+        }
+    }
 
     var showFullTitleSynopsisSheet by remember { mutableStateOf(false) }
 

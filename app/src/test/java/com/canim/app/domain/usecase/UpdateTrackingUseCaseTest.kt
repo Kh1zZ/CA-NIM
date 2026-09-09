@@ -1,13 +1,22 @@
 package com.canim.app.domain.usecase
 
+import com.canim.app.data.local.GachaCreditManager
 import com.canim.app.data.model.*
 import com.canim.app.ui.viewmodel.FakeCanimRepository
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(manifest = Config.NONE)
 class UpdateTrackingUseCaseTest {
 
     private class TestTrackingRepository : FakeCanimRepository() {
@@ -15,6 +24,9 @@ class UpdateTrackingUseCaseTest {
         var lastUpdatedAnimeTracking: MalTracking? = null
         var lastUpdatedMangaId: Int? = null
         var lastUpdatedMangaTracking: MalTracking? = null
+        var testMalUser: MalUser = MalUser(username = "testUser", isLoggedIn = true)
+
+        override fun getMalUser(): MalUser = testMalUser
 
         override suspend fun updateAnimeTracking(malId: Int, tracking: MalTracking): Result<Unit> {
             lastUpdatedAnimeId = malId
@@ -30,12 +42,19 @@ class UpdateTrackingUseCaseTest {
     }
 
     private lateinit var fakeRepository: TestTrackingRepository
+    private lateinit var gachaCreditManager: GachaCreditManager
+    private lateinit var consumeGachaCreditUseCase: ConsumeGachaCreditUseCase
+    private lateinit var getMalUserUseCase: GetMalUserUseCase
     private lateinit var useCase: UpdateTrackingUseCase
 
     @Before
     fun setUp() {
+        val app = RuntimeEnvironment.getApplication()
+        gachaCreditManager = GachaCreditManager.getInstance(app)
+        consumeGachaCreditUseCase = ConsumeGachaCreditUseCase(gachaCreditManager)
         fakeRepository = TestTrackingRepository()
-        useCase = UpdateTrackingUseCase(fakeRepository)
+        getMalUserUseCase = GetMalUserUseCase(fakeRepository)
+        useCase = UpdateTrackingUseCase(fakeRepository, consumeGachaCreditUseCase, getMalUserUseCase)
     }
 
     private fun createAnimeItem(
@@ -145,5 +164,44 @@ class UpdateTrackingUseCaseTest {
         assertTrue(result.isSuccess)
         assertEquals(2, fakeRepository.lastUpdatedMangaId)
         assertEquals(tracking, fakeRepository.lastUpdatedMangaTracking)
+    }
+
+    @Test
+    fun testUpdateAnimeWhenLoggedOutDoesNotCallRepository() = runTest {
+        fakeRepository.testMalUser = MalUser(isLoggedIn = false)
+        val tracking = MalTracking(status = "watching", progress = 5)
+
+        val result = useCase.updateAnime(1, tracking)
+
+        assertTrue(result.isSuccess)
+        assertNull(fakeRepository.lastUpdatedAnimeId)
+    }
+
+    @Test
+    fun testUpdateMangaWhenLoggedOutDoesNotCallRepository() = runTest {
+        fakeRepository.testMalUser = MalUser(isLoggedIn = false)
+        val tracking = MalTracking(status = "reading", progress = 20)
+
+        val result = useCase.updateManga(2, tracking)
+
+        assertTrue(result.isSuccess)
+        assertNull(fakeRepository.lastUpdatedMangaId)
+    }
+
+    @Test
+    fun testUpdateAnimeWithNullMalIdDoesNotCallRepository() = runTest {
+        val tracking = MalTracking(status = "watching", progress = 5)
+
+        val result = useCase.updateAnime(null, tracking)
+
+        assertTrue(result.isSuccess)
+        assertNull(fakeRepository.lastUpdatedAnimeId)
+    }
+
+    @Test
+    fun testRecordProgressAndAwardCredits() {
+        consumeGachaCreditUseCase.initBaselineProgress("media_1", 0)
+        val awarded = useCase.recordProgressAndAwardCredits("media_1", 3)
+        assertEquals(3, awarded)
     }
 }
