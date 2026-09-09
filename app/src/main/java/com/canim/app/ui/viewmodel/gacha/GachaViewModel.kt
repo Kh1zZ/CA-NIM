@@ -4,16 +4,14 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.canim.app.data.model.MediaItem
 import com.canim.app.domain.usecase.ConsumeGachaCreditUseCase
-import com.canim.app.domain.usecase.GetLibraryUseCase
 import com.canim.app.domain.usecase.LoadFlashcardDeckUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -21,15 +19,14 @@ import javax.inject.Inject
 @HiltViewModel
 class GachaViewModel @Inject constructor(
     private val consumeGachaCreditUseCase: ConsumeGachaCreditUseCase,
-    private val loadFlashcardDeckUseCase: LoadFlashcardDeckUseCase,
-    private val getLibraryUseCase: GetLibraryUseCase
+    private val loadFlashcardDeckUseCase: LoadFlashcardDeckUseCase
 ) : ViewModel() {
 
     private val _gachaState = MutableStateFlow(GachaUiState())
     val gachaState: StateFlow<GachaUiState> = _gachaState.asStateFlow()
 
-    private val _snackbarEvent = MutableSharedFlow<String>()
-    val snackbarEvent: SharedFlow<String> = _snackbarEvent.asSharedFlow()
+    private val _snackbarEvent = Channel<String>(Channel.BUFFERED)
+    val snackbarEvent = _snackbarEvent.receiveAsFlow()
 
     init {
         val currentCredits = consumeGachaCreditUseCase.getCredits()
@@ -87,11 +84,11 @@ class GachaViewModel @Inject constructor(
     fun loadFlashcardDeck(customExcludedIds: Set<Int>? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             _gachaState.update { it.copy(isLoading = true) }
-            val excludedIds = customExcludedIds ?: run {
-                val cachedAnime = getLibraryUseCase.getCachedTracking("ANIME") ?: getLibraryUseCase.getDemoAnime()
-                cachedAnime.mapNotNull { it.malId }.toSet()
+            val pool = if (customExcludedIds != null) {
+                loadFlashcardDeckUseCase(customExcludedIds)
+            } else {
+                loadFlashcardDeckUseCase()
             }
-            val pool = loadFlashcardDeckUseCase(excludedIds)
             _gachaState.update {
                 it.copy(
                     deck = pool,
@@ -112,7 +109,7 @@ class GachaViewModel @Inject constructor(
 
     fun showSnackbar(message: String) {
         viewModelScope.launch {
-            _snackbarEvent.emit(message)
+            _snackbarEvent.send(message)
         }
     }
 }

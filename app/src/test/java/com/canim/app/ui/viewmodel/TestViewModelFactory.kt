@@ -136,8 +136,7 @@ fun createTestGachaViewModel(
         loadFlashcardDeckUseCase = LoadFlashcardDeckUseCase(
             discoverRepository = repository,
             libraryRepository = repository
-        ),
-        getLibraryUseCase = GetLibraryUseCase(repository)
+        )
     )
 }
 

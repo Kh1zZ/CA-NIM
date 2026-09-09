@@ -50,6 +50,7 @@ import com.canim.app.ui.viewmodel.studio.StudioViewModel
 import com.canim.app.ui.viewmodel.search.SearchViewModel
 import com.canim.app.ui.viewmodel.discover.DiscoverViewModel
 import com.canim.app.ui.viewmodel.library.LibraryViewModel
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 
 data class NavItem(
@@ -112,61 +113,19 @@ class MainActivity : ComponentActivity() {
                 }
 
                 LaunchedEffect(Unit) {
-                    launch {
-                        updateViewModel.snackbarEvent.collect { msg ->
-                            snackbarHostState.showSnackbar(
-                                message = msg,
-                                duration = SnackbarDuration.Short
-                            )
-                        }
-                    }
-                    launch {
-                        gachaViewModel.snackbarEvent.collect { msg ->
-                            snackbarHostState.showSnackbar(
-                                message = msg,
-                                duration = SnackbarDuration.Short
-                            )
-                        }
-                    }
-                    launch {
-                        detailViewModel.snackbarEvent.collect { msg ->
-                            snackbarHostState.showSnackbar(
-                                message = msg,
-                                duration = SnackbarDuration.Short
-                            )
-                        }
-                    }
-                    launch {
-                        studioViewModel.snackbarEvent.collect { msg ->
-                            snackbarHostState.showSnackbar(
-                                message = msg,
-                                duration = SnackbarDuration.Short
-                            )
-                        }
-                    }
-                    launch {
-                        searchViewModel.snackbarEvent.collect { msg ->
-                            snackbarHostState.showSnackbar(
-                                message = msg,
-                                duration = SnackbarDuration.Short
-                            )
-                        }
-                    }
-                    launch {
-                        discoverViewModel.snackbarEvent.collect { msg ->
-                            snackbarHostState.showSnackbar(
-                                message = msg,
-                                duration = SnackbarDuration.Short
-                            )
-                        }
-                    }
-                    launch {
-                        libraryViewModel.snackbarEvent.collect { msg ->
-                            snackbarHostState.showSnackbar(
-                                message = msg,
-                                duration = SnackbarDuration.Short
-                            )
-                        }
+                    merge(
+                        updateViewModel.snackbarEvent,
+                        gachaViewModel.snackbarEvent,
+                        detailViewModel.snackbarEvent,
+                        studioViewModel.snackbarEvent,
+                        searchViewModel.snackbarEvent,
+                        discoverViewModel.snackbarEvent,
+                        libraryViewModel.snackbarEvent
+                    ).collect { message ->
+                        snackbarHostState.showSnackbar(
+                            message = message,
+                            duration = SnackbarDuration.Short
+                        )
                     }
                 }
 

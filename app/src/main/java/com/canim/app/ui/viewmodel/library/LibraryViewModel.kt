@@ -7,6 +7,7 @@ import com.canim.app.domain.usecase.*
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -25,8 +26,8 @@ class LibraryViewModel @Inject constructor(
     private val _libraryState = MutableStateFlow(LibraryUiState())
     val libraryState: StateFlow<LibraryUiState> = _libraryState.asStateFlow()
 
-    private val _snackbarEvent = MutableSharedFlow<String>()
-    val snackbarEvent: SharedFlow<String> = _snackbarEvent.asSharedFlow()
+    private val _snackbarEvent = Channel<String>(Channel.BUFFERED)
+    val snackbarEvent = _snackbarEvent.receiveAsFlow()
 
     init {
         // Cold-start instant cache-first load from disk/memory
@@ -485,7 +486,7 @@ class LibraryViewModel @Inject constructor(
 
     fun showSnackbar(message: String) {
         viewModelScope.launch {
-            _snackbarEvent.emit(message)
+            _snackbarEvent.send(message)
         }
     }
 }

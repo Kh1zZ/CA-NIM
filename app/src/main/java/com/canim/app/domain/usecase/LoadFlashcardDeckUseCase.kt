@@ -12,7 +12,11 @@ class LoadFlashcardDeckUseCase @Inject constructor(
     private val discoverRepository: DiscoverRepository,
     private val libraryRepository: LibraryRepository
 ) {
-    suspend operator fun invoke(excludedMalIds: Set<Int> = emptySet()): List<MediaItem> {
+    suspend operator fun invoke(customExcludedIds: Set<Int> = emptySet()): List<MediaItem> {
+        val cachedAnime = libraryRepository.getCachedTracking("ANIME") ?: libraryRepository.getDemoAnime()
+        val libraryExcludedIds = cachedAnime.mapNotNull { it.malId }.toSet()
+        val excludedMalIds = libraryExcludedIds + customExcludedIds
+
         val currentSeason = discoverRepository.getDiscoverMedia(DiscoverCategory.CURRENT_SEASON, DiscoverFilter(), page = 1)
         val upcoming = discoverRepository.getDiscoverMedia(DiscoverCategory.UPCOMING, DiscoverFilter(), page = 1)
 

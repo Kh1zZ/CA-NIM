@@ -10,12 +10,11 @@ import com.canim.app.domain.usecase.InstallUpdateUseCase
 import com.canim.app.domain.usecase.StartDownloadUpdateUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -31,8 +30,8 @@ class UpdateViewModel @Inject constructor(
     private val _updateState = MutableStateFlow(UpdateUiState())
     val updateState: StateFlow<UpdateUiState> = _updateState.asStateFlow()
 
-    private val _snackbarEvent = MutableSharedFlow<String>()
-    val snackbarEvent: SharedFlow<String> = _snackbarEvent.asSharedFlow()
+    private val _snackbarEvent = Channel<String>(Channel.BUFFERED)
+    val snackbarEvent = _snackbarEvent.receiveAsFlow()
 
     init {
         initUpdateChecker()
@@ -182,7 +181,7 @@ class UpdateViewModel @Inject constructor(
 
     fun showSnackbar(message: String) {
         viewModelScope.launch {
-            _snackbarEvent.emit(message)
+            _snackbarEvent.send(message)
         }
     }
 }
