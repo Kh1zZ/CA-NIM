@@ -1,6 +1,6 @@
 [versions]
-agp = "8.3.2"
-kotlin = "1.9.22"
+agp = "8.7.3"
+kotlin = "2.0.21"
 coreKtx = "1.12.0"
 lifecycleRuntimeKtx = "2.7.0"
 activityCompose = "1.8.2"
@@ -13,7 +13,7 @@ kotlinxCoroutines = "1.8.0"
 securityCrypto = "1.1.0-alpha06"
 apollo = "4.0.0"
 hilt = "2.51.1"
-ksp = "1.9.22-1.0.17"
+ksp = "2.0.21-1.0.28"
 
 [libraries]
 apollo-runtime = { group = "com.apollographql.apollo", name = "apollo-runtime", version.ref = "apollo" }
@@ -46,4 +46,5 @@ kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 apollo = { id = "com.apollographql.apollo", version.ref = "apollo" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 
