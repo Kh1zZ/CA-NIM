@@ -244,20 +244,11 @@ fun DashboardScreen(
         }
     }
 
-    // API Outage Alert Banner (AniList / MAL)
-    if (state.isAniListDown || state.isMalDown) {
+    // API Outage Alert Banner (MAL only - AniList is handled transparently by Adaptive Rate Limiter)
+    if (state.isMalDown) {
             item(key = "dashboard_api_outage_banner") {
-                val isBothDown = state.isAniListDown && state.isMalDown
-                val title = when {
-                    isBothDown -> "Layanan AniList & MyAnimeList Terkendala"
-                    state.isAniListDown -> "Layanan AniList Terkendala / Terblokir"
-                    else -> "Layanan MyAnimeList Terkendala / Maintenance"
-                }
-                val desc = when {
-                    isBothDown -> "Koneksi ke kedua engine gagal. Menggunakan data offline/cache lokal."
-                    state.isAniListDown -> "Metadata anime dialihkan otomatis ke MyAnimeList sebagai cadangan."
-                    else -> "Sinkronisasi progress MAL tertunda sementara. Data tetap tersimpan di lokal."
-                }
+                val title = "Layanan MyAnimeList Terkendala / Maintenance"
+                val desc = "Sinkronisasi progress MAL tertunda sementara. Data tetap tersimpan di lokal."
 
                 Surface(
                     modifier = Modifier.fillMaxWidth(),

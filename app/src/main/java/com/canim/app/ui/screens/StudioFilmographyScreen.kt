@@ -96,7 +96,7 @@ fun StudioFilmographyScreen(
                 Surface(
                     shape = RoundedCornerShape(16.dp),
                     color = CardElevated,
-                    border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.5f)),
+                    border = BorderStroke(1.dp, CardBorderSubtle),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
@@ -108,25 +108,25 @@ fun StudioFilmographyScreen(
                             modifier = Modifier
                                 .size(56.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFFF59E0B).copy(alpha = 0.15f)),
+                                .background(AccentBlue.copy(alpha = 0.12f)),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
-                                imageVector = Icons.Default.WarningAmber,
+                                imageVector = Icons.Default.Movie,
                                 contentDescription = null,
-                                tint = Color(0xFFF59E0B),
-                                modifier = Modifier.size(32.dp)
+                                tint = AccentBlue,
+                                modifier = Modifier.size(28.dp)
                             )
                         }
                         Text(
-                            text = "Server AniList Mengalami Gangguan",
+                            text = "Katalog Belum Tersedia",
                             color = TextPrimary,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
                         Text(
-                            text = "Katalog filmografi studio \"$studioName\" tidak dapat dimuat karena API AniList saat ini sedang offline (HTTP 403 / Down). Silakan coba beberapa saat lagi.",
+                            text = "Katalog filmografi untuk studio \"$studioName\" belum tersedia atau tidak memiliki karya animasi utama yang terdaftar.",
                             color = TextSecondary,
                             fontSize = 12.sp,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,

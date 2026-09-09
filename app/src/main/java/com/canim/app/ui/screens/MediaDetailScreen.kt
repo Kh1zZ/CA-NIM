@@ -660,7 +660,7 @@ fun MediaDetailScreen(
                                 modifier = Modifier.size(18.dp)
                             )
                             Text(
-                                text = "Daftar pemeran belum dapat dimuat saat server AniList sedang dalam pemeliharaan (Status 403). Metrik, relasi, dan rekomendasi MyAnimeList tetap aktif.",
+                                text = "Daftar pemeran belum tersedia untuk judul ini.",
                                 color = TextMuted,
                                 fontSize = 11.sp,
                                 lineHeight = 16.sp

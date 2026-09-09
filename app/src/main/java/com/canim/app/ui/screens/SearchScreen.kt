@@ -313,52 +313,7 @@ fun SearchScreen(
             }
         }
 
-        // AniList Outage Notice Banner in Search
-        if (state.isAniListDown) {
-            item {
-                Surface(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFF451A03).copy(alpha = 0.4f),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.5f))
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(28.dp)
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(Color(0xFFF59E0B).copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.WarningAmber,
-                                contentDescription = null,
-                                tint = Color(0xFFF59E0B),
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Pemberitahuan: Layanan AniList Sedang Terkendala",
-                                color = Color(0xFFFBBF24),
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Hasil pencarian & filter dialihkan otomatis ke MyAnimeList dengan kapasitas filter terbatas.",
-                                color = TextSecondary,
-                                fontSize = 10.sp,
-                                lineHeight = 14.sp
-                            )
-                        }
-                    }
-                }
-            }
-        }
+
 
         // Active filters chip row
         if (hasActiveFilters) {

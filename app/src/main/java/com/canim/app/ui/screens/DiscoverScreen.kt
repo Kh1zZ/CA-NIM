@@ -253,42 +253,12 @@ fun DiscoverScreen(
                                         fontWeight = if (isSelected) FontWeight.ExtraBold else if (isStudio) FontWeight.Bold else FontWeight.Medium,
                                         color = textColor
                                     )
-                                    val isCategoryDown = state.isAniListDown && (
-                                        (discoverMediaType == MediaType.MANGA && category != DiscoverCategory.TOP_MANGA) ||
-                                        (discoverMediaType == MediaType.ANIME && category == DiscoverCategory.TRENDING_NOW)
-                                    )
-                                    if (isCategoryDown) {
-                                        Icon(
-                                            imageVector = Icons.Default.WarningAmber,
-                                            contentDescription = "Tidak dapat digunakan",
-                                            tint = Color(0xFFF59E0B),
-                                            modifier = Modifier.size(12.dp)
-                                        )
-                                    }
                                 }
                             }
                         )
                     }
                 }
             }
-
-        val isAniListExclusive = if (discoverMediaType == MediaType.MANGA) {
-            state.selectedDiscoverCategory == DiscoverCategory.TRENDING_NOW ||
-            state.selectedDiscoverCategory == DiscoverCategory.RECENTLY_DONE_MANGA ||
-            state.selectedDiscoverCategory == DiscoverCategory.NEWLY_ADDED_MANGA
-        } else {
-            state.selectedDiscoverCategory == DiscoverCategory.TRENDING_NOW
-        }
-
-        if (isAniListExclusive && state.isAniListDown && state.discoverItems.isNotEmpty()) {
-            item {
-                CategoryOutageNoticeBox(
-                    category = state.selectedDiscoverCategory,
-                    isManga = discoverMediaType == MediaType.MANGA,
-                    isCached = true
-                )
-            }
-        }
 
         if (state.isDiscoverLoading) {
             item {
@@ -304,7 +274,7 @@ fun DiscoverScreen(
                     ) {
                         CircularProgressIndicator(color = currentAccent)
                         Text(
-                            text = "Mengambil data ${state.selectedDiscoverCategory.label} dari AniList...",
+                            text = "Mengambil data ${state.selectedDiscoverCategory.label}...",
                             color = TextSecondary,
                             fontSize = 12.sp
                         )
@@ -313,25 +283,17 @@ fun DiscoverScreen(
             }
         } else if (state.discoverItems.isEmpty()) {
             item {
-                if (isAniListExclusive) {
-                    CategoryOutageNoticeBox(
-                        category = state.selectedDiscoverCategory,
-                        isManga = discoverMediaType == MediaType.MANGA,
-                        isCached = false
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Tidak ada judul yang ditemukan untuk kategori ini.",
+                        color = TextMuted,
+                        fontSize = 13.sp
                     )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(180.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Tidak ada judul yang ditemukan untuk kategori ini.",
-                            color = TextMuted,
-                            fontSize = 13.sp
-                        )
-                    }
                 }
             }
         } else {
@@ -634,32 +596,7 @@ fun DiscoverScreen(
                     fontSize = 12.sp
                 )
 
-                // AniList API Status Warning Banner
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = Color(0xFFF59E0B).copy(alpha = 0.15f),
-                    border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.5f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.WarningAmber,
-                            contentDescription = null,
-                            tint = Color(0xFFF59E0B),
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Text(
-                            text = "Server AniList saat ini sedang mengalami gangguan/down. Menampilkan studio populer terkurasi secara offline.",
-                            color = Color(0xFFFDE68A),
-                            fontSize = 11.sp,
-                            lineHeight = 15.sp
-                        )
-                    }
-                }
+
 
                 OutlinedTextField(
                     value = studioSearchQuery,
@@ -1105,88 +1042,5 @@ fun DiscoverItemCard(
     }
 }
 
-@Composable
-private fun CategoryOutageNoticeBox(
-    category: DiscoverCategory,
-    isManga: Boolean,
-    isCached: Boolean = false,
-    modifier: Modifier = Modifier
-) {
-    val titleText = when {
-        isCached -> "Pembaruan ${category.label} Ditangguhkan"
-        category == DiscoverCategory.TRENDING_NOW -> "Kolom Trending Now Tidak Dapat Digunakan"
-        category == DiscoverCategory.RECENTLY_DONE_MANGA -> "Kolom Baru Selesai Tidak Dapat Digunakan"
-        category == DiscoverCategory.NEWLY_ADDED_MANGA -> "Kolom Baru Ditambahkan Tidak Dapat Digunakan"
-        else -> "Kolom ${category.label} Tidak Dapat Digunakan"
-    }
 
-    val descText = when {
-        isCached -> {
-            "AniList sedang dalam pemeliharaan (maintenance). Data di bawah merupakan cache lokal dan belum diperbarui secara real-time karena MyAnimeList tidak menyediakan endpoint untuk kategori ini."
-        }
-        category == DiscoverCategory.TRENDING_NOW -> {
-            if (isManga) {
-                "Hasil trending manga tidak dapat dimuat karena server AniList sedang dalam pemeliharaan (maintenance). Database MyAnimeList tidak menyediakan metrik trending real-time (hanya Top Manga yang tersedia di MAL), sehingga kolom ini tidak dapat digunakan sementara waktu."
-            } else {
-                "Hasil trending anime tidak dapat dimuat karena server AniList sedang dalam pemeliharaan (maintenance). Database MyAnimeList tidak menyediakan metrik trending real-time, sehingga kolom ini tidak dapat digunakan sementara waktu."
-            }
-        }
-        category == DiscoverCategory.RECENTLY_DONE_MANGA -> {
-            "Data manga yang baru tamat/selesai memerlukan server AniList yang sedang dalam pemeliharaan (maintenance). MyAnimeList tidak memiliki endpoint untuk manga baru selesai (hanya Top Manga yang tersedia di MAL), sehingga kolom ini tidak dapat digunakan sementara waktu."
-        }
-        category == DiscoverCategory.NEWLY_ADDED_MANGA -> {
-            "Data manga yang baru ditambahkan memerlukan server AniList yang sedang dalam pemeliharaan (maintenance). MyAnimeList tidak memiliki endpoint untuk manga baru ditambahkan (hanya Top Manga yang tersedia di MAL), sehingga kolom ini tidak dapat digunakan sementara waktu."
-        }
-        else -> {
-            "Data untuk kategori ini memerlukan server AniList yang saat ini sedang dalam pemeliharaan (maintenance). Database MyAnimeList tidak menyediakan endpoint untuk kategori ini."
-        }
-    }
-
-    Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        shape = RoundedCornerShape(12.dp),
-        color = Color(0xFF451A03).copy(alpha = 0.45f),
-        border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.6f))
-    ) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.Top,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(Color(0xFFF59E0B).copy(alpha = 0.2f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.WarningAmber,
-                    contentDescription = "Peringatan",
-                    tint = Color(0xFFF59E0B),
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Text(
-                    text = titleText,
-                    color = Color(0xFFFCD34D),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = descText,
-                    color = Color(0xFFFCD34D).copy(alpha = 0.85f),
-                    fontSize = 12.sp,
-                    lineHeight = 17.sp
-                )
-            }
-        }
-    }
-}
 
