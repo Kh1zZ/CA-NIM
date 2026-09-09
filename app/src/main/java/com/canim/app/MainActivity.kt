@@ -45,6 +45,8 @@ import com.canim.app.ui.theme.*
 import com.canim.app.ui.viewmodel.CanimViewModel
 import com.canim.app.ui.viewmodel.update.UpdateViewModel
 import com.canim.app.ui.viewmodel.gacha.GachaViewModel
+import com.canim.app.ui.viewmodel.detail.DetailViewModel
+import com.canim.app.ui.viewmodel.studio.StudioViewModel
 import kotlinx.coroutines.launch
 
 data class NavItem(
@@ -60,6 +62,8 @@ class MainActivity : ComponentActivity() {
     private val viewModel: CanimViewModel by viewModels()
     private val updateViewModel: UpdateViewModel by viewModels()
     private val gachaViewModel: GachaViewModel by viewModels()
+    private val detailViewModel: DetailViewModel by viewModels()
+    private val studioViewModel: StudioViewModel by viewModels()
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -76,6 +80,8 @@ class MainActivity : ComponentActivity() {
                 val uiState by viewModel.uiState.collectAsState()
                 val updateState by updateViewModel.updateState.collectAsState()
                 val gachaState by gachaViewModel.gachaState.collectAsState()
+                val detailState by detailViewModel.detailState.collectAsState()
+                val studioState by studioViewModel.studioState.collectAsState()
                 val screenStack by viewModel.screenStack.collectAsState()
                 val context = LocalContext.current
                 val snackbarHostState = remember { SnackbarHostState() }
@@ -107,6 +113,22 @@ class MainActivity : ComponentActivity() {
                     }
                     launch {
                         gachaViewModel.snackbarEvent.collect { msg ->
+                            snackbarHostState.showSnackbar(
+                                message = msg,
+                                duration = SnackbarDuration.Short
+                            )
+                        }
+                    }
+                    launch {
+                        detailViewModel.snackbarEvent.collect { msg ->
+                            snackbarHostState.showSnackbar(
+                                message = msg,
+                                duration = SnackbarDuration.Short
+                            )
+                        }
+                    }
+                    launch {
+                        studioViewModel.snackbarEvent.collect { msg ->
                             snackbarHostState.showSnackbar(
                                 message = msg,
                                 duration = SnackbarDuration.Short
@@ -266,7 +288,10 @@ class MainActivity : ComponentActivity() {
                         // Stable hoisted callbacks to ensure 100% skippable recomposition during scrolling
                         val onQuickAddEpisode: (String) -> Unit = remember { { viewModel.quickIncrementAnime(it) } }
                         val onQuickAddChapter: (String) -> Unit = remember { { viewModel.quickIncrementManga(it) } }
-                        val onSelectItem: (Any, MediaType) -> Unit = remember { { item: Any, type: MediaType -> viewModel.openDetail(item, type) } }
+                        val onSelectItem: (Any, MediaType) -> Unit = remember { { item: Any, type: MediaType ->
+                            detailViewModel.openDetail(item, type)
+                            viewModel.openDetail(item, type)
+                        } }
                         val onLoadDemoData: () -> Unit = remember { { viewModel.loadDemoData() } }
                         val onNavigateTab: (String) -> Unit = remember { { viewModel.setTab(it) } }
                         val onLoginMal: () -> Unit = remember(context) { { viewModel.loginWithMal(context) } }
@@ -337,13 +362,22 @@ class MainActivity : ComponentActivity() {
                                         state = uiState,
                                         onSelectCategory = { cat, filter -> viewModel.loadDiscoverCategory(cat, filter) },
                                         onAddMedia = { item, status -> viewModel.addFromCatalog(item, status) },
-                                        onSelectItem = { item, type -> viewModel.openDetail(item, type) },
+                                        onSelectItem = { item, type ->
+                                            detailViewModel.openDetail(item, type)
+                                            viewModel.openDetail(item, type)
+                                        },
                                         onLoadMore = { viewModel.loadMoreDiscover() },
                                         onSaveAnime = { viewModel.saveAnime(it) },
                                         onSaveManga = { viewModel.saveManga(it) },
-                                        onOpenStudio = { studioId, studioName -> viewModel.openStudio(studioId, studioName) },
-                                        onSearchStudio = { viewModel.searchStudios(it) },
-                                        onGetStudioInfo = { studioId, studioName -> viewModel.getStudioInfo(studioId, studioName) }
+                                        onOpenStudio = { studioId, studioName ->
+                                            studioViewModel.openStudio(studioId, studioName)
+                                            viewModel.openStudio(studioId, studioName)
+                                        },
+                                        onSearchStudio = {
+                                            studioViewModel.searchStudios(it)
+                                            viewModel.searchStudios(it)
+                                        },
+                                        onGetStudioInfo = { studioId, studioName -> studioViewModel.getStudioInfo(studioId, studioName) }
                                     )
                                 }
                                 "settings" -> {
@@ -430,10 +464,14 @@ class MainActivity : ComponentActivity() {
                             when (currentScreen) {
                                 is ScreenRoute.CastCrew -> {
                                     CastCrewProfileScreen(
-                                        profile = uiState.selectedCastCrewProfile,
-                                        isLoading = uiState.isLoadingCastCrewProfile,
-                                        onBack = { viewModel.popScreen() },
+                                        profile = detailState.selectedCastCrewProfile ?: uiState.selectedCastCrewProfile,
+                                        isLoading = detailState.isLoadingCastCrewProfile,
+                                        onBack = {
+                                            detailViewModel.closeCastCrewProfile()
+                                            viewModel.popScreen()
+                                        },
                                         onSelectMedia = { mediaItem ->
+                                            detailViewModel.openDetail(mediaItem, mediaItem.type)
                                             viewModel.openDetail(mediaItem, mediaItem.type)
                                         }
                                     )
@@ -446,6 +484,7 @@ class MainActivity : ComponentActivity() {
                                         isCrewInitial = currentScreen.isCrewInitial,
                                         onBack = { viewModel.popScreen() },
                                         onOpenCastCrew = { id, isStaff ->
+                                            detailViewModel.openCastCrewProfile(id, isStaff)
                                             viewModel.openCastCrewProfile(id, isStaff)
                                         }
                                     )
@@ -456,24 +495,24 @@ class MainActivity : ComponentActivity() {
                                         is com.canim.app.data.model.MediaItem -> item.id
                                         else -> null
                                     }
-                                    val selectedMediaId = when (val item = uiState.selectedDetailItem) {
+                                    val selectedMediaId = when (val item = detailState.selectedItem ?: uiState.selectedDetailItem) {
                                         is com.canim.app.data.model.UserMediaItem -> item.id
                                         is com.canim.app.data.model.MediaItem -> item.id
                                         else -> null
                                     }
                                     val isCurrentDetailSelected = currentMediaId != null && currentMediaId == selectedMediaId
                                     val detailItem = if (isCurrentDetailSelected) {
-                                        uiState.selectedDetailItem ?: currentScreen.item
+                                        detailState.selectedItem ?: uiState.selectedDetailItem ?: currentScreen.item
                                     } else {
                                         currentScreen.item
                                     }
                                     val detailExtended = if (isCurrentDetailSelected) {
-                                        uiState.extendedDetail
+                                        detailState.extendedDetail ?: uiState.extendedDetail
                                     } else {
-                                        viewModel.getCachedDetail(currentScreen.item)
+                                        detailViewModel.getCachedDetail(currentScreen.item) ?: viewModel.getCachedDetail(currentScreen.item)
                                     }
                                     val detailIsLoading = if (isCurrentDetailSelected) {
-                                        uiState.isLoadingExtendedDetail
+                                        detailState.isLoadingExtendedDetail
                                     } else {
                                         false
                                     }
@@ -489,7 +528,10 @@ class MainActivity : ComponentActivity() {
                                         onSaveManga = { viewModel.saveManga(it) },
                                         onDeleteAnime = { viewModel.deleteAnime(it) },
                                         onDeleteManga = { viewModel.deleteManga(it) },
-                                        onOpenCastCrew = { id, isStaff -> viewModel.openCastCrewProfile(id, isStaff) },
+                                        onOpenCastCrew = { id, isStaff ->
+                                            detailViewModel.openCastCrewProfile(id, isStaff)
+                                            viewModel.openCastCrewProfile(id, isStaff)
+                                        },
                                         onOpenFullCast = { isCrew ->
                                             viewModel.openFullCastList(
                                                 mediaTitle = detailTitle,
@@ -498,29 +540,53 @@ class MainActivity : ComponentActivity() {
                                                 isCrewInitial = isCrew
                                             )
                                         },
-                                        onOpenStudio = { studioId, studioName -> viewModel.openStudio(studioId, studioName) },
-                                        onOpenMediaDetail = { media, mediaType -> viewModel.openDetail(media, mediaType) },
-                                        onResolveAniListId = { malId -> viewModel.getAniListIdForMalId(malId) },
-                                        onSaveScrollPosition = { key, index, offset -> viewModel.saveDetailScrollPosition(key, index, offset) },
-                                        onGetScrollPosition = { key -> viewModel.getDetailScrollPosition(key) },
-                                        onDismiss = { viewModel.popScreen() }
+                                        onOpenStudio = { studioId, studioName ->
+                                            studioViewModel.openStudio(studioId, studioName)
+                                            viewModel.openStudio(studioId, studioName)
+                                        },
+                                        onOpenMediaDetail = { media, mediaType ->
+                                            detailViewModel.openDetail(media, mediaType)
+                                            viewModel.openDetail(media, mediaType)
+                                        },
+                                        onResolveAniListId = { malId -> detailViewModel.getAniListIdForMalId(malId) ?: viewModel.getAniListIdForMalId(malId) },
+                                        onSaveScrollPosition = { key, index, offset ->
+                                            detailViewModel.saveDetailScrollPosition(key, index, offset)
+                                            viewModel.saveDetailScrollPosition(key, index, offset)
+                                        },
+                                        onGetScrollPosition = { key -> detailViewModel.getDetailScrollPosition(key) },
+                                        onDismiss = {
+                                            detailViewModel.closeDetail()
+                                            viewModel.popScreen()
+                                        }
                                     )
                                 }
                                 is ScreenRoute.StudioFilmography -> {
                                     StudioFilmographyScreen(
                                         studioId = currentScreen.studioId,
                                         studioName = currentScreen.studioName,
-                                        items = uiState.studioFilmographyItems,
-                                        totalEntries = uiState.studioFilmographyTotalEntries,
-                                        isLoading = uiState.isStudioFilmographyLoading,
-                                        isLoadingMore = uiState.isStudioFilmographyLoadingMore,
-                                        canLoadMore = uiState.canLoadMoreStudioFilmography,
-                                        onLoadMore = { viewModel.loadMoreStudioFilmography() },
-                                        onOpenDetail = { media, type -> viewModel.openDetail(media, type) },
-                                        onBack = { viewModel.popScreen() },
-                                        bioInfo = uiState.studioFilmographyBio,
-                                        sort = uiState.studioFilmographySort,
-                                        onSortChanged = { viewModel.setStudioFilmographySort(it) }
+                                        items = if (studioState.items.isNotEmpty()) studioState.items else uiState.studioFilmographyItems,
+                                        totalEntries = if (studioState.totalEntries > 0) studioState.totalEntries else uiState.studioFilmographyTotalEntries,
+                                        isLoading = studioState.isLoading,
+                                        isLoadingMore = studioState.isLoadingMore,
+                                        canLoadMore = studioState.canLoadMore,
+                                        onLoadMore = {
+                                            studioViewModel.loadMoreStudioFilmography()
+                                            viewModel.loadMoreStudioFilmography()
+                                        },
+                                        onOpenDetail = { media, type ->
+                                            detailViewModel.openDetail(media, type)
+                                            viewModel.openDetail(media, type)
+                                        },
+                                        onBack = {
+                                            studioViewModel.closeStudio()
+                                            viewModel.popScreen()
+                                        },
+                                        bioInfo = studioState.bio ?: uiState.studioFilmographyBio,
+                                        sort = studioState.sort,
+                                        onSortChanged = {
+                                            studioViewModel.setStudioFilmographySort(it)
+                                            viewModel.setStudioFilmographySort(it)
+                                        }
                                     )
                                 }
                                 is ScreenRoute.Flashcard -> {

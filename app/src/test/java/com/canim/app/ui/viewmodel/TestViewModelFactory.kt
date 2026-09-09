@@ -9,6 +9,8 @@ import com.canim.app.domain.repository.*
 import com.canim.app.domain.usecase.*
 import com.canim.app.ui.viewmodel.update.UpdateViewModel
 import com.canim.app.ui.viewmodel.gacha.GachaViewModel
+import com.canim.app.ui.viewmodel.detail.DetailViewModel
+import com.canim.app.ui.viewmodel.studio.StudioViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 
@@ -133,5 +135,29 @@ fun createTestGachaViewModel(
             libraryRepository = repository
         ),
         getLibraryUseCase = GetLibraryUseCase(repository)
+    )
+}
+
+fun createTestDetailViewModel(
+    repository: CanimTestRepository = FakeCanimRepository()
+): DetailViewModel {
+    return DetailViewModel(
+        getExtendedDetailUseCase = GetExtendedDetailUseCase(repository),
+        getCastCrewProfileUseCase = GetCastCrewProfileUseCase(repository),
+        getLibraryUseCase = GetLibraryUseCase(repository),
+        observeCacheRefreshUseCase = ObserveCacheRefreshUseCase(
+            systemRepository = repository,
+            searchRepository = repository,
+            discoverRepository = repository
+        )
+    )
+}
+
+fun createTestStudioViewModel(
+    repository: CanimTestRepository = FakeCanimRepository()
+): StudioViewModel {
+    return StudioViewModel(
+        getStudioFilmographyUseCase = GetStudioFilmographyUseCase(repository),
+        searchStudiosUseCase = SearchStudiosUseCase(repository)
     )
 }
