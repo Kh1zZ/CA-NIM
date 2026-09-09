@@ -49,14 +49,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.filled.FilterList
 import com.canim.app.data.model.UserMediaItem
 import com.canim.app.ui.theme.*
-import com.canim.app.ui.viewmodel.CanimUiState
+import com.canim.app.ui.viewmodel.library.LibraryUiState
 import com.canim.app.ui.viewmodel.search.SearchUiState
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SearchScreen(
-    state: CanimUiState,
+    searchState: SearchUiState,
+    libraryState: LibraryUiState,
     onSearch: (String, MediaType) -> Unit,
     onAddMedia: (MediaItem, MediaStatus) -> Unit,
     onSelectItem: (Any, MediaType) -> Unit,
@@ -64,16 +65,15 @@ fun SearchScreen(
     onSaveManga: (UserMediaItem) -> Unit = {},
     onApplyFilters: (genres: List<String>, year: Int?, format: String?) -> Unit = { _, _, _ -> },
     onResetFilters: () -> Unit = {},
-    searchState: SearchUiState? = null,
     modifier: Modifier = Modifier
 ) {
-    val currentQuery = searchState?.query ?: state.searchQuery
-    val currentType = searchState?.type ?: state.searchType
-    val currentResults = searchState?.results ?: state.searchResults
-    val currentIsSearching = searchState?.isSearching ?: state.isSearching
-    val currentGenres = searchState?.genres ?: state.searchGenres
-    val currentYear = searchState?.year ?: state.searchYear
-    val currentFormat = searchState?.format ?: state.searchFormat
+    val currentQuery = searchState.query
+    val currentType = searchState.type
+    val currentResults = searchState.results
+    val currentIsSearching = searchState.isSearching
+    val currentGenres = searchState.genres
+    val currentYear = searchState.year
+    val currentFormat = searchState.format
 
     var searchInput by remember { mutableStateOf(currentQuery) }
     var searchType by remember { mutableStateOf(currentType) }
@@ -100,8 +100,9 @@ fun SearchScreen(
     val mangaFormats = remember { listOf("MANGA", "NOVEL", "ONE_SHOT") }
     val yearPresets = remember { listOf(2026, 2025, 2024, 2023, 2022, 2020, 2015, 2010) }
 
-    val libraryAnimeMalIds = remember(state.animeList) { state.animeList.map { it.malId }.toSet() }
-    val libraryMangaMalIds = remember(state.mangaList) { state.mangaList.map { it.malId }.toSet() }
+    val libraryAnimeMalIds = remember(libraryState.animeList) { libraryState.animeList.map { it.malId }.toSet() }
+    val libraryMangaMalIds = remember(libraryState.mangaList) { libraryState.mangaList.map { it.malId }.toSet() }
+
 
     // Automatic debounced live search as user types
     LaunchedEffect(searchInput, searchType) {
@@ -606,9 +607,9 @@ fun SearchScreen(
         val target = itemToEdit!!
         val isAnime = target.type == MediaType.ANIME
         val currentStatus = if (isAnime) {
-            state.animeList.find { it.malId == target.malId }?.status
+            libraryState.animeList.find { it.malId == target.malId }?.status
         } else {
-            state.mangaList.find { it.malId == target.malId }?.status
+            libraryState.mangaList.find { it.malId == target.malId }?.status
         }
 
         val statusOptions = if (isAnime) {
@@ -663,11 +664,11 @@ fun SearchScreen(
                         Button(
                             onClick = {
                                 if (isAnime) {
-                                    state.animeList.find { it.malId == target.malId }?.let { entity ->
+                                    libraryState.animeList.find { it.malId == target.malId }?.let { entity ->
                                         onSaveAnime(entity.withStatus(statusOption.apiValue))
                                     }
                                 } else {
-                                    state.mangaList.find { it.malId == target.malId }?.let { entity ->
+                                    libraryState.mangaList.find { it.malId == target.malId }?.let { entity ->
                                         onSaveManga(entity.withStatus(statusOption.apiValue))
                                     }
                                 }

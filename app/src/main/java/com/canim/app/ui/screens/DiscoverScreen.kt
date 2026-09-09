@@ -40,8 +40,9 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import com.canim.app.data.model.*
 import androidx.compose.ui.graphics.Brush
 import com.canim.app.ui.theme.*
-import com.canim.app.ui.viewmodel.CanimUiState
 import com.canim.app.ui.viewmodel.discover.DiscoverUiState
+import com.canim.app.ui.viewmodel.library.LibraryUiState
+import com.canim.app.ui.viewmodel.studio.StudioViewModel
 
 private val ItemCardShape = RoundedCornerShape(12.dp)
 private val ItemImageShape = RoundedCornerShape(8.dp)
@@ -51,7 +52,10 @@ private val MangaBorderStroke = BorderStroke(1.dp, MangaCardBorder.copy(alpha = 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiscoverScreen(
-    state: CanimUiState,
+    discoverState: DiscoverUiState,
+    libraryState: LibraryUiState,
+    studioViewModel: StudioViewModel,
+    isAniListDown: Boolean = false,
     onSelectCategory: (DiscoverCategory, DiscoverFilter) -> Unit,
     onAddMedia: (MediaItem, MediaStatus) -> Unit,
     onSelectItem: (Any, MediaType) -> Unit,
@@ -59,16 +63,15 @@ fun DiscoverScreen(
     onSaveAnime: (UserMediaItem) -> Unit = {},
     onSaveManga: (UserMediaItem) -> Unit = {},
     onOpenStudio: ((studioId: Int, studioName: String) -> Unit)? = null,
-    onSearchStudio: ((String) -> Unit)? = null,
     onGetStudioInfo: ((studioId: Int, studioName: String) -> StudioBioInfo)? = null,
-    discoverState: DiscoverUiState? = null,
     modifier: Modifier = Modifier
 ) {
-    val currentSelectedCategory = discoverState?.selectedCategory ?: state.selectedDiscoverCategory
-    val currentDiscoverItems = discoverState?.items ?: state.discoverItems
-    val currentIsLoading = discoverState?.isLoading ?: state.isDiscoverLoading
-    val currentIsLoadingMore = discoverState?.isLoadingMore ?: state.isDiscoverLoadingMore
-    val currentCanLoadMore = discoverState?.canLoadMore ?: state.canLoadMoreDiscover
+    val studioState by studioViewModel.studioState.collectAsState()
+    val currentSelectedCategory = discoverState.selectedCategory
+    val currentDiscoverItems = discoverState.items
+    val currentIsLoading = discoverState.isLoading
+    val currentIsLoadingMore = discoverState.isLoadingMore
+    val currentCanLoadMore = discoverState.canLoadMore
 
     var selectedItemForAdd by remember { mutableStateOf<MediaItem?>(null) }
     var selectedItemForEdit by remember { mutableStateOf<MediaItem?>(null) }
@@ -85,8 +88,8 @@ fun DiscoverScreen(
         { media -> selectedItemForEdit = media }
     }
 
-    val libraryAnimeMalIds = remember(state.animeList) { state.animeList.map { it.malId }.toSet() }
-    val libraryMangaMalIds = remember(state.mangaList) { state.mangaList.map { it.malId }.toSet() }
+    val libraryAnimeMalIds = remember(libraryState.animeList) { libraryState.animeList.map { it.malId }.toSet() }
+    val libraryMangaMalIds = remember(libraryState.mangaList) { libraryState.mangaList.map { it.malId }.toSet() }
 
     val animeCategories = remember {
         listOf(
@@ -181,7 +184,7 @@ fun DiscoverScreen(
                             if (selected == MediaType.ANIME) {
                                 onSelectCategory(DiscoverCategory.CURRENT_SEASON, DiscoverFilter())
                             } else {
-                                val defaultMangaCat = if (state.isAniListDown) DiscoverCategory.TOP_MANGA else DiscoverCategory.TRENDING_NOW
+                                val defaultMangaCat = if (isAniListDown) DiscoverCategory.TOP_MANGA else DiscoverCategory.TRENDING_NOW
                                 onSelectCategory(defaultMangaCat, DiscoverFilter())
                             }
                         }
@@ -438,9 +441,9 @@ fun DiscoverScreen(
         val targetItem = selectedItemForEdit!!
         val isAnime = targetItem.type == MediaType.ANIME
         val currentStatus = if (isAnime) {
-            state.animeList.find { it.malId == targetItem.malId }?.status
+            libraryState.animeList.find { it.malId == targetItem.malId }?.status
         } else {
-            state.mangaList.find { it.malId == targetItem.malId }?.status
+            libraryState.mangaList.find { it.malId == targetItem.malId }?.status
         }
 
         val statusOptions = if (isAnime) {
@@ -495,11 +498,11 @@ fun DiscoverScreen(
                         Button(
                             onClick = {
                                 if (isAnime) {
-                                    state.animeList.find { it.malId == targetItem.malId }?.let { entity ->
+                                    libraryState.animeList.find { it.malId == targetItem.malId }?.let { entity ->
                                         onSaveAnime(entity.withStatus(statusOption.apiValue))
                                     }
                                 } else {
-                                    state.mangaList.find { it.malId == targetItem.malId }?.let { entity ->
+                                    libraryState.mangaList.find { it.malId == targetItem.malId }?.let { entity ->
                                         onSaveManga(entity.withStatus(statusOption.apiValue))
                                     }
                                 }
@@ -560,7 +563,7 @@ fun DiscoverScreen(
             onDismissRequest = {
                 showStudioPickerSheet = false
                 studioSearchQuery = ""
-                onSearchStudio?.invoke("")
+                studioViewModel.searchStudios("")
             },
             containerColor = CardBg,
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -610,7 +613,7 @@ fun DiscoverScreen(
                     value = studioSearchQuery,
                     onValueChange = {
                         studioSearchQuery = it
-                        onSearchStudio?.invoke(it)
+                        studioViewModel.searchStudios(it)
                     },
                     placeholder = { Text("Cari nama studio (misal: A-1 Pictures, Passione, Nexus)...", color = TextMuted, fontSize = 13.sp) },
                     leadingIcon = {
@@ -620,7 +623,7 @@ fun DiscoverScreen(
                         {
                             IconButton(onClick = {
                                 studioSearchQuery = ""
-                                onSearchStudio?.invoke("")
+                                studioViewModel.searchStudios("")
                             }) {
                                 Icon(imageVector = Icons.Default.Close, contentDescription = null, tint = TextMuted)
                             }
@@ -660,7 +663,7 @@ fun DiscoverScreen(
                                 onClick = {
                                     showStudioPickerSheet = false
                                     studioSearchQuery = ""
-                                    onSearchStudio?.invoke("")
+                                    studioViewModel.searchStudios("")
                                     onOpenStudio?.invoke(sId, sName)
                                 },
                                 colors = CardDefaults.cardColors(containerColor = CardElevated),
@@ -742,13 +745,13 @@ fun DiscoverScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "HASIL PENCARIAN (${state.studioSearchResults.size})",
+                            text = "HASIL PENCARIAN (${studioState.searchResults.size})",
                             color = TextMuted,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = 1.sp
                         )
-                        if (state.isSearchingStudios) {
+                        if (studioState.isSearchingStudios) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -767,7 +770,7 @@ fun DiscoverScreen(
                         }
                     }
 
-                    if (state.isSearchingStudios && state.studioSearchResults.isEmpty()) {
+                    if (studioState.isSearchingStudios && studioState.searchResults.isEmpty()) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -790,7 +793,7 @@ fun DiscoverScreen(
                                 )
                             }
                         }
-                    } else if (state.studioSearchResults.isEmpty() && !state.isSearchingStudios) {
+                    } else if (studioState.searchResults.isEmpty() && !studioState.isSearchingStudios) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -829,14 +832,14 @@ fun DiscoverScreen(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(state.studioSearchResults, key = { it.studioId }, contentType = { "studio_search_result" }) { studioInfo ->
+                            items(studioState.searchResults, key = { it.studioId }, contentType = { "studio_search_result" }) { studioInfo ->
                                 val sId = studioInfo.studioId
                                 val sName = studioInfo.name
                                 Card(
                                     onClick = {
                                         showStudioPickerSheet = false
                                         studioSearchQuery = ""
-                                        onSearchStudio?.invoke("")
+                                        studioViewModel.searchStudios("")
                                         onOpenStudio?.invoke(sId, sName)
                                     },
                                     colors = CardDefaults.cardColors(containerColor = CardElevated),

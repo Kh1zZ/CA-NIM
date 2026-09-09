@@ -76,45 +76,6 @@ open class FakeCanimRepository : CanimTestRepository {
     override fun searchCuratedStudios(query: String): List<StudioBioInfo> = emptyList()
 }
 
-fun createTestCanimViewModel(
-    repository: CanimTestRepository = FakeCanimRepository(),
-    gachaCreditManager: GachaCreditManager
-): CanimViewModel {
-    val consumeGachaCreditUseCase = ConsumeGachaCreditUseCase(gachaCreditManager)
-    val getMalUserUseCase = GetMalUserUseCase(repository)
-    return CanimViewModel(
-        getLibraryUseCase = GetLibraryUseCase(repository, consumeGachaCreditUseCase, getMalUserUseCase),
-        saveLibraryItemUseCase = SaveLibraryItemUseCase(repository, consumeGachaCreditUseCase, getMalUserUseCase),
-        deleteLibraryItemUseCase = DeleteLibraryItemUseCase(repository, getMalUserUseCase),
-        updateTrackingUseCase = UpdateTrackingUseCase(repository, consumeGachaCreditUseCase, getMalUserUseCase),
-        searchMediaUseCase = SearchMediaUseCase(repository),
-        getDiscoverCategoryUseCase = GetDiscoverCategoryUseCase(repository),
-        getExtendedDetailUseCase = GetExtendedDetailUseCase(repository),
-        getCastCrewProfileUseCase = GetCastCrewProfileUseCase(repository),
-        getStudioFilmographyUseCase = GetStudioFilmographyUseCase(repository),
-        searchStudiosUseCase = SearchStudiosUseCase(repository),
-        consumeGachaCreditUseCase = consumeGachaCreditUseCase,
-        loadFlashcardDeckUseCase = LoadFlashcardDeckUseCase(
-            discoverRepository = repository,
-            libraryRepository = repository
-        ),
-        getMalUserUseCase = getMalUserUseCase,
-        loginMalUseCase = LoginMalUseCase(repository),
-        handleMalOAuthCallbackUseCase = HandleMalOAuthCallbackUseCase(repository),
-        logoutMalUseCase = LogoutMalUseCase(repository),
-        syncMalUseCase = SyncMalUseCase(repository),
-        checkForUpdatesUseCase = CheckForUpdatesUseCase(),
-        startDownloadUpdateUseCase = StartDownloadUpdateUseCase(),
-        installUpdateUseCase = InstallUpdateUseCase(),
-        checkApiHealthUseCase = CheckApiHealthUseCase(repository),
-        clearCacheUseCase = ClearCacheUseCase(repository),
-        observeCacheRefreshUseCase = ObserveCacheRefreshUseCase(
-            systemRepository = repository,
-            searchRepository = repository,
-            discoverRepository = repository
-        )
-    )
-}
 
 fun createTestUpdateViewModel(
     context: Context,

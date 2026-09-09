@@ -51,6 +51,8 @@ object ApiClient {
         val logging = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BASIC else HttpLoggingInterceptor.Level.NONE
         }
+        // Optional OkHttp disk cache: CanimApplication.instance is accessed safely via runCatching
+        // if initialized; otherwise gracefully runs cacheless (e.g. in standalone unit tests).
         val cache = runCatching {
             val app = CanimApplication.instance
             val cacheDir = File(app.cacheDir, "http_cache")

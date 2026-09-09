@@ -54,7 +54,7 @@ class SyncQueueRetryTest {
         engine = LibrarySyncEngine(
             pendingMutationDao = mutationDao,
             libraryDao = libraryDao,
-            malAuthManager = fakeMal,
+            mutationExecutor = fakeMal,
             networkChecker = fakeNetwork,
             appScope = testScope,
             maxAttempts = 3,

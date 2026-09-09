@@ -32,7 +32,9 @@ class CanimApplication : Application(), ImageLoaderFactory {
     override fun onCreate() {
         super.onCreate()
         instance = this
-        // TODO Phase 6: migrate CacheManager.init to DI
+        // CacheManager.init(this) sengaja dipertahankan pada bootstrap Application karena CacheManager
+        // merupakan global in-memory & disk cache registry yang harus siap sebelum komponen repositori,
+        // remote, atau UI mengakses entri cache selama lifecycle proses aplikasi berlangsung.
         com.canim.app.data.cache.CacheManager.init(this)
     }
 

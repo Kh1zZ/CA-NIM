@@ -54,17 +54,23 @@ object ManagerModule {
 
     @Provides
     @Singleton
+    fun provideMalMutationExecutor(malAuthManager: MalAuthManager): com.canim.app.data.local.MalMutationExecutor {
+        return malAuthManager
+    }
+
+    @Provides
+    @Singleton
     fun provideLibrarySyncEngine(
         pendingMutationDao: PendingMutationDao,
         libraryDao: LibraryDao,
-        malAuthManager: MalAuthManager,
+        mutationExecutor: com.canim.app.data.local.MalMutationExecutor,
         networkChecker: ConnectivityNetworkChecker,
         appScope: CoroutineScope
     ): LibrarySyncEngine {
         val syncEngine = LibrarySyncEngine(
             pendingMutationDao = pendingMutationDao,
             libraryDao = libraryDao,
-            malAuthManager = malAuthManager,
+            mutationExecutor = mutationExecutor,
             networkChecker = networkChecker,
             appScope = appScope
         )

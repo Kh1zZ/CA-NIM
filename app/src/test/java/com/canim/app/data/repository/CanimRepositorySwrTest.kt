@@ -8,9 +8,9 @@ import com.canim.app.data.model.MediaItem
 import com.canim.app.data.model.MediaType
 import com.canim.app.data.remote.anilist.AniListApolloClient
 import com.canim.app.domain.repository.*
-import com.canim.app.ui.viewmodel.CanimViewModel
 import com.canim.app.ui.viewmodel.FakeCanimRepository
-import com.canim.app.ui.viewmodel.createTestCanimViewModel
+import com.canim.app.ui.viewmodel.createTestDetailViewModel
+import com.canim.app.ui.viewmodel.createTestSearchViewModel
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -217,13 +217,13 @@ class CanimRepositorySwrTest {
 
     @Test
     fun testViewModelUpdatesSearchResultsWhenActiveEventReceived() = runBlocking {
-        val viewModel = createTestCanimViewModel(repository, gachaCreditManager)
+        val viewModel = createTestSearchViewModel(repository)
 
         val query = "frieren"
         viewModel.onSearchQueryChange(query, MediaType.ANIME)
 
-        val state = viewModel.uiState.value
-        val filterKey = "${query.trim()}_${state.searchGenres.sorted().joinToString(",")}_${state.searchYear}_${state.searchFormat}"
+        val state = viewModel.searchState.value
+        val filterKey = "${query.trim()}_${state.genres.sorted().joinToString(",")}_${state.year}_${state.format}"
         val searchKey = CacheManager.searchKey(filterKey, "ANIME")
         val freshItems = listOf(fakeItem(101, "Frieren: Beyond Journey's End"))
 
@@ -236,12 +236,12 @@ class CanimRepositorySwrTest {
         org.robolectric.shadows.ShadowLooper.idleMainLooper()
 
         // UI state must now have the fresh results without triggering a new network call
-        assertEquals(freshItems, viewModel.uiState.value.searchResults)
+        assertEquals(freshItems, viewModel.searchState.value.results)
     }
 
     @Test
     fun testViewModelIgnoresSearchRefreshEventWhenQueryMismatched() = runBlocking {
-        val viewModel = createTestCanimViewModel(repository, gachaCreditManager)
+        val viewModel = createTestSearchViewModel(repository)
 
         // User is currently searching for "bleach"
         viewModel.onSearchQueryChange("bleach", MediaType.ANIME)
@@ -256,12 +256,12 @@ class CanimRepositorySwrTest {
         delay(50L)
 
         // Search results must NOT be updated with unrelated "naruto" items
-        assertNotEquals(narutoItems, viewModel.uiState.value.searchResults)
+        assertNotEquals(narutoItems, viewModel.searchState.value.results)
     }
 
     @Test
     fun testViewModelUpdatesExtendedDetailWhenActiveDetailMatches() = runBlocking {
-        val viewModel = createTestCanimViewModel(repository, gachaCreditManager)
+        val viewModel = createTestDetailViewModel(repository)
 
         val aniId = 154587
         val malId = 52991
@@ -270,8 +270,8 @@ class CanimRepositorySwrTest {
         val freshDetail = fakeDetail(aniId, malId)
 
         // User opens detail
-        viewModel.pushScreen(com.canim.app.ui.navigation.ScreenRoute.Detail(initialItem, MediaType.ANIME))
-        assertTrue(viewModel.uiState.value.isDetailOpen)
+        viewModel.openDetail(initialItem, MediaType.ANIME)
+        assertTrue(viewModel.detailState.value.isOpen)
 
         // Write fresh detail to cache and emit DETAIL refresh event
         CacheManager.putDetail(detailKey, freshDetail)
@@ -280,15 +280,15 @@ class CanimRepositorySwrTest {
         delay(50L)
 
         // UI state must reflect fresh detail
-        assertEquals(freshDetail, viewModel.uiState.value.extendedDetail)
-        assertFalse(viewModel.uiState.value.isLoadingExtendedDetail)
+        assertEquals(freshDetail, viewModel.detailState.value.extendedDetail)
+        assertFalse(viewModel.detailState.value.isLoadingExtendedDetail)
     }
 
     @Test
     fun testViewModelIgnoresDetailRefreshEventWhenDetailIsNotOpen() = runBlocking {
-        val viewModel = createTestCanimViewModel(repository, gachaCreditManager)
+        val viewModel = createTestDetailViewModel(repository)
 
-        assertFalse("Detail is not open initially", viewModel.uiState.value.isDetailOpen)
+        assertFalse("Detail is not open initially", viewModel.detailState.value.isOpen)
 
         val detailKey = CacheManager.detailKey(99999, null)
         val detail = fakeDetail(99999)
@@ -297,7 +297,7 @@ class CanimRepositorySwrTest {
 
         delay(50L)
 
-        assertNull("extendedDetail must remain null since detail is closed", viewModel.uiState.value.extendedDetail)
+        assertNull("extendedDetail must remain null since detail is closed", viewModel.detailState.value.extendedDetail)
     }
 
     // =========================================================================
@@ -393,12 +393,12 @@ class CanimRepositorySwrTest {
 
     @Test
     fun testSameIdWithChangedMeaningfulFieldsTriggersRefreshAndUiUpdate() = runBlocking {
-        val viewModel = createTestCanimViewModel(repository, gachaCreditManager)
+        val viewModel = createTestSearchViewModel(repository)
         val query = "solo"
         viewModel.onSearchQueryChange(query, MediaType.ANIME)
 
-        val state = viewModel.uiState.value
-        val filterKey = repository.searchFilterKey(query, state.searchGenres, state.searchYear, state.searchFormat)
+        val state = viewModel.searchState.value
+        val filterKey = repository.searchFilterKey(query, state.genres, state.year, state.format)
         val searchKey = CacheManager.searchKey(filterKey, "ANIME")
 
         val staleItem = fakeItem(1, "Solo Leveling").copy(score = 8.0, episodes = 12, status = "RELEASING")
@@ -418,7 +418,7 @@ class CanimRepositorySwrTest {
         delay(50L)
         org.robolectric.shadows.ShadowLooper.idleMainLooper()
 
-        assertEquals("UI state must update when meaningful fields change", listOf(freshItem), viewModel.uiState.value.searchResults)
+        assertEquals("UI state must update when meaningful fields change", listOf(freshItem), viewModel.searchState.value.results)
     }
 
     @Test

@@ -33,7 +33,8 @@ import coil.compose.AsyncImage
 import com.canim.app.data.model.MediaType
 import com.canim.app.data.model.UserMediaItem
 import com.canim.app.ui.theme.*
-import com.canim.app.ui.viewmodel.CanimUiState
+import com.canim.app.ui.viewmodel.library.LibraryUiState
+import com.canim.app.ui.viewmodel.global.GlobalUiState
 import com.canim.app.util.AnimeFranchiseFilter
 import kotlinx.coroutines.launch
 
@@ -51,7 +52,8 @@ data class PieSlice(val label: String, val count: Int, val color: Color)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatsScreen(
-    state: CanimUiState,
+    libraryState: LibraryUiState,
+    globalState: GlobalUiState,
     onBack: () -> Unit,
     onSelectItem: (Any, MediaType) -> Unit,
     onSaveScrollPosition: ((index: Int, offset: Int) -> Unit)? = null,
@@ -79,35 +81,35 @@ fun StatsScreen(
     }
 
     // Calculate Top 5 by personal score (excluding sequel anime)
-    val topAnime = remember(state.animeList) {
-        AnimeFranchiseFilter.selectTopAnimeNonSequel(state.animeList, 5)
+    val topAnime = remember(libraryState.animeList) {
+        AnimeFranchiseFilter.selectTopAnimeNonSequel(libraryState.animeList, 5)
     }
 
-    val topManga = remember(state.mangaList) {
-        state.mangaList
+    val topManga = remember(libraryState.mangaList) {
+        libraryState.mangaList
             .filter { it.score > 0 }
             .sortedByDescending { it.score }
             .take(5)
     }
 
     // Pie chart data with unified StatsColors
-    val animeSlices = remember(state.stats) {
+    val animeSlices = remember(libraryState.stats) {
         listOf(
-            PieSlice("Ditonton", state.stats.animeWatching, StatsColors.Watching),
-            PieSlice("Selesai", state.stats.animeCompleted, StatsColors.Completed),
-            PieSlice("Ditunda", state.stats.animeOnHold, StatsColors.OnHold),
-            PieSlice("Drop", state.stats.animeDropped, StatsColors.Dropped),
-            PieSlice("Rencana", state.stats.animePlanToWatch, StatsColors.PlanTo)
+            PieSlice("Ditonton", libraryState.stats.animeWatching, StatsColors.Watching),
+            PieSlice("Selesai", libraryState.stats.animeCompleted, StatsColors.Completed),
+            PieSlice("Ditunda", libraryState.stats.animeOnHold, StatsColors.OnHold),
+            PieSlice("Drop", libraryState.stats.animeDropped, StatsColors.Dropped),
+            PieSlice("Rencana", libraryState.stats.animePlanToWatch, StatsColors.PlanTo)
         ).filter { it.count > 0 }
     }
 
-    val mangaSlices = remember(state.stats) {
+    val mangaSlices = remember(libraryState.stats) {
         listOf(
-            PieSlice("Dibaca", state.stats.mangaReading, StatsColors.Reading),
-            PieSlice("Selesai", state.stats.mangaCompleted, StatsColors.Completed),
-            PieSlice("Ditunda", state.stats.mangaOnHold, StatsColors.OnHold),
-            PieSlice("Drop", state.stats.mangaDropped, StatsColors.Dropped),
-            PieSlice("Rencana", state.stats.mangaPlanToRead, StatsColors.PlanTo)
+            PieSlice("Dibaca", libraryState.stats.mangaReading, StatsColors.Reading),
+            PieSlice("Selesai", libraryState.stats.mangaCompleted, StatsColors.Completed),
+            PieSlice("Ditunda", libraryState.stats.mangaOnHold, StatsColors.OnHold),
+            PieSlice("Drop", libraryState.stats.mangaDropped, StatsColors.Dropped),
+            PieSlice("Rencana", libraryState.stats.mangaPlanToRead, StatsColors.PlanTo)
         ).filter { it.count > 0 }
     }
 
@@ -178,9 +180,9 @@ fun StatsScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
-                        if (!state.malUser.pictureUrl.isNullOrBlank()) {
+                        if (!globalState.malUser.pictureUrl.isNullOrBlank()) {
                             AsyncImage(
-                                model = state.malUser.pictureUrl,
+                                model = globalState.malUser.pictureUrl,
                                 contentDescription = "MAL Avatar",
                                 modifier = Modifier
                                     .size(54.dp)
@@ -197,7 +199,7 @@ fun StatsScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = state.malUser.username.take(1).uppercase().ifBlank { "U" },
+                                    text = globalState.malUser.username.take(1).uppercase().ifBlank { "U" },
                                     color = Color.White,
                                     fontSize = 20.sp,
                                     fontWeight = FontWeight.Bold
@@ -207,7 +209,7 @@ fun StatsScreen(
 
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = state.malUser.username.ifBlank { "Tamu (Mode Offline)" },
+                                text = globalState.malUser.username.ifBlank { "Tamu (Mode Offline)" },
                                 color = TextPrimary,
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold
@@ -221,11 +223,11 @@ fun StatsScreen(
                                     modifier = Modifier
                                         .size(8.dp)
                                         .clip(CircleShape)
-                                        .background(if (state.malUser.isLoggedIn) AccentGreen else TextMuted)
+                                        .background(if (globalState.malUser.isLoggedIn) AccentGreen else TextMuted)
                                 )
                                 Text(
-                                    text = if (state.malUser.isLoggedIn) "Tersinkronisasi MyAnimeList" else "Mode Tamu / Offline",
-                                    color = if (state.malUser.isLoggedIn) AccentGreen else TextMuted,
+                                    text = if (globalState.malUser.isLoggedIn) "Tersinkronisasi MyAnimeList" else "Mode Tamu / Offline",
+                                    color = if (globalState.malUser.isLoggedIn) AccentGreen else TextMuted,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium
                                 )
@@ -253,18 +255,18 @@ fun StatsScreen(
                         BigMetricCard(
                             modifier = Modifier.weight(1f),
                             title = "Waktu Tonton",
-                            value = "${state.stats.daysWatched}",
+                            value = "${libraryState.stats.daysWatched}",
                             unit = "Hari",
-                            subtitle = "${(state.stats.episodesWatched * 24) / 60} Jam Total",
+                            subtitle = "${(libraryState.stats.episodesWatched * 24) / 60} Jam Total",
                             icon = Icons.Default.Schedule,
                             accentColor = AccentBlue
                         )
                         BigMetricCard(
                             modifier = Modifier.weight(1f),
                             title = "Bab Dibaca",
-                            value = "${state.stats.chaptersRead}",
+                            value = "${libraryState.stats.chaptersRead}",
                             unit = "Bab",
-                            subtitle = "${state.stats.volumesRead} Volume",
+                            subtitle = "${libraryState.stats.volumesRead} Volume",
                             icon = Icons.Default.MenuBook,
                             accentColor = MangaAccentDarkBlue
                         )
@@ -277,18 +279,18 @@ fun StatsScreen(
                         BigMetricCard(
                             modifier = Modifier.weight(1f),
                             title = "Total Judul",
-                            value = "${state.stats.totalAnime + state.stats.totalManga}",
+                            value = "${libraryState.stats.totalAnime + libraryState.stats.totalManga}",
                             unit = "Judul",
-                            subtitle = "${state.stats.totalAnime} Anime • ${state.stats.totalManga} Manga",
+                            subtitle = "${libraryState.stats.totalAnime} Anime • ${libraryState.stats.totalManga} Manga",
                             icon = Icons.Default.LibraryBooks,
                             accentColor = Color(0xFFA855F7)
                         )
                         BigMetricCard(
                             modifier = Modifier.weight(1f),
                             title = "Rata-Rata Skor",
-                            value = if (state.stats.meanScore > 0) "★ ${state.stats.meanScore}" else "-",
+                            value = if (libraryState.stats.meanScore > 0) "★ ${libraryState.stats.meanScore}" else "-",
                             unit = "",
-                            subtitle = "${state.stats.completedCount} Judul Tamat",
+                            subtitle = "${libraryState.stats.completedCount} Judul Tamat",
                             icon = Icons.Default.Star,
                             accentColor = StarGold
                         )
@@ -300,7 +302,7 @@ fun StatsScreen(
             item {
                 StatusPieChartCard(
                     title = "Distribusi Status Anime",
-                    totalItems = state.stats.totalAnime,
+                    totalItems = libraryState.stats.totalAnime,
                     slices = animeSlices,
                     icon = Icons.Default.Tv,
                     accentColor = AccentBlue
@@ -311,7 +313,7 @@ fun StatsScreen(
             item {
                 StatusPieChartCard(
                     title = "Distribusi Status Manga",
-                    totalItems = state.stats.totalManga,
+                    totalItems = libraryState.stats.totalManga,
                     slices = mangaSlices,
                     icon = Icons.Default.AutoStories,
                     accentColor = MangaAccentDarkBlue
@@ -421,8 +423,8 @@ fun StatsScreen(
                                 coroutineScope.launch {
                                     val result = StatsExporter.exportAndShareStats(
                                         context = context,
-                                        stats = state.stats,
-                                        malUser = state.malUser,
+                                        stats = libraryState.stats,
+                                        malUser = globalState.malUser,
                                         topAnime = topAnime,
                                         topManga = topManga,
                                         format = fmt,

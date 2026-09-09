@@ -32,7 +32,6 @@ import coil.compose.AsyncImage
 import com.canim.app.data.model.MediaType
 import com.canim.app.data.model.UserMediaItem
 import com.canim.app.ui.theme.*
-import com.canim.app.ui.viewmodel.CanimUiState
 import com.canim.app.ui.viewmodel.library.LibraryUiState
 
 private val ItemCardShape = RoundedCornerShape(12.dp)
@@ -43,7 +42,7 @@ private val ItemBorderStroke = BorderStroke(1.dp, CardBorderSubtle)
 
 @Composable
 fun LibraryScreen(
-    state: CanimUiState,
+    libraryState: LibraryUiState,
     onSelectMediaType: (MediaType) -> Unit,
     onSelectStatusFilter: (String?) -> Unit,
     onSearchQueryChange: (String) -> Unit,
@@ -53,15 +52,14 @@ fun LibraryScreen(
     onQuickAddManga: (String) -> Unit,
     onQuickDecrementManga: (String) -> Unit = {},
     onSelectItem: (Any, MediaType) -> Unit,
-    libraryState: LibraryUiState? = null,
     modifier: Modifier = Modifier
 ) {
-    val currentFilterType = libraryState?.filterType ?: state.libraryFilterType
-    val currentAnimeList = libraryState?.animeList ?: state.animeList
-    val currentMangaList = libraryState?.mangaList ?: state.mangaList
-    val currentStatusFilter = libraryState?.statusFilter ?: state.libraryStatusFilter
-    val currentSearchQuery = libraryState?.searchQuery ?: state.librarySearchQuery
-    val currentSortBy = libraryState?.sortBy ?: state.librarySortBy
+    val currentFilterType = libraryState.filterType
+    val currentAnimeList = libraryState.animeList
+    val currentMangaList = libraryState.mangaList
+    val currentStatusFilter = libraryState.statusFilter
+    val currentSearchQuery = libraryState.searchQuery
+    val currentSortBy = libraryState.sortBy
 
     val isAnime = currentFilterType == MediaType.ANIME
 

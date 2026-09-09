@@ -118,4 +118,37 @@ class LibraryViewModelTest {
         assertNotNull(updated)
         assertEquals(3, updated!!.tracking.progress)
     }
+
+    @Test
+    fun testSaveFlashcardPlanToWatch() {
+        val media = MediaItem(
+            malId = 999,
+            title = "Flashcard Anime",
+            imageUrl = "https://example.com/flash.jpg",
+            type = MediaType.ANIME,
+            episodes = 12
+        )
+        var callbackCalled = false
+        var callbackResult = false
+
+        viewModel.saveFlashcardPlanToWatch(media) { result ->
+            callbackCalled = true
+            callbackResult = result
+        }
+
+        waitUntil { viewModel.libraryState.value.animeList.any { it.malId == 999 } }
+        assertTrue(callbackCalled)
+        assertTrue(callbackResult)
+        val saved = viewModel.findAnimeItem(media)
+        assertNotNull(saved)
+        assertEquals("plan_to_watch", saved!!.tracking.status)
+
+        // Saving again should report success immediately without duplicating
+        var secondCallbackResult = false
+        viewModel.saveFlashcardPlanToWatch(media) { result ->
+            secondCallbackResult = result
+        }
+        assertTrue(secondCallbackResult)
+        assertEquals(1, viewModel.libraryState.value.animeList.count { it.malId == 999 })
+    }
 }

@@ -11,6 +11,7 @@ import com.canim.app.data.model.*
 import com.canim.app.data.remote.AniListClient
 import com.canim.app.domain.repository.LibraryRepository
 import com.google.gson.Gson
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -25,6 +26,7 @@ class LibraryRepositoryImpl(
     private val libraryDao: LibraryDao? = null,
     private val pendingMutationDao: PendingMutationDao? = null,
     private val syncEngine: LibrarySyncEngine? = null,
+    private val context: Context? = null,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 ) : LibraryRepository {
 
@@ -33,12 +35,14 @@ class LibraryRepositoryImpl(
         malAuthManager: MalAuthManager,
         libraryDao: LibraryDao,
         pendingMutationDao: PendingMutationDao,
-        syncEngine: LibrarySyncEngine
+        syncEngine: LibrarySyncEngine,
+        @ApplicationContext context: Context
     ) : this(
         malAuthManager = malAuthManager,
         libraryDao = libraryDao,
         pendingMutationDao = pendingMutationDao,
         syncEngine = syncEngine,
+        context = context,
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     )
 
@@ -52,7 +56,7 @@ class LibraryRepositoryImpl(
     override fun getCachedTracking(type: String): List<UserMediaItem>? {
         val memory = CacheManager.getTracking(type)
         if (memory != null) return memory
-        val appContext = runCatching { com.canim.app.CanimApplication.instance }.getOrNull()
+        val appContext = context
         if (appContext != null) {
             val disk = CacheManager.loadTrackingFromDisk(appContext, type)
             if (disk != null) {
@@ -85,7 +89,7 @@ class LibraryRepositoryImpl(
                 val enriched = enrichWithAniListMetadata(result.data, MediaType.ANIME)
                 CacheManager.putTracking("ANIME", enriched)
                 dao?.let { upsertLibraryEntries(it, enriched, "ANIME") }
-                runCatching { com.canim.app.CanimApplication.instance }.getOrNull()?.let {
+                context?.let {
                     CacheManager.saveTrackingToDisk(it, "ANIME", enriched)
                 }
                 MalFetchResult.Success(enriched, result.totalItems)
@@ -94,7 +98,7 @@ class LibraryRepositoryImpl(
                 val enriched = enrichWithAniListMetadata(result.data, MediaType.ANIME)
                 CacheManager.putTracking("ANIME", enriched)
                 dao?.let { upsertLibraryEntries(it, enriched, "ANIME") }
-                runCatching { com.canim.app.CanimApplication.instance }.getOrNull()?.let {
+                context?.let {
                     CacheManager.saveTrackingToDisk(it, "ANIME", enriched)
                 }
                 MalFetchResult.Partial(enriched, result.fetchedItems, result.error)
@@ -140,7 +144,7 @@ class LibraryRepositoryImpl(
 
         val finalItems = dao.getAllEntries("ANIME").map { it.toUserMediaItem { json -> parseJsonList(json) } }
         CacheManager.putTracking("ANIME", finalItems)
-        runCatching { com.canim.app.CanimApplication.instance }.getOrNull()?.let {
+        context?.let {
             CacheManager.saveTrackingToDisk(it, "ANIME", finalItems)
         }
         mutDao?.clearSucceeded()
@@ -174,7 +178,7 @@ class LibraryRepositoryImpl(
                 val enriched = enrichWithAniListMetadata(result.data, MediaType.MANGA)
                 CacheManager.putTracking("MANGA", enriched)
                 dao?.let { upsertLibraryEntries(it, enriched, "MANGA") }
-                runCatching { com.canim.app.CanimApplication.instance }.getOrNull()?.let {
+                context?.let {
                     CacheManager.saveTrackingToDisk(it, "MANGA", enriched)
                 }
                 MalFetchResult.Success(enriched, result.totalItems)
@@ -183,7 +187,7 @@ class LibraryRepositoryImpl(
                 val enriched = enrichWithAniListMetadata(result.data, MediaType.MANGA)
                 CacheManager.putTracking("MANGA", enriched)
                 dao?.let { upsertLibraryEntries(it, enriched, "MANGA") }
-                runCatching { com.canim.app.CanimApplication.instance }.getOrNull()?.let {
+                context?.let {
                     CacheManager.saveTrackingToDisk(it, "MANGA", enriched)
                 }
                 MalFetchResult.Partial(enriched, result.fetchedItems, result.error)
@@ -228,7 +232,7 @@ class LibraryRepositoryImpl(
 
         val finalItems = dao.getAllEntries("MANGA").map { it.toUserMediaItem { json -> parseJsonList(json) } }
         CacheManager.putTracking("MANGA", finalItems)
-        runCatching { com.canim.app.CanimApplication.instance }.getOrNull()?.let {
+        context?.let {
             CacheManager.saveTrackingToDisk(it, "MANGA", finalItems)
         }
         mutDao?.clearSucceeded()

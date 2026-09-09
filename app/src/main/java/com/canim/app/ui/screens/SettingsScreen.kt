@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.canim.app.R
 import com.canim.app.ui.theme.*
-import com.canim.app.ui.viewmodel.CanimUiState
+import com.canim.app.ui.viewmodel.global.GlobalUiState
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.ui.text.font.FontFamily
@@ -40,8 +40,8 @@ import com.canim.app.ui.viewmodel.update.UpdateUiState
 
 @Composable
 fun SettingsScreen(
-    state: CanimUiState,
-    updateState: UpdateUiState? = null,
+    globalState: GlobalUiState,
+    updateState: UpdateUiState,
     onLoginMal: () -> Unit,
     onSyncMal: () -> Unit,
     onLogoutMal: () -> Unit,
@@ -60,12 +60,12 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val isCheckingUpdate = updateState?.isChecking ?: state.isCheckingUpdate
-    val isAutoUpdateCheckEnabled = updateState?.isAutoCheckEnabled ?: state.isAutoUpdateCheckEnabled
-    val updateInfo = updateState?.updateInfo ?: state.updateInfo
-    val isDownloadingUpdate = updateState?.isDownloading ?: state.isDownloadingUpdate
-    val updateDownloadProgress = updateState?.downloadProgress ?: state.updateDownloadProgress
-    val downloadedApkFile = updateState?.downloadedApkFile ?: state.downloadedApkFile
+    val isCheckingUpdate = updateState.isChecking
+    val isAutoUpdateCheckEnabled = updateState.isAutoCheckEnabled
+    val updateInfo = updateState.updateInfo
+    val isDownloadingUpdate = updateState.isDownloading
+    val updateDownloadProgress = updateState.downloadProgress
+    val downloadedApkFile = updateState.downloadedApkFile
 
     LazyColumn(
         modifier = modifier
@@ -115,7 +115,7 @@ fun SettingsScreen(
                             fontWeight = FontWeight.Bold
                         )
 
-                        val isConnected = state.malUser.isLoggedIn
+                        val isConnected = globalState.malUser.isLoggedIn
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
@@ -131,14 +131,14 @@ fun SettingsScreen(
                         }
                     }
 
-                    if (state.malUser.isLoggedIn) {
+                    if (globalState.malUser.isLoggedIn) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            if (!state.malUser.pictureUrl.isNullOrEmpty()) {
+                            if (!globalState.malUser.pictureUrl.isNullOrEmpty()) {
                                 AsyncImage(
-                                    model = state.malUser.pictureUrl,
+                                    model = globalState.malUser.pictureUrl,
                                     contentDescription = "Avatar Pengguna",
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier
@@ -163,13 +163,13 @@ fun SettingsScreen(
 
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = state.malUser.username,
+                                    text = globalState.malUser.username,
                                     color = TextPrimary,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    text = "ID: ${state.malUser.id}",
+                                    text = "ID: ${globalState.malUser.id}",
                                     color = TextSecondary,
                                     fontSize = 12.sp
                                 )
@@ -183,7 +183,7 @@ fun SettingsScreen(
                         ) {
                             Button(
                                 onClick = onSyncMal,
-                                enabled = !state.isSyncingMal,
+                                enabled = !globalState.isSyncingMal,
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(42.dp)
@@ -195,7 +195,7 @@ fun SettingsScreen(
                                 shape = RoundedCornerShape(8.dp),
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
                             ) {
-                                if (state.isSyncingMal) {
+                                if (globalState.isSyncingMal) {
                                     CircularProgressIndicator(
                                         color = BlackBg,
                                         modifier = Modifier.size(16.dp),
@@ -210,7 +210,7 @@ fun SettingsScreen(
                                 }
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = if (state.isSyncingMal) "Sinkronisasi..." else "Sinkron MAL",
+                                    text = if (globalState.isSyncingMal) "Sinkronisasi..." else "Sinkron MAL",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold
                                 )

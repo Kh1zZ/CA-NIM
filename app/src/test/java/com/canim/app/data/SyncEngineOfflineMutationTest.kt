@@ -56,7 +56,7 @@ class SyncEngineOfflineMutationTest {
         engine = LibrarySyncEngine(
             pendingMutationDao = mutationDao,
             libraryDao = libraryDao,
-            malAuthManager = fakeMalManager,
+            mutationExecutor = fakeMalManager,
             networkChecker = fakeNetwork,
             appScope = testScope,
             maxAttempts = 3,

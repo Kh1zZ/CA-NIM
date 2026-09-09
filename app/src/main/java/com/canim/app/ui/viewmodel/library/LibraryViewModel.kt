@@ -423,6 +423,62 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    fun saveFlashcardPlanToWatch(item: MediaItem, onResult: (Boolean) -> Unit) {
+        val currentList = _libraryState.value.animeList
+        val isAlreadyInList = currentList.any { it.id == item.id }
+        if (isAlreadyInList) {
+            showSnackbar("\"${item.title}\" sudah ada di Library!")
+            onResult(true)
+            return
+        }
+
+        val tracking = MalTracking(
+            status = "plan_to_watch",
+            score = 0,
+            progress = 0,
+            comments = "",
+            updatedAt = System.currentTimeMillis()
+        )
+        val metadata = MediaMetadata(
+            title = item.title,
+            titleEnglish = item.titleEnglish,
+            titleNative = null,
+            imageUrl = item.imageUrl,
+            type = item.type,
+            score = item.score,
+            synopsis = item.synopsis,
+            totalEpisodes = item.episodes ?: 0,
+            totalChapters = item.chapters ?: 0,
+            totalVolumes = item.volumes ?: 0,
+            status = item.status ?: "Finished",
+            year = item.year,
+            season = item.season,
+            genres = item.genres,
+            format = item.format,
+            studio = item.studio
+        )
+        val userItem = UserMediaItem(identity = item.identity, metadata = metadata, tracking = tracking)
+
+        val optimisticList = currentList + userItem
+        updateLibraryData(optimisticList, _libraryState.value.mangaList)
+        showSnackbar("Ditambahkan ke Rencana Ditonton")
+
+        if (item.malId != null) {
+            viewModelScope.launch {
+                val result = saveLibraryItemUseCase.saveAnime(item.malId, tracking)
+                if (result.isFailure) {
+                    updateLibraryData(currentList, _libraryState.value.mangaList)
+                    showSnackbar("Gagal menyimpan ke MAL: ${result.exceptionOrNull()?.message ?: "Kesalahan jaringan"}")
+                    onResult(false)
+                } else {
+                    onResult(true)
+                }
+            }
+        } else {
+            onResult(true)
+        }
+    }
+
     fun loadDemoData() {
         updateLibraryData(getLibraryUseCase.getDemoAnime(), getLibraryUseCase.getDemoManga())
         showSnackbar("Dataset demo dimuat!")

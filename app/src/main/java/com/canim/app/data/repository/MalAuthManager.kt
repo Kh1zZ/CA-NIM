@@ -15,9 +15,11 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
 
+import com.canim.app.data.local.MalMutationExecutor
+
 open class MalAuthManager(
     private val secureStorage: MalSecureStorage
-) {
+) : MalMutationExecutor {
     companion object {
         const val CLIENT_ID = "a4f3b20e6eb04e9daac4d2ea9fb2a45a"
         const val REDIRECT_URI = "canim://oauth/callback"
@@ -407,7 +409,7 @@ open class MalAuthManager(
     /**
      * Updates anime tracking data directly on MyAnimeList.
      */
-    open suspend fun updateAnimeTracking(malId: Int, tracking: MalTracking): Result<Unit> = withContext(Dispatchers.IO) {
+    open override suspend fun updateAnimeTracking(malId: Int, tracking: MalTracking): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val response = executeWithTokenRefresh { authHeader ->
                 ApiClient.malApi.updateAnimeStatus(
@@ -439,7 +441,7 @@ open class MalAuthManager(
     /**
      * Updates manga tracking data directly on MyAnimeList.
      */
-    open suspend fun updateMangaTracking(malId: Int, tracking: MalTracking): Result<Unit> = withContext(Dispatchers.IO) {
+    open override suspend fun updateMangaTracking(malId: Int, tracking: MalTracking): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val response = executeWithTokenRefresh { authHeader ->
                 ApiClient.malApi.updateMangaStatus(
@@ -472,7 +474,7 @@ open class MalAuthManager(
     /**
      * Deletes an anime from the user's MyAnimeList library.
      */
-    open suspend fun deleteAnimeTracking(malId: Int): Result<Unit> = withContext(Dispatchers.IO) {
+    open override suspend fun deleteAnimeTracking(malId: Int): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val response = executeWithTokenRefresh { authHeader ->
                 ApiClient.malApi.deleteAnimeFromList(authHeader, malId)
@@ -491,7 +493,7 @@ open class MalAuthManager(
     /**
      * Deletes a manga from the user's MyAnimeList library.
      */
-    open suspend fun deleteMangaTracking(malId: Int): Result<Unit> = withContext(Dispatchers.IO) {
+    open override suspend fun deleteMangaTracking(malId: Int): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val response = executeWithTokenRefresh { authHeader ->
                 ApiClient.malApi.deleteMangaFromList(authHeader, malId)

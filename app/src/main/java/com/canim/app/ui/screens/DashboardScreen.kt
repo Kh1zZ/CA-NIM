@@ -38,7 +38,9 @@ import com.canim.app.R
 import com.canim.app.data.model.MediaType
 import com.canim.app.data.model.UserMediaItem
 import com.canim.app.ui.theme.*
-import com.canim.app.ui.viewmodel.CanimUiState
+import com.canim.app.ui.viewmodel.library.LibraryUiState
+import com.canim.app.ui.viewmodel.global.GlobalUiState
+import com.canim.app.ui.viewmodel.gacha.GachaUiState
 
 private fun isNetworkOnline(context: Context): Boolean {
     val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
@@ -49,7 +51,9 @@ private fun isNetworkOnline(context: Context): Boolean {
 
 @Composable
 fun DashboardScreen(
-    state: CanimUiState,
+    libraryState: LibraryUiState,
+    globalState: GlobalUiState,
+    gachaState: GachaUiState,
     onQuickAddEpisode: (String) -> Unit,
     onQuickAddChapter: (String) -> Unit,
     onSelectItem: (Any, MediaType) -> Unit,
@@ -62,8 +66,8 @@ fun DashboardScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val watchingAnime = state.watchingAnime
-    val readingManga = state.readingManga
+    val watchingAnime = libraryState.watchingAnime
+    val readingManga = libraryState.readingManga
     val isDeviceOnline = remember { isNetworkOnline(context) }
     val onSelectAnimeItem: (UserMediaItem) -> Unit = remember(onSelectItem) {
         { anime -> onSelectItem(anime, MediaType.ANIME) }
@@ -121,7 +125,7 @@ fun DashboardScreen(
                 }
 
                 // Right: Sync Status & Connectivity indicator
-                when (state.syncStatus) {
+                when (globalState.syncStatus) {
                     com.canim.app.data.model.SyncStatus.SYNCING -> {
                         Box(
                             modifier = Modifier
@@ -245,7 +249,7 @@ fun DashboardScreen(
     }
 
     // API Outage Alert Banner (MAL only - AniList is handled transparently by Adaptive Rate Limiter)
-    if (state.isMalDown) {
+    if (globalState.isMalDown) {
             item(key = "dashboard_api_outage_banner") {
                 val title = "Layanan MyAnimeList Terkendala / Maintenance"
                 val desc = "Sinkronisasi progress MAL tertunda sementara. Data tetap tersimpan di lokal."
@@ -310,13 +314,13 @@ fun DashboardScreen(
                     .fillMaxWidth()
                     .border(
                         1.dp,
-                        if (state.malUser.isLoggedIn) Color(0xFF2E51A2).copy(alpha = 0.35f) else CardBorderSubtle,
+                        if (globalState.malUser.isLoggedIn) Color(0xFF2E51A2).copy(alpha = 0.35f) else CardBorderSubtle,
                         RoundedCornerShape(14.dp)
                     ),
                 color = CardBg,
                 shape = RoundedCornerShape(14.dp)
             ) {
-                if (state.malUser.isLoggedIn) {
+                if (globalState.malUser.isLoggedIn) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -329,9 +333,9 @@ fun DashboardScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            if (!state.malUser.pictureUrl.isNullOrBlank()) {
+                            if (!globalState.malUser.pictureUrl.isNullOrBlank()) {
                                 AsyncImage(
-                                    model = state.malUser.pictureUrl,
+                                    model = globalState.malUser.pictureUrl,
                                     contentDescription = "MAL User Avatar",
                                     modifier = Modifier
                                         .size(38.dp)
@@ -348,7 +352,7 @@ fun DashboardScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = state.malUser.username.take(1).uppercase(),
+                                        text = globalState.malUser.username.take(1).uppercase(),
                                         color = Color.White,
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold
@@ -358,7 +362,7 @@ fun DashboardScreen(
 
                             Column(modifier = Modifier.weight(1f, fill = false)) {
                                 Text(
-                                    text = state.malUser.username,
+                                    text = globalState.malUser.username,
                                     color = TextPrimary,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
@@ -388,9 +392,9 @@ fun DashboardScreen(
                             ),
                             shape = RoundedCornerShape(8.dp),
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                            enabled = !state.isSyncingMal
+                            enabled = !globalState.isSyncingMal
                         ) {
-                            if (state.isSyncingMal) {
+                            if (globalState.isSyncingMal) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(14.dp),
                                     color = Color.White,
@@ -466,7 +470,7 @@ fun DashboardScreen(
                             ),
                             shape = RoundedCornerShape(8.dp),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            enabled = !state.isExchangingToken
+                            enabled = !globalState.isExchangingToken
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Login,
@@ -545,7 +549,7 @@ fun DashboardScreen(
                     ) {
                         HeroMetricItem(
                             label = "ANIME",
-                            value = "${state.stats.totalAnime}",
+                            value = "${libraryState.stats.totalAnime}",
                             unit = "Judul",
                             color = AccentBlue,
                             modifier = Modifier.weight(1f)
@@ -560,7 +564,7 @@ fun DashboardScreen(
 
                         HeroMetricItem(
                             label = "MANGA",
-                            value = "${state.stats.totalManga}",
+                            value = "${libraryState.stats.totalManga}",
                             unit = "Judul",
                             color = MangaAccentDarkBlue,
                             modifier = Modifier.weight(1f)
@@ -575,7 +579,7 @@ fun DashboardScreen(
 
                         HeroMetricItem(
                             label = "WAKTU",
-                            value = "${state.stats.daysWatched}",
+                            value = "${libraryState.stats.daysWatched}",
                             unit = "Hari",
                             color = Color(0xFFF59E0B),
                             modifier = Modifier.weight(1f)
@@ -590,7 +594,7 @@ fun DashboardScreen(
 
                         HeroMetricItem(
                             label = "BACA",
-                            value = "${state.stats.chaptersRead}",
+                            value = "${libraryState.stats.chaptersRead}",
                             unit = "Ch.",
                             color = Color(0xFF06B6D4),
                             modifier = Modifier.weight(1f)
@@ -653,11 +657,11 @@ fun DashboardScreen(
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(4.dp))
-                                        .background(if (state.gachaCredits > 0) Color(0xFF8B5CF6) else Color(0xFFEF4444))
+                                        .background(if (gachaState.credits > 0) Color(0xFF8B5CF6) else Color(0xFFEF4444))
                                         .padding(horizontal = 6.dp, vertical = 1.dp)
                                 ) {
                                     Text(
-                                        text = "${state.gachaCredits} Tiket",
+                                        text = "${gachaState.credits} Tiket",
                                         color = Color.White,
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Black

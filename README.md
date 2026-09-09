@@ -24,32 +24,40 @@ Dokumentasi teknis resmi repositori **CA'NIM** (`com.canim.app`). Berkas ini dik
 CA'NIM menerapkan pemisahan tanggung jawab (*separation of concerns*) yang tegas antara **pencatatan data pengguna** dan **penyediaan metadata publik**:
 
 ```text
-┌─────────────────────────────────────────────────────────────────┐
-│                       CA'NIM Client UI                          │
-│        (Jetpack Compose M3 + 100% Skippable Recomposition)      │
-└────────────────┬───────────────────────────────▲────────────────┘
-                 │ (Mutasi Tracking)             │ (Observasi StateFlow)
-                 ▼                               │
-┌────────────────────────────────┐ ┌──────────────────────────────┐
-│         CanimViewModel         │ │         CacheManager         │
-│  (Optimistic UI + Rollback)    │ │   (Bounded LRU, TTL,         │
-└────────────────┬───────────────┘ │    Canonical Keys)           │
-                 │                 └─────────────▲────────────────┘
-                 ▼                               │
-┌────────────────────────────────────────────────┴────────────────┐
-│                        CanimRepository                          │
-│            (Dual-Engine Coordination & Fast Failover)           │
-├────────────────────────────────┬────────────────────────────────┤
-│                                │                                │
-│    [ENGINE A: USER TRACKING]   │     [ENGINE B: RICH METADATA]  │
-│               ▼                │                ▼               │
-│        MyAnimeList API         │        AniList GraphQL         │
-│   - Single Source of Truth     │   - Primary Rich Media Provider│
-│   - OAuth 2.0 PKCE (Hardware)  │   - High-throughput Batching   │
-│   - Bidirectional Mutations    │   - MediaResolver (MAL ID Map) │
-│   - Full Uncapped Pagination   │   - Cast, Crew & Studio Engine │
-│   - Score & Status Authority   │   - Multi-Tier Disk/Memory LRU │
-└────────────────────────────────┴────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       PRESENTATION LAYER (UI)                               │
+│       Jetpack Compose Screens: Dashboard, Library, Search, Discover, ...     │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                        FEATURE VIEWMODELS                                   │
+│  [LibraryVM] [SearchVM] [DiscoverVM] [DetailVM] [StudioVM] [GlobalVM] ...   │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ (Memanggil Use Case)
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          DOMAIN LAYER                                       │
+│  • Use Cases: GetLibrary, SaveLibraryItem, SearchMedia, GetDiscoverCategory,│
+│               GetExtendedDetail, GetStudioFilmography, SyncMal, dll.        │
+│  • Repository Interfaces (Abstractions):                                    │
+│    [LibraryRepository] [SearchRepository] [DiscoverRepository]              │
+│    [DetailRepository]  [StudioRepository] [AuthRepository] [SystemRepo]     │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ (Implementasi Abstraksi)
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           DATA LAYER                                        │
+│  • Repository Impl: LibraryRepoImpl, SearchRepoImpl, DiscoverRepoImpl, ...  │
+│  • Local & Queue: LocalDatabase, LibraryDao, PendingMutationDao, SyncEngine │
+│  • Cache Layer: CacheManager (Bounded In-Memory LRU, Multi-Key, TTL)        │
+├──────────────────────────────────────┬──────────────────────────────────────┤
+│                                      │                                      │
+│      [ENGINE A: USER TRACKING]       │       [ENGINE B: RICH METADATA]      │
+│                 ▼                    │                  ▼                   │
+│          MyAnimeList API             │          AniList GraphQL             │
+│     - Single Source of Truth         │     - Primary Rich Media Provider    │
+│     - OAuth 2.0 PKCE (Hardware)      │     - High-throughput Apollo Client  │
+│     - Bidirectional Offline Queue    │     - MediaResolver (MAL ID Mapping) │
+│     - Score & Status Authority       │     - Cast, Crew & Studio Engine     │
+└──────────────────────────────────────┴──────────────────────────────────────┘
 ```
 
 ### Prinsip Utama Integrasi:
@@ -65,7 +73,7 @@ CA'NIM menerapkan pemisahan tanggung jawab (*separation of concerns*) yang tegas
    - **Connection Pool Ekstensif**: Dikonfigurasi dengan `ConnectionPool(8, 10, TimeUnit.MINUTES)` untuk mempertahankan soket HTTP/2 tetap aktif, memangkas latensi TLS handshake pada kunjungan berikutnya.
 4. **Deteksi Gangguan Real-Time (Outage Detection)**:
    - Status kesehatan API dipantau melalui `pingHealth()` (AniList) dan endpoint ranking (MAL).
-   - Indikator status outage dikomunikasikan secara reaktif ke `CanimUiState` (`isAniListDown`, `isMalDown`).
+   - Indikator status outage dikomunikasikan secara reaktif ke `GlobalUiState` (`isAniListDown`, `isMalDown`).
    - Pada Dasbor, bilah notifikasi peringatan hanya ditampilkan saat salah satu atau kedua engine mengalami gangguan, dan otomatis disembunyikan jika kondisi jaringan normal.
 
 ---
@@ -76,7 +84,7 @@ CA'NIM menerapkan filosofi desain **Invisible Continuity**: antarmuka menyatu al
 
 ### Fitur Kunci Rekayasa UI:
 - **Scroll Position & Alignment Preservation**:
-  - `CanimViewModel` memelihara memori status gulir `detailScrollPositions: MutableMap<String, Pair<Int, Int>>` berbasis kunci kanonikal media.
+   - `DetailViewModel` memelihara memori status gulir `detailScrollPositions: MutableMap<String, Pair<Int, Int>>` berbasis kunci kanonikal media.
   - Pada `MediaDetailScreen`, posisi item dan offset scroll disimpan secara instan saat disposisi atau navigasi anak (`DisposableEffect`) dan dipulihkan secara instan melalui `rememberLazyListState(initialFirstVisibleItemIndex, initialFirstVisibleItemScrollOffset)`.
   - Transisi antar-halaman detail di `MainActivity` menggunakan `AnimatedContent` dengan arah slide horizontal dinamis, memastikan kembali dari relasi/rekomendasi tidak mereset posisi scroll layar induk.
 - **Sliding Highlight Navigation (Spring Physics)**:
@@ -164,19 +172,23 @@ ca-nim/
 │       │   ├── java/com/canim/app/
 │       │   │   ├── CanimApplication.kt    # Inisialisasi Coil ImageLoader singleton (RGB_565)
 │       │   │   ├── MainActivity.kt        # Root Compose container, sliding nav bar, overlay transitions
+│       │   │   ├── di/                    # Dagger Hilt dependency injection modules
+│       │   │   ├── domain/                # Clean Architecture Domain Layer
+│       │   │   │   ├── repository/        # Domain Repository Interfaces (Library, Search, Discover, ...)
+│       │   │   │   └── usecase/           # Isolated Use Cases (GetLibrary, SearchMedia, SyncMal, ...)
 │       │   │   ├── data/
 │       │   │   │   ├── cache/             # CacheManager (In-memory bounded LRU + TTL disk cache)
-│       │   │   │   ├── local/             # MalSecureStorage (AES256-GCM EncryptedSharedPreferences)
+│       │   │   │   ├── local/             # LocalDatabase, LibraryDao, PendingMutationDao, SyncEngine
 │       │   │   │   ├── model/             # MediaModels, MalModels, StudioModels, GraphQL Schema DTOs
-│       │   │   │   ├── remote/            # ApiClient, MalApiService, AniListClient, UpdateChecker
-│       │   │   │   ├── repository/        # CanimRepository, MalAuthManager, GachaCreditManager
+│       │   │   │   ├── remote/            # ApiClient, MalApiService, AniListApolloClient, UpdateChecker
+│       │   │   │   ├── repository/        # Domain Repository Implementations & MalAuthManager
 │       │   │   │   └── resolver/          # MediaResolver (Pemetaan canonical AniList ↔ MAL ID)
 │       │   │   ├── ui/
 │       │   │   │   ├── components/        # SmoothSegmentedSelector
 │       │   │   │   ├── screens/           # DashboardScreen, LibraryScreen, SearchScreen, DiscoverScreen,
 │       │   │   │   │                      # MediaDetailScreen, FlashcardScreen, StatsScreen, StatsExporter
 │       │   │   │   ├── theme/             # Cyber Dark palette, Typography, Elevation Tokens
-│       │   │   │   └── viewmodel/         # CanimViewModel & CanimUiState
+│       │   │   │   └── viewmodel/         # 8 Feature ViewModels (Library, Search, Discover, Detail, ...)
 │       │   │   └── util/                  # AnimeFranchiseFilter, TextSanitizer
 │       │   └── res/                       # Vector drawables (ic_app_logo), mipmaps, values
 │       └── test/                          # 65 Automated Unit Tests (DualEngine, Gacha, Navigation, Cache)

@@ -4,7 +4,6 @@ import android.util.Log
 import com.canim.app.data.metrics.AppMetrics
 import com.canim.app.data.model.MalTracking
 import com.canim.app.data.model.MediaType
-import com.canim.app.data.repository.MalAuthManager
 import com.google.gson.Gson
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -48,7 +47,7 @@ import kotlinx.coroutines.Dispatchers
  *
  * @param pendingMutationDao DAO for the pending queue.
  * @param libraryDao DAO for the library entries (updated on successful sync).
- * @param malAuthManager Source of truth for sending mutations to MAL.
+ * @param mutationExecutor Source of truth for sending mutations to MAL.
  * @param networkChecker Abstraction for network availability (mockable in tests).
  * @param appScope Application-scoped [CoroutineScope] — outlives any single ViewModel.
  * @param maxAttempts Maximum drain attempts per mutation before FAILED_PERMANENTLY.
@@ -57,7 +56,7 @@ import kotlinx.coroutines.Dispatchers
 class LibrarySyncEngine(
     private val pendingMutationDao: PendingMutationDao,
     private val libraryDao: LibraryDao,
-    private val malAuthManager: MalAuthManager,
+    private val mutationExecutor: MalMutationExecutor,
     private val networkChecker: NetworkAvailabilityChecker,
     private val appScope: CoroutineScope,
     val maxAttempts: Int = 3,
@@ -226,16 +225,16 @@ class LibrarySyncEngine(
                         return false
                     }
                     if (type == MediaType.ANIME) {
-                        malAuthManager.updateAnimeTracking(malId, tracking)
+                        mutationExecutor.updateAnimeTracking(malId, tracking)
                     } else {
-                        malAuthManager.updateMangaTracking(malId, tracking)
+                        mutationExecutor.updateMangaTracking(malId, tracking)
                     }
                 }
                 PendingMutation.TYPE_DELETE -> {
                     if (type == MediaType.ANIME) {
-                        malAuthManager.deleteAnimeTracking(malId)
+                        mutationExecutor.deleteAnimeTracking(malId)
                     } else {
-                        malAuthManager.deleteMangaTracking(malId)
+                        mutationExecutor.deleteMangaTracking(malId)
                     }
                 }
                 else -> {

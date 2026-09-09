@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.canim.app.BuildConfig
-import com.canim.app.CanimApplication
 import com.canim.app.domain.usecase.CheckForUpdatesUseCase
 import com.canim.app.domain.usecase.InstallUpdateUseCase
 import com.canim.app.domain.usecase.StartDownloadUpdateUseCase
@@ -41,11 +40,7 @@ class UpdateViewModel @Inject constructor(
         return try {
             appContext.getSharedPreferences("canim_update_prefs", Context.MODE_PRIVATE)
         } catch (_: Exception) {
-            try {
-                CanimApplication.instance.getSharedPreferences("canim_update_prefs", Context.MODE_PRIVATE)
-            } catch (_: Exception) {
-                null
-            }
+            null
         }
     }
 
