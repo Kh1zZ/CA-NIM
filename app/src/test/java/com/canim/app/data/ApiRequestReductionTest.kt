@@ -121,4 +121,31 @@ class ApiRequestReductionTest {
         assertTrue(res is com.canim.app.data.remote.AniListResult.NotFound)
         assertEquals(initialRequests, AniListMetrics.requestCount)
     }
+
+    @Test
+    fun testStudioFilmographyKeyIncludesMainSuffix() {
+        val key = CacheManager.studioKey(569, 1)
+        assertEquals("studio_569_page_1_main", key)
+
+        val page = com.canim.app.data.cache.StudioFilmographyPage(
+            studioId = 569,
+            studioName = "MAPPA",
+            items = listOf(
+                MediaItem(
+                    malId = 40748,
+                    title = "Jujutsu Kaisen",
+                    imageUrl = "https://example.com/jjk.jpg",
+                    type = MediaType.ANIME
+                )
+            ),
+            hasNextPage = false,
+            currentPage = 1,
+            total = 1
+        )
+        CacheManager.putStudioFilmography(569, 1, page)
+        val cached = CacheManager.getStudioFilmography(569, 1)
+        assertNotNull(cached)
+        assertEquals(1, cached?.items?.size)
+        assertEquals("MAPPA", cached?.studioName)
+    }
 }

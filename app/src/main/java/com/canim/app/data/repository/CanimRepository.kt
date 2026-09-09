@@ -1367,9 +1367,10 @@ class CanimRepository(
         search: String? = null,
         page: Int = 1,
         forceRefresh: Boolean = false,
-        sort: StudioFilmographySort = StudioFilmographySort.YEAR_DESC
+        sort: StudioFilmographySort = StudioFilmographySort.YEAR_DESC,
+        isMain: Boolean = true
     ): StudioFilmographyPage? {
-        return AniListClient.getStudioFilmography(studioId, search, page, forceRefresh = forceRefresh, sort = sort)
+        return AniListClient.getStudioFilmography(studioId, search, page, forceRefresh = forceRefresh, sort = sort, isMain = isMain)
     }
 
     suspend fun searchStudios(query: String, page: Int = 1, perPage: Int = 20): List<StudioBioInfo> {

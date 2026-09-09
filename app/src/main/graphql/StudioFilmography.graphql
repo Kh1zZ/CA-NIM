@@ -3,7 +3,8 @@ query GetStudioFilmography(
   $search: String,
   $page: Int,
   $perPage: Int,
-  $sort: [MediaSort]
+  $sort: [MediaSort],
+  $isMain: Boolean = true
 ) {
   Studio(id: $id, search: $search) {
     id
@@ -11,7 +12,7 @@ query GetStudioFilmography(
     isAnimationStudio
     siteUrl
     favourites
-    media(page: $page, perPage: $perPage, sort: $sort) {
+    media(page: $page, perPage: $perPage, sort: $sort, isMain: $isMain) {
       pageInfo {
         total
         currentPage

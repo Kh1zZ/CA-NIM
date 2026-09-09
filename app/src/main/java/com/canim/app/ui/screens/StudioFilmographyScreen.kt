@@ -249,7 +249,7 @@ fun StudioFilmographyScreen(
                                         else -> ""
                                     }
                                     Text(
-                                        text = if (countLabel.isNotEmpty()) "Katalog Produksi • $countLabel" else "Katalog Produksi",
+                                        text = if (countLabel.isNotEmpty()) "Katalog Produksi Utama • $countLabel" else "Katalog Produksi Utama",
                                         fontSize = 12.sp,
                                         color = AccentBlue,
                                         fontWeight = FontWeight.Medium

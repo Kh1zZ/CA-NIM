@@ -102,7 +102,7 @@ object CacheManager {
 
     fun discoverKey(categoryKey: String): String = "discover_$categoryKey"
 
-    fun studioKey(studioId: Int, page: Int): String = "studio_${studioId}_page_$page"
+    fun studioKey(studioId: Int, page: Int): String = "studio_${studioId}_page_${page}_main"
 
     fun mediaMetadataKey(malId: Int, type: MediaType): String = "meta_${type.name}_$malId"
     fun mediaMetadataKey(malId: Int, type: String): String = "meta_${type.uppercase()}_$malId"

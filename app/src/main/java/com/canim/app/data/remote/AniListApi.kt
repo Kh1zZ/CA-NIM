@@ -237,10 +237,11 @@ object AniListClient {
         page: Int = 1,
         perPage: Int = 24,
         sort: StudioFilmographySort = StudioFilmographySort.YEAR_DESC,
-        forceRefresh: Boolean = false
+        forceRefresh: Boolean = false,
+        isMain: Boolean = true
     ): StudioFilmographyPage? =
         com.canim.app.data.remote.anilist.AniListApolloClient.fetchStudioFilmography(
-            studioId, search, page, perPage, sort, forceRefresh
+            studioId, search, page, perPage, sort, forceRefresh, isMain
         )
 
     /**

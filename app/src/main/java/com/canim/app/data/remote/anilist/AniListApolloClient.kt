@@ -668,7 +668,8 @@ object AniListApolloClient {
         page: Int = 1,
         perPage: Int = 24,
         sort: StudioFilmographySort = StudioFilmographySort.YEAR_DESC,
-        forceRefresh: Boolean = false
+        forceRefresh: Boolean = false,
+        isMain: Boolean = true
     ): StudioFilmographyPage? = withContext(Dispatchers.IO) {
         if (studioId == null && search.isNullOrBlank()) return@withContext null
         if (!forceRefresh && studioId != null) {
@@ -687,7 +688,7 @@ object AniListApolloClient {
             StudioFilmographySort.POPULARITY_DESC -> listOf(MediaSort.POPULARITY_DESC)
         }
 
-        val dedupeKey = "studio_${studioId}_${search}_${page}_${sort.name}"
+        val dedupeKey = "studio_${studioId}_${search}_${page}_${sort.name}_main_$isMain"
         AniListClient.deduplicateInFlight(dedupeKey) {
             AniListMetrics.recordRequest()
             try {
@@ -696,7 +697,8 @@ object AniListApolloClient {
                     search = if (!search.isNullOrBlank()) Optional.present(search) else Optional.absent(),
                     page = Optional.present(page),
                     perPage = Optional.present(perPage),
-                    sort = Optional.present(apolloSort)
+                    sort = Optional.present(apolloSort),
+                    isMain = Optional.present(isMain)
                 )
                 val response = client.query(query).execute()
                 val studioObj = response.data?.Studio ?: return@deduplicateInFlight null
