@@ -181,6 +181,41 @@ class CanimViewModel(
     private val _screenStack = MutableStateFlow<List<ScreenRoute>>(emptyList())
     val screenStack: StateFlow<List<ScreenRoute>> = _screenStack.asStateFlow()
 
+    // ── Rate-limiter transient notifications ────────────────────────────────────
+    // Collects LimiterEvent from both AniList and MAL limiters and surfaces them as
+    // short Snackbar messages. These are informational — NOT errors.
+    init {
+        viewModelScope.launch {
+            merge(
+                com.canim.app.data.remote.ApiClient.aniListLimiter.eventFlow,
+                com.canim.app.data.remote.ApiClient.malLimiter.eventFlow
+            ).collect { event ->
+                val displayHost = when (event) {
+                    is com.canim.app.data.remote.LimiterEvent.Throttled ->
+                        if (event.host == "anilist") "AniList" else "MyAnimeList"
+                    is com.canim.app.data.remote.LimiterEvent.CooldownStarted ->
+                        if (event.host == "anilist") "AniList" else "MyAnimeList"
+                    is com.canim.app.data.remote.LimiterEvent.Retrying ->
+                        if (event.host == "anilist") "AniList" else "MyAnimeList"
+                    is com.canim.app.data.remote.LimiterEvent.Recovered ->
+                        if (event.host == "anilist") "AniList" else "MyAnimeList"
+                }
+                val msg = when (event) {
+                    is com.canim.app.data.remote.LimiterEvent.Throttled ->
+                        "⏳ Memperlambat permintaan ke $displayHost..."
+                    is com.canim.app.data.remote.LimiterEvent.CooldownStarted ->
+                        "⏳ Menunggu API $displayHost siap..."
+                    is com.canim.app.data.remote.LimiterEvent.Retrying ->
+                        "🔄 Mencoba ulang ke $displayHost..."
+                    is com.canim.app.data.remote.LimiterEvent.Recovered ->
+                        "✅ Koneksi ke $displayHost pulih."
+                }
+                showSnackbar(msg)
+            }
+        }
+    }
+    // ────────────────────────────────────────────────────────────────────────────
+
     // Reactive search flow with unique trigger token to avoid StateFlow conflation on filter changes
     data class SearchTrigger(
         val query: String,

@@ -166,6 +166,7 @@ object AniListApolloClient {
                         attempt++
                         AniListMetrics.recordRetry()
                         AppMetrics.recordRetry("anilist", operationName)
+                        ApiClient.aniListLimiter.tryEmitRetrying()
                         // Permit has been released! Delay does not starve other concurrent requests.
                         if (policy.baseBackoffMs > 0L) {
                             val backoff = minOf(policy.baseBackoffMs * (1L shl (attempt - 1)), policy.maxBackoffMs)
@@ -1019,6 +1020,9 @@ object AniListApolloClient {
         val apolloType: ApolloMediaType = if (type == MediaType.ANIME) ApolloMediaType.ANIME else ApolloMediaType.MANGA
 
         for (chunk in missingIds.chunked(50)) {
+            // Apply rate limiter backpressure so multi-chunk batch queries don't burst AniList
+            ApiClient.aniListLimiter.acquire()
+
             val dedupeKey = "batch_${chunk.sorted().hashCode()}_${type.name}"
             val chunkMap = AniListClient.deduplicateInFlight(dedupeKey) {
                 AniListMetrics.recordRequest()

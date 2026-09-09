@@ -61,6 +61,22 @@ class RequestPolicy(
         limiter.onRateLimited(retryAfterMs)
     }
 
+    suspend fun updateFromHeaders(
+        remaining: Int? = null,
+        resetTimestampSeconds: Long? = null,
+        retryAfterMs: Long? = null
+    ) {
+        limiter.updateFromHeaders(remaining, resetTimestampSeconds, retryAfterMs)
+    }
+
+    fun updateFromHeadersBlocking(
+        remaining: Int? = null,
+        resetTimestampSeconds: Long? = null,
+        retryAfterMs: Long? = null
+    ) {
+        limiter.updateFromHeadersBlocking(remaining, resetTimestampSeconds, retryAfterMs)
+    }
+
     suspend fun onSuccess() {
         limiter.onSuccess()
     }

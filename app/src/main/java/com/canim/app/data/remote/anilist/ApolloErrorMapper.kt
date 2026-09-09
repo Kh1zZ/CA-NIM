@@ -4,6 +4,7 @@ import com.apollographql.apollo.api.Error
 import com.apollographql.apollo.exception.ApolloException
 import com.apollographql.apollo.exception.ApolloHttpException
 import com.apollographql.apollo.exception.ApolloNetworkException
+import com.canim.app.data.remote.ApiClient
 import com.canim.app.data.remote.AniListErrorDetail
 import com.canim.app.data.remote.AniListMetrics
 import com.canim.app.data.remote.AniListResult
@@ -32,15 +33,32 @@ object ApolloErrorMapper {
 
         return when (throwable) {
             is ApolloHttpException -> {
+                val remainingHeader = throwable.headers
+                    .firstOrNull { it.name.equals("X-RateLimit-Remaining", ignoreCase = true) }
+                    ?.value?.trim()?.toIntOrNull()
+                val resetHeader = throwable.headers
+                    .firstOrNull { it.name.equals("X-RateLimit-Reset", ignoreCase = true) }
+                    ?.value?.trim()?.toLongOrNull()
+
                 when (throwable.statusCode) {
                     429 -> {
                         AniListMetrics.recordRateLimit()
                         val retryAfterSec = throwable.headers
                             .firstOrNull { it.name.equals("Retry-After", ignoreCase = true) }
                             ?.value?.trim()?.toLongOrNull() ?: 60L
+                        ApiClient.aniListPolicy.updateFromHeadersBlocking(
+                            remaining = remainingHeader,
+                            resetTimestampSeconds = resetHeader,
+                            retryAfterMs = retryAfterSec * 1000L
+                        )
                         AniListResult.RateLimited(retryAfterSec)
                     }
-                    404 -> AniListResult.NotFound
+                    404 -> {
+                        if (remainingHeader != null) {
+                            ApiClient.aniListPolicy.updateFromHeadersBlocking(remaining = remainingHeader, resetTimestampSeconds = resetHeader)
+                        }
+                        AniListResult.NotFound
+                    }
                     in 500..599 -> {
                         if (recordMetrics) AniListMetrics.recordHttp5xx()
                         AniListResult.HttpError(
@@ -49,11 +67,16 @@ object ApolloErrorMapper {
                             emptyList()
                         )
                     }
-                    else -> AniListResult.HttpError(
-                        throwable.statusCode,
-                        throwable.message ?: "HTTP Error ${throwable.statusCode}",
-                        emptyList()
-                    )
+                    else -> {
+                        if (remainingHeader != null) {
+                            ApiClient.aniListPolicy.updateFromHeadersBlocking(remaining = remainingHeader, resetTimestampSeconds = resetHeader)
+                        }
+                        AniListResult.HttpError(
+                            throwable.statusCode,
+                            throwable.message ?: "HTTP Error ${throwable.statusCode}",
+                            emptyList()
+                        )
+                    }
                 }
             }
             is ApolloNetworkException -> {

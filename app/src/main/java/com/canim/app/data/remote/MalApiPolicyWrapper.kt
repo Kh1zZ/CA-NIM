@@ -50,6 +50,7 @@ internal class MalApiPolicyWrapper(
                     if (!retryable || attempt >= policy.maxRetries) throw e
                     attempt++
                     AppMetrics.recordRetry("myanimelist", operation)
+                    ApiClient.malLimiter.tryEmitRetrying()
                     val delayMs = calculateBackoff(attempt)
                     if (delayMs > 0L) delay(delayMs)
                     continue
@@ -57,6 +58,7 @@ internal class MalApiPolicyWrapper(
                     if (!retryable || attempt >= policy.maxRetries) throw e
                     attempt++
                     AppMetrics.recordRetry("myanimelist", operation)
+                    ApiClient.malLimiter.tryEmitRetrying()
                     val delayMs = calculateBackoff(attempt)
                     if (delayMs > 0L) delay(delayMs)
                     continue
@@ -70,6 +72,7 @@ internal class MalApiPolicyWrapper(
                     if (!retryable || e.code() !in 500..599 || attempt >= policy.maxRetries) throw e
                     attempt++
                     AppMetrics.recordRetry("myanimelist", operation)
+                    ApiClient.malLimiter.tryEmitRetrying()
                     val delayMs = calculateBackoff(attempt)
                     if (delayMs > 0L) delay(delayMs)
                     continue
@@ -83,6 +86,7 @@ internal class MalApiPolicyWrapper(
                         if (retryable && attempt < policy.maxRetries) {
                             attempt++
                             AppMetrics.recordRetry("myanimelist", operation)
+                            ApiClient.malLimiter.tryEmitRetrying()
                             val delayMs = calculateBackoff(attempt)
                             if (delayMs > 0L) delay(delayMs)
                             continue

@@ -224,5 +224,61 @@ class AdaptiveRateLimiterTest {
         assertEquals(0L, afterReset.totalCooldownEvents)
         assertEquals(0L, afterReset.totalCooldownDurationMs)
     }
+
+    @Test
+    fun testUpdateFromHeadersCriticalRemainingPacesRequests() = runTest {
+        val testLimiter = AdaptiveRateLimiter("test.api", burstCapacity = 5, clock = { testScheduler.currentTime })
+        // Normal state: not in cooldown
+        assertFalse(testLimiter.isCooldownActive())
+
+        // Header says remaining = 2, reset at current + 3 seconds
+        val resetSec = (testScheduler.currentTime / 1000L) + 3L
+        testLimiter.updateFromHeaders(remaining = 2, resetTimestampSeconds = resetSec)
+
+        // Limiter should have activated pacing cooldown
+        assertTrue(testLimiter.isCooldownActive())
+        val waitMs = testLimiter.remainingCooldownMs()
+        assertTrue("Expected pacing cooldown of ~3000ms", waitMs in 2000L..4000L)
+
+        // Snapshot recorded limiter throttled and cooldown event
+        val snapshot = AppMetrics.getSnapshot()
+        assertEquals(1L, snapshot.totalThrottled)
+        assertEquals(1L, snapshot.totalCooldownEvents)
+
+        // Advance time past reset
+        testScheduler.advanceTimeBy(3500L)
+        assertFalse(testLimiter.isCooldownActive())
+    }
+
+    @Test
+    fun testUpdateFromHeadersWarningRemainingClampsTokens() = runTest {
+        val testLimiter = AdaptiveRateLimiter("test.api", burstCapacity = 10, clock = { testScheduler.currentTime })
+        // Header says remaining = 8 (warning threshold)
+        testLimiter.updateFromHeaders(remaining = 8)
+
+        // Does not trigger full cooldown
+        assertFalse(testLimiter.isCooldownActive())
+
+        // But tokens were clamped to 2, so 3rd acquire will throttle
+        testLimiter.acquire()
+        testLimiter.acquire()
+        val before = testScheduler.currentTime
+        testLimiter.acquire()
+        val after = testScheduler.currentTime
+        assertTrue("3rd acquire should be throttled due to token clamping", after > before)
+    }
+
+    @Test
+    fun testUpdateFromHeadersWithRetryAfterArmsCooldown() = runTest {
+        val testLimiter = AdaptiveRateLimiter("test.api", clock = { testScheduler.currentTime })
+        testLimiter.updateFromHeaders(retryAfterMs = 2500L)
+
+        assertTrue(testLimiter.isCooldownActive())
+        assertEquals(1, testLimiter.getConsecutive429Count())
+        assertEquals(2500L, AppMetrics.getSnapshot().totalCooldownDurationMs)
+
+        testScheduler.advanceTimeBy(2501L)
+        assertFalse(testLimiter.isCooldownActive())
+    }
 }
 
