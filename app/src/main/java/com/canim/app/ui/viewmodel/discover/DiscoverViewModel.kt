@@ -11,13 +11,12 @@ import com.canim.app.domain.usecase.ObserveCacheRefreshUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -31,8 +30,8 @@ class DiscoverViewModel @Inject constructor(
     private val _discoverState = MutableStateFlow(DiscoverUiState())
     val discoverState: StateFlow<DiscoverUiState> = _discoverState.asStateFlow()
 
-    private val _snackbarEvent = MutableSharedFlow<String>()
-    val snackbarEvent: SharedFlow<String> = _snackbarEvent.asSharedFlow()
+    private val _snackbarEvent = Channel<String>(Channel.BUFFERED)
+    val snackbarEvent = _snackbarEvent.receiveAsFlow()
 
     private var discoverJob: Job? = null
     private var discoverRequestToken = 0L
@@ -170,7 +169,7 @@ class DiscoverViewModel @Inject constructor(
 
     fun showSnackbar(message: String) {
         viewModelScope.launch {
-            _snackbarEvent.emit(message)
+            _snackbarEvent.send(message)
         }
     }
 }

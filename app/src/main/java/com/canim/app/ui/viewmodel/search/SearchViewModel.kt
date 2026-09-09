@@ -9,6 +9,7 @@ import com.canim.app.domain.usecase.ObserveCacheRefreshUseCase
 import com.canim.app.domain.usecase.SearchMediaUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -31,8 +32,8 @@ class SearchViewModel @Inject constructor(
 
     private val _searchQueryFlow = MutableStateFlow(SearchTrigger("", MediaType.ANIME))
 
-    private val _snackbarEvent = MutableSharedFlow<String>()
-    val snackbarEvent: SharedFlow<String> = _snackbarEvent.asSharedFlow()
+    private val _snackbarEvent = Channel<String>(Channel.BUFFERED)
+    val snackbarEvent = _snackbarEvent.receiveAsFlow()
 
     init {
         // Reactive Debounced Search (300ms)
@@ -174,7 +175,7 @@ class SearchViewModel @Inject constructor(
 
     fun showSnackbar(message: String) {
         viewModelScope.launch {
-            _snackbarEvent.emit(message)
+            _snackbarEvent.send(message)
         }
     }
 }
