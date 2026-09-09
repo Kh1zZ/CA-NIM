@@ -21,6 +21,7 @@ open class FakeCanimRepository : CanimRepositoryContract {
     override fun getCachedTracking(type: String): List<UserMediaItem>? = null
     override suspend fun getUserAnimeList(forceRefresh: Boolean): MalFetchResult<List<UserMediaItem>> = MalFetchResult.Success(emptyList(), 0)
     override suspend fun getUserMangaList(forceRefresh: Boolean): MalFetchResult<List<UserMediaItem>> = MalFetchResult.Success(emptyList(), 0)
+    override suspend fun retryFailedMutations(mediaType: String?): Int = 0
     override suspend fun getCharacterProfile(characterId: Int, forceRefresh: Boolean): CastCrewProfile? = null
     override suspend fun getStaffProfile(staffId: Int, forceRefresh: Boolean): CastCrewProfile? = null
     override suspend fun updateAnimeTracking(malId: Int, tracking: MalTracking): Result<Unit> = Result.success(Unit)

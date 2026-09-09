@@ -18,7 +18,7 @@ import com.canim.app.data.model.UserMediaItem
 import com.canim.app.data.repository.CacheRefreshEvent
 import kotlinx.coroutines.flow.SharedFlow
 
-interface CanimRepositoryContract {
+interface CanimRepositoryContract : LibraryRepository {
     val cacheRefreshEvents: SharedFlow<CacheRefreshEvent>
 
     fun buildMalAuthorizeUrl(): String
@@ -31,25 +31,9 @@ interface CanimRepositoryContract {
 
     suspend fun syncWithMal(): MalSyncResult
 
-    fun getLastSyncedTime(): Long
-
-    fun getCachedTracking(type: String): List<UserMediaItem>?
-
-    suspend fun getUserAnimeList(forceRefresh: Boolean = false): MalFetchResult<List<UserMediaItem>>
-
-    suspend fun getUserMangaList(forceRefresh: Boolean = false): MalFetchResult<List<UserMediaItem>>
-
     suspend fun getCharacterProfile(characterId: Int, forceRefresh: Boolean = false): CastCrewProfile?
 
     suspend fun getStaffProfile(staffId: Int, forceRefresh: Boolean = false): CastCrewProfile?
-
-    suspend fun updateAnimeTracking(malId: Int, tracking: MalTracking): Result<Unit>
-
-    suspend fun updateMangaTracking(malId: Int, tracking: MalTracking): Result<Unit>
-
-    suspend fun deleteAnimeTracking(malId: Int): Result<Unit>
-
-    suspend fun deleteMangaTracking(malId: Int): Result<Unit>
 
     fun searchFilterKey(
         query: String,
@@ -110,10 +94,6 @@ interface CanimRepositoryContract {
     suspend fun clearImageCache(context: Context)
 
     suspend fun clearAllCache(context: Context)
-
-    fun getDemoAnime(): List<UserMediaItem>
-
-    fun getDemoManga(): List<UserMediaItem>
 
     suspend fun getMalTrackingStatus(malId: Int, type: MediaType): MalTracking?
 

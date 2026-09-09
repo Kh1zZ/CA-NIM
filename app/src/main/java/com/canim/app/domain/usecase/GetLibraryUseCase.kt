@@ -2,11 +2,11 @@ package com.canim.app.domain.usecase
 
 import com.canim.app.data.model.MalFetchResult
 import com.canim.app.data.model.UserMediaItem
-import com.canim.app.domain.repository.CanimRepositoryContract
+import com.canim.app.domain.repository.LibraryRepository
 import javax.inject.Inject
 
 class GetLibraryUseCase @Inject constructor(
-    private val repository: CanimRepositoryContract
+    private val repository: LibraryRepository
 ) {
     suspend fun getUserAnimeList(forceRefresh: Boolean = false): MalFetchResult<List<UserMediaItem>> =
         repository.getUserAnimeList(forceRefresh)

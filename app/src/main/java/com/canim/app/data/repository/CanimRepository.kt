@@ -132,7 +132,7 @@ class CanimRepository(
      * Explicitly requeues FAILED_PERMANENTLY mutations back to PENDING (resetting attempts to 0)
      * and triggers a drain if online. Only called by explicit user action.
      */
-    suspend fun retryFailedMutations(mediaType: String? = null): Int =
+    override suspend fun retryFailedMutations(mediaType: String?): Int =
         syncEngine?.retryFailedPermanently(mediaType) ?: 0
 
     override fun getLastSyncedTime(): Long = malAuthManager.getLastSynced()

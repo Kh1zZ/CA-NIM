@@ -1,10 +1,10 @@
 package com.canim.app.domain.usecase
 
-import com.canim.app.domain.repository.CanimRepositoryContract
+import com.canim.app.domain.repository.LibraryRepository
 import javax.inject.Inject
 
 class DeleteLibraryItemUseCase @Inject constructor(
-    private val repository: CanimRepositoryContract
+    private val repository: LibraryRepository
 ) {
     suspend fun deleteAnime(malId: Int): Result<Unit> =
         repository.deleteAnimeTracking(malId)

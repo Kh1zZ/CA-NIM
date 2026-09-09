@@ -2,11 +2,11 @@ package com.canim.app.domain.usecase
 
 import com.canim.app.data.model.MalTracking
 import com.canim.app.data.model.UserMediaItem
-import com.canim.app.domain.repository.CanimRepositoryContract
+import com.canim.app.domain.repository.LibraryRepository
 import javax.inject.Inject
 
 class SaveLibraryItemUseCase @Inject constructor(
-    private val repository: CanimRepositoryContract
+    private val repository: LibraryRepository
 ) {
     suspend fun saveAnime(malId: Int, tracking: MalTracking): Result<Unit> =
         repository.updateAnimeTracking(malId, tracking)
