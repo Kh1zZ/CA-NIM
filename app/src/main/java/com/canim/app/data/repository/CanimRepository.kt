@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.canim.app.domain.repository.CanimRepositoryContract
 import java.util.concurrent.ConcurrentHashMap
 
 enum class CacheRefreshType {
@@ -54,7 +55,7 @@ class CanimRepository(
     private val libraryDao: LibraryDao? = null,
     private val pendingMutationDao: PendingMutationDao? = null,
     private val syncEngine: LibrarySyncEngine? = null
-) {
+) : CanimRepositoryContract {
     private val gson = Gson()
     /**
      * SharedFlow for SWR cache refresh events. Buffer size 64 with DROP_OLDEST policy.
@@ -64,7 +65,7 @@ class CanimRepository(
         extraBufferCapacity = 64,
         onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST
     )
-    val cacheRefreshEvents: kotlinx.coroutines.flow.SharedFlow<CacheRefreshEvent> = _cacheRefreshEvents.asSharedFlow()
+    override val cacheRefreshEvents: kotlinx.coroutines.flow.SharedFlow<CacheRefreshEvent> = _cacheRefreshEvents.asSharedFlow()
 
     /**
      * Active in-flight SWR background refresh jobs keyed by canonical cache key.
@@ -94,21 +95,21 @@ class CanimRepository(
     suspend fun <T> deduplicateInFlight(key: String, block: suspend () -> T): T =
         AniListClient.deduplicateInFlight(key, block)
 
-    fun buildMalAuthorizeUrl(): String = malAuthManager.buildAuthorizeUrl()
+    override fun buildMalAuthorizeUrl(): String = malAuthManager.buildAuthorizeUrl()
 
-    suspend fun handleMalOAuthCallback(code: String, state: String?): Result<MalUser> =
+    override suspend fun handleMalOAuthCallback(code: String, state: String?): Result<MalUser> =
         malAuthManager.handleOAuthCallback(code, state)
 
-    fun getMalUser(): MalUser = malAuthManager.getCurrentUser()
+    override fun getMalUser(): MalUser = malAuthManager.getCurrentUser()
 
-    fun logoutMal() {
+    override fun logoutMal() {
         // Phase 4: notify SyncEngine first so it can cancel in-flight job
         // and clear local DB before auth credentials are wiped.
         syncEngine?.onLogout()
         malAuthManager.logout()
     }
 
-    suspend fun syncWithMal(): MalSyncResult = malAuthManager.syncWithMal()
+    override suspend fun syncWithMal(): MalSyncResult = malAuthManager.syncWithMal()
 
     /**
      * Explicitly requeues FAILED_PERMANENTLY mutations back to PENDING (resetting attempts to 0)
@@ -117,9 +118,9 @@ class CanimRepository(
     suspend fun retryFailedMutations(mediaType: String? = null): Int =
         syncEngine?.retryFailedPermanently(mediaType) ?: 0
 
-    fun getLastSyncedTime(): Long = malAuthManager.getLastSynced()
+    override fun getLastSyncedTime(): Long = malAuthManager.getLastSynced()
 
-    fun getCachedTracking(type: String): List<UserMediaItem>? {
+    override fun getCachedTracking(type: String): List<UserMediaItem>? {
         val memory = CacheManager.getTracking(type)
         if (memory != null) return memory
         val appContext = runCatching { com.canim.app.CanimApplication.instance }.getOrNull()
@@ -146,7 +147,7 @@ class CanimRepository(
      *   then fetch MAL, then reconcile (entries with active pending mutations are NOT overwritten).
      *   If the fetch fails, local state is preserved unchanged.
      */
-    suspend fun getUserAnimeList(forceRefresh: Boolean = false): MalFetchResult<List<UserMediaItem>> = withContext(Dispatchers.IO) {
+    override suspend fun getUserAnimeList(forceRefresh: Boolean): MalFetchResult<List<UserMediaItem>> = withContext(Dispatchers.IO) {
         val dao = libraryDao
         if (dao != null && !forceRefresh) {
             // Phase 4: serve from local DB if we have data
@@ -257,7 +258,7 @@ class CanimRepository(
      * Loads the user's manga list.
      * Phase 4: same local-first + safe reconcile logic as [getUserAnimeList].
      */
-    suspend fun getUserMangaList(forceRefresh: Boolean = false): MalFetchResult<List<UserMediaItem>> = withContext(Dispatchers.IO) {
+    override suspend fun getUserMangaList(forceRefresh: Boolean): MalFetchResult<List<UserMediaItem>> = withContext(Dispatchers.IO) {
         val dao = libraryDao
         if (dao != null && !forceRefresh) {
             val localEntries = dao.getAllEntries("MANGA")
@@ -346,11 +347,11 @@ class CanimRepository(
         }
     }
 
-    suspend fun getCharacterProfile(characterId: Int, forceRefresh: Boolean = false): CastCrewProfile? = withContext(Dispatchers.IO) {
+    override suspend fun getCharacterProfile(characterId: Int, forceRefresh: Boolean): CastCrewProfile? = withContext(Dispatchers.IO) {
         AniListClient.getCharacterProfile(characterId, forceRefresh)
     }
 
-    suspend fun getStaffProfile(staffId: Int, forceRefresh: Boolean = false): CastCrewProfile? = withContext(Dispatchers.IO) {
+    override suspend fun getStaffProfile(staffId: Int, forceRefresh: Boolean): CastCrewProfile? = withContext(Dispatchers.IO) {
         AniListClient.getStaffProfile(staffId, forceRefresh)
     }
 
@@ -469,7 +470,7 @@ class CanimRepository(
      *
      * Falls back to direct MAL call if local DB is not wired (test / no-DAO mode).
      */
-    suspend fun updateAnimeTracking(malId: Int, tracking: MalTracking): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun updateAnimeTracking(malId: Int, tracking: MalTracking): Result<Unit> = withContext(Dispatchers.IO) {
         val dao = libraryDao
         val mutDao = pendingMutationDao
         if (dao != null && mutDao != null) {
@@ -480,7 +481,7 @@ class CanimRepository(
         malAuthManager.updateAnimeTracking(malId, tracking)
     }
 
-    suspend fun updateMangaTracking(malId: Int, tracking: MalTracking): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun updateMangaTracking(malId: Int, tracking: MalTracking): Result<Unit> = withContext(Dispatchers.IO) {
         val dao = libraryDao
         val mutDao = pendingMutationDao
         if (dao != null && mutDao != null) {
@@ -489,7 +490,7 @@ class CanimRepository(
         malAuthManager.updateMangaTracking(malId, tracking)
     }
 
-    suspend fun deleteAnimeTracking(malId: Int): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun deleteAnimeTracking(malId: Int): Result<Unit> = withContext(Dispatchers.IO) {
         val dao = libraryDao
         val mutDao = pendingMutationDao
         if (dao != null && mutDao != null) {
@@ -498,7 +499,7 @@ class CanimRepository(
         malAuthManager.deleteAnimeTracking(malId)
     }
 
-    suspend fun deleteMangaTracking(malId: Int): Result<Unit> = withContext(Dispatchers.IO) {
+    override suspend fun deleteMangaTracking(malId: Int): Result<Unit> = withContext(Dispatchers.IO) {
         val dao = libraryDao
         val mutDao = pendingMutationDao
         if (dao != null && mutDao != null) {
@@ -638,18 +639,18 @@ class CanimRepository(
         )
     }
 
-    fun searchFilterKey(query: String, genres: List<String>? = null, year: Int? = null, format: String? = null): String {
+    override fun searchFilterKey(query: String, genres: List<String>?, year: Int?, format: String?): String {
         val trimmed = query.trim()
         val genresKey = if (genres.isNullOrEmpty()) "" else genres.sorted().joinToString(",")
         return "${trimmed}_${genresKey}_${year}_${format}"
     }
 
-    fun discoverFilterKey(
+    override fun discoverFilterKey(
         category: DiscoverCategory,
-        filter: DiscoverFilter = DiscoverFilter(),
-        page: Int = 1,
-        randomSort: String? = null,
-        mediaType: MediaType? = null
+        filter: DiscoverFilter,
+        page: Int,
+        randomSort: String?,
+        mediaType: MediaType?
     ): String {
         val resolvedType = mediaType ?: if (
             filter.format == "MANGA" ||
@@ -660,12 +661,12 @@ class CanimRepository(
         return "${resolvedType.name.lowercase()}_${category.key}_${filter.genre}_${filter.format}_${filter.year}_${filter.season}_${filter.minScore}_${randomSort}_p$page"
     }
 
-    suspend fun searchAnime(
+    override suspend fun searchAnime(
         query: String,
-        genres: List<String>? = null,
-        year: Int? = null,
-        format: String? = null,
-        forceRefresh: Boolean = false
+        genres: List<String>?,
+        year: Int?,
+        format: String?,
+        forceRefresh: Boolean
     ): List<MediaItem> = withContext(Dispatchers.IO) {
         val trimmed = query.trim()
         val filterKey = searchFilterKey(trimmed, genres, year, format)
@@ -769,12 +770,12 @@ class CanimRepository(
         }
     }
 
-    suspend fun searchManga(
+    override suspend fun searchManga(
         query: String,
-        genres: List<String>? = null,
-        year: Int? = null,
-        format: String? = null,
-        forceRefresh: Boolean = false
+        genres: List<String>?,
+        year: Int?,
+        format: String?,
+        forceRefresh: Boolean
     ): List<MediaItem> = withContext(Dispatchers.IO) {
         val trimmed = query.trim()
         val filterKey = searchFilterKey(trimmed, genres, year, format)
@@ -879,13 +880,13 @@ class CanimRepository(
     }
 
     // --- Discover with On-Demand Loading & forceRefresh Propagation ---
-    suspend fun getDiscoverMedia(
+    override suspend fun getDiscoverMedia(
         category: DiscoverCategory,
-        filter: DiscoverFilter = DiscoverFilter(),
-        page: Int = 1,
-        forceRefresh: Boolean = false,
-        randomSort: String? = null,
-        mediaType: MediaType? = null
+        filter: DiscoverFilter,
+        page: Int,
+        forceRefresh: Boolean,
+        randomSort: String?,
+        mediaType: MediaType?
     ): List<MediaItem> = withContext(Dispatchers.IO) {
         val cacheKey = discoverFilterKey(category, filter, page, randomSort, mediaType)
         if (!forceRefresh) {
@@ -1050,10 +1051,10 @@ class CanimRepository(
      * Synchronously inspects persistent / memory cache for extended media details.
      * Enforces strict MediaType namespace isolation when resolving IDs.
      */
-    fun getCachedExtendedDetail(
+    override fun getCachedExtendedDetail(
         aniListId: Int?,
         malId: Int?,
-        type: MediaType? = null
+        type: MediaType?
     ): ExtendedMediaDetail? {
         val resolvedAniListId = aniListId ?: (malId?.let { CacheManager.getAniListIdForMalId(it, type) })
         val resolvedMalId = malId ?: (resolvedAniListId?.let { CacheManager.getMalIdForAniListId(it, type) })
@@ -1064,7 +1065,7 @@ class CanimRepository(
             ?: (resolvedMalId?.let { CacheManager.getDetail(CacheManager.detailKey(null, it)) })
     }
 
-    suspend fun getMalExtendedDetailFallback(malId: Int, type: MediaType): ExtendedMediaDetail? =
+    override suspend fun getMalExtendedDetailFallback(malId: Int, type: MediaType): ExtendedMediaDetail? =
         malAuthManager.getExtendedDetailFallback(malId, type)
 
     // --- Extended Details: Primary AniList, Fallback to MAL ---
@@ -1174,7 +1175,7 @@ class CanimRepository(
         }
     }
 
-    suspend fun isAniListUnavailable(): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun isAniListUnavailable(): Boolean = withContext(Dispatchers.IO) {
         try {
             if (AniListClient.pingHealth()) {
                 return@withContext false
@@ -1187,7 +1188,7 @@ class CanimRepository(
         }
     }
 
-    suspend fun isMalUnavailable(): Boolean = withContext(Dispatchers.IO) {
+    override suspend fun isMalUnavailable(): Boolean = withContext(Dispatchers.IO) {
         try {
             val resp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "all", limit = 1)
             !resp.isSuccessful
@@ -1197,24 +1198,24 @@ class CanimRepository(
     }
 
     // --- Cache Management Actions ---
-    suspend fun pruneCache() {
+    override suspend fun pruneCache() {
         CacheManager.pruneExpired()
     }
 
-    fun clearMetadataCache() {
+    override fun clearMetadataCache() {
         CacheManager.clearMetadataCache()
     }
 
-    suspend fun clearImageCache(context: Context) {
+    override suspend fun clearImageCache(context: Context) {
         CacheManager.clearImageCache(context)
     }
 
-    suspend fun clearAllCache(context: Context) {
+    override suspend fun clearAllCache(context: Context) {
         CacheManager.clearAllCache(context)
     }
 
     // --- In-Memory Demo Dataset for Unauthenticated Mode ---
-    fun getDemoAnime(): List<UserMediaItem> = listOf(
+    override fun getDemoAnime(): List<UserMediaItem> = listOf(
         UserMediaItem(
             identity = MediaRef(anilistId = 154587, malId = 52991),
             metadata = MediaMetadata(
@@ -1283,7 +1284,7 @@ class CanimRepository(
         )
     )
 
-    fun getDemoManga(): List<UserMediaItem> = listOf(
+    override fun getDemoManga(): List<UserMediaItem> = listOf(
         UserMediaItem(
             identity = MediaRef(anilistId = 30013, malId = 13),
             metadata = MediaMetadata(
@@ -1358,22 +1359,22 @@ class CanimRepository(
         MediaItem(121496, 105398, "Solo Leveling", "Solo Leveling", "https://cdn.myanimelist.net/images/manga/3/222295l.jpg", MediaType.MANGA, 8.68, "Ten years ago, 'the Gate' appeared...", null, 179, null, "Finished", null, null, listOf("Action", "Fantasy"), "MANGA", null)
     )
 
-    suspend fun getMalTrackingStatus(malId: Int, type: MediaType): MalTracking? {
+    override suspend fun getMalTrackingStatus(malId: Int, type: MediaType): MalTracking? {
         return malAuthManager.getMalUserTracking(malId, type)
     }
 
-    suspend fun getStudioFilmography(
+    override suspend fun getStudioFilmography(
         studioId: Int?,
-        search: String? = null,
-        page: Int = 1,
-        forceRefresh: Boolean = false,
-        sort: StudioFilmographySort = StudioFilmographySort.YEAR_DESC,
-        isMain: Boolean = true
+        search: String?,
+        page: Int,
+        forceRefresh: Boolean,
+        sort: StudioFilmographySort,
+        isMain: Boolean
     ): StudioFilmographyPage? {
         return AniListClient.getStudioFilmography(studioId, search, page, forceRefresh = forceRefresh, sort = sort, isMain = isMain)
     }
 
-    suspend fun searchStudios(query: String, page: Int = 1, perPage: Int = 20): List<StudioBioInfo> {
+    override suspend fun searchStudios(query: String, page: Int, perPage: Int): List<StudioBioInfo> {
         return AniListClient.searchStudios(query, page, perPage)
     }
 

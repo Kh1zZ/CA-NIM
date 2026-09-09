@@ -5,6 +5,7 @@ import com.canim.app.data.local.MalSecureStorage
 import com.canim.app.data.model.MediaItem
 import com.canim.app.data.model.MediaType
 import com.canim.app.data.repository.CanimRepository
+import com.canim.app.domain.repository.CanimRepositoryContract
 import com.canim.app.data.repository.MalAuthManager
 import com.canim.app.ui.viewmodel.detail.DetailEvent
 import org.junit.After
@@ -20,7 +21,7 @@ import org.robolectric.annotation.Config
 @Config(manifest = Config.NONE)
 class DetailStateIsolationTest {
 
-    private lateinit var repository: CanimRepository
+    private lateinit var repository: CanimRepositoryContract
     private lateinit var viewModel: CanimViewModel
 
     @Before

@@ -7,7 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.canim.app.data.model.*
-import com.canim.app.data.repository.CanimRepository
+import com.canim.app.domain.repository.CanimRepositoryContract
 import com.canim.app.data.repository.CacheRefreshType
 import com.canim.app.data.cache.CacheManager
 import com.canim.app.CanimApplication
@@ -128,7 +128,7 @@ data class CanimUiState(
 
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 class CanimViewModel(
-    private val repository: CanimRepository,
+    private val repository: CanimRepositoryContract,
     private val gachaCreditManager: GachaCreditManager? = null
 ) : ViewModel() {
 
@@ -2531,7 +2531,7 @@ class CanimViewModel(
 }
 
 class CanimViewModelFactory(
-    private val repository: CanimRepository,
+    private val repository: CanimRepositoryContract,
     private val gachaCreditManager: GachaCreditManager? = null
 ) : ViewModelProvider.Factory {
     @Suppress("UNCHECKED_CAST")
