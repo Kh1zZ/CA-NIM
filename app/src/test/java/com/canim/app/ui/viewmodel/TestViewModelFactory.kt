@@ -14,6 +14,7 @@ import com.canim.app.ui.viewmodel.studio.StudioViewModel
 import com.canim.app.ui.viewmodel.search.SearchViewModel
 import com.canim.app.ui.viewmodel.discover.DiscoverViewModel
 import com.canim.app.ui.viewmodel.library.LibraryViewModel
+import com.canim.app.ui.viewmodel.global.GlobalViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 
@@ -202,6 +203,20 @@ fun createTestLibraryViewModel(
         saveLibraryItemUseCase = SaveLibraryItemUseCase(repository, consumeGachaCreditUseCase, getMalUserUseCase),
         deleteLibraryItemUseCase = DeleteLibraryItemUseCase(repository, getMalUserUseCase),
         updateTrackingUseCase = UpdateTrackingUseCase(repository, consumeGachaCreditUseCase, getMalUserUseCase)
+    )
+}
+
+fun createTestGlobalViewModel(
+    repository: CanimTestRepository = FakeCanimRepository()
+): GlobalViewModel {
+    return GlobalViewModel(
+        getMalUserUseCase = GetMalUserUseCase(repository),
+        loginMalUseCase = LoginMalUseCase(repository),
+        handleMalOAuthCallbackUseCase = HandleMalOAuthCallbackUseCase(repository),
+        logoutMalUseCase = LogoutMalUseCase(repository),
+        syncMalUseCase = SyncMalUseCase(repository),
+        checkApiHealthUseCase = CheckApiHealthUseCase(repository),
+        clearCacheUseCase = ClearCacheUseCase(repository)
     )
 }
 

@@ -50,6 +50,7 @@ import com.canim.app.ui.viewmodel.studio.StudioViewModel
 import com.canim.app.ui.viewmodel.search.SearchViewModel
 import com.canim.app.ui.viewmodel.discover.DiscoverViewModel
 import com.canim.app.ui.viewmodel.library.LibraryViewModel
+import com.canim.app.ui.viewmodel.global.GlobalViewModel
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 
@@ -71,6 +72,7 @@ class MainActivity : ComponentActivity() {
     private val searchViewModel: SearchViewModel by viewModels()
     private val discoverViewModel: DiscoverViewModel by viewModels()
     private val libraryViewModel: LibraryViewModel by viewModels()
+    private val globalViewModel: GlobalViewModel by viewModels()
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -92,12 +94,14 @@ class MainActivity : ComponentActivity() {
                 val searchState by searchViewModel.searchState.collectAsState()
                 val discoverState by discoverViewModel.discoverState.collectAsState()
                 val libraryState by libraryViewModel.libraryState.collectAsState()
-                val screenStack by viewModel.screenStack.collectAsState()
+                val globalState by globalViewModel.globalState.collectAsState()
+                val screenStack by globalViewModel.screenStack.collectAsState()
                 val context = LocalContext.current
                 val snackbarHostState = remember { SnackbarHostState() }
 
                 // Single centralized top-level BackHandler
                 BackHandler(enabled = screenStack.isNotEmpty()) {
+                    globalViewModel.popScreen()
                     viewModel.popScreen()
                 }
 
@@ -114,6 +118,7 @@ class MainActivity : ComponentActivity() {
 
                 LaunchedEffect(Unit) {
                     merge(
+                        globalViewModel.snackbarEvent,
                         updateViewModel.snackbarEvent,
                         gachaViewModel.snackbarEvent,
                         detailViewModel.snackbarEvent,
@@ -215,7 +220,7 @@ class MainActivity : ComponentActivity() {
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     navItems.forEachIndexed { _, item ->
-                                        val selected = uiState.activeTab == item.route
+                                        val selected = globalState.activeTab == item.route
                                         val isSearch = item.route == "search"
 
                                         Box(
@@ -225,7 +230,10 @@ class MainActivity : ComponentActivity() {
                                                 .clickable(
                                                     interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                                                     indication = null
-                                                ) { viewModel.setTab(item.route) }
+                                                ) {
+                                                    globalViewModel.setTab(item.route)
+                                                    viewModel.setTab(item.route)
+                                                }
                                                 .testTag("nav_tab_${item.route}"),
                                             contentAlignment = Alignment.Center
                                         ) {
@@ -287,6 +295,7 @@ class MainActivity : ComponentActivity() {
                             viewModel.quickIncrementManga(it)
                         } }
                         val onSelectItem: (Any, MediaType) -> Unit = remember { { item: Any, type: MediaType ->
+                            globalViewModel.openDetail(item, type)
                             detailViewModel.openDetail(item, type)
                             viewModel.openDetail(item, type)
                         } }
@@ -294,11 +303,27 @@ class MainActivity : ComponentActivity() {
                             libraryViewModel.loadDemoData()
                             viewModel.loadDemoData()
                         } }
-                        val onNavigateTab: (String) -> Unit = remember { { viewModel.setTab(it) } }
-                        val onLoginMal: () -> Unit = remember(context) { { viewModel.loginWithMal(context) } }
-                        val onSyncMal: () -> Unit = remember { { viewModel.syncWithMal() } }
-                        val onOpenStats: () -> Unit = remember { { viewModel.openStats() } }
+                        val onNavigateTab: (String) -> Unit = remember { {
+                            globalViewModel.setTab(it)
+                            viewModel.setTab(it)
+                        } }
+                        val onLoginMal: () -> Unit = remember(context) { {
+                            globalViewModel.loginWithMal(context)
+                            viewModel.loginWithMal(context)
+                        } }
+                        val onSyncMal: () -> Unit = remember { {
+                            globalViewModel.syncWithMal {
+                                libraryViewModel.loadUserLibrary(forceRefresh = true)
+                                viewModel.loadUserLibrary(forceRefresh = true)
+                            }
+                            viewModel.syncWithMal()
+                        } }
+                        val onOpenStats: () -> Unit = remember { {
+                            globalViewModel.openStats()
+                            viewModel.openStats()
+                        } }
                         val onOpenFlashcard: () -> Unit = remember { {
+                            globalViewModel.openFlashcard()
                             gachaViewModel.openFlashcard()
                             viewModel.openFlashcard()
                         } }
@@ -329,7 +354,7 @@ class MainActivity : ComponentActivity() {
                         } }
 
                         AnimatedContent(
-                            targetState = uiState.activeTab,
+                            targetState = globalState.activeTab,
                             transitionSpec = {
                                 fadeIn(animationSpec = tween(180)).togetherWith(fadeOut(animationSpec = tween(180)))
                             },
@@ -442,10 +467,28 @@ class MainActivity : ComponentActivity() {
                                     SettingsScreen(
                                         state = uiState,
                                         updateState = updateState,
-                                        onLoginMal = { viewModel.loginWithMal(context) },
-                                        onSyncMal = { viewModel.syncWithMal() },
-                                        onLogoutMal = { viewModel.logoutMal() },
-                                        onSetAppMode = { viewModel.setAppMode(it) },
+                                        onLoginMal = {
+                                            globalViewModel.loginWithMal(context)
+                                            viewModel.loginWithMal(context)
+                                        },
+                                        onSyncMal = {
+                                            globalViewModel.syncWithMal {
+                                                libraryViewModel.loadUserLibrary(forceRefresh = true)
+                                                viewModel.loadUserLibrary(forceRefresh = true)
+                                            }
+                                            viewModel.syncWithMal()
+                                        },
+                                        onLogoutMal = {
+                                            globalViewModel.logoutMal {
+                                                libraryViewModel.loadDemoData()
+                                                viewModel.loadDemoData()
+                                            }
+                                            viewModel.logoutMal()
+                                        },
+                                        onSetAppMode = {
+                                            globalViewModel.setAppMode(it)
+                                            viewModel.setAppMode(it)
+                                        },
                                         onLoadDemoData = {
                                             libraryViewModel.loadDemoData()
                                             viewModel.loadDemoData()
@@ -454,15 +497,27 @@ class MainActivity : ComponentActivity() {
                                             libraryViewModel.clearAllData()
                                             viewModel.clearAllData()
                                         },
-                                        onClearImageCache = { viewModel.clearImageCache(context) },
-                                        onClearMetadataCache = { viewModel.clearMetadataCache() },
-                                        onClearAllCache = { viewModel.clearAllCache(context) },
+                                        onClearImageCache = {
+                                            globalViewModel.clearImageCache(context)
+                                            viewModel.clearImageCache(context)
+                                        },
+                                        onClearMetadataCache = {
+                                            globalViewModel.clearMetadataCache()
+                                            viewModel.clearMetadataCache()
+                                        },
+                                        onClearAllCache = {
+                                            globalViewModel.clearAllCache(context)
+                                            viewModel.clearAllCache(context)
+                                        },
                                         onCheckForUpdates = { updateViewModel.checkForUpdates(manual = true) },
                                         onSetAutoUpdateCheck = { updateViewModel.setAutoUpdateCheck(it) },
                                         onDismissUpdateDialog = { updateViewModel.dismissUpdateDialog() },
                                         onStartDownloadUpdate = { updateViewModel.startDownloadUpdate(context) },
                                         onInstallDownloadedUpdate = { updateViewModel.installDownloadedUpdate(context) },
-                                        onOpenObservability = { viewModel.pushScreen(ScreenRoute.Diagnostics) }
+                                        onOpenObservability = {
+                                            globalViewModel.openDiagnostics()
+                                            viewModel.pushScreen(ScreenRoute.Diagnostics)
+                                        }
                                     )
                                 }
                             }
@@ -532,10 +587,12 @@ class MainActivity : ComponentActivity() {
                                         isLoading = detailState.isLoadingCastCrewProfile,
                                         onBack = {
                                             detailViewModel.closeCastCrewProfile()
+                                            globalViewModel.popScreen()
                                             viewModel.popScreen()
                                         },
                                         onSelectMedia = { mediaItem ->
                                             detailViewModel.openDetail(mediaItem, mediaItem.type)
+                                            globalViewModel.openDetail(mediaItem, mediaItem.type)
                                             viewModel.openDetail(mediaItem, mediaItem.type)
                                         }
                                     )
@@ -546,9 +603,13 @@ class MainActivity : ComponentActivity() {
                                         castList = currentScreen.castList,
                                         staffList = currentScreen.staffList,
                                         isCrewInitial = currentScreen.isCrewInitial,
-                                        onBack = { viewModel.popScreen() },
+                                        onBack = {
+                                            globalViewModel.popScreen()
+                                            viewModel.popScreen()
+                                        },
                                         onOpenCastCrew = { id, isStaff ->
                                             detailViewModel.openCastCrewProfile(id, isStaff)
+                                            globalViewModel.openCastCrewProfile(id, isStaff)
                                             viewModel.openCastCrewProfile(id, isStaff)
                                         }
                                     )
@@ -607,9 +668,16 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onOpenCastCrew = { id, isStaff ->
                                             detailViewModel.openCastCrewProfile(id, isStaff)
+                                            globalViewModel.openCastCrewProfile(id, isStaff)
                                             viewModel.openCastCrewProfile(id, isStaff)
                                         },
                                         onOpenFullCast = { isCrew ->
+                                            globalViewModel.openFullCastList(
+                                                mediaTitle = detailTitle,
+                                                castList = detailExtended?.cast ?: emptyList(),
+                                                staffList = detailExtended?.crew ?: emptyList(),
+                                                isCrewInitial = isCrew
+                                            )
                                             viewModel.openFullCastList(
                                                 mediaTitle = detailTitle,
                                                 castList = detailExtended?.cast ?: emptyList(),
@@ -619,10 +687,12 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onOpenStudio = { studioId, studioName ->
                                             studioViewModel.openStudio(studioId, studioName)
+                                            globalViewModel.openStudio(studioId, studioName)
                                             viewModel.openStudio(studioId, studioName)
                                         },
                                         onOpenMediaDetail = { media, mediaType ->
                                             detailViewModel.openDetail(media, mediaType)
+                                            globalViewModel.openDetail(media, mediaType)
                                             viewModel.openDetail(media, mediaType)
                                         },
                                         onResolveAniListId = { malId -> detailViewModel.getAniListIdForMalId(malId) ?: viewModel.getAniListIdForMalId(malId) },
@@ -633,6 +703,7 @@ class MainActivity : ComponentActivity() {
                                         onGetScrollPosition = { key -> detailViewModel.getDetailScrollPosition(key) },
                                         onDismiss = {
                                             detailViewModel.closeDetail()
+                                            globalViewModel.popScreen()
                                             viewModel.popScreen()
                                         }
                                     )
@@ -652,10 +723,12 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onOpenDetail = { media, type ->
                                             detailViewModel.openDetail(media, type)
+                                            globalViewModel.openDetail(media, type)
                                             viewModel.openDetail(media, type)
                                         },
                                         onBack = {
                                             studioViewModel.closeStudio()
+                                            globalViewModel.popScreen()
                                             viewModel.popScreen()
                                         },
                                         bioInfo = studioState.bio ?: uiState.studioFilmographyBio,
@@ -671,10 +744,17 @@ class MainActivity : ComponentActivity() {
                                         deck = gachaState.deck,
                                         credits = gachaState.credits,
                                         isLoading = gachaState.isLoading,
-                                        onBack = { viewModel.popScreen() },
+                                        onBack = {
+                                            globalViewModel.popScreen()
+                                            viewModel.popScreen()
+                                        },
                                         onConsumeCredit = { gachaViewModel.consumeGachaCredit() },
                                         onSwipeCard = { gachaViewModel.swipeDismissFlashcard(it) },
-                                        onOpenDetail = { media, type -> viewModel.openDetail(media, type) },
+                                        onOpenDetail = { media, type ->
+                                            detailViewModel.openDetail(media, type)
+                                            globalViewModel.openDetail(media, type)
+                                            viewModel.openDetail(media, type)
+                                        },
                                         onRefreshDeck = { gachaViewModel.loadFlashcardDeck() },
                                         onSavePlanToWatch = { media, cb -> viewModel.saveFlashcardPlanToWatch(media, cb) }
                                     )
@@ -682,15 +762,28 @@ class MainActivity : ComponentActivity() {
                                 is ScreenRoute.Stats -> {
                                     StatsScreen(
                                         state = uiState,
-                                        onBack = { viewModel.popScreen() },
-                                        onSelectItem = { item, type -> viewModel.openDetail(item, type) },
-                                        onSaveScrollPosition = { index, offset -> viewModel.saveStatsScrollPosition(index, offset) },
-                                        onGetScrollPosition = { viewModel.getStatsScrollPosition() }
+                                        onBack = {
+                                            globalViewModel.closeStats()
+                                            viewModel.closeStats()
+                                        },
+                                        onSelectItem = { item, type ->
+                                            detailViewModel.openDetail(item, type)
+                                            globalViewModel.openDetail(item, type)
+                                            viewModel.openDetail(item, type)
+                                        },
+                                        onSaveScrollPosition = { index, offset ->
+                                            globalViewModel.saveStatsScrollPosition(index, offset)
+                                            viewModel.saveStatsScrollPosition(index, offset)
+                                        },
+                                        onGetScrollPosition = { globalViewModel.getStatsScrollPosition() }
                                     )
                                 }
                                 is ScreenRoute.AddTitleSheet -> {
                                     ModalBottomSheet(
-                                        onDismissRequest = { viewModel.popScreen() },
+                                        onDismissRequest = {
+                                            globalViewModel.closeAddTitleSheet()
+                                            viewModel.closeAddTitleSheet()
+                                        },
                                         containerColor = BlackBg,
                                         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
                                         dragHandle = { BottomSheetDefaults.DragHandle(color = CardBorder) },
@@ -709,6 +802,7 @@ class MainActivity : ComponentActivity() {
                                             },
                                             onSelectItem = { item, type ->
                                                 detailViewModel.openDetail(item, type)
+                                                globalViewModel.openDetail(item, type)
                                                 viewModel.openDetail(item, type)
                                             },
                                             onSaveAnime = {
@@ -732,7 +826,10 @@ class MainActivity : ComponentActivity() {
                                 }
                                 is ScreenRoute.Diagnostics -> {
                                     DiagnosticsScreen(
-                                        onBack = { viewModel.popScreen() }
+                                        onBack = {
+                                            globalViewModel.popScreen()
+                                            viewModel.popScreen()
+                                        }
                                     )
                                 }
                                 null -> {
@@ -760,6 +857,7 @@ class MainActivity : ComponentActivity() {
             val error = uri.getQueryParameter("error")
             val errorDescription = uri.getQueryParameter("error_description")
             if (!error.isNullOrEmpty()) {
+                globalViewModel.showSnackbar("Login MAL dibatalkan: ${errorDescription ?: error}")
                 viewModel.showSnackbar("Login MAL dibatalkan: ${errorDescription ?: error}")
                 return
             }
@@ -767,6 +865,10 @@ class MainActivity : ComponentActivity() {
             val code = uri.getQueryParameter("code")
             val state = uri.getQueryParameter("state")
             if (!code.isNullOrEmpty()) {
+                globalViewModel.handleOAuthCallback(code, state) {
+                    libraryViewModel.loadUserLibrary(forceRefresh = true)
+                    viewModel.loadUserLibrary(forceRefresh = true)
+                }
                 viewModel.handleOAuthCallback(code, state)
             }
         }
