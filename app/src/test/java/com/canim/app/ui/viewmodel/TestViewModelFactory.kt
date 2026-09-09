@@ -5,12 +5,21 @@ import com.canim.app.data.cache.StudioFilmographyPage
 import com.canim.app.data.local.GachaCreditManager
 import com.canim.app.data.model.*
 import com.canim.app.data.repository.CacheRefreshEvent
-import com.canim.app.domain.repository.CanimRepositoryContract
+import com.canim.app.domain.repository.*
 import com.canim.app.domain.usecase.*
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 
-open class FakeCanimRepository : CanimRepositoryContract {
+interface CanimTestRepository :
+    LibraryRepository,
+    SearchRepository,
+    DiscoverRepository,
+    DetailRepository,
+    StudioRepository,
+    AuthRepository,
+    SystemRepository
+
+open class FakeCanimRepository : CanimTestRepository {
     override val cacheRefreshEvents: SharedFlow<CacheRefreshEvent> = MutableSharedFlow()
     override fun buildMalAuthorizeUrl(): String = ""
     override suspend fun handleMalOAuthCallback(code: String, state: String?): Result<MalUser> = Result.success(MalUser())
@@ -60,7 +69,7 @@ open class FakeCanimRepository : CanimRepositoryContract {
 }
 
 fun createTestCanimViewModel(
-    repository: CanimRepositoryContract = FakeCanimRepository(),
+    repository: CanimTestRepository = FakeCanimRepository(),
     gachaCreditManager: GachaCreditManager
 ): CanimViewModel {
     return CanimViewModel(

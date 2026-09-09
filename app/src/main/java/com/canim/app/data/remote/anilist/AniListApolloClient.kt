@@ -186,7 +186,7 @@ object AniListApolloClient {
     /**
      * Executes the Apollo HealthPing operation and maps the response into
      * CA'NIM's application-level `AniListResult` semantics.
-     * Health check does not auto-retry internally to avoid duplicating retry/delay in CanimRepository.
+     * Health check does not auto-retry internally to avoid duplicating retry/delay in SystemRepository.
      */
     suspend fun executeHealthPing(): AniListResult<Boolean> = withContext(Dispatchers.IO) {
         AniListMetrics.recordRequest()

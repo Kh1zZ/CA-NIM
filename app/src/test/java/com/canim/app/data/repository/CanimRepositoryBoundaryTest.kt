@@ -4,6 +4,8 @@ import com.canim.app.data.cache.CacheManager
 import com.canim.app.data.local.MalSecureStorage
 import com.canim.app.data.model.ExtendedMediaDetail
 import com.canim.app.data.model.MediaType
+import com.canim.app.domain.repository.DetailRepository
+import com.canim.app.domain.repository.SystemRepository
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -17,7 +19,8 @@ import org.robolectric.annotation.Config
 @Config(manifest = Config.NONE)
 class CanimRepositoryBoundaryTest {
 
-    private lateinit var repository: CanimRepository
+    private lateinit var systemRepository: SystemRepository
+    private lateinit var detailRepository: DetailRepository
 
     @Before
     fun setUp() {
@@ -28,7 +31,9 @@ class CanimRepositoryBoundaryTest {
         val app = RuntimeEnvironment.getApplication()
         val storage = MalSecureStorage(app)
         val malAuth = MalAuthManager(storage)
-        repository = CanimRepository(malAuth)
+        val swrCoordinator = SwrCoordinator()
+        systemRepository = SystemRepositoryImpl(swrCoordinator)
+        detailRepository = DetailRepositoryImpl(malAuth, swrCoordinator)
     }
 
     @After
@@ -40,7 +45,7 @@ class CanimRepositoryBoundaryTest {
 
     @Test
     fun testRepositoryPruneCacheExecutesWithoutError() = kotlinx.coroutines.runBlocking {
-        repository.pruneCache()
+        systemRepository.pruneCache()
     }
 
     @Test
@@ -74,7 +79,7 @@ class CanimRepositoryBoundaryTest {
         CacheManager.putDetail(CacheManager.detailKey(mangaAniListId, sharedMalId), mangaDetail)
 
         // Query repository boundary passing ANIME
-        val cachedAnime = repository.getCachedExtendedDetail(
+        val cachedAnime = detailRepository.getCachedExtendedDetail(
             aniListId = null,
             malId = sharedMalId,
             type = MediaType.ANIME
@@ -84,7 +89,7 @@ class CanimRepositoryBoundaryTest {
         assertEquals("Anime Shared ID Title", cachedAnime?.title)
 
         // Query repository boundary passing MANGA
-        val cachedManga = repository.getCachedExtendedDetail(
+        val cachedManga = detailRepository.getCachedExtendedDetail(
             aniListId = null,
             malId = sharedMalId,
             type = MediaType.MANGA
@@ -106,7 +111,7 @@ class CanimRepositoryBoundaryTest {
         )
         CacheManager.putDetail(CacheManager.detailKey(154587, 52991), detail)
 
-        val retrieved = repository.getCachedExtendedDetail(aniListId = 154587, malId = 52991, type = MediaType.ANIME)
+        val retrieved = detailRepository.getCachedExtendedDetail(aniListId = 154587, malId = 52991, type = MediaType.ANIME)
         assertNotNull(retrieved)
         assertEquals("Frieren", retrieved?.title)
     }

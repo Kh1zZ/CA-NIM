@@ -2,8 +2,8 @@ package com.canim.app.data.remote
 
 import com.canim.app.data.local.MalSecureStorage
 import com.canim.app.data.remote.anilist.AniListApolloClient
-import com.canim.app.data.repository.CanimRepository
-import com.canim.app.data.repository.MalAuthManager
+import com.canim.app.data.repository.SystemRepositoryImpl
+import com.canim.app.data.repository.SwrCoordinator
 import kotlinx.coroutines.*
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
@@ -131,12 +131,9 @@ class ApolloHealthPingTest {
             }
         }
 
-        val app = RuntimeEnvironment.getApplication()
-        val storage = MalSecureStorage(app)
-        val malAuthManager = MalAuthManager(storage)
-        val repository = CanimRepository(malAuthManager)
+        val repository = SystemRepositoryImpl(SwrCoordinator())
 
-        // CanimRepository should tolerate transient drop and recover on retry
+        // SystemRepository should tolerate transient drop and recover on retry
         val isUnavailable = repository.isAniListUnavailable()
         assertFalse("AniList should be declared available after surviving transient drop", isUnavailable)
         assertEquals(2, mockInterceptor.callCount.get())
@@ -158,10 +155,7 @@ class ApolloHealthPingTest {
         val directHealth = AniListApolloClient.pingHealth()
         assertFalse("Direct pingHealth must return false during 503 outage", directHealth)
 
-        val app = RuntimeEnvironment.getApplication()
-        val storage = MalSecureStorage(app)
-        val malAuthManager = MalAuthManager(storage)
-        val repository = CanimRepository(malAuthManager)
+        val repository = SystemRepositoryImpl(SwrCoordinator())
 
         val isUnavailable = repository.isAniListUnavailable()
         assertTrue("Repository must report unavailable during persistent outage", isUnavailable)

@@ -6,7 +6,10 @@ import com.canim.app.data.local.MalSecureStorage
 import com.canim.app.data.model.ExtendedMediaDetail
 import com.canim.app.data.model.MediaItem
 import com.canim.app.data.model.MediaType
+import com.canim.app.data.remote.anilist.AniListApolloClient
+import com.canim.app.domain.repository.*
 import com.canim.app.ui.viewmodel.CanimViewModel
+import com.canim.app.ui.viewmodel.FakeCanimRepository
 import com.canim.app.ui.viewmodel.createTestCanimViewModel
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -24,11 +27,36 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import java.util.concurrent.atomic.AtomicInteger
 
+class SwrTestRepository(
+    val swrCoordinator: SwrCoordinator,
+    val searchRepo: SearchRepository,
+    val discoverRepo: DiscoverRepository,
+    val detailRepo: DetailRepository,
+    val systemRepo: SystemRepository,
+    private val fallback: FakeCanimRepository = FakeCanimRepository()
+) : com.canim.app.ui.viewmodel.CanimTestRepository,
+    LibraryRepository by fallback,
+    SearchRepository by searchRepo,
+    DiscoverRepository by discoverRepo,
+    DetailRepository by detailRepo,
+    StudioRepository by fallback,
+    AuthRepository by fallback,
+    SystemRepository by systemRepo {
+
+    fun launchSwrJob(key: String, block: suspend kotlinx.coroutines.CoroutineScope.() -> Unit) =
+        swrCoordinator.launchSwrJob(key, block)
+
+    fun getActiveSwrJob(key: String) = swrCoordinator.getActiveSwrJob(key)
+
+    suspend fun emitCacheRefreshEvent(event: CacheRefreshEvent) =
+        swrCoordinator.emitRefreshEvent(event.key, event.type)
+}
+
 @RunWith(RobolectricTestRunner::class)
 @Config(manifest = Config.NONE)
 class CanimRepositorySwrTest {
 
-    private lateinit var repository: CanimRepository
+    private lateinit var repository: SwrTestRepository
     private lateinit var gachaCreditManager: com.canim.app.data.local.GachaCreditManager
 
     @Before
@@ -40,7 +68,13 @@ class CanimRepositorySwrTest {
         val app = RuntimeEnvironment.getApplication()
         val storage = MalSecureStorage(app)
         val malAuth = MalAuthManager(storage)
-        repository = CanimRepository(malAuth)
+        val swrCoordinator = SwrCoordinator()
+        val searchRepo = SearchRepositoryImpl(swrCoordinator)
+        val discoverRepo = DiscoverRepositoryImpl(swrCoordinator)
+        val detailRepo = DetailRepositoryImpl(malAuth, swrCoordinator)
+        val systemRepo = SystemRepositoryImpl(swrCoordinator)
+        repository = SwrTestRepository(swrCoordinator, searchRepo, discoverRepo, detailRepo, systemRepo)
+
         gachaCreditManager = com.canim.app.data.local.GachaCreditManager.getInstance(app)
     }
 

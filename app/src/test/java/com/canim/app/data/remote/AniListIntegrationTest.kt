@@ -6,8 +6,8 @@ import com.canim.app.data.model.MediaItem
 import com.canim.app.data.model.MediaRef
 import com.canim.app.data.model.MediaRelationItem
 import com.canim.app.data.model.MediaType
-import com.canim.app.data.repository.CanimRepository
-import com.canim.app.data.repository.MalAuthManager
+import com.canim.app.data.repository.SystemRepositoryImpl
+import com.canim.app.data.repository.SwrCoordinator
 import com.canim.app.data.resolver.MediaResolver
 import kotlinx.coroutines.*
 import okhttp3.*
@@ -314,10 +314,7 @@ class AniListIntegrationTest {
             }
         }
 
-        val app = RuntimeEnvironment.getApplication()
-        val storage = MalSecureStorage(app)
-        val malAuthManager = MalAuthManager(storage)
-        val repository = CanimRepository(malAuthManager)
+        val repository = SystemRepositoryImpl(SwrCoordinator())
 
         // Repository should retry and tolerate the 1st transient drop
         val isUnavailable = repository.isAniListUnavailable()

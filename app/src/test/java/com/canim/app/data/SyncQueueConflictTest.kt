@@ -28,7 +28,7 @@ import org.robolectric.annotation.Config
  * - Failed fetch does not change DB state.
  *
  * These tests exercise [PendingMutationDao.getActiveMalIds] and [LibraryDao] upsert/read
- * to simulate what [CanimRepository.safeReconcileAnime] does.
+ * to simulate what [LibraryRepositoryImpl.safeReconcileAnime] does.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)

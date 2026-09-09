@@ -1,7 +1,5 @@
 package com.canim.app.di
 
-import com.canim.app.data.repository.CanimRepository
-import com.canim.app.domain.repository.CanimRepositoryContract
 import com.canim.app.data.repository.LibraryRepositoryImpl
 import com.canim.app.domain.repository.LibraryRepository
 import com.canim.app.data.repository.SearchRepositoryImpl
@@ -26,11 +24,6 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
 
-    @Binds
-    @Singleton
-    abstract fun bindCanimRepository(
-        canimRepository: CanimRepository
-    ): CanimRepositoryContract
 
     @Binds
     @Singleton

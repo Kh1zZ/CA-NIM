@@ -3,9 +3,6 @@ package com.canim.app.ui.viewmodel
 import com.canim.app.data.cache.CacheManager
 import com.canim.app.data.local.MalSecureStorage
 import com.canim.app.data.model.MediaType
-import com.canim.app.data.repository.CanimRepository
-import com.canim.app.domain.repository.CanimRepositoryContract
-import com.canim.app.data.repository.MalAuthManager
 import com.canim.app.ui.viewmodel.library.LibraryEvent
 import org.junit.After
 import org.junit.Assert.*
@@ -20,7 +17,6 @@ import org.robolectric.annotation.Config
 @Config(manifest = Config.NONE)
 class LibraryStateIsolationTest {
 
-    private lateinit var repository: CanimRepositoryContract
     private lateinit var viewModel: CanimViewModel
 
     @Before
@@ -30,11 +26,8 @@ class LibraryStateIsolationTest {
         CacheManager.clearNegativeCache()
 
         val app = RuntimeEnvironment.getApplication()
-        val storage = MalSecureStorage(app)
-        val malAuth = MalAuthManager(storage)
-        repository = CanimRepository(malAuth)
         val gachaCreditManager = com.canim.app.data.local.GachaCreditManager.getInstance(app)
-        viewModel = createTestCanimViewModel(repository, gachaCreditManager)
+        viewModel = createTestCanimViewModel(gachaCreditManager = gachaCreditManager)
     }
 
     @After
