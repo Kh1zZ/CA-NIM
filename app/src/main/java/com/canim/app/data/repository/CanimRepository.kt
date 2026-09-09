@@ -1101,12 +1101,28 @@ class CanimRepository(
     override suspend fun getMalExtendedDetailFallback(malId: Int, type: MediaType): ExtendedMediaDetail? =
         malAuthManager.getExtendedDetailFallback(malId, type)
 
+    override fun getAniListIdForMalId(malId: Int, type: MediaType?): Int? =
+        CacheManager.getAniListIdForMalId(malId, type)
+
+    override fun getMalIdForAniListId(aniListId: Int, type: MediaType?): Int? =
+        CacheManager.getMalIdForAniListId(aniListId, type)
+
+    override fun getCachedDetail(key: String): ExtendedMediaDetail? =
+        CacheManager.getDetail(key)
+
+    override fun matchesDetailKey(eventKey: String, aniId: Int?, malId: Int?): Boolean =
+        (aniId != null && eventKey == CacheManager.detailKey(aniId, malId))
+            || (aniId != null && eventKey == CacheManager.detailKey(aniId, null))
+            || (malId != null && eventKey == CacheManager.detailKey(null, malId))
+            || (aniId != null && eventKey.contains("ani_$aniId"))
+            || (malId != null && eventKey.contains("mal_$malId"))
+
     // --- Extended Details: Primary AniList, Fallback to MAL ---
-    suspend fun getExtendedDetails(
+    override suspend fun getExtendedDetails(
         aniListId: Int?,
         malId: Int?,
         type: MediaType,
-        forceRefresh: Boolean = false
+        forceRefresh: Boolean
     ): ExtendedMediaDetail? = withContext(Dispatchers.IO) {
         val resolvedAniListId = aniListId ?: (malId?.let { CacheManager.getAniListIdForMalId(it, type) })
         val resolvedMalId = malId ?: (resolvedAniListId?.let { CacheManager.getMalIdForAniListId(it, type) })

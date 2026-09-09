@@ -469,6 +469,7 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onOpenStudio = { studioId, studioName -> viewModel.openStudio(studioId, studioName) },
                                         onOpenMediaDetail = { media, mediaType -> viewModel.openDetail(media, mediaType) },
+                                        onResolveAniListId = { malId -> viewModel.getAniListIdForMalId(malId) },
                                         onSaveScrollPosition = { key, index, offset -> viewModel.saveDetailScrollPosition(key, index, offset) },
                                         onGetScrollPosition = { key -> viewModel.getDetailScrollPosition(key) },
                                         onDismiss = { viewModel.popScreen() }

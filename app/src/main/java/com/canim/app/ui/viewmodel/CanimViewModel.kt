@@ -9,7 +9,6 @@ import androidx.lifecycle.viewModelScope
 import com.canim.app.data.model.*
 import com.canim.app.domain.usecase.*
 import com.canim.app.data.repository.CacheRefreshType
-import com.canim.app.data.cache.CacheManager
 import com.canim.app.CanimApplication
 import com.canim.app.data.repository.StudioBioRegistry
 import com.canim.app.ui.navigation.ScreenRoute
@@ -404,10 +403,9 @@ class CanimViewModel @Inject constructor(
                         val genres = searchState.genres
                         val year = searchState.year
                         val format = searchState.format
-                        val filterKey = observeCacheRefreshUseCase.searchFilterKey(trimmed, genres, year, format)
-                        val searchKey = CacheManager.searchKey(filterKey, type)
-                        if (event.key == searchKey || event.key == filterKey) {
-                            val fresh = CacheManager.getSearch(filterKey, type)
+                        val filterKey = searchMediaUseCase.searchFilterKey(trimmed, genres, year, format)
+                        if (searchMediaUseCase.matchesSearchKey(event.key, filterKey, type)) {
+                            val fresh = searchMediaUseCase.getCachedSearch(filterKey, type)
                             if (fresh != null) {
                                 _searchState.update { it.copy(results = fresh) }
                                 _uiState.update { it.copy(searchResults = fresh) }
@@ -417,10 +415,9 @@ class CanimViewModel @Inject constructor(
                     CacheRefreshType.DISCOVER -> {
                         val token = discoverRequestToken
                         val discoverState = _discoverState.value
-                        val categoryKey = observeCacheRefreshUseCase.discoverFilterKey(discoverState.selectedCategory, discoverState.filter, page = 1)
-                        val discoverKey = CacheManager.discoverKey(categoryKey)
-                        if (event.key == discoverKey || event.key == categoryKey) {
-                            val fresh = CacheManager.getDiscover(categoryKey)
+                        val categoryKey = getDiscoverCategoryUseCase.discoverFilterKey(discoverState.selectedCategory, discoverState.filter, page = 1)
+                        if (getDiscoverCategoryUseCase.matchesDiscoverKey(event.key, categoryKey)) {
+                            val fresh = getDiscoverCategoryUseCase.getCachedDiscover(categoryKey)
                             if (fresh != null && token == discoverRequestToken) {
                                 _discoverState.update {
                                     it.copy(
@@ -445,13 +442,9 @@ class CanimViewModel @Inject constructor(
                             val ext = state.extendedDetail
                             val aniId = ext?.anilistId ?: (selected as? MediaItem)?.anilistId ?: (selected as? UserMediaItem)?.anilistId
                             val malId = ext?.malId ?: (selected as? MediaItem)?.malId ?: (selected as? UserMediaItem)?.malId
-                            val matchesDetail = (aniId != null && event.key == CacheManager.detailKey(aniId, malId))
-                                || (aniId != null && event.key == CacheManager.detailKey(aniId, null))
-                                || (malId != null && event.key == CacheManager.detailKey(null, malId))
-                                || (aniId != null && event.key.contains("ani_$aniId"))
-                                || (malId != null && event.key.contains("mal_$malId"))
+                            val matchesDetail = getExtendedDetailUseCase.matchesDetailKey(event.key, aniId, malId)
                             if (matchesDetail) {
-                                val fresh = CacheManager.getDetail(event.key)
+                                val fresh = getExtendedDetailUseCase.getCachedDetail(event.key)
                                 if (fresh != null && token == detailRequestToken) {
                                     selected?.let { cacheDetail(it, fresh) }
                                     _detailState.update {
@@ -1545,6 +1538,9 @@ class CanimViewModel @Inject constructor(
         syncStateWithRoute(_screenStack.value.lastOrNull())
     }
 
+    fun getAniListIdForMalId(malId: Int): Int? =
+        getExtendedDetailUseCase.getAniListIdForMalId(malId)
+
     fun clearScreenStack() {
         _screenStack.value = emptyList()
         syncStateWithRoute(null)
@@ -1640,7 +1636,7 @@ class CanimViewModel @Inject constructor(
                 val token = ++detailRequestToken
                 detailJob = viewModelScope.launch(Dispatchers.IO) {
                     try {
-                        val initialMalId = malId ?: (anilistId?.let { CacheManager.getMalIdForAniListId(it, type) })
+                        val initialMalId = malId ?: (anilistId?.let { getExtendedDetailUseCase.getMalIdForAniListId(it, type) })
                         var effectiveMalId = initialMalId
 
                         // 1. Concurrently launch MAL fetch if MAL ID is known

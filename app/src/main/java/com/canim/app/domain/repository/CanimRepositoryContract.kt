@@ -18,7 +18,7 @@ import com.canim.app.data.model.UserMediaItem
 import com.canim.app.data.repository.CacheRefreshEvent
 import kotlinx.coroutines.flow.SharedFlow
 
-interface CanimRepositoryContract : LibraryRepository, SearchRepository, DiscoverRepository {
+interface CanimRepositoryContract : LibraryRepository, SearchRepository, DiscoverRepository, DetailRepository {
     val cacheRefreshEvents: SharedFlow<CacheRefreshEvent>
 
     fun buildMalAuthorizeUrl(): String
@@ -31,18 +31,6 @@ interface CanimRepositoryContract : LibraryRepository, SearchRepository, Discove
 
     suspend fun syncWithMal(): MalSyncResult
 
-    suspend fun getCharacterProfile(characterId: Int, forceRefresh: Boolean = false): CastCrewProfile?
-
-    suspend fun getStaffProfile(staffId: Int, forceRefresh: Boolean = false): CastCrewProfile?
-
-    fun getCachedExtendedDetail(
-        aniListId: Int?,
-        malId: Int?,
-        type: MediaType? = null
-    ): ExtendedMediaDetail?
-
-    suspend fun getMalExtendedDetailFallback(malId: Int, type: MediaType): ExtendedMediaDetail?
-
     suspend fun isAniListUnavailable(): Boolean
 
     suspend fun isMalUnavailable(): Boolean
@@ -54,8 +42,6 @@ interface CanimRepositoryContract : LibraryRepository, SearchRepository, Discove
     suspend fun clearImageCache(context: Context)
 
     suspend fun clearAllCache(context: Context)
-
-    suspend fun getMalTrackingStatus(malId: Int, type: MediaType): MalTracking?
 
     suspend fun getStudioFilmography(
         studioId: Int?,

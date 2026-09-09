@@ -15,6 +15,9 @@ import com.canim.app.domain.repository.SearchRepository
 import com.canim.app.data.repository.DiscoverRepositoryImpl
 import com.canim.app.domain.repository.DiscoverRepository
 
+import com.canim.app.data.repository.DetailRepositoryImpl
+import com.canim.app.domain.repository.DetailRepository
+
 @Module
 @InstallIn(SingletonComponent::class)
 abstract class RepositoryModule {
@@ -42,4 +45,10 @@ abstract class RepositoryModule {
     abstract fun bindDiscoverRepository(
         discoverRepositoryImpl: DiscoverRepositoryImpl
     ): DiscoverRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindDetailRepository(
+        detailRepositoryImpl: DetailRepositoryImpl
+    ): DetailRepository
 }

@@ -1,11 +1,11 @@
 package com.canim.app.domain.usecase
 
 import com.canim.app.data.model.CastCrewProfile
-import com.canim.app.domain.repository.CanimRepositoryContract
+import com.canim.app.domain.repository.DetailRepository
 import javax.inject.Inject
 
 class GetCastCrewProfileUseCase @Inject constructor(
-    private val repository: CanimRepositoryContract
+    private val repository: DetailRepository
 ) {
     suspend fun getStaffProfile(staffId: Int, forceRefresh: Boolean = false): CastCrewProfile? =
         repository.getStaffProfile(staffId, forceRefresh)

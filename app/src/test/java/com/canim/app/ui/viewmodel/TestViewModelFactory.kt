@@ -39,6 +39,11 @@ open class FakeCanimRepository : CanimRepositoryContract {
     override suspend fun getDiscoverMedia(category: DiscoverCategory, filter: DiscoverFilter, page: Int, forceRefresh: Boolean, randomSort: String?, mediaType: MediaType?): List<MediaItem> = emptyList()
     override fun getCachedExtendedDetail(aniListId: Int?, malId: Int?, type: MediaType?): ExtendedMediaDetail? = null
     override suspend fun getMalExtendedDetailFallback(malId: Int, type: MediaType): ExtendedMediaDetail? = null
+    override suspend fun getExtendedDetails(aniListId: Int?, malId: Int?, type: MediaType, forceRefresh: Boolean): ExtendedMediaDetail? = null
+    override fun getAniListIdForMalId(malId: Int, type: MediaType?): Int? = null
+    override fun getMalIdForAniListId(aniListId: Int, type: MediaType?): Int? = null
+    override fun getCachedDetail(key: String): ExtendedMediaDetail? = null
+    override fun matchesDetailKey(eventKey: String, aniId: Int?, malId: Int?): Boolean = false
     override suspend fun isAniListUnavailable(): Boolean = false
     override suspend fun isMalUnavailable(): Boolean = false
     override suspend fun pruneCache() {}
