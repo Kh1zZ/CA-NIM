@@ -1934,6 +1934,9 @@ class CanimViewModel(
             is ScreenRoute.StudioFilmography -> {
                 loadStudioFilmography(route.studioId, route.studioName, 1)
             }
+            is ScreenRoute.Diagnostics -> {
+                // Diagnostics screen state is handled independently via AppMetrics
+            }
             null -> {
                 detailJob?.cancel()
                 studioJob?.cancel()

@@ -46,6 +46,8 @@ internal class MalRequestInterceptor(
             AppMetrics.recordRateLimit("myanimelist", "http_429")
             val retryAfterMs = parseRetryAfterMs(response.header("Retry-After"))
             policy.armCooldown(retryAfterMs)
+        } else if (response.isSuccessful) {
+            policy.onSuccessBlocking()
         }
 
         return response

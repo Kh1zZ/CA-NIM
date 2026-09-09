@@ -27,45 +27,69 @@ class RequestPolicy(
     internal var maxBackoffMs: Long = 8_000L,
     internal var jitterMs: Long = 300L,
     /** Clock abstraction — override in tests to avoid real wall-clock delays. */
-    internal var clock: () -> Long = { System.currentTimeMillis() }
+    clock: () -> Long = { System.currentTimeMillis() },
+    val limiter: AdaptiveRateLimiter = AdaptiveRateLimiter(
+        host = "general",
+        burstCapacity = 10,
+        refillIntervalMs = 700L,
+        baseCooldownMs = 5_000L,
+        maxCooldownMs = 60_000L,
+        clock = clock
+    )
 ) {
+    internal var clock: () -> Long = clock
+        set(value) {
+            field = value
+            limiter.clock = value
+        }
+
     internal val semaphore = Semaphore(maxConcurrent)
 
-    @Volatile
-    private var cooldownUntilMs: Long = 0L
-
     /** Expose for testing. */
-    fun getCooldownUntilMs(): Long = cooldownUntilMs
+    fun getCooldownUntilMs(): Long = clock() + limiter.remainingCooldownMs()
 
     /**
-     * Arms a cooldown that will block new requests until [retryAfterMs] ms from now
-     * (or until [minCooldownMs] ms if retryAfterMs is 0).
+     * Arms an adaptive cooldown that will block new requests.
+     * Respects [retryAfterMs] if > 0, otherwise uses progressive backoff via [AdaptiveRateLimiter].
      */
-    fun armCooldown(retryAfterMs: Long, minCooldownMs: Long = 60_000L) {
+    fun armCooldown(retryAfterMs: Long, minCooldownMs: Long = 5_000L) {
         val duration = if (retryAfterMs > 0) retryAfterMs else minCooldownMs
-        cooldownUntilMs = clock() + duration
+        limiter.onRateLimitedBlocking(duration)
+    }
+
+    suspend fun armCooldownAsync(retryAfterMs: Long = 0L) {
+        limiter.onRateLimited(retryAfterMs)
+    }
+
+    suspend fun onSuccess() {
+        limiter.onSuccess()
+    }
+
+    fun onSuccessBlocking() {
+        limiter.onSuccessBlocking()
     }
 
     /**
-     * Resets all policy state (cooldown, backoff) for use in unit tests.
+     * Resets all policy state (cooldown, backoff, limiter) for use in unit tests.
      * Call this in @Before / @After to prevent cross-test contamination via shared singletons.
      */
     fun resetForTesting() {
-        cooldownUntilMs = 0L
         baseBackoffMs = 0L
         maxBackoffMs = 0L
         jitterMs = 0L
+        limiter.resetForTestingBlocking()
     }
 
     /** Returns remaining cooldown in ms, or 0 if not in cooldown. */
-    fun remainingCooldownMs(): Long = maxOf(0L, cooldownUntilMs - clock())
+    fun remainingCooldownMs(): Long = limiter.remainingCooldownMs()
 
     /**
      * Executes [block] under this policy:
      *
      * 1. If in 429 cooldown, immediately returns [onCooldown] result (non-blocking).
-     * 2. Acquires the concurrency semaphore.
-     * 3. Executes [block], applying retry logic if [retryable] is true.
+     * 2. Acquires rate limit permit via [AdaptiveRateLimiter.acquire] (non-blocking smoothing).
+     * 3. Acquires the concurrency semaphore.
+     * 4. Executes [block], applying retry logic if [retryable] is true.
      *
      * [block] must return a [PolicyResult] so the policy can inspect HTTP status codes.
      *
@@ -85,6 +109,10 @@ class RequestPolicy(
         while (true) {
             if (remainingCooldownMs() > 0L) return onCooldown()
 
+            // Smooth burst traffic through adaptive rate limiter
+            limiter.acquire()
+            if (remainingCooldownMs() > 0L) return onCooldown()
+
             val result = try {
                 semaphore.withPermit {
                     if (remainingCooldownMs() > 0L) return@withPermit null
@@ -99,10 +127,13 @@ class RequestPolicy(
             lastResult = result
 
             when (result) {
-                is PolicyResult.Success -> return result.value
+                is PolicyResult.Success -> {
+                    limiter.onSuccess()
+                    return result.value
+                }
 
                 is PolicyResult.RateLimited -> {
-                    armCooldown(result.retryAfterMs)
+                    limiter.onRateLimited(result.retryAfterMs)
                     return onCooldown()
                 }
 
@@ -119,7 +150,10 @@ class RequestPolicy(
                 }
 
                 is PolicyResult.Failure -> break
-                is PolicyResult.NonRetryable -> break
+                is PolicyResult.NonRetryable -> {
+                    limiter.onSuccess()
+                    break
+                }
             }
         }
 

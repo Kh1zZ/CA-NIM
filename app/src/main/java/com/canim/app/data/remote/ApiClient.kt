@@ -13,17 +13,39 @@ import java.util.concurrent.TimeUnit
 
 object ApiClient {
 
+    val aniListLimiter: AdaptiveRateLimiter = AdaptiveRateLimiter(
+        host = "anilist",
+        burstCapacity = 10,
+        refillIntervalMs = 700L,
+        baseCooldownMs = 5_000L,
+        maxCooldownMs = 60_000L
+    )
+
     /**
      * Per-host request policy for AniList (GraphQL).
      * Max 4 concurrent requests; applied inside [AniListApolloClient] via [RequestPolicy.withPolicy].
      */
-    val aniListPolicy: RequestPolicy = RequestPolicy(maxConcurrent = 4)
+    val aniListPolicy: RequestPolicy = RequestPolicy(
+        maxConcurrent = 4,
+        limiter = aniListLimiter
+    )
+
+    val malLimiter: AdaptiveRateLimiter = AdaptiveRateLimiter(
+        host = "myanimelist",
+        burstCapacity = 5,
+        refillIntervalMs = 1_000L,
+        baseCooldownMs = 5_000L,
+        maxCooldownMs = 60_000L
+    )
 
     /**
      * Per-host request policy for MAL REST API.
      * Max 3 concurrent requests; applied via [MalRequestInterceptor] in [malOkHttpClient].
      */
-    val malPolicy: RequestPolicy = RequestPolicy(maxConcurrent = 3)
+    val malPolicy: RequestPolicy = RequestPolicy(
+        maxConcurrent = 3,
+        limiter = malLimiter
+    )
 
     val okHttpClient: OkHttpClient by lazy {
         val logging = HttpLoggingInterceptor().apply {

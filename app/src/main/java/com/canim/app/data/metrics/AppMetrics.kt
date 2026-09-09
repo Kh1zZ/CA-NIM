@@ -37,7 +37,10 @@ data class MetricsSnapshot(
     val latencyByOperation: Map<String, LatencyStats>,
     val cacheHitsByType: Map<String, Long> = emptyMap(),
     val cacheMissesByType: Map<String, Long> = emptyMap(),
-    val deduplicationsByHost: Map<String, Long> = emptyMap()
+    val deduplicationsByHost: Map<String, Long> = emptyMap(),
+    val throttledRequestsByHost: Map<String, Long> = emptyMap(),
+    val cooldownEventsByHost: Map<String, Long> = emptyMap(),
+    val cooldownDurationMsByHost: Map<String, Long> = emptyMap()
 ) {
     val aniListRequests: Long get() = requestsByHost["anilist"] ?: 0L
     val malRequests: Long get() = requestsByHost["myanimelist"] ?: 0L
@@ -47,6 +50,9 @@ data class MetricsSnapshot(
     val totalRateLimits: Long get() = rateLimitsByHost.values.sum()
     val totalTimeouts: Long get() = timeoutsByHost.values.sum()
     val totalRetries: Long get() = retriesByHost.values.sum()
+    val totalThrottled: Long get() = throttledRequestsByHost.values.sum()
+    val totalCooldownEvents: Long get() = cooldownEventsByHost.values.sum()
+    val totalCooldownDurationMs: Long get() = cooldownDurationMsByHost.values.sum()
 
     val aniListAvgLatencyMs: Double? get() = latencyByHost["anilist"]?.takeIf { it.count > 0 }?.avgMs
     val malAvgLatencyMs: Double? get() = latencyByHost["myanimelist"]?.takeIf { it.count > 0 }?.avgMs
@@ -259,6 +265,21 @@ object AppMetrics {
         http5xxByStatusCode.computeIfAbsent(statusCode) { AtomicLong(0) }.incrementAndGet()
     }
 
+    private val throttledRequestsByHost = ConcurrentHashMap<String, AtomicLong>()
+    private val cooldownEventsByHost = ConcurrentHashMap<String, AtomicLong>()
+    private val cooldownDurationMsByHost = ConcurrentHashMap<String, AtomicLong>()
+
+    fun recordLimiterThrottled(host: String) {
+        val safeHost = sanitizeLabel(host)
+        throttledRequestsByHost.computeIfAbsent(safeHost) { AtomicLong(0) }.incrementAndGet()
+    }
+
+    fun recordCooldownEvent(host: String, durationMs: Long) {
+        val safeHost = sanitizeLabel(host)
+        cooldownEventsByHost.computeIfAbsent(safeHost) { AtomicLong(0) }.incrementAndGet()
+        cooldownDurationMsByHost.computeIfAbsent(safeHost) { AtomicLong(0) }.addAndGet(maxOf(0L, durationMs))
+    }
+
     /**
      * Obtains an immutable snapshot of current metrics.
      */
@@ -284,7 +305,10 @@ object AppMetrics {
             latencyByOperation = latencyByOperation.mapValues { it.value.toStats() },
             cacheHitsByType = cacheHitsByType.mapValues { it.value.get() },
             cacheMissesByType = cacheMissesByType.mapValues { it.value.get() },
-            deduplicationsByHost = deduplicationsByHost.mapValues { it.value.get() }
+            deduplicationsByHost = deduplicationsByHost.mapValues { it.value.get() },
+            throttledRequestsByHost = throttledRequestsByHost.mapValues { it.value.get() },
+            cooldownEventsByHost = cooldownEventsByHost.mapValues { it.value.get() },
+            cooldownDurationMsByHost = cooldownDurationMsByHost.mapValues { it.value.get() }
         )
     }
 
@@ -316,6 +340,9 @@ object AppMetrics {
         http5xxByHost.clear()
         http5xxByOperation.clear()
         http5xxByStatusCode.clear()
+        throttledRequestsByHost.clear()
+        cooldownEventsByHost.clear()
+        cooldownDurationMsByHost.clear()
         latencyByHost.clear()
         latencyByOperation.clear()
     }

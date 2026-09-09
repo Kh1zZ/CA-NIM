@@ -349,7 +349,8 @@ class MainActivity : ComponentActivity() {
                                         onSetAutoUpdateCheck = { viewModel.setAutoUpdateCheck(it) },
                                         onDismissUpdateDialog = { viewModel.dismissUpdateDialog() },
                                         onStartDownloadUpdate = { viewModel.startDownloadUpdate(context) },
-                                        onInstallDownloadedUpdate = { viewModel.installDownloadedUpdate(context) }
+                                        onInstallDownloadedUpdate = { viewModel.installDownloadedUpdate(context) },
+                                        onOpenObservability = { viewModel.pushScreen(ScreenRoute.Diagnostics) }
                                     )
                                 }
                             }
@@ -548,6 +549,11 @@ class MainActivity : ComponentActivity() {
                                             onResetFilters = { viewModel.resetSearchFilters() }
                                         )
                                     }
+                                }
+                                is ScreenRoute.Diagnostics -> {
+                                    DiagnosticsScreen(
+                                        onBack = { viewModel.popScreen() }
+                                    )
                                 }
                                 null -> {
                                     Spacer(modifier = Modifier.fillMaxSize())

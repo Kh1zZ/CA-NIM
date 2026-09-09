@@ -128,6 +128,10 @@ object AniListApolloClient {
             while (true) {
                 if (policy.remainingCooldownMs() > 0L) return onCooldown()
 
+                // Smooth burst traffic through adaptive rate limiter
+                policy.limiter.acquire()
+                if (policy.remainingCooldownMs() > 0L) return onCooldown()
+
                 val isFinalAttempt = !retryable || attempt >= 2
                 val result = try {
                     policy.semaphore.withPermit {
@@ -144,8 +148,17 @@ object AniListApolloClient {
 
                 when {
                     result is AniListResult.RateLimited -> {
-                        policy.armCooldown((result.retryAfterSeconds ?: 60L) * 1000L)
+                        val retryMs = (result.retryAfterSeconds ?: 0L) * 1000L
+                        policy.armCooldown(retryMs)
                         AppMetrics.recordRateLimit("anilist", operationName)
+                        return result
+                    }
+                    result is AniListResult.Success -> {
+                        policy.onSuccess()
+                        return result
+                    }
+                    result is AniListResult.NotFound -> {
+                        policy.onSuccess()
                         return result
                     }
                     (result is AniListResult.Timeout || (result is AniListResult.HttpError && result.code in 500..599))
@@ -197,6 +210,8 @@ object AniListApolloClient {
      */
     suspend fun pingHealth(): Boolean = when (val res = executeHealthPing()) {
         is AniListResult.Success -> res.data
+        // Normal rate control / throttling handled internally; server is alive and reachable
+        is AniListResult.RateLimited -> true
         else -> false
     }
 

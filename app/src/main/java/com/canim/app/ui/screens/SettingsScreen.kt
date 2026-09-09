@@ -53,6 +53,7 @@ fun SettingsScreen(
     onDismissUpdateDialog: () -> Unit = {},
     onStartDownloadUpdate: () -> Unit = {},
     onInstallDownloadedUpdate: () -> Unit = {},
+    onOpenObservability: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -464,10 +465,8 @@ fun SettingsScreen(
             }
         }
 
-        // Observabilitas & Diagnostik Sistem (In-memory, Zero PII)
-        // Observabilitas & Diagnostik Sistem (In-memory, Zero PII)
+        // Observabilitas & Diagnostik Sistem (Compact Overview Card)
         item {
-            var showDetails by remember { mutableStateOf(false) }
             var snapshot by remember { mutableStateOf(AppMetrics.getSnapshot()) }
 
             Card(
@@ -496,29 +495,26 @@ fun SettingsScreen(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "Metrik performa, cache, & reliabilitas API (Zero PII)",
+                                text = "Ringkasan metrik API, rate limiter & cache",
                                 color = TextMuted,
                                 fontSize = 11.sp
                             )
                         }
                     }
 
-                    Divider(color = CardBorder)
+                    HorizontalDivider(color = CardBorder)
 
-                    // 1. API Usage
-                    Text(text = "API Usage", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    // 1. API Requests Overview: Total, AniList, MAL
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        DiagnosticKpiItem(label = "Total", value = "${snapshot.totalRequests}", modifier = Modifier.weight(1f))
+                        DiagnosticKpiItem(label = "Total API", value = "${snapshot.totalRequests}", modifier = Modifier.weight(1f))
                         DiagnosticKpiItem(label = "AniList", value = "${snapshot.aniListRequests}", modifier = Modifier.weight(1f))
                         DiagnosticKpiItem(label = "MAL", value = "${snapshot.malRequests}", modifier = Modifier.weight(1f))
-                        DiagnosticKpiItem(label = "GitHub", value = "${snapshot.gitHubRequests}", modifier = Modifier.weight(1f))
                     }
 
-                    // 2. Health
-                    Text(text = "Health", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    // 2. Health & Cache Overview: Errors, 429, Timeouts, Cache Hit Rate
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -541,169 +537,54 @@ fun SettingsScreen(
                             valueColor = if (snapshot.totalTimeouts > 0) StatusOnHoldColor else TextPrimary,
                             modifier = Modifier.weight(1f)
                         )
+                        val totalCache = snapshot.cacheHits + snapshot.cacheMisses
+                        val hitRatePct = if (totalCache > 0) String.format("%.1f%%", snapshot.cacheHitRate * 100) else "0.0%"
                         DiagnosticKpiItem(
-                            label = "Retries",
-                            value = "${snapshot.totalRetries}",
-                            valueColor = if (snapshot.totalRetries > 0) StatusOnHoldColor else TextPrimary,
+                            label = "Hit Rate",
+                            value = hitRatePct,
+                            valueColor = AccentBlue,
                             modifier = Modifier.weight(1f)
                         )
                     }
 
-                    // 3. Cache & Latency
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    HorizontalDivider(color = CardBorder)
+
+                    // Dedicated Screen Entry Button: Buka Observabilitas
+                    Button(
+                        onClick = onOpenObservability,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("btn_buka_observabilitas"),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentBlue)
                     ) {
-                        // Cache
-                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(text = "Cache", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                val hitRatePct = if (snapshot.cacheHits + snapshot.cacheMisses > 0) {
-                                    String.format("%.1f%%", snapshot.cacheHitRate * 100)
-                                } else "0.0%"
-                                DiagnosticKpiItem(label = "Hit Rate", value = hitRatePct, valueColor = AccentBlue, modifier = Modifier.weight(1f))
-                                DiagnosticKpiItem(label = "Hits / Misses", value = "${snapshot.cacheHits}/${snapshot.cacheMisses}", modifier = Modifier.weight(1f))
-                            }
-                        }
-                        // Latency
-                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(text = "Latency", color = TextPrimary, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                val aniAvg = snapshot.aniListAvgLatencyMs?.let { "${String.format("%.0f", it)} ms" } ?: "-"
-                                val malAvg = snapshot.malAvgLatencyMs?.let { "${String.format("%.0f", it)} ms" } ?: "-"
-                                DiagnosticKpiItem(label = "AniList Rata²", value = aniAvg, modifier = Modifier.weight(1f))
-                                DiagnosticKpiItem(label = "MAL Rata²", value = malAvg, modifier = Modifier.weight(1f))
-                            }
-                        }
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Buka Observabilitas",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
 
-                    // Expandable "Lihat Detail" toggle
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        TextButton(
-                            onClick = {
-                                snapshot = AppMetrics.getSnapshot()
-                                showDetails = !showDetails
-                            }
-                        ) {
-                            Text(
-                                text = if (showDetails) "Tutup Detail ▲" else "Lihat Detail ▼",
-                                color = AccentBlue,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-
-                    // Expandable details container
-                    if (showDetails) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .background(CardElevated, RoundedCornerShape(8.dp))
-                                .padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            // Requests by Host
-                            Text(text = "Permintaan per Host", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            if (snapshot.requestsByHost.isNotEmpty()) {
-                                snapshot.requestsByHost.forEach { (host, count) ->
-                                    DiagnosticDetailRow(label = host, value = "$count req")
-                                }
-                            } else {
-                                Text(text = "Belum ada permintaan", color = TextMuted, fontSize = 10.sp)
-                            }
-
-                            Divider(color = CardBorderSubtle)
-
-                            // Requests by Operation
-                            Text(text = "Permintaan per Operasi", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            if (snapshot.requestsByOperation.isNotEmpty()) {
-                                snapshot.requestsByOperation.forEach { (op, count) ->
-                                    DiagnosticDetailRow(label = op, value = "$count")
-                                }
-                            } else {
-                                Text(text = "Belum ada operasi", color = TextMuted, fontSize = 10.sp)
-                            }
-
-                            Divider(color = CardBorderSubtle)
-
-                            // Cache Statistics
-                            Text(text = "Statistik Cache", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            DiagnosticDetailRow(label = "Total Hits", value = "${snapshot.cacheHits}")
-                            DiagnosticDetailRow(label = "Total Misses", value = "${snapshot.cacheMisses}")
-                            if (snapshot.cacheHitsByType.isNotEmpty()) {
-                                snapshot.cacheHitsByType.forEach { (type, hits) ->
-                                    val misses = snapshot.cacheMissesByType[type] ?: 0L
-                                    DiagnosticDetailRow(label = "Tipe: $type", value = "Hits: $hits, Misses: $misses")
-                                }
-                            }
-
-                            Divider(color = CardBorderSubtle)
-
-                            // In-flight Deduplication
-                            Text(text = "Deduplikasi In-Flight", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            DiagnosticDetailRow(label = "Total Duplikasi Dihemat", value = "${snapshot.deduplicationCount}")
-                            if (snapshot.deduplicationsByHost.isNotEmpty()) {
-                                snapshot.deduplicationsByHost.forEach { (host, count) ->
-                                    DiagnosticDetailRow(label = "Host: $host", value = "$count")
-                                }
-                            }
-
-                            Divider(color = CardBorderSubtle)
-
-                            // Errors & Retries breakdown
-                            Text(text = "Rincian Error & Retry", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            if (snapshot.totalErrors == 0L && snapshot.totalRateLimits == 0L && snapshot.totalTimeouts == 0L && snapshot.totalRetries == 0L) {
-                                Text(text = "Kondisi sehat — tidak ada error atau retry.", color = TextMuted, fontSize = 10.sp)
-                            } else {
-                                snapshot.http5xxByHost.forEach { (host, count) ->
-                                    DiagnosticDetailRow(label = "Server 5xx ($host)", value = "$count", valueColor = StatusDroppedColor)
-                                }
-                                snapshot.rateLimitsByHost.forEach { (host, count) ->
-                                    DiagnosticDetailRow(label = "Rate Limit 429 ($host)", value = "$count", valueColor = StatusOnHoldColor)
-                                }
-                                snapshot.timeoutsByHost.forEach { (host, count) ->
-                                    DiagnosticDetailRow(label = "Timeout ($host)", value = "$count", valueColor = StatusOnHoldColor)
-                                }
-                                snapshot.retriesByHost.forEach { (host, count) ->
-                                    DiagnosticDetailRow(label = "Retry ($host)", value = "$count", valueColor = StatusOnHoldColor)
-                                }
-                            }
-
-                            Divider(color = CardBorderSubtle)
-
-                            // Latency Min / Avg / Max
-                            Text(text = "Rincian Latensi (Min / Rata² / Maks)", color = TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            if (snapshot.latencyByHost.isNotEmpty()) {
-                                snapshot.latencyByHost.forEach { (host, stats) ->
-                                    DiagnosticDetailRow(
-                                        label = host,
-                                        value = "min: ${stats.minMs}ms | avg: ${String.format("%.0f", stats.avgMs)}ms | max: ${stats.maxMs}ms (n=${stats.count})"
-                                    )
-                                }
-                            } else {
-                                Text(text = "Belum ada pengukuran latensi", color = TextMuted, fontSize = 10.sp)
-                            }
-                        }
-                    }
-
-                    // Action buttons (Segarkan & Reset)
+                    // Action buttons (Segarkan & Reset Metrik)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         OutlinedButton(
-                            onClick = {
-                                snapshot = AppMetrics.getSnapshot()
-                            },
+                            onClick = { snapshot = AppMetrics.getSnapshot() },
                             shape = RoundedCornerShape(8.dp),
                             border = BorderStroke(1.dp, CardBorder),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("Segarkan", color = TextSecondary, fontSize = 11.sp)
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(14.dp), tint = TextSecondary)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Segarkan", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                         }
                         OutlinedButton(
                             onClick = {
@@ -714,7 +595,9 @@ fun SettingsScreen(
                             border = BorderStroke(1.dp, CardBorder),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("Reset Metrik", color = StatusDroppedColor, fontSize = 11.sp)
+                            Icon(Icons.Default.DeleteOutline, contentDescription = null, modifier = Modifier.size(14.dp), tint = StatusDroppedColor)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Reset Metrik", color = StatusDroppedColor, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }

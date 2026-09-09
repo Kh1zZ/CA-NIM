@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.2.0a%20(Build%2035)-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.2.0b%20(Build%2036)-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#tech-stack--dependensi"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#uiux-architecture--fluid-continuity"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
@@ -217,6 +217,20 @@ Verifikasi lokal diwajibkan menjalankan suite pengujian unit otomatis sebelum me
 ---
 
 ## 📝 10. Catatan Perubahan
+ 
+### v6.2.0b (Build 36)
+- **Adaptive API Rate Limiter**:
+  - *Token Bucket Ringan & Non-Blocking*: Membatasi lonjakan (*burst*) permintaan secara halus menggunakan `delay()` coroutine tanpa memblokir thread UI atau coroutine caller.
+  - *Batas Terpisah AniList & MAL*: Kuota dan antrean permintaan AniList GraphQL dan MyAnimeList REST dikelola secara independen.
+  - *Penanganan Dinamis HTTP 429 & Retry-After*: Menghormati header `Retry-After` dari respons server. Apabila terjadi 429 berulang, durasi cooldown ditingkatkan secara eksponensial dan pulih secara bertahap setelah 5 permintaan sukses berturut-turut.
+  - *Tanpa Kunci Kaku*: Mengeliminasi cooldown kaku 40s/60s yang sebelumnya mengunci seluruh aplikasi saat terjadi pembatasan frekuensi sementara.
+- **Kebijakan Notifikasi Kesalahan AniList yang Disempurnakan**:
+  - *Senyap pada Pembatasan Frekuensi*: Mekanisme throttling lokal, antrean burst, retry internal, dan respons 429 ber-cooldown tidak lagi memicu banner peringatan/outage di UI aplikasi.
+  - *Notifikasi Hanya untuk Kegagalan Nyata*: Indikator kendala layanan hanya ditampilkan apabila endpoint benar-benar tidak dapat dijangkau setelah seluruh percobaan ulang habis, terkena HTTP 403 permanen, atau mengalami kegagalan fatal server.
+- **UI Diagnostik Ringkas & Layar Observabilitas Penuh**:
+  - Kartu diagnostik di layar Pengaturan diringkas menjadi 7 indikator inti (Total API, AniList, MAL, Errors, 429, Timeout, Hit Rate) dengan tombol aksi **Buka Observabilitas**.
+  - Menyediakan layar `DiagnosticsScreen` tersendiri dengan metrik terperinci: status limit kuota, durasi & kejadian cooldown, efisiensi deduplikasi in-flight, dan latensi per host.
+- **Integritas Pengujian Unit**: Seluruh pengujian unit lulus 100%.
 
 ### v6.2.0a (Build 35)
 - **Pengurangan Permintaan API (Request Reduction)**:

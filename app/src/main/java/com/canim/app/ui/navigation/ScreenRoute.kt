@@ -17,4 +17,5 @@ sealed class ScreenRoute {
     object AddTitleSheet : ScreenRoute()
     data class StudioFilmography(val studioId: Int, val studioName: String) : ScreenRoute()
     object Flashcard : ScreenRoute()
+    object Diagnostics : ScreenRoute()
 }
