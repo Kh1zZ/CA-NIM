@@ -21,7 +21,6 @@ import com.canim.app.data.model.DiscoverCategory
 import com.canim.app.data.model.DiscoverFilter
 import com.canim.app.data.model.StudioBioInfo
 import com.canim.app.data.model.StudioFilmographySort
-import com.canim.app.data.repository.StudioBioRegistry
 import com.canim.app.data.cache.StudioFilmographyPage
 import com.canim.app.data.remote.anilist.graphql.GetCharacterProfileQuery
 import com.canim.app.data.remote.anilist.graphql.GetDiscoverMediaQuery
@@ -806,16 +805,13 @@ object AniListApolloClient {
                                 ?: img.extraLarge?.takeIf { it.isNotBlank() }
                         }
 
-                    val info = StudioBioRegistry.getStudioInfo(sId, sName).let { base ->
-                        base.copy(
-                            studioId = sId,
-                            name = sName,
-                            coverUrl = base.coverUrl ?: topCover,
-                            favourites = base.favourites ?: favs,
-                            officialSite = base.officialSite ?: siteUrl
-                        )
-                    }
-                    StudioBioRegistry.saveToPersistentCache(info)
+                    val info = StudioBioInfo(
+                        studioId = sId,
+                        name = sName,
+                        coverUrl = topCover,
+                        favourites = favs,
+                        officialSite = siteUrl
+                    )
                     results.add(info)
                 }
                 results

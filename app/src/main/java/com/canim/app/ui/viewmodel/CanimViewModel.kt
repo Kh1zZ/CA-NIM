@@ -10,7 +10,6 @@ import com.canim.app.data.model.*
 import com.canim.app.domain.usecase.*
 import com.canim.app.data.repository.CacheRefreshType
 import com.canim.app.CanimApplication
-import com.canim.app.data.repository.StudioBioRegistry
 import com.canim.app.ui.navigation.ScreenRoute
 import com.canim.app.BuildConfig
 import com.canim.app.data.remote.UpdateInfo
@@ -1541,6 +1540,9 @@ class CanimViewModel @Inject constructor(
     fun getAniListIdForMalId(malId: Int): Int? =
         getExtendedDetailUseCase.getAniListIdForMalId(malId)
 
+    fun getStudioInfo(studioId: Int, studioName: String): StudioBioInfo =
+        searchStudiosUseCase.getStudioInfo(studioId, studioName)
+
     fun clearScreenStack() {
         _screenStack.value = emptyList()
         syncStateWithRoute(null)
@@ -2038,7 +2040,7 @@ class CanimViewModel @Inject constructor(
     fun onStudioEvent(event: StudioEvent) {
         when (event) {
             is StudioEvent.OpenStudio -> {
-                val bio = try { StudioBioRegistry.getStudioInfo(event.studioId, event.studioName) } catch (_: Exception) { null }
+                val bio = try { searchStudiosUseCase.getStudioInfo(event.studioId, event.studioName) } catch (_: Exception) { null }
                 _studioState.update {
                     it.copy(
                         studioId = event.studioId,
@@ -2105,7 +2107,7 @@ class CanimViewModel @Inject constructor(
                     studioJob?.cancel()
                     val bio = _studioState.value.bio
                         ?: _uiState.value.studioFilmographyBio
-                        ?: try { StudioBioRegistry.getStudioInfo(studioId, studioName) } catch (_: Exception) { null }
+                        ?: try { searchStudiosUseCase.getStudioInfo(studioId, studioName) } catch (_: Exception) { null }
                     _studioState.update {
                         it.copy(
                             studioId = studioId,
@@ -2206,7 +2208,7 @@ class CanimViewModel @Inject constructor(
                 }
 
                 val localMatches = try {
-                    StudioBioRegistry.searchCuratedStudios(trimmed)
+                    searchStudiosUseCase.searchCuratedStudios(trimmed)
                 } catch (_: Exception) {
                     emptyList()
                 }

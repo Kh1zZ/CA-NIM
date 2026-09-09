@@ -38,7 +38,6 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import com.canim.app.data.model.*
-import com.canim.app.data.repository.StudioBioRegistry
 import androidx.compose.ui.graphics.Brush
 import com.canim.app.ui.theme.*
 import com.canim.app.ui.viewmodel.CanimUiState
@@ -60,6 +59,7 @@ fun DiscoverScreen(
     onSaveManga: (UserMediaItem) -> Unit = {},
     onOpenStudio: ((studioId: Int, studioName: String) -> Unit)? = null,
     onSearchStudio: ((String) -> Unit)? = null,
+    onGetStudioInfo: ((studioId: Int, studioName: String) -> StudioBioInfo)? = null,
     modifier: Modifier = Modifier
 ) {
     var selectedItemForAdd by remember { mutableStateOf<MediaItem?>(null) }
@@ -647,7 +647,7 @@ fun DiscoverScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(popularStudios, key = { it.first }, contentType = { "popular_studio" }) { (sId, sName) ->
-                            val studioInfo = remember(sId, sName) { StudioBioRegistry.getStudioInfo(sId, sName) }
+                            val studioInfo = remember(sId, sName) { onGetStudioInfo?.invoke(sId, sName) ?: StudioBioInfo(studioId = sId, name = sName) }
                             Card(
                                 onClick = {
                                     showStudioPickerSheet = false

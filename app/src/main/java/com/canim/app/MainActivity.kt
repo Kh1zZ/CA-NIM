@@ -313,7 +313,8 @@ class MainActivity : ComponentActivity() {
                                         onSaveAnime = { viewModel.saveAnime(it) },
                                         onSaveManga = { viewModel.saveManga(it) },
                                         onOpenStudio = { studioId, studioName -> viewModel.openStudio(studioId, studioName) },
-                                        onSearchStudio = { viewModel.searchStudios(it) }
+                                        onSearchStudio = { viewModel.searchStudios(it) },
+                                        onGetStudioInfo = { studioId, studioName -> viewModel.getStudioInfo(studioId, studioName) }
                                     )
                                 }
                                 "settings" -> {

@@ -2,21 +2,21 @@ package com.canim.app.di
 
 import com.canim.app.data.repository.CanimRepository
 import com.canim.app.domain.repository.CanimRepositoryContract
-import dagger.Binds
-import dagger.Module
-import dagger.hilt.InstallIn
-import dagger.hilt.components.SingletonComponent
-import javax.inject.Singleton
-
 import com.canim.app.data.repository.LibraryRepositoryImpl
 import com.canim.app.domain.repository.LibraryRepository
 import com.canim.app.data.repository.SearchRepositoryImpl
 import com.canim.app.domain.repository.SearchRepository
 import com.canim.app.data.repository.DiscoverRepositoryImpl
 import com.canim.app.domain.repository.DiscoverRepository
-
 import com.canim.app.data.repository.DetailRepositoryImpl
 import com.canim.app.domain.repository.DetailRepository
+import com.canim.app.data.repository.StudioRepositoryImpl
+import com.canim.app.domain.repository.StudioRepository
+import dagger.Binds
+import dagger.Module
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -51,4 +51,10 @@ abstract class RepositoryModule {
     abstract fun bindDetailRepository(
         detailRepositoryImpl: DetailRepositoryImpl
     ): DetailRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindStudioRepository(
+        studioRepositoryImpl: StudioRepositoryImpl
+    ): StudioRepository
 }

@@ -2,11 +2,11 @@ package com.canim.app.domain.usecase
 
 import com.canim.app.data.cache.StudioFilmographyPage
 import com.canim.app.data.model.StudioFilmographySort
-import com.canim.app.domain.repository.CanimRepositoryContract
+import com.canim.app.domain.repository.StudioRepository
 import javax.inject.Inject
 
 class GetStudioFilmographyUseCase @Inject constructor(
-    private val repository: CanimRepositoryContract
+    private val repository: StudioRepository
 ) {
     suspend operator fun invoke(
         studioId: Int?,

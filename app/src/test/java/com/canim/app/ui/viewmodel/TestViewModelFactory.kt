@@ -55,6 +55,8 @@ open class FakeCanimRepository : CanimRepositoryContract {
     override suspend fun getMalTrackingStatus(malId: Int, type: MediaType): MalTracking? = null
     override suspend fun getStudioFilmography(studioId: Int?, search: String?, page: Int, forceRefresh: Boolean, sort: StudioFilmographySort, isMain: Boolean): StudioFilmographyPage? = null
     override suspend fun searchStudios(query: String, page: Int, perPage: Int): List<StudioBioInfo> = emptyList()
+    override fun getStudioInfo(studioId: Int, studioName: String): StudioBioInfo = StudioBioInfo(studioId = studioId, name = studioName)
+    override fun searchCuratedStudios(query: String): List<StudioBioInfo> = emptyList()
 }
 
 fun createTestCanimViewModel(

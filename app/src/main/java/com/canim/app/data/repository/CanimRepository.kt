@@ -1427,6 +1427,12 @@ class CanimRepository(
         return AniListClient.searchStudios(query, page, perPage)
     }
 
+    override fun getStudioInfo(studioId: Int, studioName: String): StudioBioInfo =
+        StudioBioRegistry.getStudioInfo(studioId, studioName)
+
+    override fun searchCuratedStudios(query: String): List<StudioBioInfo> =
+        StudioBioRegistry.searchCuratedStudios(query)
+
     // ── Phase 4 local DB helper functions ─────────────────────────────────────
 
     /**

@@ -18,7 +18,7 @@ import com.canim.app.data.model.UserMediaItem
 import com.canim.app.data.repository.CacheRefreshEvent
 import kotlinx.coroutines.flow.SharedFlow
 
-interface CanimRepositoryContract : LibraryRepository, SearchRepository, DiscoverRepository, DetailRepository {
+interface CanimRepositoryContract : LibraryRepository, SearchRepository, DiscoverRepository, DetailRepository, StudioRepository {
     val cacheRefreshEvents: SharedFlow<CacheRefreshEvent>
 
     fun buildMalAuthorizeUrl(): String
@@ -42,15 +42,4 @@ interface CanimRepositoryContract : LibraryRepository, SearchRepository, Discove
     suspend fun clearImageCache(context: Context)
 
     suspend fun clearAllCache(context: Context)
-
-    suspend fun getStudioFilmography(
-        studioId: Int?,
-        search: String? = null,
-        page: Int = 1,
-        forceRefresh: Boolean = false,
-        sort: StudioFilmographySort = StudioFilmographySort.YEAR_DESC,
-        isMain: Boolean = true
-    ): StudioFilmographyPage?
-
-    suspend fun searchStudios(query: String, page: Int = 1, perPage: Int = 20): List<StudioBioInfo>
 }
