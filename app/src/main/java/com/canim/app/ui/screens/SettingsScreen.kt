@@ -36,9 +36,12 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.ui.text.font.FontFamily
 import com.canim.app.data.metrics.AppMetrics
 
+import com.canim.app.ui.viewmodel.update.UpdateUiState
+
 @Composable
 fun SettingsScreen(
     state: CanimUiState,
+    updateState: UpdateUiState? = null,
     onLoginMal: () -> Unit,
     onSyncMal: () -> Unit,
     onLogoutMal: () -> Unit,
@@ -57,6 +60,12 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val isCheckingUpdate = updateState?.isChecking ?: state.isCheckingUpdate
+    val isAutoUpdateCheckEnabled = updateState?.isAutoCheckEnabled ?: state.isAutoUpdateCheckEnabled
+    val updateInfo = updateState?.updateInfo ?: state.updateInfo
+    val isDownloadingUpdate = updateState?.isDownloading ?: state.isDownloadingUpdate
+    val updateDownloadProgress = updateState?.downloadProgress ?: state.updateDownloadProgress
+    val downloadedApkFile = updateState?.downloadedApkFile ?: state.downloadedApkFile
 
     LazyColumn(
         modifier = modifier
@@ -398,7 +407,7 @@ fun SettingsScreen(
 
                         Button(
                             onClick = onCheckForUpdates,
-                            enabled = !state.isCheckingUpdate,
+                            enabled = !isCheckingUpdate,
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = AccentBlue,
                                 contentColor = Color.White,
@@ -408,7 +417,7 @@ fun SettingsScreen(
                             shape = RoundedCornerShape(8.dp),
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                         ) {
-                            if (state.isCheckingUpdate) {
+                            if (isCheckingUpdate) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(14.dp),
                                     strokeWidth = 2.dp,
@@ -451,7 +460,7 @@ fun SettingsScreen(
                         }
 
                         Switch(
-                            checked = state.isAutoUpdateCheckEnabled,
+                            checked = isAutoUpdateCheckEnabled,
                             onCheckedChange = onSetAutoUpdateCheck,
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = Color.White,
@@ -715,7 +724,7 @@ fun SettingsScreen(
 
 
     // Dialog Pembaruan Tersedia
-    if (state.updateInfo != null && state.updateInfo.isUpdateAvailable) {
+    if (updateInfo != null && updateInfo.isUpdateAvailable) {
         AlertDialog(
             onDismissRequest = onDismissUpdateDialog,
             containerColor = CardElevated,
@@ -740,37 +749,37 @@ fun SettingsScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "Versi baru ${state.updateInfo.latestVersion} telah dirilis di GitHub (Versi saat ini: ${com.canim.app.BuildConfig.VERSION_NAME}).",
+                        text = "Versi baru ${updateInfo.latestVersion} telah dirilis di GitHub (Versi saat ini: ${com.canim.app.BuildConfig.VERSION_NAME}).",
                         color = TextSecondary,
                         fontSize = 13.sp
                     )
-                    if (state.updateInfo.releaseNotes.isNotBlank()) {
+                    if (updateInfo.releaseNotes.isNotBlank()) {
                         Text(
-                            text = "Catatan Rilis:\n" + state.updateInfo.releaseNotes.take(300) + if (state.updateInfo.releaseNotes.length > 300) "..." else "",
+                            text = "Catatan Rilis:\n" + updateInfo.releaseNotes.take(300) + if (updateInfo.releaseNotes.length > 300) "..." else "",
                             color = TextMuted,
                             fontSize = 11.sp,
                             lineHeight = 15.sp
                         )
                     }
-                    if (state.isDownloadingUpdate) {
+                    if (isDownloadingUpdate) {
                         Column(
                             verticalArrangement = Arrangement.spacedBy(6.dp),
                             modifier = Modifier.padding(top = 4.dp)
                         ) {
                             Text(
-                                text = "Mengunduh file pembaruan... ${(state.updateDownloadProgress * 100).toInt()}%",
+                                text = "Mengunduh file pembaruan... ${(updateDownloadProgress * 100).toInt()}%",
                                 color = AccentBlue,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold
                             )
                             LinearProgressIndicator(
-                                progress = { state.updateDownloadProgress },
+                                progress = { updateDownloadProgress },
                                 modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
                                 color = AccentBlue,
                                 trackColor = CardBg
                             )
                         }
-                    } else if (state.downloadedApkFile != null) {
+                    } else if (downloadedApkFile != null) {
                         Text(
                             text = "✓ File update berhasil diunduh. Tekan 'Pasang Sekarang' untuk menginstal.",
                             color = AccentGreen,
@@ -788,7 +797,7 @@ fun SettingsScreen(
             },
             confirmButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (state.downloadedApkFile != null) {
+                    if (downloadedApkFile != null) {
                         Button(
                             onClick = onInstallDownloadedUpdate,
                             colors = ButtonDefaults.buttonColors(containerColor = AccentGreen, contentColor = Color.White),
@@ -796,7 +805,7 @@ fun SettingsScreen(
                         ) {
                             Text("Pasang Sekarang", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
-                    } else if (state.updateInfo.apkDownloadUrl != null && !state.isDownloadingUpdate) {
+                    } else if (updateInfo.apkDownloadUrl != null && !isDownloadingUpdate) {
                         Button(
                             onClick = onStartDownloadUpdate,
                             colors = ButtonDefaults.buttonColors(containerColor = AccentBlue, contentColor = Color.White),
@@ -806,10 +815,10 @@ fun SettingsScreen(
                         }
                     }
 
-                    if (!state.isDownloadingUpdate) {
+                    if (!isDownloadingUpdate) {
                         OutlinedButton(
                             onClick = {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(state.updateInfo.htmlUrl))
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(updateInfo.htmlUrl))
                                 context.startActivity(intent)
                                 onDismissUpdateDialog()
                             },
@@ -822,7 +831,7 @@ fun SettingsScreen(
                 }
             },
             dismissButton = {
-                if (!state.isDownloadingUpdate) {
+                if (!isDownloadingUpdate) {
                     TextButton(onClick = onDismissUpdateDialog) {
                         Text("Nanti Saja", color = TextSecondary, fontSize = 12.sp)
                     }

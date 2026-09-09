@@ -7,6 +7,8 @@ import com.canim.app.data.model.*
 import com.canim.app.data.repository.CacheRefreshEvent
 import com.canim.app.domain.repository.*
 import com.canim.app.domain.usecase.*
+import com.canim.app.ui.viewmodel.update.UpdateViewModel
+import com.canim.app.ui.viewmodel.gacha.GachaViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 
@@ -103,5 +105,33 @@ fun createTestCanimViewModel(
             searchRepository = repository,
             discoverRepository = repository
         )
+    )
+}
+
+fun createTestUpdateViewModel(
+    context: Context,
+    checkForUpdatesUseCase: CheckForUpdatesUseCase = CheckForUpdatesUseCase(),
+    startDownloadUpdateUseCase: StartDownloadUpdateUseCase = StartDownloadUpdateUseCase(),
+    installUpdateUseCase: InstallUpdateUseCase = InstallUpdateUseCase()
+): UpdateViewModel {
+    return UpdateViewModel(
+        appContext = context,
+        checkForUpdatesUseCase = checkForUpdatesUseCase,
+        startDownloadUpdateUseCase = startDownloadUpdateUseCase,
+        installUpdateUseCase = installUpdateUseCase
+    )
+}
+
+fun createTestGachaViewModel(
+    repository: CanimTestRepository = FakeCanimRepository(),
+    gachaCreditManager: GachaCreditManager
+): GachaViewModel {
+    return GachaViewModel(
+        consumeGachaCreditUseCase = ConsumeGachaCreditUseCase(gachaCreditManager),
+        loadFlashcardDeckUseCase = LoadFlashcardDeckUseCase(
+            discoverRepository = repository,
+            libraryRepository = repository
+        ),
+        getLibraryUseCase = GetLibraryUseCase(repository)
     )
 }

@@ -43,6 +43,9 @@ import com.canim.app.ui.navigation.ScreenRoute
 import com.canim.app.ui.screens.*
 import com.canim.app.ui.theme.*
 import com.canim.app.ui.viewmodel.CanimViewModel
+import com.canim.app.ui.viewmodel.update.UpdateViewModel
+import com.canim.app.ui.viewmodel.gacha.GachaViewModel
+import kotlinx.coroutines.launch
 
 data class NavItem(
     val route: String,
@@ -55,6 +58,8 @@ data class NavItem(
 class MainActivity : ComponentActivity() {
 
     private val viewModel: CanimViewModel by viewModels()
+    private val updateViewModel: UpdateViewModel by viewModels()
+    private val gachaViewModel: GachaViewModel by viewModels()
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -69,6 +74,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             CanimTheme {
                 val uiState by viewModel.uiState.collectAsState()
+                val updateState by updateViewModel.updateState.collectAsState()
+                val gachaState by gachaViewModel.gachaState.collectAsState()
                 val screenStack by viewModel.screenStack.collectAsState()
                 val context = LocalContext.current
                 val snackbarHostState = remember { SnackbarHostState() }
@@ -86,6 +93,25 @@ class MainActivity : ComponentActivity() {
                             duration = SnackbarDuration.Short
                         )
                         viewModel.dismissSnackbar()
+                    }
+                }
+
+                LaunchedEffect(Unit) {
+                    launch {
+                        updateViewModel.snackbarEvent.collect { msg ->
+                            snackbarHostState.showSnackbar(
+                                message = msg,
+                                duration = SnackbarDuration.Short
+                            )
+                        }
+                    }
+                    launch {
+                        gachaViewModel.snackbarEvent.collect { msg ->
+                            snackbarHostState.showSnackbar(
+                                message = msg,
+                                duration = SnackbarDuration.Short
+                            )
+                        }
                     }
                 }
 
@@ -246,7 +272,10 @@ class MainActivity : ComponentActivity() {
                         val onLoginMal: () -> Unit = remember(context) { { viewModel.loginWithMal(context) } }
                         val onSyncMal: () -> Unit = remember { { viewModel.syncWithMal() } }
                         val onOpenStats: () -> Unit = remember { { viewModel.openStats() } }
-                        val onOpenFlashcard: () -> Unit = remember { { viewModel.openFlashcard() } }
+                        val onOpenFlashcard: () -> Unit = remember { {
+                            gachaViewModel.openFlashcard()
+                            viewModel.openFlashcard()
+                        } }
 
                         val onSelectMediaType: (MediaType) -> Unit = remember { { viewModel.setLibraryFilterType(it) } }
                         val onSelectStatusFilter: (String?) -> Unit = remember { { viewModel.setLibraryStatusFilter(it) } }
@@ -320,6 +349,7 @@ class MainActivity : ComponentActivity() {
                                 "settings" -> {
                                     SettingsScreen(
                                         state = uiState,
+                                        updateState = updateState,
                                         onLoginMal = { viewModel.loginWithMal(context) },
                                         onSyncMal = { viewModel.syncWithMal() },
                                         onLogoutMal = { viewModel.logoutMal() },
@@ -329,11 +359,11 @@ class MainActivity : ComponentActivity() {
                                         onClearImageCache = { viewModel.clearImageCache(context) },
                                         onClearMetadataCache = { viewModel.clearMetadataCache() },
                                         onClearAllCache = { viewModel.clearAllCache(context) },
-                                        onCheckForUpdates = { viewModel.checkForUpdates(manual = true) },
-                                        onSetAutoUpdateCheck = { viewModel.setAutoUpdateCheck(it) },
-                                        onDismissUpdateDialog = { viewModel.dismissUpdateDialog() },
-                                        onStartDownloadUpdate = { viewModel.startDownloadUpdate(context) },
-                                        onInstallDownloadedUpdate = { viewModel.installDownloadedUpdate(context) },
+                                        onCheckForUpdates = { updateViewModel.checkForUpdates(manual = true) },
+                                        onSetAutoUpdateCheck = { updateViewModel.setAutoUpdateCheck(it) },
+                                        onDismissUpdateDialog = { updateViewModel.dismissUpdateDialog() },
+                                        onStartDownloadUpdate = { updateViewModel.startDownloadUpdate(context) },
+                                        onInstallDownloadedUpdate = { updateViewModel.installDownloadedUpdate(context) },
                                         onOpenObservability = { viewModel.pushScreen(ScreenRoute.Diagnostics) }
                                     )
                                 }
@@ -495,14 +525,14 @@ class MainActivity : ComponentActivity() {
                                 }
                                 is ScreenRoute.Flashcard -> {
                                     FlashcardScreen(
-                                        deck = uiState.flashcardDeck,
-                                        credits = uiState.gachaCredits,
-                                        isLoading = uiState.isFlashcardLoading,
+                                        deck = gachaState.deck,
+                                        credits = gachaState.credits,
+                                        isLoading = gachaState.isLoading,
                                         onBack = { viewModel.popScreen() },
-                                        onConsumeCredit = { viewModel.consumeGachaCredit() },
-                                        onSwipeCard = { viewModel.swipeDismissFlashcard(it) },
+                                        onConsumeCredit = { gachaViewModel.consumeGachaCredit() },
+                                        onSwipeCard = { gachaViewModel.swipeDismissFlashcard(it) },
                                         onOpenDetail = { media, type -> viewModel.openDetail(media, type) },
-                                        onRefreshDeck = { viewModel.loadFlashcardDeck() },
+                                        onRefreshDeck = { gachaViewModel.loadFlashcardDeck() },
                                         onSavePlanToWatch = { media, cb -> viewModel.saveFlashcardPlanToWatch(media, cb) }
                                     )
                                 }
