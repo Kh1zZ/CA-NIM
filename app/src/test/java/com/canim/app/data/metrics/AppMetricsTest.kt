@@ -12,6 +12,7 @@ class AppMetricsTest {
 
     @Before
     fun setUp() {
+        AniListMetrics.reset()
         AppMetrics.reset()
     }
 
@@ -112,6 +113,43 @@ class AppMetricsTest {
         assertNotNull(opStats)
         assertEquals(3L, opStats!!.count)
         assertEquals(200.0, opStats.avgMs, 0.001)
+    }
+
+    @Test
+    fun testMetricsSnapshotConvenienceProperties() {
+        AppMetrics.recordRequest("anilist", "query1")
+        AppMetrics.recordRequest("anilist", "query2")
+        AppMetrics.recordRequest("myanimelist", "getAnime")
+        AppMetrics.recordRequest("github", "releaseCheck")
+
+        AppMetrics.recordHttp5xx("anilist", "query1", 500)
+        AppMetrics.recordRateLimit("myanimelist", "getAnime")
+        AppMetrics.recordTimeout("github", "releaseCheck")
+        AppMetrics.recordRetry("anilist", "query1")
+
+        AppMetrics.recordLatency("anilist", "query1", 120L)
+        AppMetrics.recordLatency("myanimelist", "getAnime", 240L)
+
+        AppMetrics.recordCacheHit("detail")
+        AppMetrics.recordCacheMiss("detail")
+        AppMetrics.recordDeduplication("anilist", "query1")
+
+        val snapshot = AppMetrics.getSnapshot()
+        assertEquals(2L, snapshot.aniListRequests)
+        assertEquals(1L, snapshot.malRequests)
+        assertEquals(1L, snapshot.gitHubRequests)
+
+        assertEquals(1L, snapshot.totalErrors)
+        assertEquals(1L, snapshot.totalRateLimits)
+        assertEquals(1L, snapshot.totalTimeouts)
+        assertEquals(1L, snapshot.totalRetries)
+
+        assertEquals(120.0, snapshot.aniListAvgLatencyMs!!, 0.001)
+        assertEquals(240.0, snapshot.malAvgLatencyMs!!, 0.001)
+
+        assertEquals(1L, snapshot.cacheHitsByType["detail"])
+        assertEquals(1L, snapshot.cacheMissesByType["detail"])
+        assertEquals(1L, snapshot.deduplicationsByHost["anilist"])
     }
 
     @Test

@@ -104,6 +104,9 @@ object CacheManager {
 
     fun studioKey(studioId: Int, page: Int): String = "studio_${studioId}_page_$page"
 
+    fun mediaMetadataKey(malId: Int, type: MediaType): String = "meta_${type.name}_$malId"
+    fun mediaMetadataKey(malId: Int, type: String): String = "meta_${type.uppercase()}_$malId"
+
     // Cache stores
     private val metadataCache = createLruMap<String, CacheEntry<MediaItem>>(MAX_METADATA_ENTRIES)
     private val searchCache = createLruMap<String, CacheEntry<List<MediaItem>>>(MAX_SEARCH_ENTRIES)
@@ -315,6 +318,9 @@ object CacheManager {
     fun putMetadata(key: String, item: MediaItem) {
         metadataCache[key] = CacheEntry(item, ttlMillis = TTL_STATIC_METADATA)
     }
+
+    fun getMetadata(malId: Int, type: MediaType): MediaItem? = getMetadata(mediaMetadataKey(malId, type))
+    fun putMetadata(malId: Int, type: MediaType, item: MediaItem) = putMetadata(mediaMetadataKey(malId, type), item)
 
     // --- MAL Fallback Cache ---
     fun getMalFallback(key: String): MediaItem? {

@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.2.0%20(Build%2034)-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.2.0a%20(Build%2035)-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#tech-stack--dependensi"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#uiux-architecture--fluid-continuity"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
@@ -217,6 +217,18 @@ Verifikasi lokal diwajibkan menjalankan suite pengujian unit otomatis sebelum me
 ---
 
 ## 📝 10. Catatan Perubahan
+
+### v6.2.0a (Build 35)
+- **Pengurangan Permintaan API (Request Reduction)**:
+  - *Dukungan Cache & DB Lokal Utuh*: Pengayaan library pengguna (`enrichWithAniListMetadata`) kini memprioritaskan metadata dan pemetaan AniList ID yang sudah ada di database lokal (`LibraryDao`) serta memori cache (`CacheManager`), mengeliminasi query batch AniList berulang untuk item yang sudah pernah disinkronkan.
+  - *Deduplikasi ID Sebelum Permintaan*: Menghapus seluruh duplikasi ID sebelum kueri chunking (50 per batch) pada `getMediaBatchByMalIds` dan kueri ranking Discover.
+  - *Pencegahan Resolusi Berulang*: Mengeliminasi permintaan detail cadangan MAL ganda pada ID yang sama dalam satu operasi (`getExtendedDetails`).
+  - *Negative Caching Terstandarisasi*: Menetapkan negative cache bertenggat waktu aman (TTL 5 menit) untuk resolusi ID dan fallback detail 404/NotFound agar tidak memicu query berulang yang sia-sia.
+- **Pembaruan UI Diagnostik & Observabilitas Sistem**:
+  - Menyajikan metrik kunci secara visual dan terstruktur: **API Usage** (Total, AniList, MAL, GitHub), **Health** (Errors 5xx, 429, Timeouts, Retries), **Cache** (Hit Rate %, Hits vs Misses), dan **Latency** (AniList Rata², MAL Rata²).
+  - Menggantikan output debug teks mentah (*raw dump*) dengan menu interaktif **"Lihat Detail"** yang rapi: rincian request per host & operasi, statistik cache per tipe, penghematan deduplikasi in-flight, rincian error/retry per host, dan rentang latensi min/avg/max.
+  - Tetap berbasis 100% `AppMetrics` in-memory tanpa telemetri atau analitik pihak ketiga (Zero PII).
+- **Integritas Pengujian Unit**: Seluruh pengujian unit lulus 100%.
 
 ### v6.2.0 (Build 34)
 - **Mitigasi Tangguh GitHub API HTTP 403 Rate Limit**:

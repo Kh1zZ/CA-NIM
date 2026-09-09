@@ -358,11 +358,29 @@ class CanimRepository(
         items: List<UserMediaItem>,
         type: MediaType
     ): List<UserMediaItem> = withContext(Dispatchers.IO) {
-        val malIds = items.mapNotNull { it.malId }
-        val unEnrichedMalIds = malIds.filter { mId ->
+        val malIds = items.mapNotNull { it.malId }.distinct()
+        if (malIds.isEmpty()) return@withContext items
+
+        val dao = libraryDao
+        val unEnrichedMalIds = mutableListOf<Int>()
+
+        for (mId in malIds) {
+            val localEntry = dao?.getEntry(mId, type.name)
+            if (localEntry?.anilistId != null) {
+                CacheManager.putIdMapping(mId, localEntry.anilistId, type)
+                continue
+            }
+            if (CacheManager.getMetadata(mId, type) != null) {
+                continue
+            }
             val aniId = CacheManager.getAniListIdForMalId(mId, type)
-            val cached = CacheManager.getDetail(CacheManager.detailKey(aniId, mId))
-            cached == null
+            if (aniId != null && CacheManager.getDetail(CacheManager.detailKey(aniId, mId)) != null) {
+                continue
+            }
+            if (CacheManager.isNegativeCached("resolve_mal_${mId}_${type.name}")) {
+                continue
+            }
+            unEnrichedMalIds.add(mId)
         }
 
         val aniListMap = if (unEnrichedMalIds.isNotEmpty()) {
@@ -376,8 +394,8 @@ class CanimRepository(
         }
 
         items.map { item ->
-            val mId = item.malId
-            val aniItem = mId?.let { aniListMap[it] }
+            val mId = item.malId ?: return@map item
+            val aniItem = aniListMap[mId]
             if (aniItem != null) {
                 val updatedMetadata = item.metadata.copy(
                     titleEnglish = aniItem.titleEnglish ?: item.metadata.titleEnglish,
@@ -396,7 +414,48 @@ class CanimRepository(
                     metadata = updatedMetadata
                 )
             } else {
-                item
+                val cachedMeta = CacheManager.getMetadata(mId, type)
+                if (cachedMeta != null) {
+                    val updatedMetadata = item.metadata.copy(
+                        titleEnglish = cachedMeta.titleEnglish ?: item.metadata.titleEnglish,
+                        imageUrl = item.metadata.imageUrl.ifBlank { cachedMeta.imageUrl },
+                        totalEpisodes = cachedMeta.episodes ?: item.metadata.totalEpisodes,
+                        totalChapters = cachedMeta.chapters ?: item.metadata.totalChapters,
+                        totalVolumes = cachedMeta.volumes ?: item.metadata.totalVolumes,
+                        genres = if (cachedMeta.genres.isNotEmpty()) cachedMeta.genres else item.metadata.genres,
+                        studio = cachedMeta.studio ?: item.metadata.studio,
+                        format = cachedMeta.format ?: item.metadata.format,
+                        year = cachedMeta.year ?: item.metadata.year,
+                        season = cachedMeta.season ?: item.metadata.season
+                    )
+                    item.copy(
+                        identity = MediaRef(anilistId = cachedMeta.anilistId ?: CacheManager.getAniListIdForMalId(mId, type), malId = mId),
+                        metadata = updatedMetadata
+                    )
+                } else {
+                    val localEntry = dao?.getEntry(mId, type.name)
+                    if (localEntry?.anilistId != null) {
+                        val localGenres = if (item.metadata.genres.isEmpty()) parseJsonList(localEntry.genresJson) else item.metadata.genres
+                        val updatedMetadata = item.metadata.copy(
+                            titleEnglish = localEntry.titleEnglish ?: item.metadata.titleEnglish,
+                            imageUrl = item.metadata.imageUrl.ifBlank { localEntry.imageUrl },
+                            totalEpisodes = (if (type == MediaType.ANIME && localEntry.totalEpisodes > 0) localEntry.totalEpisodes else null) ?: item.metadata.totalEpisodes,
+                            totalChapters = (if (type == MediaType.MANGA && localEntry.totalChapters > 0) localEntry.totalChapters else null) ?: item.metadata.totalChapters,
+                            totalVolumes = (if (type == MediaType.MANGA && localEntry.totalVolumes > 0) localEntry.totalVolumes else null) ?: item.metadata.totalVolumes,
+                            genres = localGenres,
+                            studio = localEntry.studio ?: item.metadata.studio,
+                            format = localEntry.format ?: item.metadata.format,
+                            year = (if (localEntry.year > 0) localEntry.year else null) ?: item.metadata.year,
+                            season = localEntry.season ?: item.metadata.season
+                        )
+                        item.copy(
+                            identity = MediaRef(anilistId = localEntry.anilistId, malId = mId),
+                            metadata = updatedMetadata
+                        )
+                    } else {
+                        item
+                    }
+                }
             }
         }
     }
@@ -886,7 +945,7 @@ class CanimRepository(
                 val resp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "all", limit, offset)
                 if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
                     val malNodes = resp.body()!!.data.map { it.node }
-                    val malIds = malNodes.map { it.id }
+                    val malIds = malNodes.map { it.id }.distinct()
                     val aniMap = runCatching { AniListClient.getMediaBatchByMalIds(malIds, MediaType.ANIME) }.getOrDefault(emptyMap())
                     val items = malNodes.map { node ->
                         val ani = aniMap[node.id]
@@ -909,7 +968,7 @@ class CanimRepository(
                 val resp = ApiClient.malApi.getMangaRanking(MalAuthManager.CLIENT_ID, "all", limit, offset)
                 if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
                     val malNodes = resp.body()!!.data.map { it.node }
-                    val malIds = malNodes.map { it.id }
+                    val malIds = malNodes.map { it.id }.distinct()
                     val aniMap = runCatching { AniListClient.getMediaBatchByMalIds(malIds, MediaType.MANGA) }.getOrDefault(emptyMap())
                     val items = malNodes.map { node ->
                         val ani = aniMap[node.id]
@@ -1065,7 +1124,7 @@ class CanimRepository(
 
                 // If MAL ID wasn't known beforehand, but AniList returned it, fetch MAL fallback
                 val effectiveMalId = aniDetail?.malId ?: resolvedMalId
-                if (malExt == null && effectiveMalId != null) {
+                if (malExt == null && effectiveMalId != null && effectiveMalId != resolvedMalId) {
                     malExt = malAuthManager.getExtendedDetailFallback(effectiveMalId, type)
                 }
 

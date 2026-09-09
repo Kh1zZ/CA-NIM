@@ -622,7 +622,11 @@ open class MalAuthManager(
     suspend fun getExtendedDetailFallback(malId: Int, type: MediaType): ExtendedMediaDetail? = withContext(Dispatchers.IO) {
         val cacheKey = CacheManager.detailKey(null, malId)
         val cached = CacheManager.getDetail(cacheKey)
+            ?: (CacheManager.getAniListIdForMalId(malId, type)?.let { aniId -> CacheManager.getDetail(CacheManager.detailKey(aniId, malId)) })
         if (cached != null) return@withContext cached
+
+        val negKey = CacheManager.malFallbackKey(malId, type.name)
+        if (CacheManager.isNegativeCached(negKey)) return@withContext null
 
         try {
             if (type == MediaType.ANIME) {
@@ -677,6 +681,8 @@ open class MalAuthManager(
                     )
                     CacheManager.putDetail(cacheKey, ext)
                     return@withContext ext
+                } else if (response.code() == 404) {
+                    CacheManager.putNegativeCache(negKey)
                 }
             } else {
                 val response = ApiClient.malApi.getMangaDetailFallback(CLIENT_ID, malId)
@@ -729,6 +735,8 @@ open class MalAuthManager(
                     )
                     CacheManager.putDetail(cacheKey, ext)
                     return@withContext ext
+                } else if (response.code() == 404) {
+                    CacheManager.putNegativeCache(negKey)
                 }
             }
         } catch (e: CancellationException) {

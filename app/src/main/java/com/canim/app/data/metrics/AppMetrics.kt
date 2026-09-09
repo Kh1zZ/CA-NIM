@@ -34,8 +34,23 @@ data class MetricsSnapshot(
     val timeoutsByHost: Map<String, Long>,
     val http5xxByHost: Map<String, Long>,
     val latencyByHost: Map<String, LatencyStats>,
-    val latencyByOperation: Map<String, LatencyStats>
+    val latencyByOperation: Map<String, LatencyStats>,
+    val cacheHitsByType: Map<String, Long> = emptyMap(),
+    val cacheMissesByType: Map<String, Long> = emptyMap(),
+    val deduplicationsByHost: Map<String, Long> = emptyMap()
 ) {
+    val aniListRequests: Long get() = requestsByHost["anilist"] ?: 0L
+    val malRequests: Long get() = requestsByHost["myanimelist"] ?: 0L
+    val gitHubRequests: Long get() = requestsByHost["github"] ?: 0L
+
+    val totalErrors: Long get() = http5xxByHost.values.sum()
+    val totalRateLimits: Long get() = rateLimitsByHost.values.sum()
+    val totalTimeouts: Long get() = timeoutsByHost.values.sum()
+    val totalRetries: Long get() = retriesByHost.values.sum()
+
+    val aniListAvgLatencyMs: Double? get() = latencyByHost["anilist"]?.takeIf { it.count > 0 }?.avgMs
+    val malAvgLatencyMs: Double? get() = latencyByHost["myanimelist"]?.takeIf { it.count > 0 }?.avgMs
+
     /**
      * Formats the metrics snapshot into a sanitized, human-readable summary string
      * suitable for diagnostics display and tests.
@@ -266,7 +281,10 @@ object AppMetrics {
             timeoutsByHost = timeoutsByHost.mapValues { it.value.get() },
             http5xxByHost = http5xxByHost.mapValues { it.value.get() },
             latencyByHost = latencyByHost.mapValues { it.value.toStats() },
-            latencyByOperation = latencyByOperation.mapValues { it.value.toStats() }
+            latencyByOperation = latencyByOperation.mapValues { it.value.toStats() },
+            cacheHitsByType = cacheHitsByType.mapValues { it.value.get() },
+            cacheMissesByType = cacheMissesByType.mapValues { it.value.get() },
+            deduplicationsByHost = deduplicationsByHost.mapValues { it.value.get() }
         )
     }
 

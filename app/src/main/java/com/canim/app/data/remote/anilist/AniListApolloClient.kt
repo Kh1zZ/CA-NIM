@@ -247,12 +247,19 @@ object AniListApolloClient {
             AniListMetrics.recordCacheHit()
             return@withContext AniListResult.Success(cached)
         }
+        val negKey = "resolve_mal_${malId}_${type.name}"
+        if (CacheManager.isNegativeCached(negKey)) {
+            AniListMetrics.recordCacheHit()
+            return@withContext AniListResult.NotFound
+        }
         AniListMetrics.recordCacheMiss()
 
-        AniListClient.deduplicateInFlight("resolve_mal_${malId}_${type.name}") {
+        AniListClient.deduplicateInFlight(negKey) {
             val result = executeResolveMalId(malId, type)
             if (result is AniListResult.Success) {
                 CacheManager.putIdMapping(malId = malId, aniListId = result.data, type = type)
+            } else if (result is AniListResult.NotFound) {
+                CacheManager.putNegativeCache(negKey)
             }
             result
         }
@@ -296,12 +303,19 @@ object AniListApolloClient {
             AniListMetrics.recordCacheHit()
             return@withContext AniListResult.Success(cached)
         }
+        val negKey = "resolve_ani_${aniListId}"
+        if (CacheManager.isNegativeCached(negKey)) {
+            AniListMetrics.recordCacheHit()
+            return@withContext AniListResult.NotFound
+        }
         AniListMetrics.recordCacheMiss()
 
-        AniListClient.deduplicateInFlight("resolve_ani_${aniListId}") {
+        AniListClient.deduplicateInFlight(negKey) {
             val result = executeResolveAniListId(aniListId)
             if (result is AniListResult.Success) {
                 CacheManager.putIdMapping(malId = result.data, aniListId = aniListId)
+            } else if (result is AniListResult.NotFound) {
+                CacheManager.putNegativeCache(negKey)
             }
             result
         }
@@ -399,7 +413,11 @@ object AniListApolloClient {
                     if (m.idMal != null) {
                         CacheManager.putIdMapping(malId = m.idMal, aniListId = m.id, type = type)
                     }
-                    AniListApolloMapper.toMediaItem(m, type)
+                    val item = AniListApolloMapper.toMediaItem(m, type)
+                    if (m.idMal != null) {
+                        CacheManager.putMetadata(m.idMal, type, item)
+                    }
+                    item
                 }
                 AniListResult.Success(items)
             }
@@ -932,7 +950,11 @@ object AniListApolloClient {
                     if (m.idMal != null) {
                         CacheManager.putIdMapping(malId = m.idMal, aniListId = m.id, type = fallbackType)
                     }
-                    AniListApolloMapper.toDiscoverMediaItem(m, fallbackType)
+                    val item = AniListApolloMapper.toDiscoverMediaItem(m, fallbackType)
+                    if (m.idMal != null) {
+                        CacheManager.putMetadata(m.idMal, fallbackType, item)
+                    }
+                    item
                 }
                 if (items.isNotEmpty()) CacheManager.putDiscover(cacheKey, items)
                 items
@@ -954,11 +976,32 @@ object AniListApolloClient {
         type: MediaType
     ): Map<Int, MediaItem> = withContext(Dispatchers.IO) {
         if (malIds.isEmpty()) return@withContext emptyMap()
-        val resultMap = mutableMapOf<Int, MediaItem>()
         val distinctIds = malIds.distinct().filter { it > 0 }
+        if (distinctIds.isEmpty()) return@withContext emptyMap()
+
+        val resultMap = mutableMapOf<Int, MediaItem>()
+        val missingIds = mutableListOf<Int>()
+
+        for (id in distinctIds) {
+            val cached = CacheManager.getMetadata(id, type)
+            if (cached != null) {
+                AniListMetrics.recordCacheHit()
+                resultMap[id] = cached
+            } else if (CacheManager.isNegativeCached("resolve_mal_${id}_${type.name}")) {
+                AniListMetrics.recordCacheHit()
+            } else {
+                AniListMetrics.recordCacheMiss()
+                missingIds.add(id)
+            }
+        }
+
+        if (missingIds.isEmpty()) {
+            return@withContext resultMap
+        }
+
         val apolloType: ApolloMediaType = if (type == MediaType.ANIME) ApolloMediaType.ANIME else ApolloMediaType.MANGA
 
-        for (chunk in distinctIds.chunked(50)) {
+        for (chunk in missingIds.chunked(50)) {
             val dedupeKey = "batch_${chunk.sorted().hashCode()}_${type.name}"
             val chunkMap = AniListClient.deduplicateInFlight(dedupeKey) {
                 AniListMetrics.recordRequest()
@@ -970,12 +1013,21 @@ object AniListApolloClient {
                     val response = client.query(q).execute()
                     val mediaList = response.data?.Page?.media ?: emptyList()
                     val chunkResult = mutableMapOf<Int, MediaItem>()
+                    val foundMalIds = mutableSetOf<Int>()
                     for (m in mediaList.filterNotNull()) {
                         if (m.idMal != null) {
+                            foundMalIds.add(m.idMal)
                             CacheManager.putIdMapping(malId = m.idMal, aniListId = m.id, type = type)
                         }
                         val item = AniListApolloMapper.toBatchMediaItem(m, type)
-                        m.idMal?.let { malId -> chunkResult[malId] = item }
+                        m.idMal?.let { malId ->
+                            chunkResult[malId] = item
+                            CacheManager.putMetadata(malId, type, item)
+                        }
+                    }
+                    val missingInBatch = chunk.toSet() - foundMalIds
+                    for (missingId in missingInBatch) {
+                        CacheManager.putNegativeCache("resolve_mal_${missingId}_${type.name}")
                     }
                     chunkResult
                 } catch (e: CancellationException) {
