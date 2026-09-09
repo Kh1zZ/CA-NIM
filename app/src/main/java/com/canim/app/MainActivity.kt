@@ -49,6 +49,7 @@ import com.canim.app.ui.viewmodel.detail.DetailViewModel
 import com.canim.app.ui.viewmodel.studio.StudioViewModel
 import com.canim.app.ui.viewmodel.search.SearchViewModel
 import com.canim.app.ui.viewmodel.discover.DiscoverViewModel
+import com.canim.app.ui.viewmodel.library.LibraryViewModel
 import kotlinx.coroutines.launch
 
 data class NavItem(
@@ -68,6 +69,7 @@ class MainActivity : ComponentActivity() {
     private val studioViewModel: StudioViewModel by viewModels()
     private val searchViewModel: SearchViewModel by viewModels()
     private val discoverViewModel: DiscoverViewModel by viewModels()
+    private val libraryViewModel: LibraryViewModel by viewModels()
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -88,6 +90,7 @@ class MainActivity : ComponentActivity() {
                 val studioState by studioViewModel.studioState.collectAsState()
                 val searchState by searchViewModel.searchState.collectAsState()
                 val discoverState by discoverViewModel.discoverState.collectAsState()
+                val libraryState by libraryViewModel.libraryState.collectAsState()
                 val screenStack by viewModel.screenStack.collectAsState()
                 val context = LocalContext.current
                 val snackbarHostState = remember { SnackbarHostState() }
@@ -151,6 +154,14 @@ class MainActivity : ComponentActivity() {
                     }
                     launch {
                         discoverViewModel.snackbarEvent.collect { msg ->
+                            snackbarHostState.showSnackbar(
+                                message = msg,
+                                duration = SnackbarDuration.Short
+                            )
+                        }
+                    }
+                    launch {
+                        libraryViewModel.snackbarEvent.collect { msg ->
                             snackbarHostState.showSnackbar(
                                 message = msg,
                                 duration = SnackbarDuration.Short
@@ -308,13 +319,22 @@ class MainActivity : ComponentActivity() {
                             .background(BlackBg)
                     ) {
                         // Stable hoisted callbacks to ensure 100% skippable recomposition during scrolling
-                        val onQuickAddEpisode: (String) -> Unit = remember { { viewModel.quickIncrementAnime(it) } }
-                        val onQuickAddChapter: (String) -> Unit = remember { { viewModel.quickIncrementManga(it) } }
+                        val onQuickAddEpisode: (String) -> Unit = remember { {
+                            libraryViewModel.quickIncrementAnime(it)
+                            viewModel.quickIncrementAnime(it)
+                        } }
+                        val onQuickAddChapter: (String) -> Unit = remember { {
+                            libraryViewModel.quickIncrementManga(it)
+                            viewModel.quickIncrementManga(it)
+                        } }
                         val onSelectItem: (Any, MediaType) -> Unit = remember { { item: Any, type: MediaType ->
                             detailViewModel.openDetail(item, type)
                             viewModel.openDetail(item, type)
                         } }
-                        val onLoadDemoData: () -> Unit = remember { { viewModel.loadDemoData() } }
+                        val onLoadDemoData: () -> Unit = remember { {
+                            libraryViewModel.loadDemoData()
+                            viewModel.loadDemoData()
+                        } }
                         val onNavigateTab: (String) -> Unit = remember { { viewModel.setTab(it) } }
                         val onLoginMal: () -> Unit = remember(context) { { viewModel.loginWithMal(context) } }
                         val onSyncMal: () -> Unit = remember { { viewModel.syncWithMal() } }
@@ -324,12 +344,30 @@ class MainActivity : ComponentActivity() {
                             viewModel.openFlashcard()
                         } }
 
-                        val onSelectMediaType: (MediaType) -> Unit = remember { { viewModel.setLibraryFilterType(it) } }
-                        val onSelectStatusFilter: (String?) -> Unit = remember { { viewModel.setLibraryStatusFilter(it) } }
-                        val onSelectSort: (String) -> Unit = remember { { viewModel.setLibrarySort(it) } }
-                        val onSearchQueryChange: (String) -> Unit = remember { { viewModel.setLibrarySearch(it) } }
-                        val onQuickDecrementAnime: (String) -> Unit = remember { { viewModel.quickDecrementAnime(it) } }
-                        val onQuickDecrementManga: (String) -> Unit = remember { { viewModel.quickDecrementManga(it) } }
+                        val onSelectMediaType: (MediaType) -> Unit = remember { {
+                            libraryViewModel.setLibraryFilterType(it)
+                            viewModel.setLibraryFilterType(it)
+                        } }
+                        val onSelectStatusFilter: (String?) -> Unit = remember { {
+                            libraryViewModel.setLibraryStatusFilter(it)
+                            viewModel.setLibraryStatusFilter(it)
+                        } }
+                        val onSelectSort: (String) -> Unit = remember { {
+                            libraryViewModel.setLibrarySort(it)
+                            viewModel.setLibrarySort(it)
+                        } }
+                        val onSearchQueryChange: (String) -> Unit = remember { {
+                            libraryViewModel.setLibrarySearch(it)
+                            viewModel.setLibrarySearch(it)
+                        } }
+                        val onQuickDecrementAnime: (String) -> Unit = remember { {
+                            libraryViewModel.quickDecrementAnime(it)
+                            viewModel.quickDecrementAnime(it)
+                        } }
+                        val onQuickDecrementManga: (String) -> Unit = remember { {
+                            libraryViewModel.quickDecrementManga(it)
+                            viewModel.quickDecrementManga(it)
+                        } }
 
                         AnimatedContent(
                             targetState = uiState.activeTab,
@@ -356,6 +394,7 @@ class MainActivity : ComponentActivity() {
                                 "library" -> {
                                     LibraryScreen(
                                         state = uiState,
+                                        libraryState = libraryState,
                                         onSelectMediaType = onSelectMediaType,
                                         onSelectStatusFilter = onSelectStatusFilter,
                                         onSelectSort = onSelectSort,
@@ -375,13 +414,22 @@ class MainActivity : ComponentActivity() {
                                             searchViewModel.search(query, type)
                                             viewModel.search(query, type)
                                         },
-                                        onAddMedia = { item, status -> viewModel.addFromCatalog(item, status) },
+                                        onAddMedia = { item, status ->
+                                            libraryViewModel.addFromCatalog(item, status)
+                                            viewModel.addFromCatalog(item, status)
+                                        },
                                         onSelectItem = { item, type ->
                                             detailViewModel.openDetail(item, type)
                                             viewModel.openDetail(item, type)
                                         },
-                                        onSaveAnime = { viewModel.saveAnime(it) },
-                                        onSaveManga = { viewModel.saveManga(it) },
+                                        onSaveAnime = {
+                                            libraryViewModel.saveAnime(it)
+                                            viewModel.saveAnime(it)
+                                        },
+                                        onSaveManga = {
+                                            libraryViewModel.saveManga(it)
+                                            viewModel.saveManga(it)
+                                        },
                                         onApplyFilters = { genres, year, format ->
                                             searchViewModel.applySearchFilters(genres, year, format)
                                             viewModel.applySearchFilters(genres, year, format)
@@ -400,7 +448,10 @@ class MainActivity : ComponentActivity() {
                                             discoverViewModel.loadDiscoverCategory(cat, filter)
                                             viewModel.loadDiscoverCategory(cat, filter)
                                         },
-                                        onAddMedia = { item, status -> viewModel.addFromCatalog(item, status) },
+                                        onAddMedia = { item, status ->
+                                            libraryViewModel.addFromCatalog(item, status)
+                                            viewModel.addFromCatalog(item, status)
+                                        },
                                         onSelectItem = { item, type ->
                                             detailViewModel.openDetail(item, type)
                                             viewModel.openDetail(item, type)
@@ -409,8 +460,14 @@ class MainActivity : ComponentActivity() {
                                             discoverViewModel.loadMoreDiscover()
                                             viewModel.loadMoreDiscover()
                                         },
-                                        onSaveAnime = { viewModel.saveAnime(it) },
-                                        onSaveManga = { viewModel.saveManga(it) },
+                                        onSaveAnime = {
+                                            libraryViewModel.saveAnime(it)
+                                            viewModel.saveAnime(it)
+                                        },
+                                        onSaveManga = {
+                                            libraryViewModel.saveManga(it)
+                                            viewModel.saveManga(it)
+                                        },
                                         onOpenStudio = { studioId, studioName ->
                                             studioViewModel.openStudio(studioId, studioName)
                                             viewModel.openStudio(studioId, studioName)
@@ -430,8 +487,14 @@ class MainActivity : ComponentActivity() {
                                         onSyncMal = { viewModel.syncWithMal() },
                                         onLogoutMal = { viewModel.logoutMal() },
                                         onSetAppMode = { viewModel.setAppMode(it) },
-                                        onLoadDemoData = { viewModel.loadDemoData() },
-                                        onClearAllData = { viewModel.clearAllData() },
+                                        onLoadDemoData = {
+                                            libraryViewModel.loadDemoData()
+                                            viewModel.loadDemoData()
+                                        },
+                                        onClearAllData = {
+                                            libraryViewModel.clearAllData()
+                                            viewModel.clearAllData()
+                                        },
                                         onClearImageCache = { viewModel.clearImageCache(context) },
                                         onClearMetadataCache = { viewModel.clearMetadataCache() },
                                         onClearAllCache = { viewModel.clearAllCache(context) },
@@ -566,10 +629,22 @@ class MainActivity : ComponentActivity() {
                                         type = currentScreen.type,
                                         extendedDetail = detailExtended,
                                         isLoadingExtendedDetail = detailIsLoading,
-                                        onSaveAnime = { viewModel.saveAnime(it) },
-                                        onSaveManga = { viewModel.saveManga(it) },
-                                        onDeleteAnime = { viewModel.deleteAnime(it) },
-                                        onDeleteManga = { viewModel.deleteManga(it) },
+                                        onSaveAnime = {
+                                            libraryViewModel.saveAnime(it)
+                                            viewModel.saveAnime(it)
+                                        },
+                                        onSaveManga = {
+                                            libraryViewModel.saveManga(it)
+                                            viewModel.saveManga(it)
+                                        },
+                                        onDeleteAnime = {
+                                            libraryViewModel.deleteAnime(it)
+                                            viewModel.deleteAnime(it)
+                                        },
+                                        onDeleteManga = {
+                                            libraryViewModel.deleteManga(it)
+                                            viewModel.deleteManga(it)
+                                        },
                                         onOpenCastCrew = { id, isStaff ->
                                             detailViewModel.openCastCrewProfile(id, isStaff)
                                             viewModel.openCastCrewProfile(id, isStaff)
@@ -663,13 +738,35 @@ class MainActivity : ComponentActivity() {
                                     ) {
                                         SearchScreen(
                                             state = uiState,
-                                            onSearch = { query, type -> viewModel.search(query, type) },
-                                            onAddMedia = { item, status -> viewModel.addFromCatalog(item, status) },
-                                            onSelectItem = { item, type -> viewModel.openDetail(item, type) },
-                                            onSaveAnime = { viewModel.saveAnime(it) },
-                                            onSaveManga = { viewModel.saveManga(it) },
-                                            onApplyFilters = { genres, year, format -> viewModel.applySearchFilters(genres, year, format) },
-                                            onResetFilters = { viewModel.resetSearchFilters() }
+                                            searchState = searchState,
+                                            onSearch = { query, type ->
+                                                searchViewModel.search(query, type)
+                                                viewModel.search(query, type)
+                                            },
+                                            onAddMedia = { item, status ->
+                                                libraryViewModel.addFromCatalog(item, status)
+                                                viewModel.addFromCatalog(item, status)
+                                            },
+                                            onSelectItem = { item, type ->
+                                                detailViewModel.openDetail(item, type)
+                                                viewModel.openDetail(item, type)
+                                            },
+                                            onSaveAnime = {
+                                                libraryViewModel.saveAnime(it)
+                                                viewModel.saveAnime(it)
+                                            },
+                                            onSaveManga = {
+                                                libraryViewModel.saveManga(it)
+                                                viewModel.saveManga(it)
+                                            },
+                                            onApplyFilters = { genres, year, format ->
+                                                searchViewModel.applySearchFilters(genres, year, format)
+                                                viewModel.applySearchFilters(genres, year, format)
+                                            },
+                                            onResetFilters = {
+                                                searchViewModel.resetSearchFilters()
+                                                viewModel.resetSearchFilters()
+                                            }
                                         )
                                     }
                                 }

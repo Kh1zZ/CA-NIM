@@ -13,6 +13,7 @@ import com.canim.app.ui.viewmodel.detail.DetailViewModel
 import com.canim.app.ui.viewmodel.studio.StudioViewModel
 import com.canim.app.ui.viewmodel.search.SearchViewModel
 import com.canim.app.ui.viewmodel.discover.DiscoverViewModel
+import com.canim.app.ui.viewmodel.library.LibraryViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 
@@ -187,6 +188,20 @@ fun createTestDiscoverViewModel(
             searchRepository = repository,
             discoverRepository = repository
         )
+    )
+}
+
+fun createTestLibraryViewModel(
+    repository: CanimTestRepository = FakeCanimRepository(),
+    gachaCreditManager: GachaCreditManager
+): LibraryViewModel {
+    return LibraryViewModel(
+        getLibraryUseCase = GetLibraryUseCase(repository),
+        saveLibraryItemUseCase = SaveLibraryItemUseCase(repository),
+        deleteLibraryItemUseCase = DeleteLibraryItemUseCase(repository),
+        updateTrackingUseCase = UpdateTrackingUseCase(repository),
+        consumeGachaCreditUseCase = ConsumeGachaCreditUseCase(gachaCreditManager),
+        getMalUserUseCase = GetMalUserUseCase(repository)
     )
 }
 

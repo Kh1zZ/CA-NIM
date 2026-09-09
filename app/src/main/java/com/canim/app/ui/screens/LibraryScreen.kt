@@ -33,6 +33,7 @@ import com.canim.app.data.model.MediaType
 import com.canim.app.data.model.UserMediaItem
 import com.canim.app.ui.theme.*
 import com.canim.app.ui.viewmodel.CanimUiState
+import com.canim.app.ui.viewmodel.library.LibraryUiState
 
 private val ItemCardShape = RoundedCornerShape(12.dp)
 private val ItemImageShape = RoundedCornerShape(8.dp)
@@ -52,18 +53,26 @@ fun LibraryScreen(
     onQuickAddManga: (String) -> Unit,
     onQuickDecrementManga: (String) -> Unit = {},
     onSelectItem: (Any, MediaType) -> Unit,
+    libraryState: LibraryUiState? = null,
     modifier: Modifier = Modifier
 ) {
-    val isAnime = state.libraryFilterType == MediaType.ANIME
+    val currentFilterType = libraryState?.filterType ?: state.libraryFilterType
+    val currentAnimeList = libraryState?.animeList ?: state.animeList
+    val currentMangaList = libraryState?.mangaList ?: state.mangaList
+    val currentStatusFilter = libraryState?.statusFilter ?: state.libraryStatusFilter
+    val currentSearchQuery = libraryState?.searchQuery ?: state.librarySearchQuery
+    val currentSortBy = libraryState?.sortBy ?: state.librarySortBy
+
+    val isAnime = currentFilterType == MediaType.ANIME
 
     // Optimized Filtering & Sorting with remember to avoid re-sorting on every frame (Task B2)
-    val filteredAnime = remember(state.animeList, state.libraryStatusFilter, state.librarySearchQuery, state.librarySortBy) {
-        val filtered = state.animeList
+    val filteredAnime = remember(currentAnimeList, currentStatusFilter, currentSearchQuery, currentSortBy) {
+        val filtered = currentAnimeList
             .filter { anime ->
-                (state.libraryStatusFilter == null || anime.status == state.libraryStatusFilter) &&
-                (state.librarySearchQuery.isBlank() || anime.title.contains(state.librarySearchQuery, ignoreCase = true))
+                (currentStatusFilter == null || anime.status == currentStatusFilter) &&
+                (currentSearchQuery.isBlank() || anime.title.contains(currentSearchQuery, ignoreCase = true))
             }
-        when (state.librarySortBy) {
+        when (currentSortBy) {
             "title" -> filtered.sortedBy { it.title.lowercase() }
             "score" -> filtered.sortedByDescending { it.score }
             "progress" -> filtered.sortedByDescending { it.progress }
@@ -71,13 +80,13 @@ fun LibraryScreen(
         }
     }
 
-    val filteredManga = remember(state.mangaList, state.libraryStatusFilter, state.librarySearchQuery, state.librarySortBy) {
-        val filtered = state.mangaList
+    val filteredManga = remember(currentMangaList, currentStatusFilter, currentSearchQuery, currentSortBy) {
+        val filtered = currentMangaList
             .filter { manga ->
-                (state.libraryStatusFilter == null || manga.status == state.libraryStatusFilter) &&
-                (state.librarySearchQuery.isBlank() || manga.title.contains(state.librarySearchQuery, ignoreCase = true))
+                (currentStatusFilter == null || manga.status == currentStatusFilter) &&
+                (currentSearchQuery.isBlank() || manga.title.contains(currentSearchQuery, ignoreCase = true))
             }
-        when (state.librarySortBy) {
+        when (currentSortBy) {
             "title" -> filtered.sortedBy { it.title.lowercase() }
             "score" -> filtered.sortedByDescending { it.score }
             "progress" -> filtered.sortedByDescending { it.progressChapters }
@@ -124,12 +133,12 @@ fun LibraryScreen(
         item {
             com.canim.app.ui.components.SmoothSegmentedSelector(
                 options = listOf(MediaType.ANIME, MediaType.MANGA),
-                selectedOption = state.libraryFilterType,
+                selectedOption = currentFilterType,
                 onOptionSelected = { onSelectMediaType(it) },
                 labelProvider = { type ->
-                    if (type == MediaType.ANIME) "Anime (${state.animeList.size})" else "Manga (${state.mangaList.size})"
+                    if (type == MediaType.ANIME) "Anime (${currentAnimeList.size})" else "Manga (${currentMangaList.size})"
                 },
-                highlightColor = if (state.libraryFilterType == MediaType.ANIME) AccentBlue else MangaAccentDarkBlue,
+                highlightColor = if (currentFilterType == MediaType.ANIME) AccentBlue else MangaAccentDarkBlue,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(44.dp)
@@ -139,7 +148,7 @@ fun LibraryScreen(
         // Search Bar in Library
         item {
             OutlinedTextField(
-                value = state.librarySearchQuery,
+                value = currentSearchQuery,
                 onValueChange = onSearchQueryChange,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -159,7 +168,7 @@ fun LibraryScreen(
                     )
                 },
                 trailingIcon = {
-                    if (state.librarySearchQuery.isNotBlank()) {
+                    if (currentSearchQuery.isNotBlank()) {
                         IconButton(onClick = { onSearchQueryChange("") }) {
                             Icon(
                                 imageVector = Icons.Default.Close,
@@ -189,7 +198,7 @@ fun LibraryScreen(
                 contentPadding = PaddingValues(vertical = 2.dp)
             ) {
                 items(statuses, key = { it.first ?: "all" }, contentType = { "status_filter" }) { (statusVal, label) ->
-                    val isSelected = state.libraryStatusFilter == statusVal
+                    val isSelected = currentStatusFilter == statusVal
                     FilterChip(
                         selected = isSelected,
                         onClick = { onSelectStatusFilter(statusVal) },
@@ -248,7 +257,7 @@ fun LibraryScreen(
                     contentPadding = PaddingValues(vertical = 2.dp)
                 ) {
                     items(sortOptions, key = { it.first }, contentType = { "sort_option" }) { (key, label) ->
-                        val isSelected = state.librarySortBy == key
+                        val isSelected = currentSortBy == key
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
