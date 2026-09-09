@@ -120,6 +120,7 @@ class CacheManagerTest {
 
     @Test
     fun testCompletedStatusAutoFillProgress() {
+        val updateTrackingUseCase = com.canim.app.domain.usecase.UpdateTrackingUseCase(com.canim.app.ui.viewmodel.FakeCanimRepository())
         val animeItem = com.canim.app.data.model.UserMediaItem(
             identity = com.canim.app.data.model.MediaRef(malId = 100),
             metadata = com.canim.app.data.model.MediaMetadata(
@@ -134,7 +135,7 @@ class CacheManagerTest {
             )
         )
 
-        val completedAnime = animeItem.withStatus("completed")
+        val completedAnime = updateTrackingUseCase.applyStatusChange(animeItem, "completed")
         assertEquals("completed", completedAnime.status)
         assertEquals(28, completedAnime.progress)
 
@@ -152,7 +153,7 @@ class CacheManagerTest {
             )
         )
 
-        val completedManga = mangaItem.withStatus("completed")
+        val completedManga = updateTrackingUseCase.applyStatusChange(mangaItem, "completed")
         assertEquals("completed", completedManga.status)
         assertEquals(364, completedManga.progress)
     }

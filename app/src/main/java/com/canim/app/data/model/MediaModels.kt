@@ -121,9 +121,7 @@ data class UserMediaItem(
     val updatedAt: Long get() = tracking.updatedAt
 
     fun withStatus(newStatus: String): UserMediaItem {
-        val maxP = if (isAnime) totalEpisodes else totalChapters
-        val newProgress = if (newStatus == "completed" && maxP > 0) maxP else tracking.progress
-        return copy(tracking = tracking.copy(status = newStatus, progress = newProgress, updatedAt = System.currentTimeMillis()))
+        return copy(tracking = tracking.copy(status = newStatus, updatedAt = System.currentTimeMillis()))
     }
 }
 

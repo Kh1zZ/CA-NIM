@@ -33,7 +33,7 @@ class UpdateStateIsolationTest {
         val malAuth = MalAuthManager(storage)
         repository = CanimRepository(malAuth)
         val gachaCreditManager = com.canim.app.data.local.GachaCreditManager.getInstance(app)
-        viewModel = CanimViewModel(repository, gachaCreditManager)
+        viewModel = createTestCanimViewModel(repository, gachaCreditManager)
     }
 
     @After

@@ -7,6 +7,7 @@ import com.canim.app.data.model.ExtendedMediaDetail
 import com.canim.app.data.model.MediaItem
 import com.canim.app.data.model.MediaType
 import com.canim.app.ui.viewmodel.CanimViewModel
+import com.canim.app.ui.viewmodel.createTestCanimViewModel
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -182,7 +183,7 @@ class CanimRepositorySwrTest {
 
     @Test
     fun testViewModelUpdatesSearchResultsWhenActiveEventReceived() = runBlocking {
-        val viewModel = CanimViewModel(repository, gachaCreditManager)
+        val viewModel = createTestCanimViewModel(repository, gachaCreditManager)
 
         val query = "frieren"
         viewModel.onSearchQueryChange(query, MediaType.ANIME)
@@ -206,7 +207,7 @@ class CanimRepositorySwrTest {
 
     @Test
     fun testViewModelIgnoresSearchRefreshEventWhenQueryMismatched() = runBlocking {
-        val viewModel = CanimViewModel(repository, gachaCreditManager)
+        val viewModel = createTestCanimViewModel(repository, gachaCreditManager)
 
         // User is currently searching for "bleach"
         viewModel.onSearchQueryChange("bleach", MediaType.ANIME)
@@ -226,7 +227,7 @@ class CanimRepositorySwrTest {
 
     @Test
     fun testViewModelUpdatesExtendedDetailWhenActiveDetailMatches() = runBlocking {
-        val viewModel = CanimViewModel(repository, gachaCreditManager)
+        val viewModel = createTestCanimViewModel(repository, gachaCreditManager)
 
         val aniId = 154587
         val malId = 52991
@@ -251,7 +252,7 @@ class CanimRepositorySwrTest {
 
     @Test
     fun testViewModelIgnoresDetailRefreshEventWhenDetailIsNotOpen() = runBlocking {
-        val viewModel = CanimViewModel(repository, gachaCreditManager)
+        val viewModel = createTestCanimViewModel(repository, gachaCreditManager)
 
         assertFalse("Detail is not open initially", viewModel.uiState.value.isDetailOpen)
 
@@ -358,7 +359,7 @@ class CanimRepositorySwrTest {
 
     @Test
     fun testSameIdWithChangedMeaningfulFieldsTriggersRefreshAndUiUpdate() = runBlocking {
-        val viewModel = CanimViewModel(repository, gachaCreditManager)
+        val viewModel = createTestCanimViewModel(repository, gachaCreditManager)
         val query = "solo"
         viewModel.onSearchQueryChange(query, MediaType.ANIME)
 

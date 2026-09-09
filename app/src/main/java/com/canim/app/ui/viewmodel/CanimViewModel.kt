@@ -7,15 +7,13 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.canim.app.data.model.*
-import com.canim.app.domain.repository.CanimRepositoryContract
+import com.canim.app.domain.usecase.*
 import com.canim.app.data.repository.CacheRefreshType
 import com.canim.app.data.cache.CacheManager
 import com.canim.app.CanimApplication
-import com.canim.app.data.local.GachaCreditManager
 import com.canim.app.data.repository.StudioBioRegistry
 import com.canim.app.ui.navigation.ScreenRoute
 import com.canim.app.BuildConfig
-import com.canim.app.data.remote.UpdateChecker
 import com.canim.app.data.remote.UpdateInfo
 import androidx.compose.runtime.Immutable
 import com.canim.app.ui.viewmodel.detail.DetailEvent
@@ -132,14 +130,35 @@ data class CanimUiState(
 @HiltViewModel
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 class CanimViewModel @Inject constructor(
-    private val repository: CanimRepositoryContract,
-    private val gachaCreditManager: GachaCreditManager
+    private val getLibraryUseCase: GetLibraryUseCase,
+    private val saveLibraryItemUseCase: SaveLibraryItemUseCase,
+    private val deleteLibraryItemUseCase: DeleteLibraryItemUseCase,
+    private val updateTrackingUseCase: UpdateTrackingUseCase,
+    private val searchMediaUseCase: SearchMediaUseCase,
+    private val getDiscoverCategoryUseCase: GetDiscoverCategoryUseCase,
+    private val getExtendedDetailUseCase: GetExtendedDetailUseCase,
+    private val getCastCrewProfileUseCase: GetCastCrewProfileUseCase,
+    private val getStudioFilmographyUseCase: GetStudioFilmographyUseCase,
+    private val searchStudiosUseCase: SearchStudiosUseCase,
+    private val consumeGachaCreditUseCase: ConsumeGachaCreditUseCase,
+    private val loadFlashcardDeckUseCase: LoadFlashcardDeckUseCase,
+    private val getMalUserUseCase: GetMalUserUseCase,
+    private val loginMalUseCase: LoginMalUseCase,
+    private val handleMalOAuthCallbackUseCase: HandleMalOAuthCallbackUseCase,
+    private val logoutMalUseCase: LogoutMalUseCase,
+    private val syncMalUseCase: SyncMalUseCase,
+    private val checkForUpdatesUseCase: CheckForUpdatesUseCase,
+    private val startDownloadUpdateUseCase: StartDownloadUpdateUseCase,
+    private val installUpdateUseCase: InstallUpdateUseCase,
+    private val checkApiHealthUseCase: CheckApiHealthUseCase,
+    private val clearCacheUseCase: ClearCacheUseCase,
+    private val observeCacheRefreshUseCase: ObserveCacheRefreshUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
         CanimUiState(
-            malUser = repository.getMalUser(),
-            appMode = if (repository.getMalUser().isLoggedIn) "online_sync" else "offline"
+            malUser = getMalUserUseCase(),
+            appMode = if (getMalUserUseCase().isLoggedIn) "online_sync" else "offline"
         )
     )
     val uiState: StateFlow<CanimUiState> = _uiState.asStateFlow()
@@ -175,8 +194,8 @@ class CanimViewModel @Inject constructor(
     // Isolated Global App State (Auth, Health, Navigation)
     private val _globalState = MutableStateFlow(
         GlobalUiState(
-            malUser = repository.getMalUser(),
-            appMode = if (repository.getMalUser().isLoggedIn) "online_sync" else "offline"
+            malUser = getMalUserUseCase(),
+            appMode = if (getMalUserUseCase().isLoggedIn) "online_sync" else "offline"
         )
     )
     val globalState: StateFlow<GlobalUiState> = _globalState.asStateFlow()
@@ -290,7 +309,7 @@ class CanimViewModel @Inject constructor(
 
         return (aniId?.let { detailCache[it.toString()] })
             ?: (malId?.let { detailCache[it.toString()] })
-            ?: repository.getCachedExtendedDetail(aniId, malId, type)
+            ?: getExtendedDetailUseCase.getCachedExtendedDetail(aniId, malId, type)
     }
 
     fun saveDetailScrollPosition(key: String, index: Int, offset: Int) {
@@ -311,14 +330,14 @@ class CanimViewModel @Inject constructor(
 
     init {
         // Cold-start instant cache-first load from disk/memory
-        val cachedAnime = repository.getCachedTracking("ANIME")
-        val cachedManga = repository.getCachedTracking("MANGA")
+        val cachedAnime = getLibraryUseCase.getCachedTracking("ANIME")
+        val cachedManga = getLibraryUseCase.getCachedTracking("MANGA")
         if (!cachedAnime.isNullOrEmpty() || !cachedManga.isNullOrEmpty()) {
             updateLibraryData(cachedAnime ?: emptyList(), cachedManga ?: emptyList())
         }
 
         // Initialize Gacha Credits
-        val currentCredits = gachaCreditManager.getCredits()
+        val currentCredits = consumeGachaCreditUseCase.getCredits()
         _gachaState.update { it.copy(credits = currentCredits) }
         _uiState.update { it.copy(gachaCredits = currentCredits) }
 
@@ -351,11 +370,7 @@ class CanimViewModel @Inject constructor(
                         } else {
                             _searchState.update { it.copy(isSearching = true) }
                             _uiState.update { it.copy(isSearching = true) }
-                            val results = if (type == MediaType.ANIME) {
-                                repository.searchAnime(trimmed, searchState.genres, searchState.year, searchState.format, forceRefresh = trigger.forceRefresh)
-                            } else {
-                                repository.searchManga(trimmed, searchState.genres, searchState.year, searchState.format, forceRefresh = trigger.forceRefresh)
-                            }
+                            val results = searchMediaUseCase(trimmed, type, searchState.genres, searchState.year, searchState.format, forceRefresh = trigger.forceRefresh)
                             emit(results)
                         }
                     }
@@ -371,7 +386,7 @@ class CanimViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             while (isActive) {
                 delay(15 * 60 * 1000L)
-                repository.pruneCache()
+                clearCacheUseCase.prune()
             }
         }
 
@@ -380,7 +395,7 @@ class CanimViewModel @Inject constructor(
 
         // Observe background SWR cache refresh events and update active UI
         viewModelScope.launch {
-            repository.cacheRefreshEvents.collect { event ->
+            observeCacheRefreshUseCase.events.collect { event ->
                 when (event.type) {
                     CacheRefreshType.SEARCH -> {
                         val searchState = _searchState.value
@@ -389,7 +404,7 @@ class CanimViewModel @Inject constructor(
                         val genres = searchState.genres
                         val year = searchState.year
                         val format = searchState.format
-                        val filterKey = repository.searchFilterKey(trimmed, genres, year, format)
+                        val filterKey = observeCacheRefreshUseCase.searchFilterKey(trimmed, genres, year, format)
                         val searchKey = CacheManager.searchKey(filterKey, type)
                         if (event.key == searchKey || event.key == filterKey) {
                             val fresh = CacheManager.getSearch(filterKey, type)
@@ -402,7 +417,7 @@ class CanimViewModel @Inject constructor(
                     CacheRefreshType.DISCOVER -> {
                         val token = discoverRequestToken
                         val discoverState = _discoverState.value
-                        val categoryKey = repository.discoverFilterKey(discoverState.selectedCategory, discoverState.filter, page = 1)
+                        val categoryKey = observeCacheRefreshUseCase.discoverFilterKey(discoverState.selectedCategory, discoverState.filter, page = 1)
                         val discoverKey = CacheManager.discoverKey(categoryKey)
                         if (event.key == discoverKey || event.key == categoryKey) {
                             val fresh = CacheManager.getDiscover(categoryKey)
@@ -462,8 +477,7 @@ class CanimViewModel @Inject constructor(
 
     fun checkApiHealth() {
         viewModelScope.launch(Dispatchers.IO) {
-            val aniDown = repository.isAniListUnavailable()
-            val malDown = repository.isMalUnavailable()
+            val (aniDown, malDown) = checkApiHealthUseCase()
             _uiState.update { it.copy(isAniListDown = aniDown, isMalDown = malDown) }
             _globalState.update { it.copy(isAniListDown = aniDown, isMalDown = malDown) }
         }
@@ -474,13 +488,13 @@ class CanimViewModel @Inject constructor(
      */
     fun loadUserLibrary(forceRefresh: Boolean = false) {
         viewModelScope.launch {
-            val user = repository.getMalUser()
+            val user = getMalUserUseCase()
             _libraryState.update { it.copy(isLoading = true) }
             _uiState.update { it.copy(isLoadingLibrary = true) }
             if (user.isLoggedIn) {
                 // SWR: If cached items exist and synced within 30 minutes, skip network on startup unless forced
                 val hasCachedData = _uiState.value.animeList.isNotEmpty() || _uiState.value.mangaList.isNotEmpty()
-                val lastSynced = repository.getLastSyncedTime()
+                val lastSynced = getLibraryUseCase.getLastSyncedTime()
                 val isCacheFresh = (System.currentTimeMillis() - lastSynced) < 30 * 60 * 1000L
                 if (!forceRefresh && hasCachedData && isCacheFresh) {
                     _libraryState.update { it.copy(isLoading = false) }
@@ -491,8 +505,8 @@ class CanimViewModel @Inject constructor(
 
                 _uiState.update { it.copy(isLoadingLibrary = true, syncStatus = SyncStatus.SYNCING) }
                 _globalState.update { it.copy(syncStatus = SyncStatus.SYNCING) }
-                val animeDeferred = async(Dispatchers.IO) { repository.getUserAnimeList(forceRefresh) }
-                val mangaDeferred = async(Dispatchers.IO) { repository.getUserMangaList(forceRefresh) }
+                val animeDeferred = async(Dispatchers.IO) { getLibraryUseCase.getUserAnimeList(forceRefresh) }
+                val mangaDeferred = async(Dispatchers.IO) { getLibraryUseCase.getUserMangaList(forceRefresh) }
 
                 val animeResult = animeDeferred.await()
                 val mangaResult = mangaDeferred.await()
@@ -523,8 +537,8 @@ class CanimViewModel @Inject constructor(
 
                 val hasFailure = animeResult is MalFetchResult.Failure && mangaResult is MalFetchResult.Failure
                 val finalSyncStatus = if (hasFailure) SyncStatus.FAILED else SyncStatus.SUCCESS
-                animes.forEach { gachaCreditManager.initBaselineProgress(it.id, it.progress) }
-                mangas.forEach { gachaCreditManager.initBaselineProgress(it.id, it.progress) }
+                animes.forEach { consumeGachaCreditUseCase.initBaselineProgress(it.id, it.progress) }
+                mangas.forEach { consumeGachaCreditUseCase.initBaselineProgress(it.id, it.progress) }
 
                 updateLibraryData(animes, mangas)
                 _libraryState.update { it.copy(isLoading = false) }
@@ -541,7 +555,7 @@ class CanimViewModel @Inject constructor(
             } else {
                 // In-memory demo data for unauthenticated mode
                 if (_uiState.value.animeList.isEmpty() && _uiState.value.mangaList.isEmpty()) {
-                    updateLibraryData(repository.getDemoAnime(), repository.getDemoManga())
+                    updateLibraryData(getLibraryUseCase.getDemoAnime(), getLibraryUseCase.getDemoManga())
                 }
                 _libraryState.update { it.copy(isLoading = false) }
                 _uiState.update { it.copy(isLoadingLibrary = false, syncStatus = SyncStatus.IDLE) }
@@ -697,9 +711,9 @@ class CanimViewModel @Inject constructor(
                 updatedAt = System.currentTimeMillis()
             )
         )
-        val awarded = gachaCreditManager.recordProgressAndAwardCredits(item.id, updatedItem.tracking.progress)
+        val awarded = consumeGachaCreditUseCase.recordProgressAndAwardCredits(item.id, updatedItem.tracking.progress)
         if (awarded > 0) {
-            val newBal = gachaCreditManager.getCredits()
+            val newBal = consumeGachaCreditUseCase.getCredits()
             _gachaState.update { it.copy(credits = newBal) }
             _uiState.update { it.copy(gachaCredits = newBal) }
             showSnackbar("+1 Episode ditambahkan! (+$awarded Tiket Gacha)")
@@ -714,7 +728,7 @@ class CanimViewModel @Inject constructor(
         // 2. Dispatch to MAL API if logged in
         if (item.malId != null && _uiState.value.malUser.isLoggedIn) {
             viewModelScope.launch {
-                val result = repository.updateAnimeTracking(item.malId!!, updatedItem.tracking)
+                val result = updateTrackingUseCase.updateAnime(item.malId!!, updatedItem.tracking)
                 if (result.isFailure) {
                     // Revert optimistic update
                     updateLibraryData(currentList, _uiState.value.mangaList)
@@ -740,7 +754,7 @@ class CanimViewModel @Inject constructor(
 
         if (item.malId != null && _uiState.value.malUser.isLoggedIn) {
             viewModelScope.launch {
-                val result = repository.updateAnimeTracking(item.malId!!, updatedItem.tracking)
+                val result = updateTrackingUseCase.updateAnime(item.malId!!, updatedItem.tracking)
                 if (result.isFailure) {
                     updateLibraryData(currentList, _uiState.value.mangaList)
                     showSnackbar("Gagal update MAL: ${result.exceptionOrNull()?.message}")
@@ -764,9 +778,9 @@ class CanimViewModel @Inject constructor(
                 updatedAt = System.currentTimeMillis()
             )
         )
-        val awarded = gachaCreditManager.recordProgressAndAwardCredits(item.id, updatedItem.tracking.progress)
+        val awarded = consumeGachaCreditUseCase.recordProgressAndAwardCredits(item.id, updatedItem.tracking.progress)
         if (awarded > 0) {
-            val newBal = gachaCreditManager.getCredits()
+            val newBal = consumeGachaCreditUseCase.getCredits()
             _gachaState.update { it.copy(credits = newBal) }
             _uiState.update { it.copy(gachaCredits = newBal) }
             showSnackbar("+1 Chapter ditambahkan! (+$awarded Tiket Gacha)")
@@ -779,7 +793,7 @@ class CanimViewModel @Inject constructor(
 
         if (item.malId != null && _uiState.value.malUser.isLoggedIn) {
             viewModelScope.launch {
-                val result = repository.updateMangaTracking(item.malId!!, updatedItem.tracking)
+                val result = updateTrackingUseCase.updateManga(item.malId!!, updatedItem.tracking)
                 if (result.isFailure) {
                     updateLibraryData(_uiState.value.animeList, currentList)
                     showSnackbar("Gagal update MAL: ${result.exceptionOrNull()?.message}")
@@ -804,7 +818,7 @@ class CanimViewModel @Inject constructor(
 
         if (item.malId != null && _uiState.value.malUser.isLoggedIn) {
             viewModelScope.launch {
-                val result = repository.updateMangaTracking(item.malId!!, updatedItem.tracking)
+                val result = updateTrackingUseCase.updateManga(item.malId!!, updatedItem.tracking)
                 if (result.isFailure) {
                     updateLibraryData(_uiState.value.animeList, currentList)
                     showSnackbar("Gagal update MAL: ${result.exceptionOrNull()?.message}")
@@ -861,7 +875,7 @@ class CanimViewModel @Inject constructor(
 
         if (item.malId != null && _uiState.value.malUser.isLoggedIn) {
             viewModelScope.launch {
-                val result = repository.updateAnimeTracking(item.malId, tracking)
+                val result = updateTrackingUseCase.updateAnime(item.malId, tracking)
                 if (result.isFailure) {
                     updateLibraryData(currentList, _uiState.value.mangaList)
                     showSnackbar("Gagal menyimpan ke MAL: ${result.exceptionOrNull()?.message ?: "Kesalahan jaringan"}")
@@ -917,7 +931,7 @@ class CanimViewModel @Inject constructor(
         _uiState.update { it.copy(isCheckingUpdate = true) }
         _updateState.update { it.copy(isChecking = true) }
         viewModelScope.launch {
-            val result = UpdateChecker.checkLatestRelease(BuildConfig.VERSION_NAME)
+            val result = checkForUpdatesUseCase(BuildConfig.VERSION_NAME)
             val info = result.getOrNull()
             if (info != null) {
                 try {
@@ -982,7 +996,7 @@ class CanimViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            val result = UpdateChecker.downloadApk(
+            val result = startDownloadUpdateUseCase(
                 context = context,
                 downloadUrl = downloadUrl,
                 fileName = apkName,
@@ -1032,32 +1046,33 @@ class CanimViewModel @Inject constructor(
 
     fun installDownloadedUpdate(context: Context) {
         val file = _updateState.value.downloadedApkFile ?: _uiState.value.downloadedApkFile ?: return
-        val result = UpdateChecker.installApk(context, file)
+        val result = installUpdateUseCase(context, file)
         if (result.isFailure) {
             showSnackbar("Gagal membuka installer APK: ${result.exceptionOrNull()?.message}")
         }
     }
 
     fun saveAnime(item: UserMediaItem) {
+        val preparedItem = updateTrackingUseCase.applyStatusChange(item, item.tracking.status)
         val currentList = _uiState.value.animeList
-        val exists = currentList.any { it.id == item.id }
+        val exists = currentList.any { it.id == preparedItem.id }
         val optimisticList = if (exists) {
-            currentList.map { if (it.id == item.id) item else it }
+            currentList.map { if (it.id == preparedItem.id) preparedItem else it }
         } else {
-            currentList + item
+            currentList + preparedItem
         }
-        val awarded = gachaCreditManager.recordProgressAndAwardCredits(item.id, item.tracking.progress)
+        val awarded = consumeGachaCreditUseCase.recordProgressAndAwardCredits(preparedItem.id, preparedItem.tracking.progress)
         if (awarded > 0) {
-            val newBal = gachaCreditManager.getCredits()
+            val newBal = consumeGachaCreditUseCase.getCredits()
             _uiState.update { it.copy(gachaCredits = newBal) }
         }
         updateLibraryData(optimisticList, _uiState.value.mangaList)
         closeDetail()
-        showSnackbar("Perubahan \"${item.title}\" disimpan!")
+        showSnackbar("Perubahan \"${preparedItem.title}\" disimpan!")
 
-        if (item.malId != null && _uiState.value.malUser.isLoggedIn) {
+        if (preparedItem.malId != null && _uiState.value.malUser.isLoggedIn) {
             viewModelScope.launch {
-                val result = repository.updateAnimeTracking(item.malId!!, item.tracking)
+                val result = saveLibraryItemUseCase.saveAnime(preparedItem.malId!!, preparedItem.tracking)
                 if (result.isFailure) {
                     updateLibraryData(currentList, _uiState.value.mangaList)
                     showSnackbar("Gagal menyimpan ke MAL: ${result.exceptionOrNull()?.message}")
@@ -1067,25 +1082,26 @@ class CanimViewModel @Inject constructor(
     }
 
     fun saveManga(item: UserMediaItem) {
+        val preparedItem = updateTrackingUseCase.applyStatusChange(item, item.tracking.status)
         val currentList = _uiState.value.mangaList
-        val exists = currentList.any { it.id == item.id }
+        val exists = currentList.any { it.id == preparedItem.id }
         val optimisticList = if (exists) {
-            currentList.map { if (it.id == item.id) item else it }
+            currentList.map { if (it.id == preparedItem.id) preparedItem else it }
         } else {
-            currentList + item
+            currentList + preparedItem
         }
-        val awarded = gachaCreditManager.recordProgressAndAwardCredits(item.id, item.tracking.progress)
+        val awarded = consumeGachaCreditUseCase.recordProgressAndAwardCredits(preparedItem.id, preparedItem.tracking.progress)
         if (awarded > 0) {
-            val newBal = gachaCreditManager.getCredits()
+            val newBal = consumeGachaCreditUseCase.getCredits()
             _uiState.update { it.copy(gachaCredits = newBal) }
         }
         updateLibraryData(_uiState.value.animeList, optimisticList)
         closeDetail()
-        showSnackbar("Perubahan \"${item.title}\" disimpan!")
+        showSnackbar("Perubahan \"${preparedItem.title}\" disimpan!")
 
-        if (item.malId != null && _uiState.value.malUser.isLoggedIn) {
+        if (preparedItem.malId != null && _uiState.value.malUser.isLoggedIn) {
             viewModelScope.launch {
-                val result = repository.updateMangaTracking(item.malId!!, item.tracking)
+                val result = saveLibraryItemUseCase.saveManga(preparedItem.malId!!, preparedItem.tracking)
                 if (result.isFailure) {
                     updateLibraryData(_uiState.value.animeList, currentList)
                     showSnackbar("Gagal menyimpan ke MAL: ${result.exceptionOrNull()?.message}")
@@ -1104,7 +1120,7 @@ class CanimViewModel @Inject constructor(
 
         if (item.malId != null && _uiState.value.malUser.isLoggedIn) {
             viewModelScope.launch {
-                val result = repository.deleteAnimeTracking(item.malId!!)
+                val result = deleteLibraryItemUseCase.deleteAnime(item.malId!!)
                 if (result.isFailure) {
                     updateLibraryData(currentList, _uiState.value.mangaList)
                     showSnackbar("Gagal menghapus dari MAL: ${result.exceptionOrNull()?.message}")
@@ -1123,7 +1139,7 @@ class CanimViewModel @Inject constructor(
 
         if (item.malId != null && _uiState.value.malUser.isLoggedIn) {
             viewModelScope.launch {
-                val result = repository.deleteMangaTracking(item.malId!!)
+                val result = deleteLibraryItemUseCase.deleteManga(item.malId!!)
                 if (result.isFailure) {
                     updateLibraryData(_uiState.value.animeList, currentList)
                     showSnackbar("Gagal menghapus dari MAL: ${result.exceptionOrNull()?.message}")
@@ -1345,7 +1361,7 @@ class CanimViewModel @Inject constructor(
                 }
 
                 discoverJob = viewModelScope.launch(Dispatchers.IO) {
-                    val items = repository.getDiscoverMedia(category, filter, page = 1, forceRefresh = event.forceRefresh)
+                    val items = getDiscoverCategoryUseCase(category, filter, page = 1, forceRefresh = event.forceRefresh)
                     if (token == discoverRequestToken) {
                         _discoverState.update {
                             it.copy(
@@ -1383,7 +1399,7 @@ class CanimViewModel @Inject constructor(
                 _uiState.update { it.copy(isDiscoverLoadingMore = true) }
 
                 viewModelScope.launch(Dispatchers.IO) {
-                    val nextItems = repository.getDiscoverMedia(
+                    val nextItems = getDiscoverCategoryUseCase(
                         current.selectedCategory,
                         current.filter,
                         page = nextPage
@@ -1466,49 +1482,10 @@ class CanimViewModel @Inject constructor(
                 viewModelScope.launch(Dispatchers.IO) {
                     _gachaState.update { it.copy(isLoading = true) }
                     _uiState.update { it.copy(isFlashcardLoading = true) }
-                    val currentSeason = repository.getDiscoverMedia(DiscoverCategory.CURRENT_SEASON, DiscoverFilter(), page = 1)
-                    val upcoming = repository.getDiscoverMedia(DiscoverCategory.UPCOMING, DiscoverFilter(), page = 1)
                     val completedIds = _uiState.value.completedAnimeMalIds
                     val libraryIds = _uiState.value.animeList.mapNotNull { it.malId }.toSet()
-                    var rawPool = (currentSeason + upcoming)
-                        .filter { item ->
-                            val mId = item.malId
-                            mId == null || (!completedIds.contains(mId) && !libraryIds.contains(mId))
-                        }
-                        .distinctBy { it.malId ?: it.anilistId }
-
-                    if (rawPool.isEmpty()) {
-                        val trending = repository.getDiscoverMedia(DiscoverCategory.TRENDING_NOW, DiscoverFilter(), page = 1)
-                        val topAnime = repository.getDiscoverMedia(DiscoverCategory.TOP_ANIME, DiscoverFilter(), page = 1)
-                        rawPool = (trending + topAnime)
-                            .filter { item ->
-                                val mId = item.malId
-                                mId == null || (!completedIds.contains(mId) && !libraryIds.contains(mId))
-                            }
-                            .distinctBy { it.malId ?: it.anilistId }
-                    }
-
-                    if (rawPool.isEmpty()) {
-                        rawPool = repository.getDemoAnime().map { demo ->
-                            MediaItem(
-                                malId = demo.malId,
-                                anilistId = demo.anilistId,
-                                title = demo.title,
-                                titleEnglish = demo.metadata.titleEnglish,
-                                imageUrl = demo.imageUrl,
-                                type = MediaType.ANIME,
-                                score = demo.metadata.score,
-                                synopsis = demo.synopsis,
-                                episodes = demo.totalEpisodes,
-                                status = demo.status,
-                                year = demo.metadata.year,
-                                genres = demo.metadata.genres,
-                                studio = demo.studio
-                            )
-                        }
-                    }
-
-                    val pool = rawPool.shuffled().take(15)
+                    val excludedIds = completedIds + libraryIds
+                    val pool = loadFlashcardDeckUseCase(excludedIds)
 
                     _gachaState.update {
                         it.copy(
@@ -1525,7 +1502,7 @@ class CanimViewModel @Inject constructor(
                 }
             }
             is GachaEvent.UpdateCredits -> {
-                gachaCreditManager.setCredits(event.newCredits)
+                consumeGachaCreditUseCase.setCredits(event.newCredits)
                 _gachaState.update { it.copy(credits = event.newCredits) }
                 _uiState.update { it.copy(gachaCredits = event.newCredits) }
             }
@@ -1538,9 +1515,9 @@ class CanimViewModel @Inject constructor(
     }
 
     fun consumeGachaCredit(): Boolean {
-        val success = gachaCreditManager.consumeCredit()
+        val success = consumeGachaCreditUseCase()
         if (success) {
-            val updated = gachaCreditManager.getCredits()
+            val updated = consumeGachaCreditUseCase.getCredits()
             _gachaState.update { it.copy(credits = updated) }
             _uiState.update { it.copy(gachaCredits = updated) }
         }
@@ -1595,7 +1572,7 @@ class CanimViewModel @Inject constructor(
                 val mediaKey = getMediaKey(resolvedItem)
                 val inMemoryDetail = detailCache[mediaKey]
                 val cachedDetail = inMemoryDetail
-                    ?: repository.getCachedExtendedDetail(anilistId, malId, type)
+                    ?: getExtendedDetailUseCase.getCachedExtendedDetail(anilistId, malId, type)
 
                 // Instant baseline synthesis (0ms): If cachedDetail is null, populate known fields immediately
                 val initialDetail = cachedDetail ?: when (resolvedItem) {
@@ -1669,7 +1646,7 @@ class CanimViewModel @Inject constructor(
                         // 1. Concurrently launch MAL fetch if MAL ID is known
                         val malDeferred = if (initialMalId != null) {
                             async {
-                                repository.getMalExtendedDetailFallback(initialMalId, type)
+                                getExtendedDetailUseCase.getMalExtendedDetailFallback(initialMalId, type)
                             }
                         } else null
 
@@ -1740,7 +1717,7 @@ class CanimViewModel @Inject constructor(
                                 effectiveMalId = aniDetail.malId
                                 launch {
                                     try {
-                                        val malDetail = repository.getMalExtendedDetailFallback(aniDetail.malId, type)
+                                        val malDetail = getExtendedDetailUseCase.getMalExtendedDetailFallback(aniDetail.malId, type)
                                         if (malDetail != null && token == detailRequestToken) {
                                             _detailState.update { current ->
                                                 val currentExt = current.extendedDetail ?: aniDetail
@@ -1823,7 +1800,7 @@ class CanimViewModel @Inject constructor(
                         // Unified tracking resolution: if not in local library, fetch live MAL tracking asynchronously
                         if (resolvedItem !is UserMediaItem && effectiveMalId != null && _uiState.value.malUser.isLoggedIn) {
                             try {
-                                val tracking = repository.getMalTrackingStatus(effectiveMalId, type)
+                                val tracking = getExtendedDetailUseCase.getMalTrackingStatus(effectiveMalId, type)
                                 if (tracking != null) {
                                     val currentExt = _detailState.value.extendedDetail
                                     val media = resolvedItem as? MediaItem
@@ -1899,11 +1876,7 @@ class CanimViewModel @Inject constructor(
                     )
                 }
                 viewModelScope.launch(Dispatchers.IO) {
-                    val profile = if (route.isStaff) {
-                        repository.getStaffProfile(route.id)
-                    } else {
-                        repository.getCharacterProfile(route.id)
-                    }
+                    val profile = getCastCrewProfileUseCase(route.id, route.isStaff)
                     _detailState.update {
                         it.copy(
                             selectedCastCrewProfile = profile,
@@ -2168,7 +2141,7 @@ class CanimViewModel @Inject constructor(
 
                 studioJob = viewModelScope.launch(Dispatchers.IO) {
                     val sort = _studioState.value.sort
-                    val pageResult = repository.getStudioFilmography(studioId = studioId, page = page, sort = sort)
+                    val pageResult = getStudioFilmographyUseCase(studioId = studioId, page = page, sort = sort)
                     val currentStudio = _studioState.value
                     val newItems = if (page == 1) {
                         pageResult?.items ?: emptyList()
@@ -2257,7 +2230,7 @@ class CanimViewModel @Inject constructor(
                 studioSearchJob = viewModelScope.launch(Dispatchers.IO) {
                     delay(250L)
                     val remoteResults = try {
-                        repository.searchStudios(trimmed)
+                        searchStudiosUseCase(trimmed)
                     } catch (_: Exception) {
                         emptyList()
                     }
@@ -2406,7 +2379,7 @@ class CanimViewModel @Inject constructor(
     // --- MAL OAuth & Sync ---
     fun loginWithMal(context: Context) {
         try {
-            val url = repository.buildMalAuthorizeUrl()
+            val url = loginMalUseCase()
             val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).apply {
                 flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK
             }
@@ -2420,7 +2393,7 @@ class CanimViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isExchangingToken = true) }
             _globalState.update { it.copy(isExchangingToken = true) }
-            val result = repository.handleMalOAuthCallback(code, state)
+            val result = handleMalOAuthCallbackUseCase(code, state)
             if (result.isSuccess) {
                 val user = result.getOrThrow()
                 _uiState.update {
@@ -2448,7 +2421,7 @@ class CanimViewModel @Inject constructor(
     }
 
     fun logoutMal() {
-        repository.logoutMal()
+        logoutMalUseCase()
         _uiState.update {
             it.copy(
                 malUser = MalUser(),
@@ -2463,14 +2436,14 @@ class CanimViewModel @Inject constructor(
         }
         showSnackbar("Akun MyAnimeList telah logout.")
         // Revert to demo data
-        updateLibraryData(repository.getDemoAnime(), repository.getDemoManga())
+        updateLibraryData(getLibraryUseCase.getDemoAnime(), getLibraryUseCase.getDemoManga())
     }
 
     fun syncWithMal() {
         viewModelScope.launch {
             _uiState.update { it.copy(isSyncingMal = true) }
             _globalState.update { it.copy(isSyncingMal = true) }
-            val result = repository.syncWithMal()
+            val result = syncMalUseCase()
             _uiState.update { it.copy(isSyncingMal = false) }
             _globalState.update { it.copy(isSyncingMal = false) }
             if (result.isSuccess) {
@@ -2488,7 +2461,7 @@ class CanimViewModel @Inject constructor(
     }
 
     fun loadDemoData() {
-        updateLibraryData(repository.getDemoAnime(), repository.getDemoManga())
+        updateLibraryData(getLibraryUseCase.getDemoAnime(), getLibraryUseCase.getDemoManga())
         showSnackbar("Dataset demo dimuat!")
     }
 
@@ -2499,19 +2472,19 @@ class CanimViewModel @Inject constructor(
 
     fun clearImageCache(context: Context) {
         viewModelScope.launch {
-            repository.clearImageCache(context)
+            clearCacheUseCase.clearImageCache(context)
             showSnackbar("Cache gambar telah dibersihkan.")
         }
     }
 
     fun clearMetadataCache() {
-        repository.clearMetadataCache()
+        clearCacheUseCase.clearMetadataCache()
         showSnackbar("Cache query & metadata telah dibersihkan.")
     }
 
     fun clearAllCache(context: Context) {
         viewModelScope.launch {
-            repository.clearAllCache(context)
+            clearCacheUseCase.clearAllCache(context)
             showSnackbar("Semua cache berhasil dibersihkan.")
         }
     }
