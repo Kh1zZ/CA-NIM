@@ -200,7 +200,8 @@ class DetailViewModel @Inject constructor(
                 selectedCastCrewProfile = null,
                 isLoadingCastCrewProfile = false,
                 extendedDetail = initialDetail,
-                isLoadingExtendedDetail = cachedDetail == null
+                isLoadingExtendedDetail = cachedDetail == null,
+                isAniListUnavailable = false
             )
         }
 
@@ -236,6 +237,16 @@ class DetailViewModel @Inject constructor(
                                         malMembers = malDetail.malMembers ?: currentExt?.malMembers,
                                         synopsis = malDetail.synopsis?.takeIf { it.isNotBlank() } ?: currentExt?.synopsis ?: "",
                                         airingStatus = malDetail.airingStatus ?: currentExt?.airingStatus,
+                                        studio = malDetail.studio ?: currentExt?.studio,
+                                        studioId = malDetail.studioId ?: currentExt?.studioId,
+                                        publisher = malDetail.publisher ?: currentExt?.publisher,
+                                        source = malDetail.source ?: currentExt?.source,
+                                        startDate = malDetail.startDate ?: currentExt?.startDate,
+                                        endDate = malDetail.endDate ?: currentExt?.endDate,
+                                        durationMinutes = malDetail.durationMinutes ?: currentExt?.durationMinutes,
+                                        genres = if (malDetail.genres.isNotEmpty()) malDetail.genres else (currentExt?.genres ?: emptyList()),
+                                        relations = if (malDetail.relations.isNotEmpty()) malDetail.relations else (currentExt?.relations ?: emptyList()),
+                                        recommendations = if (malDetail.recommendations.isNotEmpty()) malDetail.recommendations else (currentExt?.recommendations ?: emptyList()),
                                         isFromFallback = currentExt == null || currentExt.isFromFallback
                                     )
                                     cacheDetail(resolvedItem, merged)
@@ -275,7 +286,17 @@ class DetailViewModel @Inject constructor(
                                             malPopularity = malDetail.malPopularity ?: currentExt.malPopularity,
                                             malMembers = malDetail.malMembers ?: currentExt.malMembers,
                                             synopsis = malDetail.synopsis?.takeIf { it.isNotBlank() } ?: currentExt.synopsis,
-                                            airingStatus = malDetail.airingStatus ?: currentExt.airingStatus
+                                            airingStatus = malDetail.airingStatus ?: currentExt.airingStatus,
+                                            studio = currentExt.studio ?: malDetail.studio,
+                                            studioId = currentExt.studioId ?: malDetail.studioId,
+                                            publisher = currentExt.publisher ?: malDetail.publisher,
+                                            source = currentExt.source ?: malDetail.source,
+                                            startDate = currentExt.startDate ?: malDetail.startDate,
+                                            endDate = currentExt.endDate ?: malDetail.endDate,
+                                            durationMinutes = currentExt.durationMinutes ?: malDetail.durationMinutes,
+                                            genres = if (currentExt.genres.isNotEmpty()) currentExt.genres else malDetail.genres,
+                                            relations = if (currentExt.relations.isNotEmpty()) currentExt.relations else malDetail.relations,
+                                            recommendations = if (currentExt.recommendations.isNotEmpty()) currentExt.recommendations else malDetail.recommendations
                                         )
                                         cacheDetail(resolvedItem, merged)
                                         cacheDetail(item, merged)
@@ -295,21 +316,48 @@ class DetailViewModel @Inject constructor(
                             malPopularity = currentExt?.malPopularity ?: aniDetail.popularity,
                             malMembers = currentExt?.malMembers ?: aniDetail.watchers,
                             synopsis = currentExt?.synopsis?.takeIf { it.isNotBlank() } ?: aniDetail.synopsis,
-                            airingStatus = currentExt?.airingStatus ?: aniDetail.airingStatus
+                            airingStatus = currentExt?.airingStatus ?: aniDetail.airingStatus,
+                            studio = aniDetail.studio ?: currentExt?.studio,
+                            studioId = aniDetail.studioId ?: currentExt?.studioId,
+                            publisher = aniDetail.publisher ?: currentExt?.publisher,
+                            source = aniDetail.source ?: currentExt?.source,
+                            startDate = aniDetail.startDate ?: currentExt?.startDate,
+                            endDate = aniDetail.endDate ?: currentExt?.endDate,
+                            durationMinutes = aniDetail.durationMinutes ?: currentExt?.durationMinutes,
+                            genres = if (aniDetail.genres.isNotEmpty()) aniDetail.genres else (currentExt?.genres ?: emptyList()),
+                            relations = if (aniDetail.relations.isNotEmpty()) aniDetail.relations else (currentExt?.relations ?: emptyList()),
+                            recommendations = if (aniDetail.recommendations.isNotEmpty()) aniDetail.recommendations else (currentExt?.recommendations ?: emptyList())
                         )
                         cacheDetail(resolvedItem, merged)
                         cacheDetail(item, merged)
                         current.copy(
                             extendedDetail = merged,
-                            isLoadingExtendedDetail = false
+                            isLoadingExtendedDetail = false,
+                            isAniListUnavailable = false
                         )
                     }
-                } else if (aniDetail == null && effectiveMalId != null && malDeferred != null) {
-                    val malDetail = malDeferred.await()
-                    if (malDetail != null && token == detailRequestToken) {
+                } else if (aniDetail == null && token == detailRequestToken) {
+                    val malDetail = if (effectiveMalId != null && malDeferred != null) {
+                        malDeferred.await()
+                    } else null
+
+                    if (malDetail != null) {
                         cacheDetail(resolvedItem, malDetail)
                         cacheDetail(item, malDetail)
-                        _detailState.update { it.copy(extendedDetail = malDetail, isLoadingExtendedDetail = false) }
+                        _detailState.update {
+                            it.copy(
+                                extendedDetail = malDetail,
+                                isLoadingExtendedDetail = false,
+                                isAniListUnavailable = true
+                            )
+                        }
+                    } else {
+                        _detailState.update {
+                            it.copy(
+                                isLoadingExtendedDetail = false,
+                                isAniListUnavailable = true
+                            )
+                        }
                     }
                 }
 

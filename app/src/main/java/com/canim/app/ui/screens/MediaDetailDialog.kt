@@ -620,8 +620,16 @@ fun MediaDetailDialog(
                                     CircularProgressIndicator(color = themeAccent)
                                 }
                             } else if (extendedDetail?.cast.isNullOrEmpty()) {
-                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    Text("Informasi karakter & Seiyuu tidak tersedia.", color = TextMuted, fontSize = 12.sp)
+                                Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+                                    Text(
+                                        if (extendedDetail?.isFromFallback == true)
+                                            "Karakter & Seiyuu hanya tersedia di AniList. Server AniList saat ini sedang offline / tidak merespon (HTTP 403)."
+                                        else
+                                            "Informasi karakter & Seiyuu tidak tersedia.",
+                                        color = TextMuted,
+                                        fontSize = 12.sp,
+                                        textAlign = TextAlign.Center
+                                    )
                                 }
                             } else {
                                 LazyColumn(
@@ -643,8 +651,16 @@ fun MediaDetailDialog(
                                     CircularProgressIndicator(color = themeAccent)
                                 }
                             } else if (extendedDetail?.crew.isNullOrEmpty()) {
-                                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    Text("Informasi staf & kru produksi tidak tersedia.", color = TextMuted, fontSize = 12.sp)
+                                Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
+                                    Text(
+                                        if (extendedDetail?.isFromFallback == true)
+                                            "Kru produksi hanya tersedia di AniList. Server AniList saat ini sedang offline / tidak merespon (HTTP 403)."
+                                        else
+                                            "Informasi staf & kru produksi tidak tersedia.",
+                                        color = TextMuted,
+                                        fontSize = 12.sp,
+                                        textAlign = TextAlign.Center
+                                    )
                                 }
                             } else {
                                 LazyColumn(
@@ -719,7 +735,8 @@ fun MediaDetailDialog(
                                         val startVal = extendedDetail?.startDate ?: "-"
                                         val endVal = extendedDetail?.endDate ?: "-"
 
-                                        DetailInfoRow(label = if (isAnime) "Studio Produksi" else "Penulis / Author", value = if (isAnime) studioVal else publisherVal)
+                                        val authorVal = if (publisherVal != "-") publisherVal else studioVal
+                                        DetailInfoRow(label = if (isAnime) "Studio Produksi" else "Penulis / Author", value = if (isAnime) studioVal else authorVal)
                                         if (isAnime) {
                                             DetailInfoRow(label = "Publisher / Distributor", value = publisherVal)
                                         }

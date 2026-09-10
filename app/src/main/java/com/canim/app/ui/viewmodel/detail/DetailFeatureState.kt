@@ -13,7 +13,8 @@ data class DetailUiState(
     val extendedDetail: ExtendedMediaDetail? = null,
     val isLoadingExtendedDetail: Boolean = false,
     val selectedCastCrewProfile: CastCrewProfile? = null,
-    val isLoadingCastCrewProfile: Boolean = false
+    val isLoadingCastCrewProfile: Boolean = false,
+    val isAniListUnavailable: Boolean = false
 )
 
 sealed interface DetailEvent {

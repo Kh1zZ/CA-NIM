@@ -544,6 +544,37 @@ fun MediaDetailScreen(
                 }
             }
 
+            if (extendedDetail?.isFromFallback == true) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(StarGold.copy(alpha = 0.12f))
+                            .border(1.dp, StarGold.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = "Fallback Notice",
+                                tint = StarGold,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "Server AniList sedang offline. Detail utama, skor, & studio disajikan melalui MyAnimeList.",
+                                color = StarGold,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+            }
 
             // Media Details Table Section (Card Layout with Icons & Indonesian Formatting)
             item {
@@ -573,7 +604,11 @@ fun MediaDetailScreen(
                                 .padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            val studio = extendedDetail?.studio ?: userItem?.studio ?: mediaItem?.studio
+                            val studio = if (isAnime) {
+                                extendedDetail?.studio ?: userItem?.studio ?: mediaItem?.studio
+                            } else {
+                                extendedDetail?.publisher ?: extendedDetail?.studio ?: userItem?.studio ?: mediaItem?.studio
+                            }
                             if (!studio.isNullOrBlank()) {
                                 val studioId = extendedDetail?.studioId
                                     ?: StudioBioRegistry.findStudioIdByName(studio)
@@ -737,7 +772,8 @@ fun MediaDetailScreen(
 
             // Cast Section (Pemeran & Karakter)
             val castList: List<CharacterCastItem> = extendedDetail?.cast ?: emptyList()
-            if (castList.isNotEmpty() || isLoadingExtendedDetail) {
+            val isFallbackDetail = extendedDetail?.isFromFallback == true
+            if (castList.isNotEmpty() || isLoadingExtendedDetail || isFallbackDetail) {
                 item {
                     Spacer(modifier = Modifier.height(14.dp))
                     Row(
@@ -803,6 +839,34 @@ fun MediaDetailScreen(
                                             onOpenCastCrew(targetId, isStaff)
                                         }
                                     }
+                                )
+                            }
+                        }
+                    } else if (isFallbackDetail) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(CardBg)
+                                .border(1.dp, CardBorder, RoundedCornerShape(10.dp))
+                                .padding(12.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Info,
+                                    contentDescription = "Info",
+                                    tint = TextMuted,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Text(
+                                    text = "Daftar pengisi suara & karakter hanya tersedia di AniList. Karena server AniList sedang tidak merespon / offline (HTTP 403), data ini sementara tidak dapat dimuat.",
+                                    color = TextMuted,
+                                    fontSize = 12.sp,
+                                    lineHeight = 16.sp
                                 )
                             }
                         }

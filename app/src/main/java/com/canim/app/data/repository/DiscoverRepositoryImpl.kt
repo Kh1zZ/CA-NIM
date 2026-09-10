@@ -154,23 +154,8 @@ class DiscoverRepositoryImpl @Inject constructor(
             )
         }.getOrDefault(emptyList())
 
-        if (results.isEmpty()) {
-            try {
-                when (category) {
-                    DiscoverCategory.TRENDING_NOW -> {
-                        val resp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "bypopularity", limit, offset)
-                        if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
-                            results = resp.body()!!.data.map { MediaMappingUtils.mapMalAnimeNodeToMediaItem(it.node) }
-                        }
-                    }
-                    else -> {}
-                }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                Log.w("DiscoverRepository", "MAL discover fallback failed: ${LogRedactor.redact(e.message ?: "")}")
-            }
-        }
+        // NOTE: AniList is the sole source for TRENDING_NOW (Anime & Manga) as MAL does not provide a trending algorithm.
+        // For Manga, MAL only provides TOP_MANGA; remaining categories (RECENTLY_DONE_MANGA, NEWLY_ADDED_MANGA) are AniList-exclusive.
 
         if (category != DiscoverCategory.TRENDING_NOW &&
             category != DiscoverCategory.RECENTLY_DONE_MANGA &&

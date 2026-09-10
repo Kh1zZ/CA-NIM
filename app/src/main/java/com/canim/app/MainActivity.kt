@@ -719,13 +719,91 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        // Floating Top Rate Limit Countdown Banner
-                        RateLimitBanner(
-                            throttleState = globalState.throttleNotification,
+                        // Floating Top Notification Banners (Rate Limit & Outage)
+                        Column(
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
                                 .fillMaxWidth()
-                        )
+                        ) {
+                            RateLimitBanner(
+                                throttleState = globalState.throttleNotification,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            // AniList Outage Notification Banner
+                            AnimatedVisibility(
+                                visible = globalState.isAniListDown,
+                                enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                                exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = Color(0xFF1E1408),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        Brush.horizontalGradient(
+                                            listOf(StatusOnHoldColor.copy(alpha = 0.8f), Color(0xFFD97706).copy(alpha = 0.5f))
+                                        )
+                                    ),
+                                    shadowElevation = 6.dp
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(30.dp)
+                                                .clip(CircleShape)
+                                                .background(StatusOnHoldColor.copy(alpha = 0.2f))
+                                                .border(1.dp, StatusOnHoldColor.copy(alpha = 0.5f), CircleShape),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.CloudOff,
+                                                contentDescription = "AniList Outage",
+                                                tint = StatusOnHoldColor,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "Server AniList Sedang Gangguan (HTTP 403)",
+                                                color = TextPrimary,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                text = "Karakter, Seiyuu, Kru, & Tren dialihkan / dinonaktifkan sementara.",
+                                                color = TextSecondary,
+                                                fontSize = 10.5.sp,
+                                                lineHeight = 14.sp
+                                            )
+                                        }
+
+                                        TextButton(
+                                            onClick = { globalViewModel.checkApiHealth() },
+                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                        ) {
+                                            Text(
+                                                text = "Cek Ulang",
+                                                color = StatusOnHoldColor,
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }

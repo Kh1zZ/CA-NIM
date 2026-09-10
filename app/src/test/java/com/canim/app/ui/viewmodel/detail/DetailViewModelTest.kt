@@ -89,4 +89,30 @@ class DetailViewModelTest {
         assertEquals(100, cached?.malId)
         assertEquals("Death Note", cached?.title)
     }
+
+    @Test
+    fun testStudioAndFallbackPreservation() {
+        val media = fakeItem(101, "Attack on Titan")
+        val fallbackDetail = ExtendedMediaDetail(
+            malId = 101,
+            title = "Attack on Titan",
+            studio = "Wit Studio",
+            studioId = 858,
+            publisher = "Kodansha",
+            isFromFallback = true
+        )
+        viewModel.cacheDetail(media, fallbackDetail)
+        val cached = viewModel.getCachedDetail(media)
+        assertNotNull(cached)
+        assertEquals("Wit Studio", cached?.studio)
+        assertEquals(858, cached?.studioId)
+        assertEquals("Kodansha", cached?.publisher)
+        assertTrue(cached?.isFromFallback == true)
+    }
+
+    @Test
+    fun testInitialStateHasAniListAvailable() {
+        val state = viewModel.detailState.value
+        assertFalse(state.isAniListUnavailable)
+    }
 }

@@ -668,6 +668,7 @@ open class MalAuthManager(
                         bannerImage = body.mainPicture?.large ?: body.mainPicture?.medium,
                         synopsis = body.synopsis,
                         studio = body.studios?.firstOrNull()?.name,
+                        studioId = body.studios?.firstOrNull()?.id,
                         source = body.source,
                         airingStatus = body.status,
                         startDate = body.startDate,

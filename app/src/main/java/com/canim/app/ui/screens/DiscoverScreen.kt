@@ -31,6 +31,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -293,18 +294,104 @@ fun DiscoverScreen(
                 }
             }
         } else if (currentDiscoverItems.isEmpty()) {
+            val isAniListExclusiveCategory = currentSelectedCategory == DiscoverCategory.TRENDING_NOW ||
+                currentSelectedCategory == DiscoverCategory.RECENTLY_DONE_MANGA ||
+                currentSelectedCategory == DiscoverCategory.NEWLY_ADDED_MANGA ||
+                currentSelectedCategory == DiscoverCategory.STUDIO
+
             item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(180.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Tidak ada judul yang ditemukan untuk kategori ini.",
-                        color = TextMuted,
-                        fontSize = 13.sp
-                    )
+                if (isAniListExclusiveCategory) {
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        color = CardBg,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorder)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .background(StatusDroppedColor.copy(alpha = 0.15f))
+                                    .border(1.dp, StatusDroppedColor.copy(alpha = 0.35f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CloudOff,
+                                    contentDescription = "Server AniList Offline",
+                                    tint = StatusDroppedColor,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                            Text(
+                                text = "Layanan AniList Sedang Tidak Merespon",
+                                color = TextPrimary,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center
+                            )
+                            Text(
+                                text = "Kategori \"${currentSelectedCategory.label}\" membutuhkan data langsung dari AniList yang saat ini sedang mengalami gangguan atau dinonaktifkan sementara (HTTP 403).\n\nSilakan jelajahi kategori lain yang didukung penuh oleh MyAnimeList:",
+                                color = TextSecondary,
+                                fontSize = 12.sp,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 18.sp
+                            )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.padding(top = 4.dp)
+                            ) {
+                                if (discoverMediaType == MediaType.ANIME) {
+                                    OutlinedButton(
+                                        onClick = { onSelectCategory(DiscoverCategory.CURRENT_SEASON, DiscoverFilter()) },
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentBlue),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, AccentBlue.copy(alpha = 0.5f))
+                                    ) {
+                                        Text("Musim Ini", fontSize = 12.sp)
+                                    }
+                                    OutlinedButton(
+                                        onClick = { onSelectCategory(DiscoverCategory.TOP_ANIME, DiscoverFilter()) },
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentBlue),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, AccentBlue.copy(alpha = 0.5f))
+                                    ) {
+                                        Text("Anime Teratas", fontSize = 12.sp)
+                                    }
+                                } else {
+                                    OutlinedButton(
+                                        onClick = { onSelectCategory(DiscoverCategory.TOP_MANGA, DiscoverFilter()) },
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MangaAccentDarkBlue),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, MangaAccentDarkBlue.copy(alpha = 0.5f))
+                                    ) {
+                                        Text("Manga Teratas (MAL)", fontSize = 12.sp)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Tidak ada judul yang ditemukan untuk kategori ini.",
+                            color = TextMuted,
+                            fontSize = 13.sp
+                        )
+                    }
                 }
             }
         } else {

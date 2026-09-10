@@ -6,6 +6,7 @@ import com.canim.app.data.model.*
 import com.canim.app.domain.usecase.*
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
@@ -26,6 +27,8 @@ class LibraryViewModel @Inject constructor(
 
     private val _snackbarEvent = Channel<String>(Channel.BUFFERED)
     val snackbarEvent = _snackbarEvent.receiveAsFlow()
+
+    private var statsCalculationJob: Job? = null
 
     init {
         // Cold-start instant cache-first load from disk/memory
@@ -96,7 +99,15 @@ class LibraryViewModel @Inject constructor(
     }
 
     private fun updateLibraryData(animes: List<UserMediaItem>, mangas: List<UserMediaItem>) {
-        viewModelScope.launch(Dispatchers.Default) {
+        _libraryState.update { current ->
+            current.copy(
+                animeList = animes,
+                mangaList = mangas
+            )
+        }
+
+        statsCalculationJob?.cancel()
+        statsCalculationJob = viewModelScope.launch(Dispatchers.Default) {
             val watching = animes.filter { it.status == "watching" }
             val reading = mangas.filter { it.status == "reading" }
             val completedAnimeIds = animes.filter { it.status == "completed" }.mapNotNull { it.malId }.toSet()
@@ -136,8 +147,6 @@ class LibraryViewModel @Inject constructor(
             withContext(Dispatchers.Main) {
                 _libraryState.update { current ->
                     current.copy(
-                        animeList = animes,
-                        mangaList = mangas,
                         watchingAnime = watching,
                         readingManga = reading,
                         completedAnimeMalIds = completedAnimeIds,
