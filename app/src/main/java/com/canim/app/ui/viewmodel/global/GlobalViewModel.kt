@@ -21,6 +21,7 @@ import com.canim.app.domain.usecase.SyncMalUseCase
 import com.canim.app.ui.navigation.ScreenRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -62,6 +63,8 @@ class GlobalViewModel @Inject constructor(
     private var statsScrollIndex: Int = 0
     private var statsScrollOffset: Int = 0
 
+    private var throttleCountdownJob: Job? = null
+
     init {
         // Collect Rate Limiter events from ApiClient limiters
         viewModelScope.launch {
@@ -90,6 +93,13 @@ class GlobalViewModel @Inject constructor(
                         "✅ Koneksi ke $displayHost pulih."
                 }
                 showSnackbar(msg)
+
+                if (event is LimiterEvent.CooldownStarted) {
+                    startThrottleCountdown(event.host, event.durationMs)
+                } else if (event is LimiterEvent.Recovered) {
+                    throttleCountdownJob?.cancel()
+                    _globalState.update { it.copy(throttleNotification = null) }
+                }
             }
         }
 
@@ -103,6 +113,29 @@ class GlobalViewModel @Inject constructor(
 
         // Real-time API outage check (AniList & MAL)
         checkApiHealth()
+    }
+
+    private fun startThrottleCountdown(host: String, durationMs: Long) {
+        val totalSeconds = maxOf(1L, (durationMs + 999L) / 1000L)
+        throttleCountdownJob?.cancel()
+        throttleCountdownJob = viewModelScope.launch {
+            var remaining = totalSeconds
+            while (remaining > 0 && isActive) {
+                _globalState.update {
+                    it.copy(
+                        throttleNotification = ThrottleNotificationState(
+                            host = host,
+                            totalSeconds = totalSeconds,
+                            remainingSeconds = remaining,
+                            isActive = true
+                        )
+                    )
+                }
+                delay(1000L)
+                remaining--
+            }
+            _globalState.update { it.copy(throttleNotification = null) }
+        }
     }
 
     // --- Screen Stack Navigation ---

@@ -252,77 +252,29 @@ class LibraryRepositoryImpl(
         if (malIds.isEmpty()) return@withContext items
 
         val dao = libraryDao
-        val unEnrichedMalIds = mutableListOf<Int>()
 
-        for (mId in malIds) {
-            val localEntry = dao?.getEntry(mId, type.name)
-            if (localEntry?.anilistId != null) {
-                CacheManager.putIdMapping(mId, localEntry.anilistId, type)
-                continue
-            }
-            if (CacheManager.getMetadata(mId, type) != null) {
-                continue
-            }
-            val aniId = CacheManager.getAniListIdForMalId(mId, type)
-            if (aniId != null && CacheManager.getDetail(CacheManager.detailKey(aniId, mId)) != null) {
-                continue
-            }
-            if (CacheManager.isNegativeCached("resolve_mal_${mId}_${type.name}")) {
-                continue
-            }
-            unEnrichedMalIds.add(mId)
-        }
-
-        val aniListMap = if (unEnrichedMalIds.isNotEmpty()) {
-            try {
-                AniListClient.getMediaBatchByMalIds(unEnrichedMalIds, type)
-            } catch (_: Exception) {
-                emptyMap()
-            }
-        } else {
-            emptyMap()
-        }
-
+        // Populate from local DB / Cache without bursting AniList network API during sync
         items.map { item ->
             val mId = item.malId ?: return@map item
-            val aniItem = aniListMap[mId]
-            if (aniItem != null) {
+            val cachedMeta = CacheManager.getMetadata(mId, type)
+            if (cachedMeta != null) {
                 val updatedMetadata = item.metadata.copy(
-                    titleEnglish = aniItem.titleEnglish ?: item.metadata.titleEnglish,
-                    imageUrl = item.metadata.imageUrl.ifBlank { aniItem.imageUrl },
-                    totalEpisodes = aniItem.episodes ?: item.metadata.totalEpisodes,
-                    totalChapters = aniItem.chapters ?: item.metadata.totalChapters,
-                    totalVolumes = aniItem.volumes ?: item.metadata.totalVolumes,
-                    genres = if (aniItem.genres.isNotEmpty()) aniItem.genres else item.metadata.genres,
-                    studio = aniItem.studio ?: item.metadata.studio,
-                    format = aniItem.format ?: item.metadata.format,
-                    year = aniItem.year ?: item.metadata.year,
-                    season = aniItem.season ?: item.metadata.season
+                    titleEnglish = cachedMeta.titleEnglish ?: item.metadata.titleEnglish,
+                    imageUrl = item.metadata.imageUrl.ifBlank { cachedMeta.imageUrl },
+                    totalEpisodes = cachedMeta.episodes ?: item.metadata.totalEpisodes,
+                    totalChapters = cachedMeta.chapters ?: item.metadata.totalChapters,
+                    totalVolumes = cachedMeta.volumes ?: item.metadata.totalVolumes,
+                    genres = if (cachedMeta.genres.isNotEmpty()) cachedMeta.genres else item.metadata.genres,
+                    studio = cachedMeta.studio ?: item.metadata.studio,
+                    format = cachedMeta.format ?: item.metadata.format,
+                    year = cachedMeta.year ?: item.metadata.year,
+                    season = cachedMeta.season ?: item.metadata.season
                 )
                 item.copy(
-                    identity = MediaRef(anilistId = aniItem.anilistId, malId = mId),
+                    identity = MediaRef(anilistId = cachedMeta.anilistId ?: CacheManager.getAniListIdForMalId(mId, type), malId = mId),
                     metadata = updatedMetadata
                 )
             } else {
-                val cachedMeta = CacheManager.getMetadata(mId, type)
-                if (cachedMeta != null) {
-                    val updatedMetadata = item.metadata.copy(
-                        titleEnglish = cachedMeta.titleEnglish ?: item.metadata.titleEnglish,
-                        imageUrl = item.metadata.imageUrl.ifBlank { cachedMeta.imageUrl },
-                        totalEpisodes = cachedMeta.episodes ?: item.metadata.totalEpisodes,
-                        totalChapters = cachedMeta.chapters ?: item.metadata.totalChapters,
-                        totalVolumes = cachedMeta.volumes ?: item.metadata.totalVolumes,
-                        genres = if (cachedMeta.genres.isNotEmpty()) cachedMeta.genres else item.metadata.genres,
-                        studio = cachedMeta.studio ?: item.metadata.studio,
-                        format = cachedMeta.format ?: item.metadata.format,
-                        year = cachedMeta.year ?: item.metadata.year,
-                        season = cachedMeta.season ?: item.metadata.season
-                    )
-                    item.copy(
-                        identity = MediaRef(anilistId = cachedMeta.anilistId ?: CacheManager.getAniListIdForMalId(mId, type), malId = mId),
-                        metadata = updatedMetadata
-                    )
-                } else {
                     val localEntry = dao?.getEntry(mId, type.name)
                     if (localEntry?.anilistId != null) {
                         val localGenres = if (item.metadata.genres.isEmpty()) parseJsonList(localEntry.genresJson) else item.metadata.genres
@@ -348,7 +300,6 @@ class LibraryRepositoryImpl(
                 }
             }
         }
-    }
 
     override suspend fun updateAnimeTracking(malId: Int, tracking: MalTracking): Result<Unit> = withContext(Dispatchers.IO) {
         val dao = libraryDao

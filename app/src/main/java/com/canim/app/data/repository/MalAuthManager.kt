@@ -9,6 +9,7 @@ import com.canim.app.data.remote.ApiClient
 import com.canim.app.util.LogRedactor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import retrofit2.Response
 import java.security.MessageDigest
@@ -296,6 +297,7 @@ open class MalAuthManager(
                         hasMore = false
                     } else {
                         offset += pageSize
+                        delay(600L)
                     }
                 }
             } catch (e: Exception) {
@@ -386,6 +388,7 @@ open class MalAuthManager(
                         hasMore = false
                     } else {
                         offset += pageSize
+                        delay(600L)
                     }
                 }
             } catch (e: Exception) {

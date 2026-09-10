@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dagger.hilt.android.AndroidEntryPoint
 import com.canim.app.data.model.MediaType
+import com.canim.app.ui.components.RateLimitBanner
 import com.canim.app.ui.navigation.ScreenRoute
 import com.canim.app.ui.screens.*
 import com.canim.app.ui.theme.*
@@ -369,9 +370,7 @@ class MainActivity : ComponentActivity() {
                                         onAddMedia = { item, status ->
                                             libraryViewModel.addFromCatalog(item, status)
                                         },
-                                        onSelectItem = { item, type ->
-                                            detailViewModel.openDetail(item, type)
-                                        },
+                                        onSelectItem = onSelectItem,
                                         onSaveAnime = {
                                             libraryViewModel.saveAnime(it)
                                         },
@@ -398,9 +397,7 @@ class MainActivity : ComponentActivity() {
                                         onAddMedia = { item, status ->
                                             libraryViewModel.addFromCatalog(item, status)
                                         },
-                                        onSelectItem = { item, type ->
-                                            detailViewModel.openDetail(item, type)
-                                        },
+                                        onSelectItem = onSelectItem,
                                         onLoadMore = {
                                             discoverViewModel.loadMoreDiscover()
                                         },
@@ -720,6 +717,14 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
+
+                        // Floating Top Rate Limit Countdown Banner
+                        RateLimitBanner(
+                            throttleState = globalState.throttleNotification,
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .fillMaxWidth()
+                        )
                     }
                 }
             }

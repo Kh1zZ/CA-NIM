@@ -5,6 +5,14 @@ import com.canim.app.data.model.MalUser
 import com.canim.app.data.model.SyncStatus
 
 @Immutable
+data class ThrottleNotificationState(
+    val host: String,
+    val totalSeconds: Long,
+    val remainingSeconds: Long,
+    val isActive: Boolean = true
+)
+
+@Immutable
 data class GlobalUiState(
     val malUser: MalUser = MalUser(),
     val isAniListDown: Boolean = false,
@@ -14,7 +22,8 @@ data class GlobalUiState(
     val activeTab: String = "dashboard",
     val snackbarMessage: String? = null,
     val isSyncingMal: Boolean = false,
-    val isExchangingToken: Boolean = false
+    val isExchangingToken: Boolean = false,
+    val throttleNotification: ThrottleNotificationState? = null
 )
 
 sealed interface GlobalEvent {

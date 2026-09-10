@@ -6,6 +6,7 @@ import com.canim.app.data.model.ExtendedMediaDetail
 import com.canim.app.data.model.MalTracking
 import com.canim.app.data.model.MediaType
 import com.canim.app.data.remote.AniListClient
+import com.canim.app.data.remote.ApiClient
 import com.canim.app.domain.repository.DetailRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -77,43 +78,71 @@ class DetailRepositoryImpl @Inject constructor(
 
         AniListClient.deduplicateInFlight("detail_${resolvedAniListId}_${resolvedMalId}_${type.name}") {
             coroutineScope {
-                val aniDeferred = async {
-                    AniListClient.getExtendedDetails(resolvedAniListId, resolvedMalId, type, forceRefresh)
-                }
+                // If AniList is currently in throttle cooldown, don't waste time on AniList call
+                val isAniListThrottled = ApiClient.aniListLimiter.isCooldownActive()
+
                 val malDeferred = async {
                     if (resolvedMalId != null) {
                         malAuthManager.getExtendedDetailFallback(resolvedMalId, type)
                     } else null
                 }
 
-                val aniDetail = try { aniDeferred.await() } catch (_: Exception) { null }
+                val aniDeferred = async {
+                    if (!isAniListThrottled) {
+                        AniListClient.getExtendedDetails(resolvedAniListId, resolvedMalId, type, forceRefresh)
+                    } else null
+                }
+
                 var malExt = try { malDeferred.await() } catch (_: Exception) { null }
+                val aniDetail = try { aniDeferred.await() } catch (_: Exception) { null }
 
                 val effectiveMalId = aniDetail?.malId ?: resolvedMalId
                 if (malExt == null && effectiveMalId != null && effectiveMalId != resolvedMalId) {
                     malExt = malAuthManager.getExtendedDetailFallback(effectiveMalId, type)
                 }
 
-                val merged = if (aniDetail != null && malExt != null) {
-                    aniDetail.copy(
+                val merged = if (malExt != null && aniDetail != null) {
+                    // MAL primary for metrics, anime info, poster, relations, recommendations
+                    // AniList primary for cast and crew
+                    ExtendedMediaDetail(
+                        anilistId = aniDetail.anilistId ?: resolvedAniListId,
+                        malId = malExt.malId ?: resolvedMalId,
+                        title = malExt.title.takeIf { it.isNotBlank() } ?: aniDetail.title,
+                        titleEnglish = malExt.titleEnglish ?: aniDetail.titleEnglish,
+                        nativeTitle = malExt.nativeTitle ?: aniDetail.nativeTitle,
                         coverImage = malExt.coverImage?.takeIf { it.isNotBlank() } ?: aniDetail.coverImage,
-                        malScore = malExt.malScore ?: aniDetail.malScore,
-                        malRank = malExt.malRank ?: aniDetail.rank,
-                        malPopularity = malExt.malPopularity ?: aniDetail.popularity,
-                        malMembers = malExt.malMembers ?: aniDetail.watchers,
+                        bannerImage = malExt.bannerImage?.takeIf { it.isNotBlank() } ?: aniDetail.bannerImage,
                         synopsis = malExt.synopsis?.takeIf { it.isNotBlank() } ?: aniDetail.synopsis,
+                        studio = malExt.studio ?: aniDetail.studio,
+                        studioId = malExt.studioId ?: aniDetail.studioId,
+                        publisher = malExt.publisher ?: aniDetail.publisher,
+                        licensor = malExt.licensor ?: aniDetail.licensor,
+                        durationMinutes = malExt.durationMinutes ?: aniDetail.durationMinutes,
+                        source = malExt.source ?: aniDetail.source,
                         airingStatus = malExt.airingStatus ?: aniDetail.airingStatus,
                         startDate = malExt.startDate ?: aniDetail.startDate,
                         endDate = malExt.endDate ?: aniDetail.endDate,
                         genres = if (malExt.genres.isNotEmpty()) malExt.genres else aniDetail.genres,
-                        source = malExt.source ?: aniDetail.source,
-                        bannerImage = aniDetail.bannerImage ?: malExt.bannerImage,
-                        studio = aniDetail.studio ?: malExt.studio,
-                        studioId = aniDetail.studioId ?: malExt.studioId,
-                        publisher = aniDetail.publisher ?: malExt.publisher
+                        openings = if (malExt.openings.isNotEmpty()) malExt.openings else aniDetail.openings,
+                        endings = if (malExt.endings.isNotEmpty()) malExt.endings else aniDetail.endings,
+                        cast = if (aniDetail.cast.isNotEmpty()) aniDetail.cast else malExt.cast,
+                        crew = if (aniDetail.crew.isNotEmpty()) aniDetail.crew else malExt.crew,
+                        relations = if (malExt.relations.isNotEmpty()) malExt.relations else aniDetail.relations,
+                        averageScore = malExt.malScore ?: aniDetail.averageScore,
+                        malScore = malExt.malScore ?: aniDetail.malScore,
+                        malRank = malExt.malRank ?: aniDetail.malRank ?: aniDetail.rank,
+                        malPopularity = malExt.malPopularity ?: aniDetail.malPopularity ?: aniDetail.popularity,
+                        malMembers = malExt.malMembers ?: aniDetail.malMembers ?: aniDetail.watchers,
+                        popularity = malExt.malPopularity ?: aniDetail.popularity,
+                        rank = malExt.malRank ?: aniDetail.rank,
+                        watchers = malExt.malMembers ?: aniDetail.watchers,
+                        recommendations = if (malExt.recommendations.isNotEmpty()) malExt.recommendations else aniDetail.recommendations,
+                        isFromFallback = malExt.isFromFallback
                     )
+                } else if (malExt != null) {
+                    malExt
                 } else {
-                    aniDetail ?: malExt
+                    aniDetail
                 }
 
                 if (merged != null) {

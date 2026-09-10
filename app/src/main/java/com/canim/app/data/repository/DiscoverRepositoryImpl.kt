@@ -108,21 +108,7 @@ class DiscoverRepositoryImpl @Inject constructor(
             try {
                 val resp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "all", limit, offset)
                 if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
-                    val malNodes = resp.body()!!.data.map { it.node }
-                    val malIds = malNodes.map { it.id }.distinct()
-                    val aniMap = runCatching { AniListClient.getMediaBatchByMalIds(malIds, MediaType.ANIME) }.getOrDefault(emptyMap())
-                    val items = malNodes.map { node ->
-                        val ani = aniMap[node.id]
-                        if (ani != null) {
-                            ani.copy(
-                                score = node.mean ?: ani.score,
-                                imageUrl = ani.imageUrl.ifBlank { node.mainPicture?.large ?: node.mainPicture?.medium ?: "" },
-                                synopsis = ani.synopsis?.ifBlank { node.synopsis ?: "" } ?: (node.synopsis ?: "")
-                            )
-                        } else {
-                            MediaMappingUtils.mapMalAnimeNodeToMediaItem(node)
-                        }
-                    }
+                    val items = resp.body()!!.data.map { MediaMappingUtils.mapMalAnimeNodeToMediaItem(it.node) }
                     CacheManager.putDiscover(cacheKey, items)
                     return items
                 }
@@ -131,27 +117,32 @@ class DiscoverRepositoryImpl @Inject constructor(
             try {
                 val resp = ApiClient.malApi.getMangaRanking(MalAuthManager.CLIENT_ID, "all", limit, offset)
                 if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
-                    val malNodes = resp.body()!!.data.map { it.node }
-                    val malIds = malNodes.map { it.id }.distinct()
-                    val aniMap = runCatching { AniListClient.getMediaBatchByMalIds(malIds, MediaType.MANGA) }.getOrDefault(emptyMap())
-                    val items = malNodes.map { node ->
-                        val ani = aniMap[node.id]
-                        if (ani != null) {
-                            ani.copy(
-                                score = node.mean ?: ani.score,
-                                imageUrl = ani.imageUrl.ifBlank { node.mainPicture?.large ?: node.mainPicture?.medium ?: "" },
-                                synopsis = ani.synopsis?.ifBlank { node.synopsis ?: "" } ?: (node.synopsis ?: "")
-                            )
-                        } else {
-                            MediaMappingUtils.mapMalMangaNodeToMediaItem(node)
-                        }
-                    }
+                    val items = resp.body()!!.data.map { MediaMappingUtils.mapMalMangaNodeToMediaItem(it.node) }
+                    CacheManager.putDiscover(cacheKey, items)
+                    return items
+                }
+            } catch (_: Exception) {}
+        } else if (category == DiscoverCategory.CURRENT_SEASON) {
+            try {
+                val resp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "airing", limit, offset)
+                if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
+                    val items = resp.body()!!.data.map { MediaMappingUtils.mapMalAnimeNodeToMediaItem(it.node) }
+                    CacheManager.putDiscover(cacheKey, items)
+                    return items
+                }
+            } catch (_: Exception) {}
+        } else if (category == DiscoverCategory.NEXT_SEASON || category == DiscoverCategory.UPCOMING || category == DiscoverCategory.TBA) {
+            try {
+                val resp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "upcoming", limit, offset)
+                if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
+                    val items = resp.body()!!.data.map { MediaMappingUtils.mapMalAnimeNodeToMediaItem(it.node) }
                     CacheManager.putDiscover(cacheKey, items)
                     return items
                 }
             } catch (_: Exception) {}
         }
 
+        // AniList query for Trending or fallback
         var results = runCatching {
             AniListClient.getDiscoverMedia(
                 category = category,
@@ -166,22 +157,11 @@ class DiscoverRepositoryImpl @Inject constructor(
         if (results.isEmpty()) {
             try {
                 when (category) {
-                    DiscoverCategory.CURRENT_SEASON -> {
-                        val resp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "airing", limit, offset)
+                    DiscoverCategory.TRENDING_NOW -> {
+                        val resp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "bypopularity", limit, offset)
                         if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
                             results = resp.body()!!.data.map { MediaMappingUtils.mapMalAnimeNodeToMediaItem(it.node) }
                         }
-                    }
-                    DiscoverCategory.NEXT_SEASON, DiscoverCategory.UPCOMING, DiscoverCategory.TBA -> {
-                        val resp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "upcoming", limit, offset)
-                        if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
-                            results = resp.body()!!.data.map { MediaMappingUtils.mapMalAnimeNodeToMediaItem(it.node) }
-                        }
-                    }
-                    DiscoverCategory.TRENDING_NOW,
-                    DiscoverCategory.RECENTLY_DONE_MANGA,
-                    DiscoverCategory.NEWLY_ADDED_MANGA -> {
-                        // Exclusively require AniList engine
                     }
                     else -> {}
                 }

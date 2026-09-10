@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.3.0%20(Build%2038)-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.3.1%20(Build%2039)-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#-tech-stack--toolchain-modern"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#-tech-stack--toolchain-modern"><img src="https://img.shields.io/badge/Runtime-JDK%2021%20LTS-ED8B00.svg?style=for-the-badge" alt="JDK 21"></a>
@@ -213,10 +213,24 @@ Proyek ini mengimplementasikan continuous integration dan delivery otomatis via 
    * Berjalan otomatis saat ada perubahan pada branch `main` atau `Pull Request`.
    * Mengatur runner dengan **JDK 21 Temurin**, memvalidasi unit test, dan mengompilasi APK debug.
 2. **`release.yml` (Build & Publish Release):**
-   * Dipicu secara otomatis saat tag rilis baru di-*push* (contoh: `v6.3.0`).
+   * Dipicu secara otomatis saat tag rilis baru di-*push* (contoh: `v6.3.1`).
    * Menandatangani APK menggunakan Android Release Keystore secara aman via GitHub Secrets.
    * Mengoptimalkan ukuran dan bytecode menggunakan **R8 Shrinker (Full Mode)**.
    * Memublikasikan release bundle otomatis ke tab **Releases** di GitHub.
+
+### 📋 Catatan Rilis v6.3.1 (Build 39):
+* **Critical Fix**: Memperbaiki kendala pembukaan anime dari tab Discovery dan Search akibat hoisting callback `onSelectItem` yang belum terhubung ke `globalViewModel.openDetail`.
+* **Re-Arsitektur Dual API (Adaptasi Batasan AniList 30 req/min)**:
+  * Metriks (skor, rank, popularitas, member), info anime lengkap, poster, relasi, dan rekomendasi kini 100% diambil dari MyAnimeList API (AniList sebagai fallback).
+  * Cast VA dan kru produksi diambil dari AniList API (MAL sebagai fallback).
+  * Studio filmography diambil dari AniList API dengan fallback pencarian anime studio pada MAL.
+* **Pengetatan Adaptive Rate Limiter & Countdown Banner**:
+  * Pengetatan parameter token bucket AniList (`burstCapacity = 3`, `refillInterval = 2000ms`) dan MAL (`burstCapacity = 4`, `refillInterval = 1200ms`).
+  * *Zero-request lockdown*: seluruh pemanggilan jaringan ke host yang terkena cooldown langsung ditolak seketika di layer lokal.
+  * Floating Top Banner (`RateLimitBanner`) di bagian atas layar dengan live countdown timer per detik saat terjadi throttling.
+* **Penekanan Burst Request saat Sinkronisasi MAL**:
+  * Menghilangkan batch query AniList massal saat sinkronisasi pustaka; data kaya respons MAL langsung disajikan ke pustaka.
+  * Pacing 600ms antar-halaman pada paginasi anime & manga MyAnimeList.
 
 ---
 

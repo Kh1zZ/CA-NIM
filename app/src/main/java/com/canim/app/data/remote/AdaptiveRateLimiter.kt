@@ -46,8 +46,8 @@ private const val NOTIFICATION_DEBOUNCE_MS = 30_000L
  */
 class AdaptiveRateLimiter(
     val host: String,
-    val burstCapacity: Int = 10,
-    val refillIntervalMs: Long = 700L,
+    var burstCapacity: Int = 10,
+    var refillIntervalMs: Long = 700L,
     val baseCooldownMs: Long = 5_000L,
     val maxCooldownMs: Long = 60_000L,
     private val recoverySuccessThreshold: Int = 5,
@@ -91,7 +91,7 @@ class AdaptiveRateLimiter(
         }
         val now = clock()
         val last = lastNotifiedMs[key] ?: 0L
-        if (now - last >= NOTIFICATION_DEBOUNCE_MS) {
+        if (event is LimiterEvent.CooldownStarted || event is LimiterEvent.Recovered || now - last >= NOTIFICATION_DEBOUNCE_MS) {
             lastNotifiedMs[key] = now
             _eventFlow.tryEmit(event)
         }
@@ -365,6 +365,14 @@ class AdaptiveRateLimiter(
             consecutive429Count = 0
             consecutiveSuccessCount = 0
             lastNotifiedMs.clear()
+        }
+    }
+
+    fun configureForTesting(burstCapacity: Int? = null, refillIntervalMs: Long? = null) {
+        synchronized(this) {
+            burstCapacity?.let { this.burstCapacity = it }
+            refillIntervalMs?.let { this.refillIntervalMs = it }
+            resetForTestingBlocking()
         }
     }
 

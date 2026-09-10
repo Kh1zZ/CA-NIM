@@ -37,7 +37,7 @@ class LibraryViewModelTest {
         CacheManager.clearNegativeCache()
     }
 
-    private fun waitUntil(timeoutMs: Long = 2000, condition: () -> Boolean) {
+    private fun waitUntil(timeoutMs: Long = 5000, condition: () -> Boolean) {
         val start = System.currentTimeMillis()
         while (!condition() && (System.currentTimeMillis() - start) < timeoutMs) {
             org.robolectric.shadows.ShadowLooper.idleMainLooper()

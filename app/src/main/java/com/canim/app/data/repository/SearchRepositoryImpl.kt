@@ -66,9 +66,13 @@ class SearchRepositoryImpl @Inject constructor(
         }
 
         AniListClient.deduplicateInFlight("search_anime_$filterKey") {
-            var result = runCatching {
-                AniListClient.searchMedia(trimmed, MediaType.ANIME, genres, year, format, forceRefresh = forceRefresh)
-            }.getOrDefault(emptyList())
+            var result = if (!ApiClient.aniListLimiter.isCooldownActive()) {
+                runCatching {
+                    AniListClient.searchMedia(trimmed, MediaType.ANIME, genres, year, format, forceRefresh = forceRefresh)
+                }.getOrDefault(emptyList())
+            } else {
+                emptyList()
+            }
 
             val hasExplicitFilters = !genres.isNullOrEmpty() || year != null || !format.isNullOrBlank()
 
@@ -173,9 +177,13 @@ class SearchRepositoryImpl @Inject constructor(
         }
 
         AniListClient.deduplicateInFlight("search_manga_$filterKey") {
-            var result = runCatching {
-                AniListClient.searchMedia(trimmed, MediaType.MANGA, genres, year, format, forceRefresh = forceRefresh)
-            }.getOrDefault(emptyList())
+            var result = if (!ApiClient.aniListLimiter.isCooldownActive()) {
+                runCatching {
+                    AniListClient.searchMedia(trimmed, MediaType.MANGA, genres, year, format, forceRefresh = forceRefresh)
+                }.getOrDefault(emptyList())
+            } else {
+                emptyList()
+            }
 
             val hasExplicitFilters = !genres.isNullOrEmpty() || year != null || !format.isNullOrBlank()
 

@@ -21,7 +21,7 @@ class StudioRepositoryImpl @Inject constructor() : StudioRepository {
         sort: StudioFilmographySort,
         isMain: Boolean
     ): StudioFilmographyPage? = withContext(Dispatchers.IO) {
-        AniListClient.getStudioFilmography(
+        val aniResult = AniListClient.getStudioFilmography(
             studioId = studioId,
             search = search,
             page = page,
@@ -29,6 +29,33 @@ class StudioRepositoryImpl @Inject constructor() : StudioRepository {
             sort = sort,
             isMain = isMain
         )
+        if (aniResult != null) return@withContext aniResult
+
+        // Fallback to MyAnimeList if AniList is throttled or unavailable
+        val studioName = search?.takeIf { it.isNotBlank() }
+            ?: (studioId?.let { StudioBioRegistry.getStudioInfo(it, "").name }?.takeIf { it.isNotBlank() })
+            ?: return@withContext null
+
+        try {
+            val malResp = com.canim.app.data.remote.ApiClient.malApi.searchAnime(
+                clientId = MalAuthManager.CLIENT_ID,
+                query = studioName,
+                limit = 30,
+                offset = (page - 1) * 30
+            )
+            if (malResp.isSuccessful && malResp.body()?.data?.isNotEmpty() == true) {
+                val items = malResp.body()!!.data.map { MediaMappingUtils.mapMalAnimeNodeToMediaItem(it.node) }
+                return@withContext StudioFilmographyPage(
+                    studioId = studioId ?: 0,
+                    studioName = studioName,
+                    items = items,
+                    hasNextPage = malResp.body()!!.paging?.next != null,
+                    currentPage = page
+                )
+            }
+        } catch (_: Exception) {}
+
+        null
     }
 
     override suspend fun searchStudios(
