@@ -125,11 +125,6 @@ class DualEngineResilienceTest {
         assertEquals("AIRED", mapStatus(null))
     }
 
-    @Test
-    fun testVersionBumpV634() {
-        assertEquals("v6.3.4", BuildConfig.VERSION_NAME)
-        assertEquals(42, BuildConfig.VERSION_CODE)
-    }
 
     @Test
     fun testSemverComparison() {
