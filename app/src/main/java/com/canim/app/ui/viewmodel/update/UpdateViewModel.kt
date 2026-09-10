@@ -7,6 +7,7 @@ import com.canim.app.BuildConfig
 import com.canim.app.domain.usecase.CheckForUpdatesUseCase
 import com.canim.app.domain.usecase.InstallUpdateUseCase
 import com.canim.app.domain.usecase.StartDownloadUpdateUseCase
+import com.canim.app.notification.CanimNotificationManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.channels.Channel
@@ -23,7 +24,8 @@ class UpdateViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val checkForUpdatesUseCase: CheckForUpdatesUseCase,
     private val startDownloadUpdateUseCase: StartDownloadUpdateUseCase,
-    private val installUpdateUseCase: InstallUpdateUseCase
+    private val installUpdateUseCase: InstallUpdateUseCase,
+    private val notificationManager: CanimNotificationManager
 ) : ViewModel() {
 
     private val _updateState = MutableStateFlow(UpdateUiState())
@@ -82,12 +84,21 @@ class UpdateViewModel @Inject constructor(
             val result = checkForUpdatesUseCase(BuildConfig.VERSION_NAME)
             val info = result.getOrNull()
             if (info != null) {
+                val prefs = getPrefs()
                 try {
-                    getPrefs()?.edit()?.putLong("last_update_check_time", System.currentTimeMillis())?.apply()
+                    prefs?.edit()?.putLong("last_update_check_time", System.currentTimeMillis())?.apply()
                 } catch (_: Exception) {}
 
                 if (info.isUpdateAvailable) {
                     _updateState.update { it.copy(updateInfo = info, isChecking = false) }
+                    // Trigger minimalist Android system notification
+                    val lastNotified = prefs?.getString("last_notified_version", null)
+                    if (lastNotified != info.latestVersion) {
+                        notificationManager.showUpdateNotification(info.latestVersion, info.releaseNotes)
+                        try {
+                            prefs?.edit()?.putString("last_notified_version", info.latestVersion)?.apply()
+                        } catch (_: Exception) {}
+                    }
                     if (manual) {
                         showSnackbar("Pembaruan tersedia: ${info.latestVersion}!")
                     }

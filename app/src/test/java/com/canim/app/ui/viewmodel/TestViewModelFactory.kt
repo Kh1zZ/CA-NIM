@@ -81,13 +81,15 @@ fun createTestUpdateViewModel(
     context: Context,
     checkForUpdatesUseCase: CheckForUpdatesUseCase = CheckForUpdatesUseCase(),
     startDownloadUpdateUseCase: StartDownloadUpdateUseCase = StartDownloadUpdateUseCase(),
-    installUpdateUseCase: InstallUpdateUseCase = InstallUpdateUseCase()
+    installUpdateUseCase: InstallUpdateUseCase = InstallUpdateUseCase(),
+    notificationManager: com.canim.app.notification.CanimNotificationManager = com.canim.app.notification.CanimNotificationManager(context)
 ): UpdateViewModel {
     return UpdateViewModel(
         appContext = context,
         checkForUpdatesUseCase = checkForUpdatesUseCase,
         startDownloadUpdateUseCase = startDownloadUpdateUseCase,
-        installUpdateUseCase = installUpdateUseCase
+        installUpdateUseCase = installUpdateUseCase,
+        notificationManager = notificationManager
     )
 }
 

@@ -23,7 +23,8 @@ data class GlobalUiState(
     val snackbarMessage: String? = null,
     val isSyncingMal: Boolean = false,
     val isExchangingToken: Boolean = false,
-    val throttleNotification: ThrottleNotificationState? = null
+    val throttleNotification: ThrottleNotificationState? = null,
+    val showColdStartOutageBanner: Boolean = false
 )
 
 sealed interface GlobalEvent {
@@ -32,4 +33,5 @@ sealed interface GlobalEvent {
     data class ShowSnackbar(val message: String) : GlobalEvent
     object DismissSnackbar : GlobalEvent
     object RefreshHealth : GlobalEvent
+    object DismissColdStartOutageBanner : GlobalEvent
 }

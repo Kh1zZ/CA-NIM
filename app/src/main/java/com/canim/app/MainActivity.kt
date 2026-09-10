@@ -73,15 +73,33 @@ class MainActivity : ComponentActivity() {
     private val libraryViewModel: LibraryViewModel by viewModels()
     private val globalViewModel: GlobalViewModel by viewModels()
 
+    private val requestNotificationPermissionLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { _ ->
+        // User responded to POST_NOTIFICATIONS permission request
+    }
+
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        // Request notification permission on Android 13+ (API 33+)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+            if (androidx.core.content.ContextCompat.checkSelfPermission(
+                    this,
+                    android.Manifest.permission.POST_NOTIFICATIONS
+                ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+            ) {
+                requestNotificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
         // Handle OAuth Deep Link callback on initial launch
         intent?.data?.let { uri ->
             handleDeepLink(uri)
         }
+        handleNotificationIntent(intent)
 
         setContent {
             CanimTheme {
@@ -443,20 +461,11 @@ class MainActivity : ComponentActivity() {
                                         onClearImageCache = {
                                             globalViewModel.clearImageCache(context)
                                         },
-                                        onClearMetadataCache = {
-                                            globalViewModel.clearMetadataCache()
-                                        },
-                                        onClearAllCache = {
-                                            globalViewModel.clearAllCache(context)
-                                        },
                                         onCheckForUpdates = { updateViewModel.checkForUpdates(manual = true) },
                                         onSetAutoUpdateCheck = { updateViewModel.setAutoUpdateCheck(it) },
                                         onDismissUpdateDialog = { updateViewModel.dismissUpdateDialog() },
                                         onStartDownloadUpdate = { updateViewModel.startDownloadUpdate(context) },
-                                        onInstallDownloadedUpdate = { updateViewModel.installDownloadedUpdate(context) },
-                                        onOpenObservability = {
-                                            globalViewModel.openDiagnostics()
-                                        }
+                                        onInstallDownloadedUpdate = { updateViewModel.installDownloadedUpdate(context) }
                                     )
                                 }
                             }
@@ -708,18 +717,13 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                 }
-                                is ScreenRoute.Diagnostics -> {
-                                    DiagnosticsScreen(
-                                        onBack = { globalViewModel.popScreen() }
-                                    )
-                                }
                                 null -> {
                                     Spacer(modifier = Modifier.fillMaxSize())
                                 }
                             }
                         }
 
-                        // Floating Top Notification Banners (Rate Limit & Outage)
+                        // Floating Top Notification Banners (Rate Limit & Cold-Start Outage)
                         Column(
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
@@ -730,9 +734,9 @@ class MainActivity : ComponentActivity() {
                                 modifier = Modifier.fillMaxWidth()
                             )
 
-                            // AniList Outage Notification Banner
+                            // AniList Outage Notification Banner (Cold-start only, auto-dismissed in 5 seconds)
                             AnimatedVisibility(
-                                visible = globalState.isAniListDown,
+                                visible = globalState.showColdStartOutageBanner,
                                 enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
                                 exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
                                 modifier = Modifier.fillMaxWidth()
@@ -789,15 +793,15 @@ class MainActivity : ComponentActivity() {
                                             )
                                         }
 
-                                        TextButton(
-                                            onClick = { globalViewModel.checkApiHealth() },
-                                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                                        IconButton(
+                                            onClick = { globalViewModel.dismissColdStartOutageBanner() },
+                                            modifier = Modifier.size(28.dp)
                                         ) {
-                                            Text(
-                                                text = "Cek Ulang",
-                                                color = StatusOnHoldColor,
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold
+                                            Icon(
+                                                imageVector = Icons.Default.Close,
+                                                contentDescription = "Tutup",
+                                                tint = StatusOnHoldColor,
+                                                modifier = Modifier.size(16.dp)
                                             )
                                         }
                                     }
@@ -815,6 +819,15 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         intent.data?.let { uri ->
             handleDeepLink(uri)
+        }
+        handleNotificationIntent(intent)
+    }
+
+    private fun handleNotificationIntent(intent: Intent?) {
+        if (intent?.getBooleanExtra(com.canim.app.notification.CanimNotificationManager.EXTRA_OPEN_UPDATE, false) == true) {
+            intent.removeExtra(com.canim.app.notification.CanimNotificationManager.EXTRA_OPEN_UPDATE)
+            globalViewModel.setTab("settings")
+            updateViewModel.checkForUpdates(manual = true)
         }
     }
 

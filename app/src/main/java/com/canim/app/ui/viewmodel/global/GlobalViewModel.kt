@@ -59,11 +59,12 @@ class GlobalViewModel @Inject constructor(
     private val _snackbarEvent = Channel<String>(Channel.BUFFERED)
     val snackbarEvent = _snackbarEvent.receiveAsFlow()
 
-    // Stats Screen Scroll Position Preservation
     private var statsScrollIndex: Int = 0
     private var statsScrollOffset: Int = 0
 
     private var throttleCountdownJob: Job? = null
+    private var hasShownColdStartOutage = false
+    private var coldStartBannerJob: Job? = null
 
     init {
         // Collect Rate Limiter events from ApiClient limiters
@@ -98,12 +99,13 @@ class GlobalViewModel @Inject constructor(
             }
         }
 
-        // Real-time API outage check (AniList & MAL)
-        checkApiHealth()
+        // Real-time API outage check on cold start (AniList & MAL)
+        checkApiHealth(isColdStart = true)
     }
 
     private fun startThrottleCountdown(host: String, durationMs: Long) {
-        val totalSeconds = maxOf(1L, (durationMs + 999L) / 1000L)
+        // Pop out notification at top of screen capped at maximum 5 seconds
+        val totalSeconds = minOf(5L, maxOf(1L, (durationMs + 999L) / 1000L))
         throttleCountdownJob?.cancel()
         throttleCountdownJob = viewModelScope.launch {
             var remaining = totalSeconds
@@ -193,10 +195,6 @@ class GlobalViewModel @Inject constructor(
         pushScreen(ScreenRoute.Flashcard)
     }
 
-    fun openDiagnostics() {
-        pushScreen(ScreenRoute.Diagnostics)
-    }
-
     // --- Tab & App Mode ---
     fun setTab(tab: String) {
         clearScreenStack()
@@ -221,11 +219,26 @@ class GlobalViewModel @Inject constructor(
     }
 
     // --- API Health Monitoring ---
-    fun checkApiHealth() {
+    fun checkApiHealth(isColdStart: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
             val (aniDown, malDown) = checkApiHealthUseCase()
             _globalState.update { it.copy(isAniListDown = aniDown, isMalDown = malDown) }
+            // Notification pop-out only appears on cold start and lasts at most 5 seconds
+            if (isColdStart && aniDown && !hasShownColdStartOutage) {
+                hasShownColdStartOutage = true
+                _globalState.update { it.copy(showColdStartOutageBanner = true) }
+                coldStartBannerJob?.cancel()
+                coldStartBannerJob = viewModelScope.launch {
+                    delay(5000L)
+                    _globalState.update { it.copy(showColdStartOutageBanner = false) }
+                }
+            }
         }
+    }
+
+    fun dismissColdStartOutageBanner() {
+        coldStartBannerJob?.cancel()
+        _globalState.update { it.copy(showColdStartOutageBanner = false) }
     }
 
     // --- MAL OAuth & Sync ---
@@ -290,6 +303,7 @@ class GlobalViewModel @Inject constructor(
     }
 
     // --- Cache Management ---
+    // Rule: Penghapusan cache hanya bisa untuk gambar, metriks, api, metadata, dll tidak boleh dihapus.
     fun clearImageCache(context: Context) {
         viewModelScope.launch {
             clearCacheUseCase.clearImageCache(context)
@@ -298,14 +312,15 @@ class GlobalViewModel @Inject constructor(
     }
 
     fun clearMetadataCache() {
-        clearCacheUseCase.clearMetadataCache()
-        showSnackbar("Cache query & metadata telah dibersihkan.")
+        // Disabled: Cache deletion restricted strictly to images
+        showSnackbar("Pembersihan cache hanya berlaku untuk gambar.")
     }
 
     fun clearAllCache(context: Context) {
+        // Only clear image cache per requirement
         viewModelScope.launch {
-            clearCacheUseCase.clearAllCache(context)
-            showSnackbar("Semua cache berhasil dibersihkan.")
+            clearCacheUseCase.clearImageCache(context)
+            showSnackbar("Cache gambar telah dibersihkan.")
         }
     }
 
@@ -329,6 +344,7 @@ class GlobalViewModel @Inject constructor(
             is GlobalEvent.ShowSnackbar -> showSnackbar(event.message)
             is GlobalEvent.DismissSnackbar -> dismissSnackbar()
             is GlobalEvent.RefreshHealth -> checkApiHealth()
+            is GlobalEvent.DismissColdStartOutageBanner -> dismissColdStartOutageBanner()
         }
     }
 }

@@ -599,7 +599,8 @@ object CacheManager {
     }
 
     suspend fun clearAllCache(context: Context) = withContext(Dispatchers.IO) {
-        clearMetadataCache()
+        // Per requirement: Cache clearing is strictly restricted to images.
+        // Metrics, API cache, metadata, and database must not be deleted.
         clearImageCache(context)
     }
 }

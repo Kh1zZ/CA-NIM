@@ -5,13 +5,13 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.3.3%20(Build%2041)-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.3.4%20(Build%2042)-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#-tech-stack--toolchain-modern"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#-tech-stack--toolchain-modern"><img src="https://img.shields.io/badge/Runtime-JDK%2021%20LTS-ED8B00.svg?style=for-the-badge" alt="JDK 21"></a>
   <a href="#-tech-stack--toolchain-modern"><img src="https://img.shields.io/badge/Kotlin-2.0.21%20(K2)-7F52FF.svg?style=for-the-badge" alt="Kotlin 2.0"></a>
   <a href="#-tech-stack--toolchain-modern"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
-  <a href="#-verifikasi-lokal--kebijakan-rekayasa"><img src="https://img.shields.io/badge/Tests-100%25%20Passing%20(383%20Tests)-10B981.svg?style=for-the-badge" alt="Tests"></a>
+  <a href="#-verifikasi-lokal--kebijakan-rekayasa"><img src="https://img.shields.io/badge/Tests-100%25%20Passing%20(386%20Tests)-10B981.svg?style=for-the-badge" alt="Tests"></a>
   <a href="#-kredit--rekayasa-ai-google-gemini-38-flash"><img src="https://img.shields.io/badge/Engineered%20by-Gemini%203.8%20Flash-4285F4.svg?style=for-the-badge" alt="Gemini 3.8 Flash"></a>
 </p>
 
@@ -201,7 +201,7 @@ Sebelum melakukan commit, seluruh unit test wajib lulus 100%:
 cmd /c "set JAVA_HOME=C:\Program Files\Java\jdk-21.0.12.1&& gradlew.bat testDebugUnitTest"
 ```
 
-* **Status Verifikasi:** **100% Lulus (383 Tests dalam 56 Test Suites)** mencakup pengujian GraphQL Apollo, Room database transactions, SWR caching, navigasi ViewModel, dan proteksi anti-abuse gacha.
+* **Status Verifikasi:** **100% Lulus (386 Tests dalam 57 Test Suites)** mencakup pengujian GraphQL Apollo, Room database transactions, SWR caching, navigasi ViewModel, dan proteksi anti-abuse gacha.
 
 ---
 
@@ -213,10 +213,25 @@ Proyek ini mengimplementasikan continuous integration dan delivery otomatis via 
    * Berjalan otomatis saat ada perubahan pada branch `main` atau `Pull Request`.
    * Mengatur runner dengan **JDK 21 Temurin**, memvalidasi unit test, dan mengompilasi APK debug.
 2. **`release.yml` (Build & Publish Release):**
-   * Dipicu secara otomatis saat tag rilis baru di-*push* (contoh: `v6.3.3`).
+   * Dipicu secara otomatis saat tag rilis baru di-*push* (contoh: `v6.3.4`).
    * Menandatangani APK menggunakan Android Release Keystore secara aman via GitHub Secrets.
    * Mengoptimalkan ukuran dan bytecode menggunakan **R8 Shrinker (Full Mode)**.
    * Memublikasikan release bundle otomatis ke tab **Releases** di GitHub.
+
+### 📋 Catatan Rilis v6.3.4 (Build 42):
+* **Penghapusan Total Fitur Observabilitas & Diagnostik**:
+  * Menghapus menyeluruh layar `DiagnosticsScreen`, kartu Ringkasan Observabilitas pada Pengaturan, serta seluruh rute navigasi dan kontrol terkait guna merampingkan antarmuka pengguna.
+* **Kebijakan Proteksi Pembersihan Cache**:
+  * Membatasi pembersihan cache hanya untuk file cache gambar (`clearImageCache`).
+  * Menghapus opsi pembersihan metadata dan seluruh cache dari antarmuka Pengaturan; query API, metrik, data pustaka lokal, dan akun tersimpan tidak dapat dihapus secara manual demi integritas data.
+* **Notifikasi Pop-Out Atas Layar Terbatas (Maksimal 5 Detik & Cold-Start Only)**:
+  * Banner notifikasi disrupsi/gangguan server di bagian atas layar kini hanya muncul sekali saat pengguna membuka aplikasi pertama kali (*cold start*).
+  * Dilengkapi timer otomatis: banner wajib menghilang secara otomatis setelah maksimal 5 detik dan disertai tombol tutup (X) instan.
+  * Tidak akan muncul berulang kali selama sesi aplikasi berjalan.
+* **Sistem Notifikasi Android untuk Pembaruan Aplikasi**:
+  * Menambahkan `CanimNotificationManager` dengan saluran notifikasi mandiri (`canim_app_updates`) dan dukungan runtime permission Android 13+ (`POST_NOTIFICATIONS`).
+  * Desain notifikasi minimalis elegan: hanya berupa teks informatif dan ikon aplikasi resmi tanpa elemen visual berlebih.
+  * Arsitektur extensible yang siap dikembangkan untuk fitur notifikasi lanjutan di masa depan.
 
 ### 📋 Catatan Rilis v6.3.3 (Build 41):
 * **Audit & Penanganan Disrupsi AniList (Outage Handling)**:

@@ -104,10 +104,6 @@ class GlobalViewModelTest {
         assertEquals(ScreenRoute.Flashcard, viewModel.screenStack.value.last())
         viewModel.popScreen()
 
-        viewModel.openDiagnostics()
-        assertEquals(ScreenRoute.Diagnostics, viewModel.screenStack.value.last())
-        viewModel.popScreen()
-
         viewModel.openDetail("item_key", MediaType.ANIME)
         assertEquals(ScreenRoute.Detail("item_key", MediaType.ANIME), viewModel.screenStack.value.last())
         viewModel.popScreen()
@@ -163,6 +159,9 @@ class GlobalViewModelTest {
 
         viewModel.onGlobalEvent(GlobalEvent.DismissSnackbar)
         assertNull(viewModel.globalState.value.snackbarMessage)
+
+        viewModel.onGlobalEvent(GlobalEvent.DismissColdStartOutageBanner)
+        assertFalse(viewModel.globalState.value.showColdStartOutageBanner)
 
         viewModel.onGlobalEvent(GlobalEvent.RefreshHealth)
         assertNotNull(viewModel.globalState.value)

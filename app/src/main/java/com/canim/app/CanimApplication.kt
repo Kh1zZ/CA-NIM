@@ -36,6 +36,7 @@ class CanimApplication : Application(), ImageLoaderFactory {
         // merupakan global in-memory & disk cache registry yang harus siap sebelum komponen repositori,
         // remote, atau UI mengakses entri cache selama lifecycle proses aplikasi berlangsung.
         com.canim.app.data.cache.CacheManager.init(this)
+        com.canim.app.notification.CanimNotificationManager(this).initChannels()
     }
 
     override fun newImageLoader(): ImageLoader {
