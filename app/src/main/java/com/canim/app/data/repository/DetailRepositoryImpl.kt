@@ -52,7 +52,7 @@ class DetailRepositoryImpl @Inject constructor(
             val swrHit = CacheManager.getDetailSwr(primaryCacheKey)
                 ?: (resolvedAniListId?.let { CacheManager.getDetailSwr(CacheManager.detailKey(it, null)) })
                 ?: (resolvedMalId?.let { CacheManager.getDetailSwr(CacheManager.detailKey(null, it)) })
-            if (swrHit != null && (swrHit.data.malScore != null || resolvedMalId == null)) {
+            if (swrHit != null && (swrHit.data.malScore != null || resolvedMalId == null) && (!swrHit.data.isFromFallback || swrHit.data.cast.isNotEmpty())) {
                 if (swrHit.isStale) {
                     val capAniId = resolvedAniListId
                     val capMalId = resolvedMalId
@@ -78,9 +78,6 @@ class DetailRepositoryImpl @Inject constructor(
 
         AniListClient.deduplicateInFlight("detail_${resolvedAniListId}_${resolvedMalId}_${type.name}") {
             coroutineScope {
-                // If AniList is currently in throttle cooldown, don't waste time on AniList call
-                val isAniListThrottled = ApiClient.aniListLimiter.isCooldownActive()
-
                 val malDeferred = async {
                     if (resolvedMalId != null) {
                         malAuthManager.getExtendedDetailFallback(resolvedMalId, type)
@@ -88,9 +85,7 @@ class DetailRepositoryImpl @Inject constructor(
                 }
 
                 val aniDeferred = async {
-                    if (!isAniListThrottled) {
-                        AniListClient.getExtendedDetails(resolvedAniListId, resolvedMalId, type, forceRefresh)
-                    } else null
+                    AniListClient.getExtendedDetails(resolvedAniListId, resolvedMalId, type, forceRefresh)
                 }
 
                 var malExt = try { malDeferred.await() } catch (_: Exception) { null }
@@ -137,7 +132,7 @@ class DetailRepositoryImpl @Inject constructor(
                         rank = malExt.malRank ?: aniDetail.rank,
                         watchers = malExt.malMembers ?: aniDetail.watchers,
                         recommendations = if (malExt.recommendations.isNotEmpty()) malExt.recommendations else aniDetail.recommendations,
-                        isFromFallback = malExt.isFromFallback
+                        isFromFallback = false
                     )
                 } else if (malExt != null) {
                     malExt
@@ -151,12 +146,15 @@ class DetailRepositoryImpl @Inject constructor(
                     if (effectiveAni != null && effectiveMal != null) {
                         CacheManager.putIdMapping(effectiveMal, effectiveAni, type)
                     }
-                    CacheManager.putDetail(CacheManager.detailKey(effectiveAni, effectiveMal), merged)
-                    if (effectiveAni != null) {
-                        CacheManager.putDetail(CacheManager.detailKey(effectiveAni, null), merged)
-                    }
-                    if (effectiveMal != null) {
-                        CacheManager.putDetail(CacheManager.detailKey(null, effectiveMal), merged)
+                    // Only store in persistent cache when full AniList detail succeeded or media is non-AniList
+                    if (aniDetail != null || (malExt != null && resolvedAniListId == null)) {
+                        CacheManager.putDetail(CacheManager.detailKey(effectiveAni, effectiveMal), merged)
+                        if (effectiveAni != null) {
+                            CacheManager.putDetail(CacheManager.detailKey(effectiveAni, null), merged)
+                        }
+                        if (effectiveMal != null) {
+                            CacheManager.putDetail(CacheManager.detailKey(null, effectiveMal), merged)
+                        }
                     }
                 }
 

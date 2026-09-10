@@ -15,18 +15,18 @@ object ApiClient {
 
     val aniListLimiter: AdaptiveRateLimiter = AdaptiveRateLimiter(
         host = "anilist",
-        burstCapacity = 3,
-        refillIntervalMs = 2_000L,
+        burstCapacity = 10,
+        refillIntervalMs = 700L,
         baseCooldownMs = 5_000L,
         maxCooldownMs = 60_000L
     )
 
     /**
      * Per-host request policy for AniList (GraphQL).
-     * Max 2 concurrent requests; applied inside [AniListApolloClient] via [RequestPolicy.withPolicy].
+     * Max 3 concurrent requests; applied inside [AniListApolloClient] via [RequestPolicy.withPolicy].
      */
     val aniListPolicy: RequestPolicy = RequestPolicy(
-        maxConcurrent = 2,
+        maxConcurrent = 3,
         limiter = aniListLimiter
     )
 

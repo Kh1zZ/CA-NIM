@@ -303,6 +303,19 @@ object StudioBioRegistry {
     }
 
     /**
+     * Finds studio ID by studio name matching against curated studios.
+     */
+    fun findStudioIdByName(studioName: String?): Int? {
+        if (studioName.isNullOrBlank()) return null
+        val normalizedName = studioName.lowercase().trim()
+        val direct = curatedStudios[normalizedName]?.studioId
+        if (direct != null) return direct
+        return curatedStudios.entries.firstOrNull {
+            normalizedName.contains(it.key) || it.key.contains(normalizedName)
+        }?.value?.studioId
+    }
+
+    /**
      * Resolves studio factual bio. First checks curated in-memory registry (0 ms),
      * then persistent SharedPreferences cache, and returns a merged model.
      */

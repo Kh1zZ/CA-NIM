@@ -409,6 +409,7 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onOpenStudio = { studioId, studioName ->
                                             studioViewModel.openStudio(studioId, studioName)
+                                            globalViewModel.openStudio(studioId, studioName)
                                         },
                                         onGetStudioInfo = { studioId, studioName -> studioViewModel.getStudioInfo(studioId, studioName) }
                                     )

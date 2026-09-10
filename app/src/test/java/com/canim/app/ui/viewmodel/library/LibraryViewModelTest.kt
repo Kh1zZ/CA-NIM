@@ -28,6 +28,7 @@ class LibraryViewModelTest {
         CacheManager.clearIdMappings()
         CacheManager.clearNegativeCache()
         viewModel = createTestLibraryViewModel(gachaCreditManager = gachaCreditManager)
+        waitUntil { !viewModel.libraryState.value.isLoading }
     }
 
     @After
@@ -136,7 +137,7 @@ class LibraryViewModelTest {
             callbackResult = result
         }
 
-        waitUntil { viewModel.libraryState.value.animeList.any { it.malId == 999 } }
+        waitUntil { callbackCalled && viewModel.libraryState.value.animeList.any { it.malId == 999 } }
         assertTrue(callbackCalled)
         assertTrue(callbackResult)
         val saved = viewModel.findAnimeItem(media)

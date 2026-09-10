@@ -37,8 +37,10 @@ import androidx.compose.foundation.verticalScroll
 import com.canim.app.ui.viewmodel.library.LibraryViewModel
 import com.canim.app.ui.viewmodel.library.LibraryUiState
 import com.canim.app.util.TextSanitizer
+import com.canim.app.util.MediaDisplayFormatter
+import com.canim.app.data.repository.StudioBioRegistry
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun MediaDetailScreen(
     item: Any,
@@ -326,7 +328,7 @@ fun MediaDetailScreen(
                                     shape = RoundedCornerShape(6.dp)
                                 ) {
                                     Text(
-                                        text = fmt.uppercase(),
+                                        text = MediaDisplayFormatter.formatFormat(fmt).uppercase(),
                                         color = TextSecondary,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
@@ -346,15 +348,15 @@ fun MediaDetailScreen(
                     effectiveScore != null && effectiveScore > 0 ->
                         String.format(java.util.Locale.US, "%.2f", effectiveScore)
                     isLoadingExtendedDetail -> "..."
-                    else -> "—"
+                    else -> "Belum Dinilai"
                 }
                 val userScore = userItem?.score ?: 0
                 val effectiveRank = extendedDetail?.malRank ?: extendedDetail?.rank
-                val rankStr = if (effectiveRank != null && effectiveRank > 0) "#${formatCompactNumber(effectiveRank)}" else "—"
+                val rankStr = MediaDisplayFormatter.formatMetricRank(effectiveRank)
                 val effectivePopularity = extendedDetail?.malPopularity ?: extendedDetail?.popularity
-                val popStr = if (effectivePopularity != null && effectivePopularity > 0) "#${formatCompactNumber(effectivePopularity)}" else "—"
+                val popStr = MediaDisplayFormatter.formatMetricPopularity(effectivePopularity)
                 val effectiveMembers = extendedDetail?.malMembers ?: extendedDetail?.watchers
-                val membersStr = if (effectiveMembers != null && effectiveMembers > 0) formatCompactNumber(effectiveMembers) else "—"
+                val membersStr = MediaDisplayFormatter.formatMetricMembers(effectiveMembers)
 
                 Surface(
                     modifier = Modifier
@@ -402,10 +404,10 @@ fun MediaDetailScreen(
                                         Text(
                                             text = scoreStr,
                                             color = TextPrimary,
-                                            fontSize = 22.sp,
+                                            fontSize = if (scoreStr == "Belum Dinilai") 16.sp else 22.sp,
                                             fontWeight = FontWeight.Black
                                         )
-                                        if (scoreStr != "—") {
+                                        if (scoreStr != "Belum Dinilai" && scoreStr != "...") {
                                             Text(
                                                 text = "/ 10",
                                                 color = TextMuted,
@@ -543,7 +545,7 @@ fun MediaDetailScreen(
             }
 
 
-            // Media Details Table Section (Continuous Key-Value Flow)
+            // Media Details Table Section (Card Layout with Icons & Indonesian Formatting)
             item {
                 Column(
                     modifier = Modifier
@@ -559,142 +561,250 @@ fun MediaDetailScreen(
                         letterSpacing = 1.sp
                     )
 
-                    val studio = extendedDetail?.studio ?: userItem?.studio ?: mediaItem?.studio
-                    if (!studio.isNullOrBlank()) {
-                        val studioId = extendedDetail?.studioId
-                        val canOpenStudio = isAnime && studioId != null && onOpenStudio != null
-                        DetailRowItem(
-                            label = if (isAnime) "Studio" else "Penerbit/Author",
-                            value = studio,
-                            isClickable = canOpenStudio,
-                            onClick = if (canOpenStudio) { { onOpenStudio?.invoke(studioId!!, studio) } } else null
-                        )
-                    }
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        color = CardBg,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderSubtle)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            val studio = extendedDetail?.studio ?: userItem?.studio ?: mediaItem?.studio
+                            if (!studio.isNullOrBlank()) {
+                                val studioId = extendedDetail?.studioId
+                                    ?: StudioBioRegistry.findStudioIdByName(studio)
+                                    ?: 0
+                                val canOpenStudio = isAnime && onOpenStudio != null
+                                DetailRowItem(
+                                    label = if (isAnime) "Studio" else "Penerbit/Author",
+                                    value = studio,
+                                    icon = if (isAnime) Icons.Default.Movie else Icons.Default.AutoStories,
+                                    isClickable = canOpenStudio,
+                                    onClick = if (canOpenStudio) { { onOpenStudio?.invoke(studioId, studio) } } else null
+                                )
+                                HorizontalDivider(color = DividerSubtle.copy(alpha = 0.5f), thickness = 0.5.dp)
+                            }
 
-                    val duration = extendedDetail?.durationMinutes
-                    if (duration != null && duration > 0) {
-                        DetailRowItem(label = "Durasi", value = "$duration Menit/Ep")
-                    }
+                            val rawStatus = extendedDetail?.airingStatus ?: userItem?.airingStatus ?: mediaItem?.status
+                            if (!rawStatus.isNullOrBlank()) {
+                                DetailRowItem(
+                                    label = "Status",
+                                    value = MediaDisplayFormatter.formatStatus(rawStatus),
+                                    icon = Icons.Default.PlayCircleOutline
+                                )
+                                HorizontalDivider(color = DividerSubtle.copy(alpha = 0.5f), thickness = 0.5.dp)
+                            }
 
-                    val airingStatus = extendedDetail?.airingStatus ?: userItem?.airingStatus ?: mediaItem?.status
-                    if (!airingStatus.isNullOrBlank()) {
-                        DetailRowItem(label = "Status", value = airingStatus)
-                    }
+                            val episodes = userItem?.metadata?.totalEpisodes ?: mediaItem?.episodes
+                            if (isAnime && episodes != null && episodes > 0) {
+                                DetailRowItem(
+                                    label = "Total Episode",
+                                    value = "$episodes Episode",
+                                    icon = Icons.Default.VideoLibrary
+                                )
+                                HorizontalDivider(color = DividerSubtle.copy(alpha = 0.5f), thickness = 0.5.dp)
+                            }
 
-                    val startDate = extendedDetail?.startDate ?: userItem?.metadata?.year?.toString()
-                    if (!startDate.isNullOrBlank()) {
-                        DetailRowItem(label = "Tanggal Rilis", value = startDate)
-                    }
+                            val chapters = userItem?.metadata?.totalChapters ?: mediaItem?.chapters
+                            if (isManga && chapters != null && chapters > 0) {
+                                DetailRowItem(
+                                    label = "Total Chapter",
+                                    value = "$chapters Chapter",
+                                    icon = Icons.Default.LibraryBooks
+                                )
+                                HorizontalDivider(color = DividerSubtle.copy(alpha = 0.5f), thickness = 0.5.dp)
+                            }
 
-                    val endDate = extendedDetail?.endDate
-                    if (!endDate.isNullOrBlank()) {
-                        DetailRowItem(label = "Tanggal Selesai", value = endDate)
-                    }
+                            val durationStr = MediaDisplayFormatter.formatDuration(extendedDetail?.durationMinutes)
+                            if (durationStr != null) {
+                                DetailRowItem(
+                                    label = "Durasi",
+                                    value = durationStr,
+                                    icon = Icons.Default.Schedule
+                                )
+                                HorizontalDivider(color = DividerSubtle.copy(alpha = 0.5f), thickness = 0.5.dp)
+                            }
 
-                    val genres = extendedDetail?.genres?.takeIf { it.isNotEmpty() }
-                        ?: userItem?.metadata?.genres ?: mediaItem?.genres ?: emptyList()
-                    if (genres.isNotEmpty()) {
-                        DetailRowItem(label = "Genre", value = genres.joinToString(", "))
+                            val rawFormat = userItem?.metadata?.format ?: mediaItem?.format ?: extendedDetail?.source
+                            if (!rawFormat.isNullOrBlank()) {
+                                DetailRowItem(
+                                    label = "Format",
+                                    value = MediaDisplayFormatter.formatFormat(rawFormat),
+                                    icon = Icons.Default.Tv
+                                )
+                                HorizontalDivider(color = DividerSubtle.copy(alpha = 0.5f), thickness = 0.5.dp)
+                            }
+
+                            val rawSource = extendedDetail?.source
+                            if (!rawSource.isNullOrBlank()) {
+                                DetailRowItem(
+                                    label = "Sumber Cerita",
+                                    value = MediaDisplayFormatter.formatSource(rawSource),
+                                    icon = Icons.Default.MenuBook
+                                )
+                                HorizontalDivider(color = DividerSubtle.copy(alpha = 0.5f), thickness = 0.5.dp)
+                            }
+
+                            val season = userItem?.metadata?.season ?: mediaItem?.season
+                            val year = userItem?.metadata?.year ?: mediaItem?.year
+                            val seasonYearStr = MediaDisplayFormatter.formatSeasonYear(season, year)
+                            if (!seasonYearStr.isNullOrBlank()) {
+                                DetailRowItem(
+                                    label = "Musim Rilis",
+                                    value = seasonYearStr,
+                                    icon = Icons.Default.CalendarToday
+                                )
+                                HorizontalDivider(color = DividerSubtle.copy(alpha = 0.5f), thickness = 0.5.dp)
+                            }
+
+                            val startDate = MediaDisplayFormatter.formatDateIndonesian(
+                                extendedDetail?.startDate ?: userItem?.metadata?.year?.toString()
+                            )
+                            if (!startDate.isNullOrBlank()) {
+                                DetailRowItem(
+                                    label = "Tanggal Rilis",
+                                    value = startDate,
+                                    icon = Icons.Default.Event
+                                )
+                                HorizontalDivider(color = DividerSubtle.copy(alpha = 0.5f), thickness = 0.5.dp)
+                            }
+
+                            val endDate = MediaDisplayFormatter.formatDateIndonesian(extendedDetail?.endDate)
+                            if (!endDate.isNullOrBlank()) {
+                                DetailRowItem(
+                                    label = "Tanggal Selesai",
+                                    value = endDate,
+                                    icon = Icons.Default.EventAvailable
+                                )
+                                HorizontalDivider(color = DividerSubtle.copy(alpha = 0.5f), thickness = 0.5.dp)
+                            }
+
+                            val genres = extendedDetail?.genres?.takeIf { it.isNotEmpty() }
+                                ?: userItem?.metadata?.genres ?: mediaItem?.genres ?: emptyList()
+                            if (genres.isNotEmpty()) {
+                                Column(
+                                    modifier = Modifier.padding(top = 4.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.LocalOffer,
+                                            contentDescription = null,
+                                            tint = TextMuted,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Text(
+                                            text = "Genre",
+                                            color = TextSecondary,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                    FlowRow(
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        genres.forEach { genre ->
+                                            Surface(
+                                                color = CardElevated,
+                                                shape = RoundedCornerShape(8.dp),
+                                                border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderSubtle)
+                                            ) {
+                                                Text(
+                                                    text = genre,
+                                                    color = TextPrimary,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
 
             // Cast Section (Pemeran & Karakter)
             val castList: List<CharacterCastItem> = extendedDetail?.cast ?: emptyList()
-            item {
-                Spacer(modifier = Modifier.height(14.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (castList.isNotEmpty()) "PEMERAN & KARAKTER (${castList.size})" else "PEMERAN & KARAKTER",
-                        color = TextSecondary,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
-                    )
-                    if (castList.isNotEmpty()) {
-                        Text(
-                            text = "Lihat Semua",
-                            color = themeAccent,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clickable { onOpenFullCast(false) }
-                        )
-                    }
-                }
-
-                if (isLoadingExtendedDetail) {
+            if (castList.isNotEmpty() || isLoadingExtendedDetail) {
+                item {
+                    Spacer(modifier = Modifier.height(14.dp))
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            .padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        CircularProgressIndicator(
-                            color = themeAccent,
-                            strokeWidth = 2.dp,
-                            modifier = Modifier.size(16.dp)
-                        )
                         Text(
-                            text = "Memuat daftar pemeran...",
-                            color = TextMuted,
-                            fontSize = 12.sp
+                            text = if (castList.isNotEmpty()) "PEMERAN & KARAKTER (${castList.size})" else "PEMERAN & KARAKTER",
+                            color = TextSecondary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp
                         )
-                    }
-                } else if (castList.isNotEmpty()) {
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(
-                            castList.take(8),
-                            key = { "${it.characterId}_${it.actorId}_${it.characterName}" },
-                            contentType = { "cast_item" }
-                        ) { cast ->
-                            CastAvatarItem(
-                                cast = cast,
-                                onClick = {
-                                    val targetId = cast.actorId ?: cast.characterId ?: 0
-                                    val isStaff = cast.actorId != null
-                                    if (targetId > 0) {
-                                        onOpenCastCrew(targetId, isStaff)
-                                    }
-                                }
+                        if (castList.isNotEmpty()) {
+                            Text(
+                                text = "Lihat Semua",
+                                color = themeAccent,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.clickable { onOpenFullCast(false) }
                             )
                         }
                     }
-                } else {
-                    Surface(
-                        color = CardElevated,
-                        shape = RoundedCornerShape(10.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderSubtle),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
+
+                    if (isLoadingExtendedDetail) {
                         Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = null,
-                                tint = TextMuted,
-                                modifier = Modifier.size(18.dp)
+                            CircularProgressIndicator(
+                                color = themeAccent,
+                                strokeWidth = 2.dp,
+                                modifier = Modifier.size(16.dp)
                             )
                             Text(
-                                text = "Daftar pemeran belum tersedia untuk judul ini.",
+                                text = "Memuat daftar pemeran...",
                                 color = TextMuted,
-                                fontSize = 11.sp,
-                                lineHeight = 16.sp
+                                fontSize = 12.sp
                             )
+                        }
+                    } else if (castList.isNotEmpty()) {
+                        LazyRow(
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(
+                                castList.take(8),
+                                key = { "${it.characterId}_${it.actorId}_${it.characterName}" },
+                                contentType = { "cast_item" }
+                            ) { cast ->
+                                CastAvatarItem(
+                                    cast = cast,
+                                    onClick = {
+                                        val targetId = cast.actorId ?: cast.characterId ?: 0
+                                        val isStaff = cast.actorId != null
+                                        if (targetId > 0) {
+                                            onOpenCastCrew(targetId, isStaff)
+                                        }
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -1276,17 +1386,46 @@ fun MediaDetailScreen(
 private fun DetailRowItem(
     label: String,
     value: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
     isClickable: Boolean = false,
     onClick: (() -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable { onClick() } else Modifier),
+            .then(
+                if (onClick != null) {
+                    Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onClick() }
+                        .padding(vertical = 3.dp)
+                } else {
+                    Modifier.padding(vertical = 3.dp)
+                }
+            ),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = label, color = TextMuted, fontSize = 12.sp, modifier = Modifier.weight(0.4f))
+        Row(
+            modifier = Modifier.weight(0.42f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = if (isClickable) AccentBlue else TextMuted,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+            Text(
+                text = label,
+                color = TextSecondary,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
         Text(
             text = if (isClickable) "$value ↗" else value,
             color = if (isClickable) AccentBlue else TextPrimary,
@@ -1294,7 +1433,8 @@ private fun DetailRowItem(
             fontWeight = if (isClickable) FontWeight.Bold else FontWeight.SemiBold,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(0.6f)
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(0.58f)
         )
     }
 }

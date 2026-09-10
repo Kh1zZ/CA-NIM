@@ -5,13 +5,13 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.3.1%20(Build%2039)-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.3.2%20(Build%2040)-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#-tech-stack--toolchain-modern"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#-tech-stack--toolchain-modern"><img src="https://img.shields.io/badge/Runtime-JDK%2021%20LTS-ED8B00.svg?style=for-the-badge" alt="JDK 21"></a>
   <a href="#-tech-stack--toolchain-modern"><img src="https://img.shields.io/badge/Kotlin-2.0.21%20(K2)-7F52FF.svg?style=for-the-badge" alt="Kotlin 2.0"></a>
   <a href="#-tech-stack--toolchain-modern"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
-  <a href="#-verifikasi-lokal--kebijakan-rekayasa"><img src="https://img.shields.io/badge/Tests-100%25%20Passing%20(374%20Tests)-10B981.svg?style=for-the-badge" alt="Tests"></a>
+  <a href="#-verifikasi-lokal--kebijakan-rekayasa"><img src="https://img.shields.io/badge/Tests-100%25%20Passing%20(381%20Tests)-10B981.svg?style=for-the-badge" alt="Tests"></a>
   <a href="#-kredit--rekayasa-ai-google-gemini-38-flash"><img src="https://img.shields.io/badge/Engineered%20by-Gemini%203.8%20Flash-4285F4.svg?style=for-the-badge" alt="Gemini 3.8 Flash"></a>
 </p>
 
@@ -201,7 +201,7 @@ Sebelum melakukan commit, seluruh unit test wajib lulus 100%:
 cmd /c "set JAVA_HOME=C:\Program Files\Java\jdk-21.0.12.1&& gradlew.bat testDebugUnitTest"
 ```
 
-* **Status Verifikasi:** **100% Lulus (374 Tests dalam 55 Test Suites)** mencakup pengujian GraphQL Apollo, Room database transactions, SWR caching, navigasi ViewModel, dan proteksi anti-abuse gacha.
+* **Status Verifikasi:** **100% Lulus (381 Tests dalam 56 Test Suites)** mencakup pengujian GraphQL Apollo, Room database transactions, SWR caching, navigasi ViewModel, dan proteksi anti-abuse gacha.
 
 ---
 
@@ -213,10 +213,24 @@ Proyek ini mengimplementasikan continuous integration dan delivery otomatis via 
    * Berjalan otomatis saat ada perubahan pada branch `main` atau `Pull Request`.
    * Mengatur runner dengan **JDK 21 Temurin**, memvalidasi unit test, dan mengompilasi APK debug.
 2. **`release.yml` (Build & Publish Release):**
-   * Dipicu secara otomatis saat tag rilis baru di-*push* (contoh: `v6.3.1`).
+   * Dipicu secara otomatis saat tag rilis baru di-*push* (contoh: `v6.3.2`).
    * Menandatangani APK menggunakan Android Release Keystore secara aman via GitHub Secrets.
    * Mengoptimalkan ukuran dan bytecode menggunakan **R8 Shrinker (Full Mode)**.
    * Memublikasikan release bundle otomatis ke tab **Releases** di GitHub.
+
+### 📋 Catatan Rilis v6.3.2 (Build 40):
+* **Navigasi Studio Filmography**:
+  * Memperbaiki navigasi ke halaman Studio Filmography dari tab Discover maupun dari layar Detail Anime.
+  * Teks nama studio pada Detail Anime kini bertema biru aksen (`AccentBlue`), responsif terhadap klik, dan otomatis meresolusi ID studio via `StudioBioRegistry` maupun pencarian studio AniList.
+* **Pembersihan Notice Box Cast & Normalisasi AniList Rate Limiter**:
+  * Menghapus notice box placeholder *"Daftar pemeran belum tersedia"* pada tab Cast & Crew agar tampilan tetap bersih dan elegan.
+  * Normalisasi konfigurasi token bucket AniList (`burstCapacity = 10`, `refillInterval = 700ms`, `maxConcurrent = 3`) agar pemanggilan cast dan kru produksi dapat dieksekusi secara normal melalui antrean limiter.
+  * Throttling ditangani secara non-intrusif menggunakan countdown floating `RateLimitBanner` di bagian atas layar tanpa memicu pop-up snackbar berlebih.
+  * Pencegahan *cache poisoning*: data fallback kosong tidak disimpan sebagai cache sukses permanen saat API AniList sedang mengalami throttling.
+* **Redesain Modern Informasi Anime & Kaidah Bahasa Indonesia**:
+  * Menggantikan tampilan teks polos pada "Informasi Detail" dengan Card bergaya modern yang dilengkapi ikon tematik untuk setiap properti (Format, Status, Episode, Durasi, Musim, Studio, dan Sumber).
+  * Menghilangkan semua karakter mentah seperti garis bawah (`_`) dan tanda strip (`—`), digantikan dengan pemformatan Bahasa Indonesia yang baku dan elegan via `MediaDisplayFormatter`.
+  * Menambahkan chip genre interaktif dan pemisah visual (*subtle dividers*) yang rapi dan konsisten dengan tema Material 3.
 
 ### 📋 Catatan Rilis v6.3.1 (Build 39):
 * **Critical Fix**: Memperbaiki kendala pembukaan anime dari tab Discovery dan Search akibat hoisting callback `onSelectItem` yang belum terhubung ke `globalViewModel.openDetail`.
@@ -236,7 +250,7 @@ Proyek ini mengimplementasikan continuous integration dan delivery otomatis via 
 
 ## 🤖 9. Kredit & Rekayasa AI: Google Gemini 3.8 Flash
 
-Seluruh perancangan arsitektur perangkat lunak, transformasi **Clean Architecture**, algoritma ketahanan jaringan (*Dual-Engine Synchronization & Adaptive Rate Limiter*), migrasi modernisasi toolchain (**JDK 21 LTS, Kotlin 2.0.21 K2, Gradle 8.10.2**), serta implementasi 374 unit test otomatis pada repositori ini **diciptakan, direkayasa, dan dikembangkan secara total bersama Google Gemini 3.8 Flash**.
+Seluruh perancangan arsitektur perangkat lunak, transformasi **Clean Architecture**, algoritma ketahanan jaringan (*Dual-Engine Synchronization & Adaptive Rate Limiter*), migrasi modernisasi toolchain (**JDK 21 LTS, Kotlin 2.0.21 K2, Gradle 8.10.2**), serta implementasi 381 unit test otomatis pada repositori ini **diciptakan, direkayasa, dan dikembangkan secara total bersama Google Gemini 3.8 Flash**.
 
 Gemini 3.8 Flash bertindak sebagai AI Software Architect & Lead Engineer dalam menyempurnakan performa, keandalan, struktur kode, dan ketahanan aplikasi CA'NIM.
 

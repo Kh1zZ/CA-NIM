@@ -17,17 +17,19 @@ import kotlin.math.min
  * Anti-spam: each event type is debounced to max once per [NOTIFICATION_DEBOUNCE_MS] per host.
  */
 sealed interface LimiterEvent {
+    val host: String
+
     /** Emitted when token bucket is exhausted and acquire() must wait. */
-    data class Throttled(val host: String, val waitMs: Long) : LimiterEvent
+    data class Throttled(override val host: String, val waitMs: Long) : LimiterEvent
 
     /** Emitted when a 429 response arms a cooldown / backoff window. */
-    data class CooldownStarted(val host: String, val durationMs: Long) : LimiterEvent
+    data class CooldownStarted(override val host: String, val durationMs: Long) : LimiterEvent
 
     /** Emitted when a retryable error triggers a retry attempt (timeout / 5xx). */
-    data class Retrying(val host: String) : LimiterEvent
+    data class Retrying(override val host: String) : LimiterEvent
 
     /** Emitted when consecutive429Count drops back to 0 (sustained successes). */
-    data class Recovered(val host: String) : LimiterEvent
+    data class Recovered(override val host: String) : LimiterEvent
 }
 
 private const val NOTIFICATION_DEBOUNCE_MS = 30_000L

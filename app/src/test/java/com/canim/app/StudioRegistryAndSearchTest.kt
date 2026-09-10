@@ -69,4 +69,14 @@ class StudioRegistryAndSearchTest {
         val uniqueIds = all.map { it.studioId }.toSet()
         assertEquals(all.size, uniqueIds.size)
     }
+
+    @Test
+    fun testFindStudioIdByName() {
+        assertEquals(561, StudioBioRegistry.findStudioIdByName("A-1 Pictures"))
+        assertEquals(561, StudioBioRegistry.findStudioIdByName("a-1 pictures"))
+        assertEquals(43, StudioBioRegistry.findStudioIdByName("ufotable"))
+        assertEquals(569, StudioBioRegistry.findStudioIdByName("MAPPA"))
+        assertEquals(2, StudioBioRegistry.findStudioIdByName("Kyoto Animation"))
+        assertEquals(null, StudioBioRegistry.findStudioIdByName("Non Existent Studio XYZ"))
+    }
 }

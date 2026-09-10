@@ -72,33 +72,20 @@ class GlobalViewModel @Inject constructor(
                 ApiClient.aniListLimiter.eventFlow,
                 ApiClient.malLimiter.eventFlow
             ).collect { event ->
-                val displayHost = when (event) {
-                    is LimiterEvent.Throttled ->
-                        if (event.host == "anilist") "AniList" else "MyAnimeList"
-                    is LimiterEvent.CooldownStarted ->
-                        if (event.host == "anilist") "AniList" else "MyAnimeList"
-                    is LimiterEvent.Retrying ->
-                        if (event.host == "anilist") "AniList" else "MyAnimeList"
-                    is LimiterEvent.Recovered ->
-                        if (event.host == "anilist") "AniList" else "MyAnimeList"
-                }
-                val msg = when (event) {
-                    is LimiterEvent.Throttled ->
-                        "⏳ Memperlambat permintaan ke $displayHost..."
-                    is LimiterEvent.CooldownStarted ->
-                        "⏳ Menunggu API $displayHost siap..."
-                    is LimiterEvent.Retrying ->
-                        "🔄 Mencoba ulang ke $displayHost..."
-                    is LimiterEvent.Recovered ->
-                        "✅ Koneksi ke $displayHost pulih."
-                }
-                showSnackbar(msg)
+                val displayHost = if (event.host == "anilist") "AniList" else "MyAnimeList"
 
-                if (event is LimiterEvent.CooldownStarted) {
-                    startThrottleCountdown(event.host, event.durationMs)
-                } else if (event is LimiterEvent.Recovered) {
-                    throttleCountdownJob?.cancel()
-                    _globalState.update { it.copy(throttleNotification = null) }
+                when (event) {
+                    is LimiterEvent.CooldownStarted -> {
+                        startThrottleCountdown(event.host, event.durationMs)
+                    }
+                    is LimiterEvent.Recovered -> {
+                        throttleCountdownJob?.cancel()
+                        _globalState.update { it.copy(throttleNotification = null) }
+                        showSnackbar("✅ Koneksi ke $displayHost pulih.")
+                    }
+                    is LimiterEvent.Throttled, is LimiterEvent.Retrying -> {
+                        // Silent token-bucket smoothing and background retry; RateLimitBanner handles UI countdown if cooled down
+                    }
                 }
             }
         }

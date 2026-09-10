@@ -62,16 +62,17 @@ class StudioViewModel @Inject constructor(
     }
 
     fun openStudio(studioId: Int, studioName: String) {
-        val bio = try { searchStudiosUseCase.getStudioInfo(studioId, studioName) } catch (_: Exception) { null }
+        val resolvedId = if (studioId > 0) studioId else try { searchStudiosUseCase.getStudioInfo(0, studioName).studioId } catch (_: Exception) { studioId }
+        val bio = try { searchStudiosUseCase.getStudioInfo(resolvedId, studioName) } catch (_: Exception) { null }
         _studioState.update {
             it.copy(
-                studioId = studioId,
+                studioId = resolvedId,
                 studioName = studioName,
                 bio = bio,
                 sort = StudioFilmographySort.YEAR_DESC
             )
         }
-        loadStudioFilmography(studioId, studioName, page = 1)
+        loadStudioFilmography(resolvedId, studioName, page = 1)
     }
 
     fun closeStudio() {
@@ -93,21 +94,22 @@ class StudioViewModel @Inject constructor(
 
     fun setStudioFilmographySort(sort: StudioFilmographySort) {
         _studioState.update { it.copy(sort = sort) }
-        val sId = _studioState.value.studioId
+        val sId = _studioState.value.studioId ?: 0
         val sName = _studioState.value.studioName
-        if (sId != null) {
+        if (sId > 0 || sName.isNotBlank()) {
             loadStudioFilmography(sId, sName, page = 1)
         }
     }
 
     fun loadStudioFilmography(studioId: Int, studioName: String, page: Int = 1) {
+        val resolvedId = if (studioId > 0) studioId else try { searchStudiosUseCase.getStudioInfo(0, studioName).studioId } catch (_: Exception) { studioId }
         if (page == 1) {
             studioJob?.cancel()
             val bio = _studioState.value.bio
-                ?: try { searchStudiosUseCase.getStudioInfo(studioId, studioName) } catch (_: Exception) { null }
+                ?: try { searchStudiosUseCase.getStudioInfo(resolvedId, studioName) } catch (_: Exception) { null }
             _studioState.update {
                 it.copy(
-                    studioId = studioId,
+                    studioId = resolvedId,
                     studioName = studioName,
                     bio = bio,
                     isLoading = true,
@@ -123,7 +125,12 @@ class StudioViewModel @Inject constructor(
 
         studioJob = viewModelScope.launch(Dispatchers.IO) {
             val sort = _studioState.value.sort
-            val pageResult = getStudioFilmographyUseCase(studioId = studioId, page = page, sort = sort)
+            val pageResult = getStudioFilmographyUseCase(
+                studioId = if (resolvedId > 0) resolvedId else null,
+                search = if (resolvedId <= 0) studioName else null,
+                page = page,
+                sort = sort
+            )
             val currentStudio = _studioState.value
             val newItems = if (page == 1) {
                 pageResult?.items ?: emptyList()
@@ -143,13 +150,14 @@ class StudioViewModel @Inject constructor(
 
             _studioState.update {
                 it.copy(
+                    studioId = pageResult?.studioId?.takeIf { id -> id > 0 } ?: it.studioId,
                     bio = updatedBio ?: it.bio,
                     items = newItems,
-                    totalEntries = if (totalEntries > 0) totalEntries else newItems.size,
+                    totalEntries = totalEntries,
                     isLoading = false,
                     isLoadingMore = false,
                     page = page,
-                    canLoadMore = pageResult?.hasNextPage ?: false
+                    canLoadMore = pageResult?.hasNextPage == true
                 )
             }
         }
