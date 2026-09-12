@@ -8,6 +8,7 @@ interface SearchRepository {
         genres: List<String>? = null,
         year: Int? = null,
         format: String? = null,
+        page: Int = 1,
         forceRefresh: Boolean = false
     ): List<MediaItem>
 
@@ -16,6 +17,7 @@ interface SearchRepository {
         genres: List<String>? = null,
         year: Int? = null,
         format: String? = null,
+        page: Int = 1,
         forceRefresh: Boolean = false
     ): List<MediaItem>
 
@@ -23,7 +25,8 @@ interface SearchRepository {
         query: String,
         genres: List<String>? = null,
         year: Int? = null,
-        format: String? = null
+        format: String? = null,
+        page: Int = 1
     ): String
 
     fun getCachedSearch(filterKey: String, type: String): List<MediaItem>?

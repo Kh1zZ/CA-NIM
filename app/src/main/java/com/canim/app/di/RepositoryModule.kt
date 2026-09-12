@@ -66,4 +66,11 @@ abstract class RepositoryModule {
     abstract fun bindSystemRepository(
         systemRepositoryImpl: SystemRepositoryImpl
     ): SystemRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindCalendarRepository(
+        calendarRepositoryImpl: com.canim.app.data.repository.CalendarRepositoryImpl
+    ): com.canim.app.domain.repository.CalendarRepository
 }
+

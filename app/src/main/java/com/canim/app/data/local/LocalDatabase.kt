@@ -14,10 +14,11 @@ import android.util.Log
  * - [TABLE_LIBRARY_ENTRIES]: one row per tracked media item (MAL authoritative).
  * - [TABLE_PENDING_MUTATIONS]: queue of write operations waiting to be synced to MAL.
  *
- * Rollback strategy:
+ * Migration strategy:
+ * - Non-destructive incremental upgrades: existing rows are preserved, including
+ *   unsynced offline mutations in [TABLE_PENDING_MUTATIONS].
+ * - Missing tables are created; missing columns are appended via ALTER TABLE.
  * - If [onCreate] fails: caught by caller; CacheManager disk JSON fallback remains available.
- * - If [onUpgrade] fails: drop-and-recreate (data will be re-populated from MAL fetch).
- *   Acceptable for Phase 4 because this is the initial schema with no prior data to preserve.
  */
 class LocalDatabase(context: Context) : SQLiteOpenHelper(
     context.applicationContext,
@@ -122,12 +123,54 @@ class LocalDatabase(context: Context) : SQLiteOpenHelper(
                 $COL_MUT_STATUS TEXT NOT NULL DEFAULT 'PENDING'
             )
         """
+
+        // Column definitions used by non-destructive upgrades to append missing columns.
+        // Every NOT NULL column carries a DEFAULT so ALTER TABLE ADD COLUMN is always safe.
+        private val LIBRARY_COLUMNS: Map<String, String> = mapOf(
+            COL_LIB_STATUS to "TEXT NOT NULL DEFAULT 'watching'",
+            COL_LIB_SCORE to "INTEGER NOT NULL DEFAULT 0",
+            COL_LIB_PROGRESS to "INTEGER NOT NULL DEFAULT 0",
+            COL_LIB_PROGRESS_VOLUMES to "INTEGER NOT NULL DEFAULT 0",
+            COL_LIB_IS_REPEATING to "INTEGER NOT NULL DEFAULT 0",
+            COL_LIB_NUM_TIMES_REWATCHED to "INTEGER NOT NULL DEFAULT 0",
+            COL_LIB_REWATCH_VALUE to "INTEGER NOT NULL DEFAULT 0",
+            COL_LIB_PRIORITY to "INTEGER NOT NULL DEFAULT 0",
+            COL_LIB_TAGS_JSON to "TEXT NOT NULL DEFAULT '[]'",
+            COL_LIB_COMMENTS to "TEXT",
+            COL_LIB_START_DATE to "TEXT",
+            COL_LIB_FINISH_DATE to "TEXT",
+            COL_LIB_TITLE to "TEXT NOT NULL DEFAULT ''",
+            COL_LIB_TITLE_ENGLISH to "TEXT",
+            COL_LIB_IMAGE_URL to "TEXT NOT NULL DEFAULT ''",
+            COL_LIB_TOTAL_EPISODES to "INTEGER NOT NULL DEFAULT 0",
+            COL_LIB_TOTAL_CHAPTERS to "INTEGER NOT NULL DEFAULT 0",
+            COL_LIB_TOTAL_VOLUMES to "INTEGER NOT NULL DEFAULT 0",
+            COL_LIB_AIRING_STATUS to "TEXT",
+            COL_LIB_YEAR to "INTEGER NOT NULL DEFAULT 0",
+            COL_LIB_SEASON to "TEXT",
+            COL_LIB_GENRES_JSON to "TEXT NOT NULL DEFAULT '[]'",
+            COL_LIB_FORMAT to "TEXT",
+            COL_LIB_STUDIO to "TEXT",
+            COL_LIB_ANILIST_ID to "INTEGER",
+            COL_LIB_LOCAL_UPDATED_AT to "INTEGER NOT NULL DEFAULT 0",
+            COL_LIB_SYNCED_AT to "INTEGER NOT NULL DEFAULT 0"
+        )
+
+        private val MUTATION_COLUMNS: Map<String, String> = mapOf(
+            COL_MUT_MAL_ID to "INTEGER NOT NULL DEFAULT 0",
+            COL_MUT_MEDIA_TYPE to "TEXT NOT NULL DEFAULT ''",
+            COL_MUT_TYPE to "TEXT NOT NULL DEFAULT ''",
+            COL_MUT_PAYLOAD_JSON to "TEXT NOT NULL DEFAULT ''",
+            COL_MUT_LOCAL_UPDATED_AT to "INTEGER NOT NULL DEFAULT 0",
+            COL_MUT_CREATED_AT to "INTEGER NOT NULL DEFAULT 0",
+            COL_MUT_ATTEMPTS to "INTEGER NOT NULL DEFAULT 0",
+            COL_MUT_STATUS to "TEXT NOT NULL DEFAULT 'PENDING'"
+        )
     }
 
     override fun onCreate(db: SQLiteDatabase) {
         try {
-            db.execSQL(SQL_CREATE_LIBRARY)
-            db.execSQL(SQL_CREATE_MUTATIONS)
+            createTablesIfMissing(db)
         } catch (e: Exception) {
             Log.e("LocalDatabase", "Failed to create tables: ${e.message}", e)
             throw e
@@ -135,16 +178,45 @@ class LocalDatabase(context: Context) : SQLiteOpenHelper(
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Phase 4 is schema v1 — no prior version exists.
-        // For any future upgrade: drop-and-recreate is acceptable since data will
-        // be re-populated from MAL fetch on next sync.
-        Log.w("LocalDatabase", "Upgrading DB from v$oldVersion to v$newVersion — drop and recreate")
+        // Non-destructive incremental migration: preserve existing rows, including
+        // unsynced offline mutations in pending_mutations.
+        Log.i("LocalDatabase", "Migrating DB from v$oldVersion to v$newVersion (non-destructive)")
         try {
-            db.execSQL("DROP TABLE IF EXISTS $TABLE_PENDING_MUTATIONS")
-            db.execSQL("DROP TABLE IF EXISTS $TABLE_LIBRARY_ENTRIES")
-            onCreate(db)
+            createTablesIfMissing(db)
+            ensureColumns(db, TABLE_LIBRARY_ENTRIES, LIBRARY_COLUMNS)
+            ensureColumns(db, TABLE_PENDING_MUTATIONS, MUTATION_COLUMNS)
         } catch (e: Exception) {
-            Log.e("LocalDatabase", "Failed to upgrade DB: ${e.message}", e)
+            Log.e("LocalDatabase", "Failed to migrate DB: ${e.message}", e)
+            throw e
+        }
+    }
+
+    private fun createTablesIfMissing(db: SQLiteDatabase) {
+        db.execSQL(SQL_CREATE_LIBRARY)
+        db.execSQL(SQL_CREATE_MUTATIONS)
+    }
+
+    /**
+     * Appends any column declared in [columns] that does not yet exist in [table].
+     * Column definitions must be safe to append (a NOT NULL column requires a DEFAULT).
+     * Existing rows and columns are left untouched.
+     */
+    private fun ensureColumns(
+        db: SQLiteDatabase,
+        table: String,
+        columns: Map<String, String>
+    ) {
+        val existing = mutableSetOf<String>()
+        db.rawQuery("PRAGMA table_info($table)", null).use { cursor ->
+            val nameIndex = cursor.getColumnIndex("name")
+            while (cursor.moveToNext()) {
+                if (nameIndex >= 0) existing.add(cursor.getString(nameIndex))
+            }
+        }
+        for ((name, definition) in columns) {
+            if (name !in existing) {
+                db.execSQL("ALTER TABLE $table ADD COLUMN $name $definition")
+            }
         }
     }
 

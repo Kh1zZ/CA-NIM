@@ -37,4 +37,17 @@ object DatabaseModule {
     fun providePendingMutationDao(localDatabase: LocalDatabase): PendingMutationDao {
         return PendingMutationDao(localDatabase)
     }
+
+    @Provides
+    @Singleton
+    fun provideGachaCooldownManager(@ApplicationContext context: Context): com.canim.app.data.local.GachaCooldownManager {
+        return com.canim.app.data.local.GachaCooldownManager.getInstance(context)
+    }
+
+    @Provides
+    @Singleton
+    fun provideGachaCandidateStore(@ApplicationContext context: Context): com.canim.app.data.local.GachaCandidateStore {
+        return com.canim.app.data.local.GachaCandidateStore.getInstance(context)
+    }
 }
+

@@ -195,6 +195,10 @@ class GlobalViewModel @Inject constructor(
         pushScreen(ScreenRoute.Flashcard)
     }
 
+    fun openAiringCalendar() {
+        pushScreen(ScreenRoute.AiringCalendar)
+    }
+
     // --- Tab & App Mode ---
     fun setTab(tab: String) {
         clearScreenStack()

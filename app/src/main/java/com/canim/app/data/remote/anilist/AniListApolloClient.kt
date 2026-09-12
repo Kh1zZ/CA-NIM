@@ -448,9 +448,11 @@ object AniListApolloClient {
         genres: List<String>? = null,
         year: Int? = null,
         format: String? = null,
+        page: Int = 1,
+        perPage: Int = 30,
         forceRefresh: Boolean = false
     ): List<MediaItem> = withContext(Dispatchers.IO) {
-        val cacheKey = "${query}_${type.name}_${genres?.joinToString(",")}_${year}_${format}"
+        val cacheKey = "${query}_${type.name}_${genres?.joinToString(",")}_${year}_${format}_p${page}"
         if (!forceRefresh) {
             val cached = CacheManager.getSearch(cacheKey, type.name)
             if (cached != null) {
@@ -461,7 +463,7 @@ object AniListApolloClient {
         AniListMetrics.recordCacheMiss()
 
         AniListClient.deduplicateInFlight("search_${cacheKey}") {
-            val res = executeSearchMedia(query, type, genres, year, format)
+            val res = executeSearchMedia(query, type, genres, year, format, page, perPage)
             if (res is AniListResult.Success) {
                 val items = res.data
                 if (items.isNotEmpty()) {

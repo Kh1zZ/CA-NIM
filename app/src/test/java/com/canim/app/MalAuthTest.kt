@@ -58,4 +58,18 @@ class MalAuthTest {
         assertEquals(verifier, uri.getQueryParameter("code_challenge"))
         assertEquals(state, uri.getQueryParameter("state"))
     }
+
+    @Test
+    fun testMalUserStateLoginStatus() {
+        val defaultUser = com.canim.app.data.model.MalUser()
+        assertFalse("Default MalUser must not be logged in", defaultUser.isLoggedIn)
+
+        val loggedInUser = com.canim.app.data.model.MalUser(
+            id = 12345,
+            username = "TestUser",
+            pictureUrl = "https://example.com/avatar.jpg",
+            isLoggedIn = true
+        )
+        assertTrue("Authenticated MalUser must be logged in", loggedInUser.isLoggedIn)
+    }
 }

@@ -93,32 +93,55 @@ fun DashboardScreen(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Left: Padding + Logo + CA'NIM
+                // Left: User Avatar & Username from MAL
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.padding(start = 4.dp)
+                    modifier = Modifier
+                        .padding(start = 4.dp)
+                        .testTag("dashboard_user_header")
                 ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_app_logo),
-                        contentDescription = "Logo CA'NIM",
-                        modifier = Modifier
-                            .size(38.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                    )
+                    if (!globalState.malUser.pictureUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = globalState.malUser.pictureUrl,
+                            contentDescription = "Avatar Pengguna",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .border(1.5.dp, AccentGreen.copy(alpha = 0.8f), CircleShape)
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFF2E51A2)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = (globalState.malUser.username.take(1).ifBlank { "M" }).uppercase(),
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
 
                     Column {
                         Text(
-                            text = "CA'NIM",
+                            text = globalState.malUser.username.ifBlank { "MyAnimeList" },
                             color = TextPrimary,
-                            fontSize = 20.sp,
+                            fontSize = 17.sp,
                             fontWeight = FontWeight.Black,
-                            letterSpacing = 1.2.sp
+                            letterSpacing = 0.5.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "Tracker & Discovery",
-                            color = TextMuted,
-                            fontSize = 10.sp,
+                            text = "MAL Terhubung",
+                            color = AccentGreen,
+                            fontSize = 10.5.sp,
                             fontWeight = FontWeight.Medium
                         )
                     }
@@ -314,171 +337,107 @@ fun DashboardScreen(
                     .fillMaxWidth()
                     .border(
                         1.dp,
-                        if (globalState.malUser.isLoggedIn) Color(0xFF2E51A2).copy(alpha = 0.35f) else CardBorderSubtle,
+                        Color(0xFF2E51A2).copy(alpha = 0.35f),
                         RoundedCornerShape(14.dp)
                     ),
                 color = CardBg,
                 shape = RoundedCornerShape(14.dp)
             ) {
-                if (globalState.malUser.isLoggedIn) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
+                        modifier = Modifier.weight(1f),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Row(
-                            modifier = Modifier.weight(1f),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            if (!globalState.malUser.pictureUrl.isNullOrBlank()) {
-                                AsyncImage(
-                                    model = globalState.malUser.pictureUrl,
-                                    contentDescription = "MAL User Avatar",
-                                    modifier = Modifier
-                                        .size(38.dp)
-                                        .clip(CircleShape)
-                                        .border(1.dp, AccentGreen, CircleShape),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else {
-                                Box(
-                                    modifier = Modifier
-                                        .size(38.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFF2E51A2)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = globalState.malUser.username.take(1).uppercase(),
-                                        color = Color.White,
-                                        fontSize = 14.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-
-                            Column(modifier = Modifier.weight(1f, fill = false)) {
-                                Text(
-                                    text = globalState.malUser.username,
-                                    color = TextPrimary,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                Text(
-                                    text = "MAL Terhubung",
-                                    color = AccentGreen,
-                                    fontSize = 11.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        Button(
-                            onClick = onSyncMal,
-                            modifier = Modifier
-                                .wrapContentWidth()
-                                .testTag("dashboard_sync_mal_button"),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF2E51A2),
-                                contentColor = Color.White
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                            enabled = !globalState.isSyncingMal
-                        ) {
-                            if (globalState.isSyncingMal) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(14.dp),
-                                    color = Color.White,
-                                    strokeWidth = 2.dp
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Sync...", fontSize = 12.sp, maxLines = 1)
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Default.Sync,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "Sinkron",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    softWrap = false
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            modifier = Modifier.weight(1f)
-                        ) {
+                        if (!globalState.malUser.pictureUrl.isNullOrBlank()) {
+                            AsyncImage(
+                                model = globalState.malUser.pictureUrl,
+                                contentDescription = "MAL User Avatar",
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .border(1.dp, AccentGreen, CircleShape),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
                             Box(
                                 modifier = Modifier
-                                    .size(34.dp)
-                                    .clip(RoundedCornerShape(8.dp))
+                                    .size(38.dp)
+                                    .clip(CircleShape)
                                     .background(Color(0xFF2E51A2)),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "MAL",
+                                    text = (globalState.malUser.username.take(1).ifBlank { "M" }).uppercase(),
                                     color = Color.White,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Black
-                                )
-                            }
-                            Column {
-                                Text(
-                                    text = "Hubungkan MyAnimeList",
-                                    color = TextPrimary,
-                                    fontSize = 13.sp,
+                                    fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "Sinkronisasi progress secara aman",
-                                    color = TextSecondary,
-                                    fontSize = 11.sp
                                 )
                             }
                         }
 
-                        Button(
-                            onClick = onLoginMal,
-                            modifier = Modifier.testTag("dashboard_login_mal_button"),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF2E51A2),
-                                contentColor = Color.White
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                            enabled = !globalState.isExchangingToken
-                        ) {
+                        Column(modifier = Modifier.weight(1f, fill = false)) {
+                            Text(
+                                text = globalState.malUser.username.ifBlank { "MyAnimeList" },
+                                color = TextPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = "MAL Terhubung",
+                                color = AccentGreen,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Button(
+                        onClick = onSyncMal,
+                        modifier = Modifier
+                            .wrapContentWidth()
+                            .testTag("dashboard_sync_mal_button"),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF2E51A2),
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        enabled = !globalState.isSyncingMal
+                    ) {
+                        if (globalState.isSyncingMal) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(14.dp),
+                                color = Color.White,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Sync...", fontSize = 12.sp, maxLines = 1)
+                        } else {
                             Icon(
-                                imageVector = Icons.Default.Login,
+                                imageVector = Icons.Default.Sync,
                                 contentDescription = null,
                                 modifier = Modifier.size(14.dp)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Login MAL", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Sinkron",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                softWrap = false
+                            )
                         }
                     }
                 }

@@ -102,4 +102,34 @@ class LocalLibrarySchemaTest {
         assertTrue(libraryDao.getAllEntries("ANIME").isEmpty())
         assertEquals(1, libraryDao.getAllEntries("MANGA").size)
     }
+
+    @Test
+    fun `onUpgrade preserves library entries and pending mutations`() {
+        libraryDao.upsertEntry(LibraryEntry(malId = 9001, mediaType = "ANIME", title = "Upgrade Test"))
+        mutationDao.enqueueMutation(
+            PendingMutation(
+                malId = 9001,
+                mediaType = "ANIME",
+                mutationType = PendingMutation.TYPE_UPDATE,
+                payloadJson = "{}"
+            )
+        )
+
+        db.onUpgrade(db.writableDatabase, 1, 2)
+
+        val entries = libraryDao.getAllEntries("ANIME")
+        assertEquals("Library entry must survive upgrade", 1, entries.size)
+        assertEquals("Upgrade Test", entries[0].title)
+        val mutations = mutationDao.getPendingMutations()
+        assertEquals("Pending mutation must survive upgrade", 1, mutations.size)
+        assertEquals(9001, mutations[0].malId)
+    }
+
+    @Test
+    fun `onUpgrade is idempotent`() {
+        db.onUpgrade(db.writableDatabase, 1, 2)
+        db.onUpgrade(db.writableDatabase, 1, 2)
+        assertTrue(libraryDao.getAllEntries("ANIME").isEmpty())
+        assertTrue(mutationDao.getPendingMutations().isEmpty())
+    }
 }

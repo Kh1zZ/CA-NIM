@@ -14,4 +14,11 @@
     <string name="status_dropped">Ditinggalkan</string>
     <string name="status_plan_to_watch">Rencana Tonton</string>
     <string name="status_plan_to_read">Rencana Baca</string>
+    <string name="widget_watching_description">Lacak dan tambah episode anime yang sedang ditonton langsung dari layar utama.</string>
+    <string name="widget_airing_description">Jadwal tayang episode anime hari ini berdasarkan waktu lokal Anda.</string>
+    <string name="widget_watching_title">Sedang Menonton</string>
+    <string name="widget_today_airing_title">Tayang Hari Ini</string>
+    <string name="widget_no_watching">Tidak ada anime yang sedang ditonton</string>
+    <string name="widget_no_airing">Tidak ada jadwal rilis anime hari ini</string>
+    <string name="widget_quick_add">+1 Ep</string>
 </resources>

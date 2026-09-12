@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Remove
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sort
@@ -52,6 +53,7 @@ fun LibraryScreen(
     onQuickAddManga: (String) -> Unit,
     onQuickDecrementManga: (String) -> Unit = {},
     onSelectItem: (Any, MediaType) -> Unit,
+    onOpenCalendar: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val currentFilterType = libraryState.filterType
@@ -119,14 +121,15 @@ fun LibraryScreen(
         )
     }
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .background(BlackBg)
-            .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
+    Box(modifier = modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(BlackBg)
+                .padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
         // Media Type Selector (Anime vs Manga) with Smooth Sliding Indicator
         item {
             com.canim.app.ui.components.SmoothSegmentedSelector(
@@ -313,6 +316,25 @@ fun LibraryScreen(
             }
         }
     }
+
+    // Calendar Floating Action Button (FAB)
+    FloatingActionButton(
+        onClick = onOpenCalendar,
+        containerColor = AccentBlue,
+        contentColor = Color.White,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier
+            .align(Alignment.BottomEnd)
+            .padding(end = 16.dp, bottom = 84.dp)
+            .testTag("library_calendar_fab")
+    ) {
+        Icon(
+            imageVector = Icons.Default.DateRange,
+            contentDescription = "Jadwal Tayang Anime",
+            modifier = Modifier.size(24.dp)
+        )
+    }
+}
 }
 
 @Composable

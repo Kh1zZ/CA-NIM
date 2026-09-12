@@ -37,6 +37,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.saveable.rememberSaveable
 import dagger.hilt.android.AndroidEntryPoint
 import com.canim.app.data.model.MediaType
 import com.canim.app.ui.components.RateLimitBanner
@@ -51,6 +52,7 @@ import com.canim.app.ui.viewmodel.search.SearchViewModel
 import com.canim.app.ui.viewmodel.discover.DiscoverViewModel
 import com.canim.app.ui.viewmodel.library.LibraryViewModel
 import com.canim.app.ui.viewmodel.global.GlobalViewModel
+import com.canim.app.ui.viewmodel.calendar.AiringCalendarViewModel
 import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.launch
 
@@ -72,6 +74,10 @@ class MainActivity : ComponentActivity() {
     private val discoverViewModel: DiscoverViewModel by viewModels()
     private val libraryViewModel: LibraryViewModel by viewModels()
     private val globalViewModel: GlobalViewModel by viewModels()
+    private val calendarViewModel: AiringCalendarViewModel by viewModels()
+
+    @javax.inject.Inject
+    lateinit var airingAlertManager: com.canim.app.notification.AiringAlertManager
 
     private val requestNotificationPermissionLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
@@ -112,8 +118,19 @@ class MainActivity : ComponentActivity() {
                 val libraryState by libraryViewModel.libraryState.collectAsState()
                 val globalState by globalViewModel.globalState.collectAsState()
                 val screenStack by globalViewModel.screenStack.collectAsState()
+                val calendarState by calendarViewModel.calendarState.collectAsState()
                 val context = LocalContext.current
                 val snackbarHostState = remember { SnackbarHostState() }
+
+                // Periodic or on-load airing episode alert check for watching anime
+                val watchingAnime = remember(libraryState.animeList) {
+                    libraryState.animeList.filter { it.status == "watching" }
+                }
+                LaunchedEffect(watchingAnime) {
+                    if (watchingAnime.isNotEmpty()) {
+                        airingAlertManager.checkAndDispatchAiringAlerts(watchingAnime)
+                    }
+                }
 
                 // Single centralized top-level BackHandler
                 BackHandler(enabled = screenStack.isNotEmpty()) {
@@ -149,8 +166,24 @@ class MainActivity : ComponentActivity() {
                     )
                 }
 
-                Scaffold(
-                    modifier = Modifier.fillMaxSize(),
+                var isColdStarting by rememberSaveable { mutableStateOf(true) }
+
+                if (isColdStarting) {
+                    ColdStartSplashScreen(
+                        onFinished = {
+                            isColdStarting = false
+                        }
+                    )
+                } else if (!globalState.malUser.isLoggedIn) {
+                    LoginScreen(
+                        onLoginMal = {
+                            globalViewModel.loginWithMal(context)
+                        },
+                        isExchangingToken = globalState.isExchangingToken
+                    )
+                } else {
+                    Scaffold(
+                        modifier = Modifier.fillMaxSize(),
                     containerColor = BlackBg,
                     snackbarHost = {
                         SnackbarHost(
@@ -375,7 +408,10 @@ class MainActivity : ComponentActivity() {
                                         onQuickDecrementAnime = onQuickDecrementAnime,
                                         onQuickAddManga = onQuickAddChapter,
                                         onQuickDecrementManga = onQuickDecrementManga,
-                                        onSelectItem = onSelectItem
+                                        onSelectItem = onSelectItem,
+                                        onOpenCalendar = {
+                                            globalViewModel.openAiringCalendar()
+                                        }
                                     )
                                 }
                                 "search" -> {
@@ -400,6 +436,9 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onResetFilters = {
                                             searchViewModel.resetSearchFilters()
+                                        },
+                                        onLoadMore = {
+                                            searchViewModel.loadMore()
                                         }
                                     )
                                 }
@@ -717,6 +756,26 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
                                 }
+                                is ScreenRoute.AiringCalendar -> {
+                                    val watchingMalIds = remember(libraryState.animeList) {
+                                        libraryState.animeList
+                                            .filter { it.status == "watching" && it.malId != null }
+                                            .mapNotNull { it.malId }
+                                            .toSet()
+                                    }
+                                    AiringCalendarScreen(
+                                        state = calendarState,
+                                        watchingMalIds = watchingMalIds,
+                                        onSelectDay = { calendarViewModel.selectDay(it) },
+                                        onToggleFilterOnlyWatching = { calendarViewModel.toggleFilterOnlyWatching() },
+                                        onRefresh = { calendarViewModel.loadAiringCalendar(forceRefresh = true) },
+                                        onOpenDetail = { media, type ->
+                                            detailViewModel.openDetail(media, type)
+                                            globalViewModel.openDetail(media, type)
+                                        },
+                                        onBack = { globalViewModel.popScreen() }
+                                    )
+                                }
                                 null -> {
                                     Spacer(modifier = Modifier.fillMaxSize())
                                 }
@@ -810,6 +869,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+                }
             }
         }
     }
@@ -828,6 +888,30 @@ class MainActivity : ComponentActivity() {
             intent.removeExtra(com.canim.app.notification.CanimNotificationManager.EXTRA_OPEN_UPDATE)
             globalViewModel.setTab("settings")
             updateViewModel.checkForUpdates(manual = true)
+        }
+        val airingMalId = intent?.getIntExtra(com.canim.app.notification.CanimNotificationManager.EXTRA_OPEN_AIRING_MAL_ID, -1) ?: -1
+        if (airingMalId > 0) {
+            intent?.removeExtra(com.canim.app.notification.CanimNotificationManager.EXTRA_OPEN_AIRING_MAL_ID)
+            val matchingAnime = libraryViewModel.libraryState.value.animeList.firstOrNull { it.malId == airingMalId }
+            if (matchingAnime != null) {
+                globalViewModel.openDetail(matchingAnime, com.canim.app.data.model.MediaType.ANIME)
+                detailViewModel.openDetail(matchingAnime, com.canim.app.data.model.MediaType.ANIME)
+            } else {
+                globalViewModel.openAiringCalendar()
+            }
+        }
+        if (intent?.getBooleanExtra("extra_open_airing_calendar", false) == true) {
+            intent.removeExtra("extra_open_airing_calendar")
+            globalViewModel.openAiringCalendar()
+        }
+        val widgetMalId = intent?.getIntExtra("extra_open_mal_id", -1) ?: -1
+        if (widgetMalId > 0) {
+            intent?.removeExtra("extra_open_mal_id")
+            val matchingAnime = libraryViewModel.libraryState.value.animeList.firstOrNull { it.malId == widgetMalId }
+            if (matchingAnime != null) {
+                globalViewModel.openDetail(matchingAnime, com.canim.app.data.model.MediaType.ANIME)
+                detailViewModel.openDetail(matchingAnime, com.canim.app.data.model.MediaType.ANIME)
+            }
         }
     }
 

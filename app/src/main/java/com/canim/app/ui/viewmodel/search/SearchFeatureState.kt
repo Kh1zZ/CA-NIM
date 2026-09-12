@@ -10,6 +10,9 @@ data class SearchUiState(
     val type: MediaType = MediaType.ANIME,
     val results: List<MediaItem> = emptyList(),
     val isSearching: Boolean = false,
+    val isLoadingMore: Boolean = false,
+    val canLoadMore: Boolean = false,
+    val page: Int = 1,
     val genres: List<String> = emptyList(),
     val year: Int? = null,
     val format: String? = null
@@ -31,6 +34,8 @@ sealed interface SearchEvent {
     ) : SearchEvent
 
     object FilterReset : SearchEvent
+
+    object LoadMore : SearchEvent
 
     object Refresh : SearchEvent
 }

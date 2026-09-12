@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.canim.app.data.model.MediaItem
 import com.canim.app.domain.usecase.ConsumeGachaCreditUseCase
 import com.canim.app.domain.usecase.LoadFlashcardDeckUseCase
+import com.canim.app.data.local.GachaCooldownManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -19,7 +20,8 @@ import javax.inject.Inject
 @HiltViewModel
 class GachaViewModel @Inject constructor(
     private val consumeGachaCreditUseCase: ConsumeGachaCreditUseCase,
-    private val loadFlashcardDeckUseCase: LoadFlashcardDeckUseCase
+    private val loadFlashcardDeckUseCase: LoadFlashcardDeckUseCase,
+    private val cooldownManager: GachaCooldownManager? = null
 ) : ViewModel() {
 
     private val _gachaState = MutableStateFlow(GachaUiState())
@@ -72,6 +74,10 @@ class GachaViewModel @Inject constructor(
     }
 
     fun swipeDismissFlashcard(item: MediaItem) {
+        val mId = item.malId
+        if (mId != null && mId > 0) {
+            cooldownManager?.recordGachaDrawn(mId)
+        }
         _gachaState.update {
             val updatedDeck = it.deck.filter { card -> card.id != item.id }
             it.copy(deck = updatedDeck)

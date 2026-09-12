@@ -50,6 +50,37 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
+        <!-- Phase 5: Android Widgets -->
+        <receiver
+            android:name=".widget.WatchingProgressWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_watching_progress_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.TodayAiringWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_today_airing_info" />
+        </receiver>
+
+        <receiver
+            android:name=".widget.WatchingWidgetActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.canim.app.widget.ACTION_QUICK_INCREMENT" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

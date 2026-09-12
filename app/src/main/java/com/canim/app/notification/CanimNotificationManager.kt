@@ -35,11 +35,17 @@ class CanimNotificationManager @Inject constructor(
         const val CHANNEL_NAME_UPDATES = "Pembaruan Aplikasi"
         const val CHANNEL_DESC_UPDATES = "Notifikasi rilis versi terbaru CA'NIM"
 
+        const val CHANNEL_ID_AIRING = "canim_airing_alerts"
+        const val CHANNEL_NAME_AIRING = "Episode Baru Anime"
+        const val CHANNEL_DESC_AIRING = "Notifikasi saat episode baru anime favoritmu rilis"
+
         const val NOTIFICATION_ID_UPDATE = 1001
         const val REQUEST_CODE_UPDATE = 2001
+        const val REQUEST_CODE_AIRING = 3001
 
         const val EXTRA_OPEN_UPDATE = "extra_open_update"
         const val EXTRA_UPDATE_VERSION = "extra_update_version"
+        const val EXTRA_OPEN_AIRING_MAL_ID = "extra_open_airing_mal_id"
     }
 
     init {
@@ -63,8 +69,18 @@ class CanimNotificationManager @Inject constructor(
                 description = CHANNEL_DESC_UPDATES
                 setShowBadge(true)
             }
-
             notificationManager.createNotificationChannel(updateChannel)
+
+            // Channel 2: Airing Alerts
+            val airingChannel = NotificationChannel(
+                CHANNEL_ID_AIRING,
+                CHANNEL_NAME_AIRING,
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = CHANNEL_DESC_AIRING
+                setShowBadge(true)
+            }
+            notificationManager.createNotificationChannel(airingChannel)
         }
     }
 
@@ -119,6 +135,47 @@ class CanimNotificationManager @Inject constructor(
 
         try {
             NotificationManagerCompat.from(context).notify(NOTIFICATION_ID_UPDATE, builder.build())
+        } catch (_: SecurityException) {
+            // Permission revoked concurrently
+        }
+    }
+
+    /**
+     * Dispatches a minimalist Android system notification when a new episode airs for a watching anime.
+     * Guaranteed deduplication per episode is handled prior to dispatch via EpisodeNotificationTracker.
+     * Minimalist layout: small icon, concise title, clear message.
+     */
+    fun showAiringNotification(animeTitle: String, episodeNumber: Int, malId: Int) {
+        if (!canPostNotifications()) return
+
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_OPEN_AIRING_MAL_ID, malId)
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            REQUEST_CODE_AIRING + (malId % 10000),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val title = "Episode Baru Rilis!"
+        val message = "$animeTitle Episode $episodeNumber kini sudah tayang."
+
+        val notificationId = 50000 + (malId % 10000)
+
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID_AIRING)
+            .setSmallIcon(R.drawable.ic_app_icon)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+
+        try {
+            NotificationManagerCompat.from(context).notify(notificationId, builder.build())
         } catch (_: SecurityException) {
             // Permission revoked concurrently
         }

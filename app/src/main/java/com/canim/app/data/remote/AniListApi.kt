@@ -194,9 +194,11 @@ object AniListClient {
         genres: List<String>? = null,
         year: Int? = null,
         format: String? = null,
+        page: Int = 1,
+        perPage: Int = 30,
         forceRefresh: Boolean = false
     ): List<MediaItem> =
-        com.canim.app.data.remote.anilist.AniListApolloClient.searchMedia(query, type, genres, year, format, forceRefresh)
+        com.canim.app.data.remote.anilist.AniListApolloClient.searchMedia(query, type, genres, year, format, page, perPage, forceRefresh)
 
     /**
      * On-demand Discover fetching by dynamic category & filters using server-side AniList parameters via Apollo.

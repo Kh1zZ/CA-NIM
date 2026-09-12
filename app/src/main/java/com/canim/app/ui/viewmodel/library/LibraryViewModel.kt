@@ -12,6 +12,8 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 
 @HiltViewModel
@@ -19,7 +21,8 @@ class LibraryViewModel @Inject constructor(
     private val getLibraryUseCase: GetLibraryUseCase,
     private val saveLibraryItemUseCase: SaveLibraryItemUseCase,
     private val deleteLibraryItemUseCase: DeleteLibraryItemUseCase,
-    private val updateTrackingUseCase: UpdateTrackingUseCase
+    private val updateTrackingUseCase: UpdateTrackingUseCase,
+    @ApplicationContext private val context: Context? = null
 ) : ViewModel() {
 
     private val _libraryState = MutableStateFlow(LibraryUiState())
@@ -153,6 +156,9 @@ class LibraryViewModel @Inject constructor(
                         completedMangaMalIds = completedMangaIds,
                         stats = stats
                     )
+                }
+                context?.let { ctx ->
+                    com.canim.app.widget.WidgetUpdateHelper.updateWatchingWidgets(ctx)
                 }
             }
         }

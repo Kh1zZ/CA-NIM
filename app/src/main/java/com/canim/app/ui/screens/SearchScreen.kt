@@ -65,6 +65,7 @@ fun SearchScreen(
     onSaveManga: (UserMediaItem) -> Unit = {},
     onApplyFilters: (genres: List<String>, year: Int?, format: String?) -> Unit = { _, _, _ -> },
     onResetFilters: () -> Unit = {},
+    onLoadMore: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val currentQuery = searchState.query
@@ -132,7 +133,22 @@ fun SearchScreen(
         listOf("Berserk", "Chainsaw Man", "One Piece", "Oshi no Ko", "Tokyo Ghoul", "Vagabond", "Monster", "Jujutsu Kaisen")
     }
 
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val shouldLoadMore by remember {
+        derivedStateOf {
+            val totalItems = listState.layoutInfo.totalItemsCount
+            val lastVisibleIndex = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            totalItems > 4 && lastVisibleIndex >= totalItems - 3
+        }
+    }
+    LaunchedEffect(shouldLoadMore) {
+        if (shouldLoadMore && searchState.canLoadMore && !searchState.isSearching && !searchState.isLoadingMore) {
+            onLoadMore()
+        }
+    }
+
     LazyColumn(
+        state = listState,
         modifier = modifier
             .fillMaxSize()
             .background(BlackBg)
@@ -519,6 +535,23 @@ fun SearchScreen(
                     onAddClick = { itemToAdd = item },
                     onEditClick = { itemToEdit = item }
                 )
+            }
+
+            if (searchState.isLoadingMore) {
+                item(key = "search_loading_more") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            color = if (searchType == MediaType.MANGA) MangaAccentDarkBlue else AccentBlue,
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp
+                        )
+                    }
+                }
             }
         }
     }

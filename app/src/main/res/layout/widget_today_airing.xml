@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_airing_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_background"
+    android:padding="12dp">
+
+    <!-- Header: Icon, Day Tag & Count Badge -->
+    <LinearLayout
+        android:id="@+id/widget_airing_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <ImageView
+            android:id="@+id/widget_airing_icon"
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:src="@drawable/ic_app_icon"
+            android:contentDescription="@string/app_name" />
+
+        <TextView
+            android:id="@+id/widget_airing_day_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="6dp"
+            android:text="@string/widget_today_airing_title"
+            android:textColor="#9E9E9E"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:textAllCaps="true"
+            android:singleLine="true" />
+
+        <TextView
+            android:id="@+id/widget_airing_count_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="0 Anime"
+            android:textColor="#0066FF"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Empty State -->
+    <LinearLayout
+        android:id="@+id/widget_airing_empty_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/widget_airing_header"
+        android:gravity="center"
+        android:orientation="vertical"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/widget_airing_empty_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/widget_no_airing"
+            android:textColor="#9E9E9E"
+            android:textSize="12sp"
+            android:gravity="center" />
+    </LinearLayout>
+
+    <!-- Airing Content List Preview (Up to 3 items) -->
+    <LinearLayout
+        android:id="@+id/widget_airing_content_container"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_below="@id/widget_airing_header"
+        android:layout_marginTop="6dp"
+        android:orientation="vertical">
+
+        <!-- Item 1 -->
+        <LinearLayout
+            android:id="@+id/widget_airing_row_1"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/widget_airing_time_1"
+                android:layout_width="48dp"
+                android:layout_height="wrap_content"
+                android:text="23:00"
+                android:textColor="#0066FF"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/widget_airing_title_1"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Anime Title 1"
+                android:textColor="#F0F0F0"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
+        </LinearLayout>
+
+        <!-- Item 2 -->
+        <LinearLayout
+            android:id="@+id/widget_airing_row_2"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/widget_airing_time_2"
+                android:layout_width="48dp"
+                android:layout_height="wrap_content"
+                android:text="23:30"
+                android:textColor="#0066FF"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/widget_airing_title_2"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Anime Title 2"
+                android:textColor="#F0F0F0"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
+        </LinearLayout>
+
+        <!-- Item 3 -->
+        <LinearLayout
+            android:id="@+id/widget_airing_row_3"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <TextView
+                android:id="@+id/widget_airing_time_3"
+                android:layout_width="48dp"
+                android:layout_height="wrap_content"
+                android:text="00:00"
+                android:textColor="#0066FF"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/widget_airing_title_3"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Anime Title 3"
+                android:textColor="#F0F0F0"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:singleLine="true"
+                android:ellipsize="end" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+</RelativeLayout>

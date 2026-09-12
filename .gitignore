@@ -87,3 +87,7 @@ captures/
 
 # Tooling / Context-mode cache
 .github/context-mode/
+
+# Other
+.prod
+.serena

@@ -14,12 +14,13 @@ class SearchMediaUseCase @Inject constructor(
         genres: List<String>? = null,
         year: Int? = null,
         format: String? = null,
+        page: Int = 1,
         forceRefresh: Boolean = false
     ): List<MediaItem> {
         return if (type == MediaType.ANIME) {
-            repository.searchAnime(query, genres, year, format, forceRefresh)
+            repository.searchAnime(query, genres, year, format, page, forceRefresh)
         } else {
-            repository.searchManga(query, genres, year, format, forceRefresh)
+            repository.searchManga(query, genres, year, format, page, forceRefresh)
         }
     }
 
@@ -27,8 +28,9 @@ class SearchMediaUseCase @Inject constructor(
         query: String,
         genres: List<String>? = null,
         year: Int? = null,
-        format: String? = null
-    ): String = repository.searchFilterKey(query, genres, year, format)
+        format: String? = null,
+        page: Int = 1
+    ): String = repository.searchFilterKey(query, genres, year, format, page)
 
     fun getCachedSearch(filterKey: String, type: String): List<MediaItem>? =
         repository.getCachedSearch(filterKey, type)
