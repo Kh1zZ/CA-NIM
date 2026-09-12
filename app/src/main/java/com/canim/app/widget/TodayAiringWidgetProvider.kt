@@ -103,8 +103,9 @@ class TodayAiringWidgetProvider : AppWidgetProvider() {
                     val (rowId, timeId, titleId) = rowViews[i]
                     if (i < items.size) {
                         val item = items[i]
+                        val timeText = if (!item.airingTimeFormatted.isNullOrBlank()) "${item.airingTimeFormatted} WIB" else "--:--"
                         views.setViewVisibility(rowId, View.VISIBLE)
-                        views.setTextViewText(timeId, item.airingTimeFormatted)
+                        views.setTextViewText(timeId, timeText)
                         views.setTextViewText(titleId, item.title)
                     } else {
                         views.setViewVisibility(rowId, View.GONE)

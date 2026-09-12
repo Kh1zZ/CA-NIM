@@ -30,10 +30,10 @@ class RequestPolicy(
     clock: () -> Long = { System.currentTimeMillis() },
     val limiter: AdaptiveRateLimiter = AdaptiveRateLimiter(
         host = "general",
-        burstCapacity = 10,
-        refillIntervalMs = 700L,
-        baseCooldownMs = 5_000L,
-        maxCooldownMs = 60_000L,
+        burstCapacity = 4,
+        refillIntervalMs = 800L,
+        baseCooldownMs = 20_000L,
+        maxCooldownMs = 40_000L,
         clock = clock
     )
 ) {

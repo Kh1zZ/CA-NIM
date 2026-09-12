@@ -50,8 +50,8 @@ class AdaptiveRateLimiter(
     val host: String,
     var burstCapacity: Int = 10,
     var refillIntervalMs: Long = 700L,
-    val baseCooldownMs: Long = 5_000L,
-    val maxCooldownMs: Long = 60_000L,
+    val baseCooldownMs: Long = 20_000L,
+    val maxCooldownMs: Long = 40_000L,
     private val recoverySuccessThreshold: Int = 5,
     /** Clock abstraction for deterministic unit testing */
     internal var clock: () -> Long = { System.currentTimeMillis() }

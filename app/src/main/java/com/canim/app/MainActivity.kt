@@ -500,6 +500,9 @@ class MainActivity : ComponentActivity() {
                                         onClearImageCache = {
                                             globalViewModel.clearImageCache(context)
                                         },
+                                        onClearMetadataCache = {
+                                            globalViewModel.clearMetadataCache()
+                                        },
                                         onCheckForUpdates = { updateViewModel.checkForUpdates(manual = true) },
                                         onSetAutoUpdateCheck = { updateViewModel.setAutoUpdateCheck(it) },
                                         onDismissUpdateDialog = { updateViewModel.dismissUpdateDialog() },
@@ -601,11 +604,13 @@ class MainActivity : ComponentActivity() {
                                     val currentMediaId = when (val item = currentScreen.item) {
                                         is com.canim.app.data.model.UserMediaItem -> item.id
                                         is com.canim.app.data.model.MediaItem -> item.id
+                                        is com.canim.app.data.model.AiringAnimeItem -> item.malId?.toString() ?: item.id
                                         else -> null
                                     }
                                     val selectedMediaId = when (val item = detailState.selectedItem) {
                                         is com.canim.app.data.model.UserMediaItem -> item.id
                                         is com.canim.app.data.model.MediaItem -> item.id
+                                        is com.canim.app.data.model.AiringAnimeItem -> item.malId?.toString() ?: item.id
                                         else -> null
                                     }
                                     val isCurrentDetailSelected = currentMediaId != null && currentMediaId == selectedMediaId
@@ -626,6 +631,7 @@ class MainActivity : ComponentActivity() {
                                     }
                                     val detailTitle = (detailItem as? com.canim.app.data.model.UserMediaItem)?.title
                                         ?: (detailItem as? com.canim.app.data.model.MediaItem)?.title
+                                        ?: (detailItem as? com.canim.app.data.model.AiringAnimeItem)?.title
                                         ?: ""
                                     MediaDetailScreen(
                                         item = detailItem,

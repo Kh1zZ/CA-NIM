@@ -89,7 +89,7 @@ fun LoginScreen(
             )
 
             Text(
-                text = "Anime & Manga Hub",
+                text = "dibaca cak nim!",
                 color = AccentBlueLight,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,

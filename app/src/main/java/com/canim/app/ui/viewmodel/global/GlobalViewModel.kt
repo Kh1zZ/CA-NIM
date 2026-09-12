@@ -11,6 +11,7 @@ import com.canim.app.data.model.MediaType
 import com.canim.app.data.model.StaffMemberItem
 import com.canim.app.data.remote.ApiClient
 import com.canim.app.data.remote.LimiterEvent
+import com.canim.app.data.remote.util.ApiErrorFormatter
 import com.canim.app.domain.usecase.CheckApiHealthUseCase
 import com.canim.app.domain.usecase.ClearCacheUseCase
 import com.canim.app.domain.usecase.GetMalUserUseCase
@@ -78,6 +79,9 @@ class GlobalViewModel @Inject constructor(
                 when (event) {
                     is LimiterEvent.CooldownStarted -> {
                         startThrottleCountdown(event.host, event.durationMs)
+                        val cooldownSec = (event.durationMs + 999L) / 1000L
+                        val errorText = ApiErrorFormatter.formatHttpCode(429, event.host, cooldownSec)
+                        showSnackbar(errorText)
                     }
                     is LimiterEvent.Recovered -> {
                         throttleCountdownJob?.cancel()
@@ -316,8 +320,8 @@ class GlobalViewModel @Inject constructor(
     }
 
     fun clearMetadataCache() {
-        // Disabled: Cache deletion restricted strictly to images
-        showSnackbar("Pembersihan cache hanya berlaku untuk gambar.")
+        clearCacheUseCase.clearMetadataCache()
+        showSnackbar("Cache metadata lokal berhasil dibersihkan.")
     }
 
     fun clearAllCache(context: Context) {

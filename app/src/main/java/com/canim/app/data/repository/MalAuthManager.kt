@@ -297,7 +297,7 @@ open class MalAuthManager(
                         hasMore = false
                     } else {
                         offset += pageSize
-                        delay(600L)
+                        delay(1_500L)
                     }
                 }
             } catch (e: Exception) {
@@ -388,7 +388,7 @@ open class MalAuthManager(
                         hasMore = false
                     } else {
                         offset += pageSize
-                        delay(600L)
+                        delay(1_500L)
                     }
                 }
             } catch (e: Exception) {
@@ -527,6 +527,7 @@ open class MalAuthManager(
             }
 
             val animeResult = fetchUserAnimeList(forceRefresh = true)
+            delay(1_000L)
             val mangaResult = fetchUserMangaList(forceRefresh = true)
 
             val animeCount = when (animeResult) {

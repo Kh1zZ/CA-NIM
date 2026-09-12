@@ -146,8 +146,8 @@ class DetailRepositoryImpl @Inject constructor(
                     if (effectiveAni != null && effectiveMal != null) {
                         CacheManager.putIdMapping(effectiveMal, effectiveAni, type)
                     }
-                    // Only store in persistent cache when full AniList detail succeeded or media is non-AniList
-                    if (aniDetail != null || (malExt != null && resolvedAniListId == null)) {
+                    // Only store in persistent cache when full AniList detail succeeded or media is non-AniList (and not in cooldown)
+                    if (!ApiClient.aniListLimiter.isCooldownActive() && (aniDetail != null || (malExt != null && resolvedAniListId == null))) {
                         CacheManager.putDetail(CacheManager.detailKey(effectiveAni, effectiveMal), merged)
                         if (effectiveAni != null) {
                             CacheManager.putDetail(CacheManager.detailKey(effectiveAni, null), merged)

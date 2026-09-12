@@ -65,7 +65,7 @@
             android:gravity="center" />
     </LinearLayout>
 
-    <!-- Airing Content List Preview (Up to 3 items) -->
+    <!-- Airing Content List Preview (Compact, Calendar-styled continuity layout) -->
     <LinearLayout
         android:id="@+id/widget_airing_content_container"
         android:layout_width="match_parent"
@@ -85,7 +85,7 @@
 
             <TextView
                 android:id="@+id/widget_airing_time_1"
-                android:layout_width="48dp"
+                android:layout_width="60dp"
                 android:layout_height="wrap_content"
                 android:text="23:00"
                 android:textColor="#0066FF"
@@ -116,7 +116,7 @@
 
             <TextView
                 android:id="@+id/widget_airing_time_2"
-                android:layout_width="48dp"
+                android:layout_width="60dp"
                 android:layout_height="wrap_content"
                 android:text="23:30"
                 android:textColor="#0066FF"
@@ -147,7 +147,7 @@
 
             <TextView
                 android:id="@+id/widget_airing_time_3"
-                android:layout_width="48dp"
+                android:layout_width="60dp"
                 android:layout_height="wrap_content"
                 android:text="00:00"
                 android:textColor="#0066FF"

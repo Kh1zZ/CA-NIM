@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.canim.app.data.model.*
+import com.canim.app.data.remote.ApiClient
 import com.canim.app.data.repository.CacheRefreshType
 import com.canim.app.domain.usecase.GetCastCrewProfileUseCase
 import com.canim.app.domain.usecase.GetExtendedDetailUseCase
@@ -130,6 +131,7 @@ class DetailViewModel @Inject constructor(
         return when (item) {
             is UserMediaItem -> item.anilistId?.toString() ?: item.malId?.toString() ?: item.title
             is MediaItem -> item.anilistId?.toString() ?: item.malId?.toString() ?: item.title
+            is AiringAnimeItem -> item.anilistId?.toString() ?: item.malId?.toString() ?: item.id
             else -> item.toString()
         }
     }
@@ -138,7 +140,21 @@ class DetailViewModel @Inject constructor(
         getExtendedDetailUseCase.getAniListIdForMalId(malId)
 
     fun openDetail(item: Any, type: MediaType) {
-        val resolvedItem: Any = item
+        val resolvedItem: Any = when (item) {
+            is AiringAnimeItem -> MediaItem(
+                malId = item.malId,
+                anilistId = item.anilistId ?: item.id.toIntOrNull(),
+                title = item.title,
+                titleEnglish = item.titleEnglish,
+                imageUrl = item.imageUrl,
+                type = MediaType.ANIME,
+                score = item.score,
+                episodes = item.episodes,
+                genres = item.genres,
+                studio = item.studio
+            )
+            else -> item
+        }
 
         val anilistId = when (resolvedItem) {
             is UserMediaItem -> resolvedItem.anilistId
@@ -208,6 +224,8 @@ class DetailViewModel @Inject constructor(
         detailJob?.cancel()
         val token = ++detailRequestToken
         detailJob = viewModelScope.launch(Dispatchers.IO) {
+            delay(200L)
+            if (token != detailRequestToken) return@launch
             try {
                 val initialMalId = malId ?: (anilistId?.let { getExtendedDetailUseCase.getMalIdForAniListId(it, type) })
                 var effectiveMalId = initialMalId
@@ -341,22 +359,70 @@ class DetailViewModel @Inject constructor(
                         malDeferred.await()
                     } else null
 
+                    val isThrottledOrCooldown = ApiClient.aniListLimiter.isCooldownActive()
+
                     if (malDetail != null) {
-                        cacheDetail(resolvedItem, malDetail)
-                        cacheDetail(item, malDetail)
+                        // Only cache if AniList was NOT throttled or in cooldown (ANTI-FALSE CACHE)
+                        if (!isThrottledOrCooldown) {
+                            cacheDetail(resolvedItem, malDetail)
+                            cacheDetail(item, malDetail)
+                        }
                         _detailState.update {
                             it.copy(
                                 extendedDetail = malDetail,
-                                isLoadingExtendedDetail = false,
-                                isAniListUnavailable = true
+                                isLoadingExtendedDetail = isThrottledOrCooldown,
+                                isAniListUnavailable = !isThrottledOrCooldown
                             )
                         }
                     } else {
                         _detailState.update {
                             it.copy(
-                                isLoadingExtendedDetail = false,
-                                isAniListUnavailable = true
+                                isLoadingExtendedDetail = isThrottledOrCooldown,
+                                isAniListUnavailable = !isThrottledOrCooldown
                             )
+                        }
+                    }
+
+                    // DO NOT GIVE UP on throttling/cooldown: retry AniList request after cooldown
+                    if (isThrottledOrCooldown && token == detailRequestToken) {
+                        launch {
+                            val waitCooldownMs = ApiClient.aniListLimiter.remainingCooldownMs()
+                            if (waitCooldownMs > 0L) {
+                                delay(waitCooldownMs + 500L)
+                            }
+                            if (token == detailRequestToken && isActive) {
+                                try {
+                                    val retriedAni = com.canim.app.data.remote.AniListClient.getExtendedDetails(
+                                        anilistId,
+                                        effectiveMalId,
+                                        type,
+                                        forceRefresh = true
+                                    )
+                                    if (retriedAni != null && token == detailRequestToken) {
+                                        _detailState.update { current ->
+                                            val currentExt = current.extendedDetail
+                                            val merged = (currentExt ?: retriedAni).copy(
+                                                cast = if (retriedAni.cast.isNotEmpty()) retriedAni.cast else (currentExt?.cast ?: emptyList()),
+                                                crew = if (retriedAni.crew.isNotEmpty()) retriedAni.crew else (currentExt?.crew ?: emptyList()),
+                                                studio = retriedAni.studio ?: currentExt?.studio,
+                                                studioId = retriedAni.studioId ?: currentExt?.studioId,
+                                                publisher = retriedAni.publisher ?: currentExt?.publisher,
+                                                durationMinutes = retriedAni.durationMinutes ?: currentExt?.durationMinutes,
+                                                isFromFallback = false
+                                            )
+                                            cacheDetail(resolvedItem, merged)
+                                            cacheDetail(item, merged)
+                                            current.copy(
+                                                extendedDetail = merged,
+                                                isLoadingExtendedDetail = false,
+                                                isAniListUnavailable = false
+                                            )
+                                        }
+                                    }
+                                } catch (e: Exception) {
+                                    Log.w("DetailViewModel", "AniList retry after cooldown failed: ${e.message}")
+                                }
+                            }
                         }
                     }
                 }

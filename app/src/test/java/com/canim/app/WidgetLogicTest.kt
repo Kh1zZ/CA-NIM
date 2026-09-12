@@ -68,7 +68,7 @@ class WidgetLogicTest {
     @Test
     fun testWatchingWidgetEmptyStateWhenNoWatchingAnime() {
         val views = RemoteViews(context.packageName, R.layout.widget_watching_progress)
-        WatchingProgressWidgetProvider.bindWatchingItem(context, views, null, 1)
+        WatchingProgressWidgetProvider.bindWatchingItem(context, views, null, index = 0, totalItems = 0, appWidgetId = 1)
 
         // Binding null entry should not throw and should handle empty gracefully
         assertNotNull(views)
@@ -79,7 +79,7 @@ class WidgetLogicTest {
         val entry = createEntry(201, "Jujutsu Kaisen", "watching", 7, 24)
         val views = RemoteViews(context.packageName, R.layout.widget_watching_progress)
 
-        WatchingProgressWidgetProvider.bindWatchingItem(context, views, entry, 1)
+        WatchingProgressWidgetProvider.bindWatchingItem(context, views, entry, index = 0, totalItems = 1, appWidgetId = 1)
         assertNotNull(views)
     }
 

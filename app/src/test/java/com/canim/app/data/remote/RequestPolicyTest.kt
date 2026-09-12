@@ -43,7 +43,15 @@ class RequestPolicyTest {
         baseBackoffMs = baseBackoffMs,
         maxBackoffMs = maxBackoffMs,
         jitterMs = jitterMs,
-        clock = { fakeNow }
+        clock = { fakeNow },
+        limiter = AdaptiveRateLimiter(
+            host = "test",
+            burstCapacity = 10,
+            refillIntervalMs = 0L,
+            baseCooldownMs = 2_000L,
+            maxCooldownMs = 10_000L,
+            clock = { fakeNow }
+        )
     )
 
     @Before

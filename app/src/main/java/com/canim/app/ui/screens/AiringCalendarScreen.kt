@@ -118,24 +118,54 @@ fun AiringCalendarScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Day selector strip (Senin - Minggu)
-            LazyRow(
+            // Continuity Day Selector (2 Rows, no horizontal lazy scroll, continuity design)
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(CardBg)
+                    .padding(4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                items(daysOfWeek, key = { it.name }) { day ->
-                    val isSelected = day == state.selectedDay
-                    val isToday = day == today
-                    val count = state.countForDay(day, watchingMalIds)
-                    DayPill(
-                        day = day,
-                        isSelected = isSelected,
-                        isToday = isToday,
-                        count = count,
-                        onClick = { onSelectDay(day) }
-                    )
+                // Row 1: Senin - Kamis
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    daysOfWeek.take(4).forEach { day ->
+                        val isSelected = day == state.selectedDay
+                        val isToday = day == today
+                        val count = state.countForDay(day, watchingMalIds)
+                        DayPill(
+                            day = day,
+                            isSelected = isSelected,
+                            isToday = isToday,
+                            count = count,
+                            onClick = { onSelectDay(day) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+
+                // Row 2: Jumat - Minggu
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    daysOfWeek.drop(4).forEach { day ->
+                        val isSelected = day == state.selectedDay
+                        val isToday = day == today
+                        val count = state.countForDay(day, watchingMalIds)
+                        DayPill(
+                            day = day,
+                            isSelected = isSelected,
+                            isToday = isToday,
+                            count = count,
+                            onClick = { onSelectDay(day) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
 
@@ -237,7 +267,19 @@ fun AiringCalendarScreen(
                             item = anime,
                             isWatching = isWatching,
                             onClick = {
-                                onOpenDetail(anime, MediaType.ANIME)
+                                val mediaItem = com.canim.app.data.model.MediaItem(
+                                    malId = anime.malId,
+                                    anilistId = anime.anilistId ?: anime.id.toIntOrNull(),
+                                    title = anime.title,
+                                    titleEnglish = anime.titleEnglish,
+                                    imageUrl = anime.imageUrl,
+                                    type = MediaType.ANIME,
+                                    score = anime.score,
+                                    episodes = anime.episodes,
+                                    genres = anime.genres,
+                                    studio = anime.studio
+                                )
+                                onOpenDetail(mediaItem, MediaType.ANIME)
                             }
                         )
                     }
@@ -257,19 +299,19 @@ private fun DayPill(
     modifier: Modifier = Modifier
 ) {
     val dayNameIndo = when (day) {
-        DayOfWeek.MONDAY -> "Sen"
-        DayOfWeek.TUESDAY -> "Sel"
-        DayOfWeek.WEDNESDAY -> "Rab"
-        DayOfWeek.THURSDAY -> "Kam"
-        DayOfWeek.FRIDAY -> "Jum"
-        DayOfWeek.SATURDAY -> "Sab"
-        DayOfWeek.SUNDAY -> "Min"
+        DayOfWeek.MONDAY -> "Senin"
+        DayOfWeek.TUESDAY -> "Selasa"
+        DayOfWeek.WEDNESDAY -> "Rabu"
+        DayOfWeek.THURSDAY -> "Kamis"
+        DayOfWeek.FRIDAY -> "Jumat"
+        DayOfWeek.SATURDAY -> "Sabtu"
+        DayOfWeek.SUNDAY -> "Minggu"
     }
 
     val containerBg = when {
         isSelected -> AccentBlue
-        isToday -> CardElevated
-        else -> CardBg
+        isToday -> AccentBlue.copy(alpha = 0.15f)
+        else -> Color.Transparent
     }
 
     val textColor = when {
@@ -278,32 +320,31 @@ private fun DayPill(
         else -> TextSecondary
     }
 
-    Column(
+    Row(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(8.dp))
             .background(containerBg)
-            .border(
-                1.dp,
-                if (isSelected) AccentBlue else if (isToday) AccentBlue.copy(alpha = 0.5f) else CardBorderSubtle,
-                RoundedCornerShape(12.dp)
-            )
             .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .padding(horizontal = 6.dp, vertical = 7.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = dayNameIndo,
-            fontSize = 12.sp,
+            fontSize = 11.5.sp,
             fontWeight = if (isSelected || isToday) FontWeight.Bold else FontWeight.Medium,
-            color = textColor
+            color = textColor,
+            maxLines = 1
         )
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = count.toString(),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = if (isSelected) Color.White.copy(alpha = 0.85f) else TextMuted
-        )
+        if (count > 0) {
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = "($count)",
+                fontSize = 10.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (isSelected) Color.White.copy(alpha = 0.85f) else TextMuted
+            )
+        }
     }
 }
 

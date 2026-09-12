@@ -34,30 +34,6 @@ fun ColdStartSplashScreen(
     modifier: Modifier = Modifier,
     durationMs: Long = 1200L
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "cold_start_anim")
-
-    // Pulsing glowing ring scale
-    val ringScale by infiniteTransition.animateFloat(
-        initialValue = 0.85f,
-        targetValue = 1.25f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "ring_scale"
-    )
-
-    // Pulsing ring alpha
-    val ringAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.2f,
-        targetValue = 0.7f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "ring_alpha"
-    )
-
     // Smooth logo entrance scale
     val logoScale = remember { Animatable(0.7f) }
     val logoAlpha = remember { Animatable(0f) }
@@ -89,29 +65,6 @@ fun ColdStartSplashScreen(
             .background(BlackBg),
         contentAlignment = Alignment.Center
     ) {
-        // Subtle cyber radial glow background
-        Box(
-            modifier = Modifier
-                .size(320.dp)
-                .scale(ringScale)
-                .alpha(ringAlpha * 0.4f)
-                .clip(CircleShape)
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(AccentBlue.copy(alpha = 0.45f), Color.Transparent)
-                    )
-                )
-        )
-
-        // Outer cyber ring
-        Box(
-            modifier = Modifier
-                .size(160.dp)
-                .scale(ringScale)
-                .alpha(ringAlpha)
-                .border(1.5.dp, AccentBlue.copy(alpha = 0.6f), CircleShape)
-        )
-
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,

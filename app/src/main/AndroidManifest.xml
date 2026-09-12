@@ -79,6 +79,8 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="com.canim.app.widget.ACTION_QUICK_INCREMENT" />
+                <action android:name="com.canim.app.widget.ACTION_PREV_ANIME" />
+                <action android:name="com.canim.app.widget.ACTION_NEXT_ANIME" />
             </intent-filter>
         </receiver>
     </application>

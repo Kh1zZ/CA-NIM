@@ -48,6 +48,7 @@ fun SettingsScreen(
     onLoadDemoData: () -> Unit = {},
     onClearAllData: () -> Unit = {},
     onClearImageCache: () -> Unit,
+    onClearMetadataCache: () -> Unit = {},
     onCheckForUpdates: () -> Unit = {},
     onSetAutoUpdateCheck: (Boolean) -> Unit = {},
     onDismissUpdateDialog: () -> Unit = {},
@@ -312,6 +313,24 @@ fun SettingsScreen(
                         Icon(imageVector = Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp), tint = AccentGreen)
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(text = "Bersihkan Cache Gambar")
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Button(
+                        onClick = onClearMetadataCache,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("clear_metadata_cache_button"),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = CardElevated,
+                            contentColor = TextPrimary
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Icon(imageVector = Icons.Default.CleaningServices, contentDescription = null, modifier = Modifier.size(16.dp), tint = AccentBlueLight)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(text = "Bersihkan Cache Metadata Lokal")
                     }
                 }
             }
