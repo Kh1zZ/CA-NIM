@@ -5,6 +5,13 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.4.3] - 2026-09-14
+### Added
+- Integrated CHANGELOG.md for release page notes and sequential semver verification in CI/CD pipelines.
+
+### Changed
+- Production release version bump to v6.4.3.
+
 ## [v6.4.2] - 2026-09-13
 ### Added
 - Occupation/pekerjaan section on cast and crew profile cards with localized Indonesian roles.
