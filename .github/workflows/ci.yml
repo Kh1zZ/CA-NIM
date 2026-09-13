@@ -41,6 +41,59 @@ jobs:
           # Remove local developer machine JDK override if present
           sed -i '/org.gradle.java.home/d' gradle.properties
 
+      - name: Validate CHANGELOG.md & Sequential Versioning
+        run: |
+          VERSION_NAME=$(grep -E '^\s*versionName\s*=\s*"([^"]+)"' app/build.gradle.kts | head -n1 | sed -E 's/.*"([^"]+)".*/\1/')
+          if [ ! -f "CHANGELOG.md" ]; then
+            echo "::error::CHANGELOG.md file not found in repository root!"
+            exit 1
+          fi
+
+          export TARGET_VER="$VERSION_NAME"
+          python3 - << 'EOF'
+          import re
+          import sys
+          import os
+
+          target_version = os.environ.get("TARGET_VER", "")
+          with open("CHANGELOG.md", "r", encoding="utf-8") as f:
+              content = f.read()
+
+          pattern = r'^## \[(v\d+\.\d+\.\d+)\]'
+          versions = []
+          for line in content.splitlines():
+              m = re.match(pattern, line.strip())
+              if m:
+                  v_str = m.group(1)
+                  parts = [int(x) for x in v_str[1:].split('.')]
+                  versions.append((parts[0], parts[1], parts[2], v_str))
+
+          if not versions:
+              print("::error::No version headers (## [vX.Y.Z]) found in CHANGELOG.md!")
+              sys.exit(1)
+
+          logged_version_names = [v[3] for v in versions]
+          if target_version not in logged_version_names:
+              print(f"::error::Target version '{target_version}' not found in CHANGELOG.md! Add an entry before pushing.")
+              sys.exit(1)
+
+          for i in range(len(versions) - 1):
+              curr = versions[i]
+              prev = versions[i + 1]
+              c_maj, c_min, c_patch = curr[0], curr[1], curr[2]
+              p_maj, p_min, p_patch = prev[0], prev[1], prev[2]
+
+              is_patch_step = (c_maj == p_maj and c_min == p_min and c_patch == p_patch + 1)
+              is_minor_step = (c_maj == p_maj and c_min == p_min + 1 and c_patch == 0)
+              is_major_step = (c_maj == p_maj + 1 and c_min == 0 and c_patch == 0)
+
+              if not (is_patch_step or is_minor_step or is_major_step):
+                  print(f"::error::Invalid version jump detected between {prev[3]} and {curr[3]} in CHANGELOG.md! Versions must be strictly sequential.")
+                  sys.exit(1)
+
+          print("CHANGELOG.md verification passed successfully: Version entry exists and follows sequential versioning without jumps.")
+          EOF
+
       - name: Compile Debug APK (Parallel with Build Cache)
         run: ./gradlew assembleDebug --build-cache --parallel --stacktrace
 

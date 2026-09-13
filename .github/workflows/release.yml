@@ -89,6 +89,59 @@ jobs:
             exit 1
           fi
 
+          # 4. Validate CHANGELOG.md exists, has entry for target version, and enforces non-jumping sequential versions
+          if [ ! -f "CHANGELOG.md" ]; then
+            echo "::error::CHANGELOG.md file not found in root directory!"
+            exit 1
+          fi
+
+          export TARGET_VER="$VERSION_NAME"
+          python3 - << 'EOF'
+          import re
+          import sys
+          import os
+
+          target_version = os.environ.get("TARGET_VER", "")
+          with open("CHANGELOG.md", "r", encoding="utf-8") as f:
+              content = f.read()
+
+          pattern = r'^## \[(v\d+\.\d+\.\d+)\]'
+          versions = []
+          for line in content.splitlines():
+              m = re.match(pattern, line.strip())
+              if m:
+                  v_str = m.group(1)
+                  parts = [int(x) for x in v_str[1:].split('.')]
+                  versions.append((parts[0], parts[1], parts[2], v_str))
+
+          if not versions:
+              print("::error::No version headers (## [vX.Y.Z]) found in CHANGELOG.md!")
+              sys.exit(1)
+
+          # Check if target version is recorded in CHANGELOG.md
+          logged_version_names = [v[3] for v in versions]
+          if target_version not in logged_version_names:
+              print(f"::error::Target version '{target_version}' not found in CHANGELOG.md! Add an entry before releasing.")
+              sys.exit(1)
+
+          # Validate strictly non-jumping sequential versioning
+          for i in range(len(versions) - 1):
+              curr = versions[i]
+              prev = versions[i + 1]
+              c_maj, c_min, c_patch = curr[0], curr[1], curr[2]
+              p_maj, p_min, p_patch = prev[0], prev[1], prev[2]
+
+              is_patch_step = (c_maj == p_maj and c_min == p_min and c_patch == p_patch + 1)
+              is_minor_step = (c_maj == p_maj and c_min == p_min + 1 and c_patch == 0)
+              is_major_step = (c_maj == p_maj + 1 and c_min == 0 and c_patch == 0)
+
+              if not (is_patch_step or is_minor_step or is_major_step):
+                  print(f"::error::Invalid version jump detected between {prev[3]} and {curr[3]} in CHANGELOG.md! Releases must follow strict sequential semver without skipping versions (e.g. v6.2.4 -> v6.2.5).")
+                  sys.exit(1)
+
+          print("CHANGELOG.md verification passed successfully: Version entry exists and follows sequential versioning without jumps.")
+          EOF
+
           echo "version_name=$VERSION_NAME" >> "$GITHUB_OUTPUT"
           echo "version_code=$VERSION_CODE" >> "$GITHUB_OUTPUT"
           echo "Version validation passed successfully: Target '$TAG_NAME' matches versionName '$VERSION_NAME' with versionCode $VERSION_CODE."
@@ -184,71 +237,76 @@ jobs:
 
           print(f"Previous tag detected: {prev_tag}")
 
-          if prev_tag:
-              git_log_cmd = ['git', 'log', f'{prev_tag}..HEAD', '--pretty=format:%s (%h)']
+          # Extract notes from CHANGELOG.md for current_tag
+          changelog_body = ""
+          if os.path.exists("CHANGELOG.md"):
+              try:
+                  with open("CHANGELOG.md", "r", encoding="utf-8") as f:
+                      changelog_content = f.read()
+
+                  target_header = f"## [{current_tag}]"
+                  capturing = False
+                  extracted_lines = []
+
+                  for line in changelog_content.splitlines():
+                      if line.strip().startswith("## ["):
+                          if capturing:
+                              break
+                          if line.strip().startswith(target_header):
+                              capturing = True
+                              continue
+                      elif capturing:
+                          extracted_lines.append(line)
+
+                  changelog_body = "\n".join(extracted_lines).strip()
+                  print(f"Extracted {len(extracted_lines)} lines from CHANGELOG.md for {current_tag}")
+              except Exception as e:
+                  print(f"Warning: Failed to read CHANGELOG.md: {e}")
+
+          sections = [f"## What's Changed in {current_tag}\n"]
+
+          if changelog_body:
+              sections.append(changelog_body)
+              sections.append("")
           else:
-              git_log_cmd = ['git', 'log', '-n', '50', 'HEAD', '--pretty=format:%s (%h)']
-
-          try:
-              log_output = subprocess.check_output(git_log_cmd, text=True)
-              commits = [c.strip() for c in log_output.strip().split('\n') if c.strip()]
-          except Exception as e:
-              print(f"Warning: git log execution error: {e}")
-              commits = []
-
-          features = []
-          fixes = []
-          performance = []
-          ui = []
-          others = []
-
-          for commit in commits:
-              lower = commit.lower()
-              if lower.startswith(('feat', 'feature')):
-                  features.append(commit)
-              elif lower.startswith(('fix', 'bugfix')):
-                  fixes.append(commit)
-              elif lower.startswith(('perf', 'opt')):
-                  performance.append(commit)
-              elif lower.startswith(('ui', 'ux')):
-                  ui.append(commit)
+              # Fallback to git log commit grouping if CHANGELOG.md entry was empty
+              if prev_tag:
+                  git_log_cmd = ['git', 'log', f'{prev_tag}..HEAD', '--pretty=format:%s (%h)']
               else:
-                  others.append(commit)
+                  git_log_cmd = ['git', 'log', '-n', '50', 'HEAD', '--pretty=format:%s (%h)']
 
-          sections = ["## What's Changed\n"]
+              try:
+                  log_output = subprocess.check_output(git_log_cmd, text=True)
+                  commits = [c.strip() for c in log_output.strip().split('\n') if c.strip()]
+              except Exception as e:
+                  print(f"Warning: git log execution error: {e}")
+                  commits = []
 
-          if features:
-              sections.append("### Features")
-              for f in features:
-                  sections.append(f"- {f}")
-              sections.append("")
+              features, fixes, others = [], [], []
+              for commit in commits:
+                  lower = commit.lower()
+                  if lower.startswith(('feat', 'feature')):
+                      features.append(commit)
+                  elif lower.startswith(('fix', 'bugfix')):
+                      fixes.append(commit)
+                  else:
+                      others.append(commit)
 
-          if fixes:
-              sections.append("### Bug Fixes")
-              for f in fixes:
-                  sections.append(f"- {f}")
-              sections.append("")
-
-          if performance:
-              sections.append("### Performance")
-              for p in performance:
-                  sections.append(f"- {p}")
-              sections.append("")
-
-          if ui:
-              sections.append("### UI/UX")
-              for u in ui:
-                  sections.append(f"- {u}")
-              sections.append("")
-
-          if others:
-              sections.append("### Other Changes")
-              for o in others:
-                  sections.append(f"- {o}")
-              sections.append("")
-
-          if not (features or fixes or performance or ui or others):
-              sections.append("- Routine release maintenance and dependency updates.\n")
+              if features:
+                  sections.append("### Features")
+                  for f in features:
+                      sections.append(f"- {f}")
+                  sections.append("")
+              if fixes:
+                  sections.append("### Bug Fixes")
+                  for f in fixes:
+                      sections.append(f"- {f}")
+                  sections.append("")
+              if others:
+                  sections.append("### Other Changes")
+                  for o in others:
+                      sections.append(f"- {o}")
+                  sections.append("")
 
           sections.append("---")
           if prev_tag:
@@ -265,7 +323,7 @@ jobs:
           with open("release_notes.md", "w", encoding="utf-8") as f:
               f.write("\n".join(sections) + "\n")
 
-          print("release_notes.md generated successfully.")
+          print("release_notes.md generated successfully from CHANGELOG.md.")
           EOF
           cat release_notes.md
 
