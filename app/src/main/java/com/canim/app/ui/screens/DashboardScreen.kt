@@ -823,7 +823,7 @@ fun WatchingCard(
                 .clip(RoundedCornerShape(12.dp))
                 .background(CardBg)
         ) {
-            AsyncImage(
+            com.canim.app.ui.components.CanimAsyncImage(
                 model = anime.imageUrl,
                 contentDescription = anime.title,
                 contentScale = ContentScale.Crop,
@@ -954,7 +954,7 @@ fun ReadingCard(
                 .clip(RoundedCornerShape(12.dp))
                 .background(CardBg)
         ) {
-            AsyncImage(
+            com.canim.app.ui.components.CanimAsyncImage(
                 model = manga.imageUrl,
                 contentDescription = manga.title,
                 contentScale = ContentScale.Crop,

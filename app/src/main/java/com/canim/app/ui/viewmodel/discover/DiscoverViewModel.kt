@@ -78,11 +78,13 @@ class DiscoverViewModel @Inject constructor(
                 discoverJob?.cancel()
                 val token = ++discoverRequestToken
                 val category = event.category
+                val mediaType = event.mediaType ?: _discoverState.value.mediaType
                 val filter = event.filter ?: _discoverState.value.filter
 
                 _discoverState.update {
                     it.copy(
                         selectedCategory = category,
+                        mediaType = mediaType,
                         filter = filter,
                         isLoading = true,
                         page = 1,
@@ -91,7 +93,13 @@ class DiscoverViewModel @Inject constructor(
                 }
 
                 discoverJob = viewModelScope.launch(Dispatchers.IO) {
-                    val items = getDiscoverCategoryUseCase(category, filter, page = 1, forceRefresh = event.forceRefresh)
+                    val items = getDiscoverCategoryUseCase(
+                        category = category,
+                        filter = filter,
+                        page = 1,
+                        forceRefresh = event.forceRefresh,
+                        mediaType = mediaType
+                    )
                     if (token == discoverRequestToken) {
                         _discoverState.update {
                             it.copy(
@@ -108,7 +116,8 @@ class DiscoverViewModel @Inject constructor(
                     DiscoverEvent.CategorySelected(
                         category = _discoverState.value.selectedCategory,
                         filter = event.filter,
-                        forceRefresh = false
+                        forceRefresh = false,
+                        mediaType = _discoverState.value.mediaType
                     )
                 )
             }
@@ -122,9 +131,10 @@ class DiscoverViewModel @Inject constructor(
 
                 viewModelScope.launch(Dispatchers.IO) {
                     val nextItems = getDiscoverCategoryUseCase(
-                        current.selectedCategory,
-                        current.filter,
-                        page = nextPage
+                        category = current.selectedCategory,
+                        filter = current.filter,
+                        page = nextPage,
+                        mediaType = current.mediaType
                     )
 
                     if (token == discoverRequestToken) {
@@ -148,7 +158,8 @@ class DiscoverViewModel @Inject constructor(
                     DiscoverEvent.CategorySelected(
                         category = current.selectedCategory,
                         filter = current.filter,
-                        forceRefresh = true
+                        forceRefresh = true,
+                        mediaType = current.mediaType
                     )
                 )
             }
@@ -158,9 +169,10 @@ class DiscoverViewModel @Inject constructor(
     fun loadDiscoverCategory(
         category: DiscoverCategory,
         filter: DiscoverFilter = _discoverState.value.filter,
-        forceRefresh: Boolean = false
+        forceRefresh: Boolean = false,
+        mediaType: MediaType? = null
     ) {
-        onDiscoverEvent(DiscoverEvent.CategorySelected(category, filter, forceRefresh))
+        onDiscoverEvent(DiscoverEvent.CategorySelected(category, filter, forceRefresh, mediaType))
     }
 
     fun loadMoreDiscover() {

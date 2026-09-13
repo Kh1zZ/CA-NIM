@@ -337,6 +337,23 @@ object AniListApolloMapper {
             }
         }
 
+        // Extract and translate distinct occupations/roles
+        val rawOccupations = mutableSetOf<String>()
+        if (charEdges?.any { it?.node != null } == true) {
+            rawOccupations.add("Voice Actor")
+        }
+        staffEdges?.forEach { edge ->
+            val role = edge?.staffRole?.trim()
+            if (!role.isNullOrBlank()) {
+                // Roles may be comma-separated e.g. "Director, Script"
+                role.split(",").map { it.trim() }.filter { it.isNotBlank() }.forEach { rawOccupations.add(it) }
+            }
+        }
+
+        val translatedOccupations = rawOccupations.map { role ->
+            translateOccupationToIndonesian(role)
+        }.distinct()
+
         return CastCrewProfile(
             id = id,
             isStaff = true,
@@ -350,8 +367,41 @@ object AniListApolloMapper {
             birthday = null,
             age = null,
             gender = null,
+            occupations = translatedOccupations,
             filmography = filmography.distinctBy { it.id }
         )
+    }
+
+    private fun translateOccupationToIndonesian(role: String): String {
+        val trimmed = role.trim()
+        val lower = trimmed.lowercase()
+        return when {
+            lower == "voice actor" || lower == "voice actress" || lower == "seiyuu" -> "Pengisi Suara (Seiyuu)"
+            lower == "original creator" || lower == "original story" || lower == "original author" -> "Kreator Asli"
+            lower == "director" -> "Sutradara"
+            lower == "series composition" -> "Komposisi Seri"
+            lower == "character design" || lower == "original character design" -> "Desain Karakter"
+            lower == "chief animation director" -> "Kepala Sutradara Animasi"
+            lower == "animation director" -> "Sutradara Animasi"
+            lower == "music" || lower == "composer" -> "Komposer / Musik"
+            lower == "sound director" -> "Pengarah Suara"
+            lower == "producer" -> "Produser"
+            lower == "chief producer" -> "Kepala Produser"
+            lower == "animation producer" -> "Produser Animasi"
+            lower == "art director" -> "Penata Artistik"
+            lower == "color design" -> "Penata Warna"
+            lower == "editing" || lower == "editor" -> "Penyunting (Editor)"
+            lower == "planning" -> "Perencana"
+            lower == "script" || lower == "screenplay" -> "Penulis Naskah"
+            lower == "theme song performance" -> "Penyanyi Lagu Tema"
+            lower == "insert song performance" -> "Penyanyi Lagu Sisipan"
+            lower == "sound effects" -> "Efek Suara"
+            lower == "director of photography" -> "Pengarah Sinematografi"
+            lower == "storyboard" -> "Papan Cerita (Storyboard)"
+            lower == "key animation" -> "Animator Utama"
+            lower == "assistant director" -> "Asisten Sutradara"
+            else -> trimmed
+        }
     }
 
     fun toStudioFilmographyItem(

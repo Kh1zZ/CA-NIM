@@ -58,7 +58,7 @@ fun DiscoverScreen(
     libraryState: LibraryUiState,
     studioViewModel: StudioViewModel,
     isAniListDown: Boolean = false,
-    onSelectCategory: (DiscoverCategory, DiscoverFilter) -> Unit,
+    onSelectCategory: (DiscoverCategory, DiscoverFilter, MediaType) -> Unit,
     onAddMedia: (MediaItem, MediaStatus) -> Unit,
     onSelectItem: (Any, MediaType) -> Unit,
     onLoadMore: () -> Unit = {},
@@ -188,10 +188,11 @@ fun DiscoverScreen(
                         if (discoverMediaType != selected) {
                             discoverMediaType = selected
                             if (selected == MediaType.ANIME) {
-                                onSelectCategory(DiscoverCategory.CURRENT_SEASON, DiscoverFilter())
+                                onSelectCategory(DiscoverCategory.CURRENT_SEASON, DiscoverFilter(), MediaType.ANIME)
                             } else {
                                 val defaultMangaCat = if (isAniListDown) DiscoverCategory.TOP_MANGA else DiscoverCategory.TRENDING_NOW
-                                onSelectCategory(defaultMangaCat, DiscoverFilter())
+                                val mangaFilter = DiscoverFilter(format = "MANGA")
+                                onSelectCategory(defaultMangaCat, mangaFilter, MediaType.MANGA)
                             }
                         }
                     },
@@ -240,7 +241,8 @@ fun DiscoverScreen(
                                 if (isStudio) {
                                     showStudioPickerSheet = true
                                 } else if (!isSelected) {
-                                    onSelectCategory(category, DiscoverFilter())
+                                    val filter = if (discoverMediaType == MediaType.MANGA) DiscoverFilter(format = "MANGA") else DiscoverFilter()
+                                    onSelectCategory(category, filter, discoverMediaType)
                                 }
                             },
                             modifier = Modifier
@@ -356,7 +358,7 @@ fun DiscoverScreen(
                             ) {
                                 if (discoverMediaType == MediaType.ANIME) {
                                     OutlinedButton(
-                                        onClick = { onSelectCategory(DiscoverCategory.CURRENT_SEASON, DiscoverFilter()) },
+                                        onClick = { onSelectCategory(DiscoverCategory.CURRENT_SEASON, DiscoverFilter(), MediaType.ANIME) },
                                         shape = RoundedCornerShape(10.dp),
                                         colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentBlue),
                                         border = androidx.compose.foundation.BorderStroke(1.dp, AccentBlue.copy(alpha = 0.5f))
@@ -364,7 +366,7 @@ fun DiscoverScreen(
                                         Text("Musim Ini", fontSize = 12.sp)
                                     }
                                     OutlinedButton(
-                                        onClick = { onSelectCategory(DiscoverCategory.TOP_ANIME, DiscoverFilter()) },
+                                        onClick = { onSelectCategory(DiscoverCategory.TOP_ANIME, DiscoverFilter(), MediaType.ANIME) },
                                         shape = RoundedCornerShape(10.dp),
                                         colors = ButtonDefaults.outlinedButtonColors(contentColor = AccentBlue),
                                         border = androidx.compose.foundation.BorderStroke(1.dp, AccentBlue.copy(alpha = 0.5f))
@@ -373,7 +375,7 @@ fun DiscoverScreen(
                                     }
                                 } else {
                                     OutlinedButton(
-                                        onClick = { onSelectCategory(DiscoverCategory.TOP_MANGA, DiscoverFilter()) },
+                                        onClick = { onSelectCategory(DiscoverCategory.TOP_MANGA, DiscoverFilter(), MediaType.MANGA) },
                                         shape = RoundedCornerShape(10.dp),
                                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MangaAccentDarkBlue),
                                         border = androidx.compose.foundation.BorderStroke(1.dp, MangaAccentDarkBlue.copy(alpha = 0.5f))

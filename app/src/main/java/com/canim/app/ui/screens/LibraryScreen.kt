@@ -197,48 +197,24 @@ fun LibraryScreen(
             )
         }
 
-        // Status Filter Chips
+        // Status Filter Chips with Sliding Highlight
         item {
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(vertical = 2.dp)
-            ) {
-                items(statuses, key = { it.first ?: "all" }, contentType = { "status_filter" }) { (statusVal, label) ->
-                    val isSelected = currentStatusFilter == statusVal
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { onSelectStatusFilter(statusVal) },
-                        label = {
-                            Text(
-                                text = label,
-                                fontSize = 12.sp,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                            )
-                        },
-                        shape = RoundedCornerShape(20.dp),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AccentBlue,
-                            selectedLabelColor = Color.White,
-                            containerColor = CardBg,
-                            labelColor = TextSecondary
-                        ),
-                        border = FilterChipDefaults.filterChipBorder(
-                            enabled = true,
-                            selected = isSelected,
-                            borderColor = CardBorderSubtle,
-                            selectedBorderColor = AccentBlue
-                        )
-                    )
-                }
-            }
+            com.canim.app.ui.components.SlidingPillSelector(
+                items = statuses,
+                selectedItem = statuses.firstOrNull { it.first == currentStatusFilter } ?: statuses.first(),
+                onItemSelected = { onSelectStatusFilter(it.first) },
+                labelProvider = { it.second },
+                highlightColor = if (isAnime) AccentBlue else MangaAccentDarkBlue,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
 
-        // Sort By Chips (Task B2)
+        // Sort By with Sliding Highlight
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Sort,
@@ -258,33 +234,18 @@ fun LibraryScreen(
                     "score" to "Skor",
                     "progress" to "Progres"
                 )
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    contentPadding = PaddingValues(vertical = 2.dp)
-                ) {
-                    items(sortOptions, key = { it.first }, contentType = { "sort_option" }) { (key, label) ->
-                        val isSelected = currentSortBy == key
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(if (isSelected) AccentBlue.copy(alpha = 0.2f) else CardBg)
-                                .border(
-                                    1.dp,
-                                    if (isSelected) AccentBlue else CardBorderSubtle,
-                                    RoundedCornerShape(12.dp)
-                                )
-                                .clickable { onSelectSort(key) }
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = label,
-                                fontSize = 11.sp,
-                                color = if (isSelected) AccentBlueLight else TextSecondary,
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
-                    }
-                }
+                com.canim.app.ui.components.SlidingPillSelector(
+                    items = sortOptions,
+                    selectedItem = sortOptions.firstOrNull { it.first == currentSortBy } ?: sortOptions.first(),
+                    onItemSelected = { onSelectSort(it.first) },
+                    labelProvider = { it.second },
+                    highlightColor = if (isAnime) AccentBlue.copy(alpha = 0.85f) else MangaAccentDarkBlue.copy(alpha = 0.85f),
+                    cornerRadius = 14.dp,
+                    horizontalPadding = 10.dp,
+                    verticalPadding = 4.dp,
+                    fontSize = 11f,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
             }
         }
 
@@ -386,7 +347,7 @@ fun AnimeLibraryCard(
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AsyncImage(
+            com.canim.app.ui.components.CanimAsyncImage(
                 model = anime.imageUrl,
                 contentDescription = anime.title,
                 contentScale = ContentScale.Crop,
@@ -529,7 +490,7 @@ fun MangaLibraryCard(
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AsyncImage(
+            com.canim.app.ui.components.CanimAsyncImage(
                 model = manga.imageUrl,
                 contentDescription = manga.title,
                 contentScale = ContentScale.Crop,

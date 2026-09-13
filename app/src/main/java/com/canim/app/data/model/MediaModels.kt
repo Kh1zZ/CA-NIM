@@ -235,6 +235,7 @@ data class CastCrewProfile(
     val birthday: String? = null,
     val age: String? = null,
     val gender: String? = null,
+    val occupations: List<String> = emptyList(),
     val filmography: List<FilmographyItem> = emptyList()
 )
 

@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -30,9 +31,16 @@ import androidx.compose.ui.unit.sp
 import com.canim.app.R
 import com.canim.app.ui.theme.*
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.*
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.ui.draw.scale
+
 /**
  * Dedicated login screen requiring MyAnimeList authentication before normal CA'NIM access.
- * Fits the modern dark cyber aesthetic of CA'NIM.
+ * Fits the modern dark cyber aesthetic of CA'NIM with smooth pulsating loading animation on token exchange.
  */
 @Composable
 fun LoginScreen(
@@ -42,20 +50,123 @@ fun LoginScreen(
 ) {
     val scrollState = rememberScrollState()
 
-    Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(BlackBg),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(scrollState)
-                .padding(horizontal = 24.dp, vertical = 40.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
+    AnimatedContent(
+        targetState = isExchangingToken,
+        transitionSpec = {
+            fadeIn(animationSpec = tween(300)).togetherWith(fadeOut(animationSpec = tween(250)))
+        },
+        label = "login_loading_transition"
+    ) { exchanging ->
+        if (exchanging) {
+            // Modern Pulsing Cyber Loading Transition
+            val infiniteTransition = rememberInfiniteTransition(label = "login_pulse")
+            val pulseScale by infiniteTransition.animateFloat(
+                initialValue = 0.94f,
+                targetValue = 1.06f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(900, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "pulse_scale"
+            )
+            val glowAlpha by infiniteTransition.animateFloat(
+                initialValue = 0.25f,
+                targetValue = 0.65f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(900, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "glow_alpha"
+            )
+
+            Box(
+                modifier = modifier
+                    .fillMaxSize()
+                    .background(BlackBg),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(horizontal = 32.dp)
+                ) {
+                    // Pulsing Logo Box with Glowing Halo
+                    Box(
+                        modifier = Modifier
+                            .scale(pulseScale)
+                            .size(104.dp)
+                            .clip(RoundedCornerShape(26.dp))
+                            .background(
+                                Brush.radialGradient(
+                                    listOf(AccentBlue.copy(alpha = glowAlpha), CardBg)
+                                )
+                            )
+                            .border(2.dp, AccentBlue.copy(alpha = glowAlpha + 0.2f), RoundedCornerShape(26.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.ic_app_logo),
+                            contentDescription = "Logo CA'NIM",
+                            modifier = Modifier
+                                .size(82.dp)
+                                .clip(RoundedCornerShape(22.dp))
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(28.dp))
+
+                    Text(
+                        text = "CA'NIM",
+                        color = TextPrimary,
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 2.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = "Menghubungkan Akun & Library MyAnimeList...",
+                        color = AccentBlueLight,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(32.dp))
+
+                    CircularProgressIndicator(
+                        color = AccentBlue,
+                        trackColor = CardElevated,
+                        modifier = Modifier.size(32.dp),
+                        strokeWidth = 3.dp
+                    )
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    Text(
+                        text = "Mengunduh token otentikasi resmi & memvalidasi sesi",
+                        color = TextMuted,
+                        fontSize = 11.5.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        } else {
+            Box(
+                modifier = modifier
+                    .fillMaxSize()
+                    .background(BlackBg),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(scrollState)
+                        .padding(horizontal = 24.dp, vertical = 40.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
             // App Branding Icon
             Box(
                 modifier = Modifier
@@ -203,6 +314,8 @@ fun LoginScreen(
                 modifier = Modifier.padding(horizontal = 8.dp)
             )
         }
+    }
+    }
     }
 }
 

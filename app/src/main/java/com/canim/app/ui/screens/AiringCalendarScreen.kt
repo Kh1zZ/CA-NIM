@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -124,7 +125,7 @@ fun AiringCalendarScreen(
             Column(
                 modifier = Modifier.fillMaxSize()
             ) {
-            // Continuity Day Selector (2 Rows, no horizontal lazy scroll, continuity design)
+            // Continuity Day Selector with Smooth Sliding Indicator (2 Rows)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -135,42 +136,88 @@ fun AiringCalendarScreen(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 // Row 1: Senin - Kamis
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    daysOfWeek.take(4).forEach { day ->
-                        val isSelected = day == state.selectedDay
-                        val isToday = day == today
-                        val count = state.countForDay(day, watchingMalIds)
-                        DayPill(
-                            day = day,
-                            isSelected = isSelected,
-                            isToday = isToday,
-                            count = count,
-                            onClick = { onSelectDay(day) },
-                            modifier = Modifier.weight(1f)
+                val row1Days = daysOfWeek.take(4)
+                val row1SelectedIndex = row1Days.indexOf(state.selectedDay)
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val segWidth = maxWidth / row1Days.size
+                    if (row1SelectedIndex >= 0) {
+                        val offset1 by androidx.compose.animation.core.animateDpAsState(
+                            targetValue = segWidth * row1SelectedIndex,
+                            animationSpec = androidx.compose.animation.core.spring(
+                                dampingRatio = 0.82f,
+                                stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+                            ),
+                            label = "cal_day_offset_row1"
                         )
+                        Box(
+                            modifier = Modifier
+                                .offset(x = offset1)
+                                .width(segWidth)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(AccentBlue)
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        row1Days.forEach { day ->
+                            val isSelected = day == state.selectedDay
+                            val isToday = day == today
+                            val count = state.countForDay(day, watchingMalIds)
+                            DayPill(
+                                day = day,
+                                isSelected = isSelected,
+                                isToday = isToday,
+                                count = count,
+                                onClick = { onSelectDay(day) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
                 }
 
                 // Row 2: Jumat - Minggu
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    daysOfWeek.drop(4).forEach { day ->
-                        val isSelected = day == state.selectedDay
-                        val isToday = day == today
-                        val count = state.countForDay(day, watchingMalIds)
-                        DayPill(
-                            day = day,
-                            isSelected = isSelected,
-                            isToday = isToday,
-                            count = count,
-                            onClick = { onSelectDay(day) },
-                            modifier = Modifier.weight(1f)
+                val row2Days = daysOfWeek.drop(4)
+                val row2SelectedIndex = row2Days.indexOf(state.selectedDay)
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                    val segWidth2 = maxWidth / row2Days.size
+                    if (row2SelectedIndex >= 0) {
+                        val offset2 by androidx.compose.animation.core.animateDpAsState(
+                            targetValue = segWidth2 * row2SelectedIndex,
+                            animationSpec = androidx.compose.animation.core.spring(
+                                dampingRatio = 0.82f,
+                                stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+                            ),
+                            label = "cal_day_offset_row2"
                         )
+                        Box(
+                            modifier = Modifier
+                                .offset(x = offset2)
+                                .width(segWidth2)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(AccentBlue)
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        row2Days.forEach { day ->
+                            val isSelected = day == state.selectedDay
+                            val isToday = day == today
+                            val count = state.countForDay(day, watchingMalIds)
+                            DayPill(
+                                day = day,
+                                isSelected = isSelected,
+                                isToday = isToday,
+                                count = count,
+                                onClick = { onSelectDay(day) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
                 }
             }

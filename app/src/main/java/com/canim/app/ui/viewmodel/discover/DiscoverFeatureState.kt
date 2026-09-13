@@ -8,6 +8,7 @@ import com.canim.app.data.model.MediaItem
 @Immutable
 data class DiscoverUiState(
     val selectedCategory: DiscoverCategory = DiscoverCategory.CURRENT_SEASON,
+    val mediaType: com.canim.app.data.model.MediaType = com.canim.app.data.model.MediaType.ANIME,
     val filter: DiscoverFilter = DiscoverFilter(),
     val items: List<MediaItem> = emptyList(),
     val isLoading: Boolean = false,
@@ -20,7 +21,8 @@ sealed interface DiscoverEvent {
     data class CategorySelected(
         val category: DiscoverCategory,
         val filter: DiscoverFilter? = null,
-        val forceRefresh: Boolean = false
+        val forceRefresh: Boolean = false,
+        val mediaType: com.canim.app.data.model.MediaType? = null
     ) : DiscoverEvent
 
     data class FilterUpdated(val filter: DiscoverFilter) : DiscoverEvent

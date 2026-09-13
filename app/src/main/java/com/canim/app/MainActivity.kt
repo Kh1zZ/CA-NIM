@@ -492,8 +492,8 @@ class MainActivity : ComponentActivity() {
                                         libraryState = libraryState,
                                         studioViewModel = studioViewModel,
                                         isAniListDown = globalState.isAniListDown,
-                                        onSelectCategory = { cat, filter ->
-                                            discoverViewModel.loadDiscoverCategory(cat, filter)
+                                        onSelectCategory = { cat, filter, type ->
+                                            discoverViewModel.loadDiscoverCategory(cat, filter, mediaType = type)
                                         },
                                         onAddMedia = { item, status ->
                                             libraryViewModel.addFromCatalog(item, status)
@@ -849,7 +849,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        // Floating Top Notification Banners (Rate Limit & Cold-Start Outage)
+                        // Floating Top Notification Banners (Rate Limit, Syncing, & Cold-Start Outage)
                         Column(
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
@@ -859,6 +859,60 @@ class MainActivity : ComponentActivity() {
                                 throttleState = globalState.throttleNotification,
                                 modifier = Modifier.fillMaxWidth()
                             )
+
+                            // Floating Library Sync Top Notification Popup
+                            val isSyncing = globalState.syncStatus == com.canim.app.data.model.SyncStatus.SYNCING || globalState.isSyncingMal
+                            AnimatedVisibility(
+                                visible = isSyncing,
+                                enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+                                exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    color = CardBg,
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        Brush.horizontalGradient(
+                                            listOf(AccentBlue.copy(alpha = 0.8f), Color(0xFF60A5FA).copy(alpha = 0.5f))
+                                        )
+                                    ),
+                                    shadowElevation = 6.dp
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(18.dp),
+                                            strokeWidth = 2.2.dp,
+                                            color = AccentBlue,
+                                            trackColor = CardElevated
+                                        )
+
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "Menyinkronkan Library...",
+                                                color = TextPrimary,
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Text(
+                                                text = "Memperbarui anime & manga dari akun MyAnimeList",
+                                                color = TextSecondary,
+                                                fontSize = 10.5.sp,
+                                                lineHeight = 14.sp
+                                            )
+                                        }
+                                    }
+                                }
+                            }
 
                             // AniList Outage Notification Banner (Cold-start only, auto-dismissed in 5 seconds)
                             AnimatedVisibility(

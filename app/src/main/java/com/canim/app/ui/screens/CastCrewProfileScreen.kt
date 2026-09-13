@@ -174,12 +174,8 @@ fun CastCrewProfileScreen(
 
                                 Spacer(modifier = Modifier.height(2.dp))
 
-                                val badgeTitle = when {
-                                    !profile.isStaff -> "KARAKTER"
-                                    hasVa -> "VA / SEIYUU"
-                                    else -> "STAF PRODUKSI"
-                                }
-                                val badgeColor = if (!profile.isStaff) AccentBlue else if (hasVa) StarGold else MangaAccentDarkBlue
+                                val badgeTitle = if (!profile.isStaff) "KARAKTER" else "PEOPLE"
+                                val badgeColor = if (!profile.isStaff) AccentBlue else Color(0xFF818CF8)
                                 Surface(
                                     color = badgeColor.copy(alpha = 0.2f),
                                     shape = RoundedCornerShape(6.dp)
@@ -218,6 +214,12 @@ fun CastCrewProfileScreen(
                                 letterSpacing = 1.sp
                             )
 
+                            if (profile.isStaff && profile.occupations.isNotEmpty()) {
+                                BioRowItem(
+                                    label = "Pekerjaan / Peran",
+                                    value = profile.occupations.joinToString(", ")
+                                )
+                            }
                             if (!profile.gender.isNullOrBlank()) {
                                 BioRowItem(label = "Jenis Kelamin", value = profile.gender)
                             }
