@@ -1,6 +1,8 @@
 package com.canim.app
 
 import android.content.Intent
+import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -79,16 +81,57 @@ class MainActivity : ComponentActivity() {
     @javax.inject.Inject
     lateinit var airingAlertManager: com.canim.app.notification.AiringAlertManager
 
+    @javax.inject.Inject
+    lateinit var notificationManager: com.canim.app.notification.CanimNotificationManager
+
+    private var notificationSoundTitle by mutableStateOf("Default Sistem")
+
+    private val ringtonePickerLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val uri: Uri? = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
+            } else {
+                @Suppress("DEPRECATION")
+                result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+            }
+            notificationManager.setNotificationSoundUri(uri)
+            updateSoundTitle()
+        }
+    }
+
     private val requestNotificationPermissionLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
-    ) { _ ->
-        // User responded to POST_NOTIFICATIONS permission request
+    ) { _ -> }
+
+    private fun updateSoundTitle() {
+        val soundUri = notificationManager.getNotificationSoundUri()
+        notificationSoundTitle = try {
+            val ringtone = RingtoneManager.getRingtone(this, soundUri)
+            ringtone?.getTitle(this) ?: "Default Sistem"
+        } catch (_: Exception) {
+            "Default Sistem"
+        }
+    }
+
+    private fun pickNotificationSound() {
+        val currentUri = notificationManager.getNotificationSoundUri()
+        val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+            putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_NOTIFICATION)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Pilih Suara Notifikasi")
+            putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, currentUri)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+        }
+        ringtonePickerLauncher.launch(intent)
     }
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        updateSoundTitle()
 
         // Request notification permission on Android 13+ (API 33+)
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
@@ -411,7 +454,8 @@ class MainActivity : ComponentActivity() {
                                         onSelectItem = onSelectItem,
                                         onOpenCalendar = {
                                             globalViewModel.openAiringCalendar()
-                                        }
+                                        },
+                                        onRefresh = onSyncMal
                                     )
                                 }
                                 "search" -> {
@@ -468,7 +512,14 @@ class MainActivity : ComponentActivity() {
                                             studioViewModel.openStudio(studioId, studioName)
                                             globalViewModel.openStudio(studioId, studioName)
                                         },
-                                        onGetStudioInfo = { studioId, studioName -> studioViewModel.getStudioInfo(studioId, studioName) }
+                                        onGetStudioInfo = { studioId, studioName -> studioViewModel.getStudioInfo(studioId, studioName) },
+                                        onRefresh = {
+                                            discoverViewModel.loadDiscoverCategory(
+                                                discoverState.selectedCategory,
+                                                discoverState.filter,
+                                                forceRefresh = true
+                                            )
+                                        }
                                     )
                                 }
                                 "settings" -> {
@@ -507,7 +558,9 @@ class MainActivity : ComponentActivity() {
                                         onSetAutoUpdateCheck = { updateViewModel.setAutoUpdateCheck(it) },
                                         onDismissUpdateDialog = { updateViewModel.dismissUpdateDialog() },
                                         onStartDownloadUpdate = { updateViewModel.startDownloadUpdate(context) },
-                                        onInstallDownloadedUpdate = { updateViewModel.installDownloadedUpdate(context) }
+                                        onInstallDownloadedUpdate = { updateViewModel.installDownloadedUpdate(context) },
+                                        notificationSoundTitle = notificationSoundTitle,
+                                        onPickNotificationSound = { pickNotificationSound() }
                                     )
                                 }
                             }
@@ -601,29 +654,31 @@ class MainActivity : ComponentActivity() {
                                     )
                                 }
                                 is ScreenRoute.Detail -> {
-                                    val currentMediaId = when (val item = currentScreen.item) {
-                                        is com.canim.app.data.model.UserMediaItem -> item.id
-                                        is com.canim.app.data.model.MediaItem -> item.id
-                                        is com.canim.app.data.model.AiringAnimeItem -> item.malId?.toString() ?: item.id
-                                        else -> null
-                                    }
-                                    val selectedMediaId = when (val item = detailState.selectedItem) {
-                                        is com.canim.app.data.model.UserMediaItem -> item.id
-                                        is com.canim.app.data.model.MediaItem -> item.id
-                                        is com.canim.app.data.model.AiringAnimeItem -> item.malId?.toString() ?: item.id
-                                        else -> null
-                                    }
-                                    val isCurrentDetailSelected = currentMediaId != null && currentMediaId == selectedMediaId
+                                    val currentMal = (currentScreen.item as? com.canim.app.data.model.UserMediaItem)?.malId
+                                        ?: (currentScreen.item as? com.canim.app.data.model.MediaItem)?.malId
+                                        ?: (currentScreen.item as? com.canim.app.data.model.AiringAnimeItem)?.malId
+                                    val currentAni = (currentScreen.item as? com.canim.app.data.model.UserMediaItem)?.anilistId
+                                        ?: (currentScreen.item as? com.canim.app.data.model.MediaItem)?.anilistId
+                                        ?: (currentScreen.item as? com.canim.app.data.model.AiringAnimeItem)?.anilistId
+
+                                    val selectedMal = (detailState.selectedItem as? com.canim.app.data.model.UserMediaItem)?.malId
+                                        ?: (detailState.selectedItem as? com.canim.app.data.model.MediaItem)?.malId
+                                        ?: (detailState.selectedItem as? com.canim.app.data.model.AiringAnimeItem)?.malId
+                                    val selectedAni = (detailState.selectedItem as? com.canim.app.data.model.UserMediaItem)?.anilistId
+                                        ?: (detailState.selectedItem as? com.canim.app.data.model.MediaItem)?.anilistId
+                                        ?: (detailState.selectedItem as? com.canim.app.data.model.AiringAnimeItem)?.anilistId
+
+                                    val isCurrentDetailSelected = (currentMal != null && currentMal == selectedMal) ||
+                                        (currentAni != null && currentAni == selectedAni) ||
+                                        (detailState.selectedItem != null && currentMal == null && currentAni == null)
                                     val detailItem = if (isCurrentDetailSelected) {
                                         detailState.selectedItem ?: currentScreen.item
                                     } else {
                                         currentScreen.item
                                     }
-                                    val detailExtended = if (isCurrentDetailSelected) {
-                                        detailState.extendedDetail
-                                    } else {
-                                        detailViewModel.getCachedDetail(currentScreen.item)
-                                    }
+                                    val detailExtended = (if (isCurrentDetailSelected) detailState.extendedDetail else null)
+                                        ?: detailViewModel.getCachedDetail(currentScreen.item)
+                                        ?: detailState.extendedDetail
                                     val detailIsLoading = if (isCurrentDetailSelected) {
                                         detailState.isLoadingExtendedDetail
                                     } else {
@@ -676,6 +731,9 @@ class MainActivity : ComponentActivity() {
                                             detailViewModel.saveDetailScrollPosition(key, index, offset)
                                         },
                                         onGetScrollPosition = { key -> detailViewModel.getDetailScrollPosition(key) },
+                                        onRefresh = {
+                                            detailViewModel.openDetail(detailItem, currentScreen.type)
+                                        },
                                         onDismiss = {
                                             detailViewModel.closeDetail()
                                             globalViewModel.popScreen()
@@ -702,7 +760,10 @@ class MainActivity : ComponentActivity() {
                                         },
                                         bioInfo = studioState.bio,
                                         sort = studioState.sort,
-                                        onSortChanged = { studioViewModel.setStudioFilmographySort(it) }
+                                        onSortChanged = { studioViewModel.setStudioFilmographySort(it) },
+                                        onRefresh = {
+                                            studioViewModel.openStudio(currentScreen.studioId, currentScreen.studioName)
+                                        }
                                     )
                                 }
                                 is ScreenRoute.Flashcard -> {
@@ -910,9 +971,11 @@ class MainActivity : ComponentActivity() {
             intent.removeExtra("extra_open_airing_calendar")
             globalViewModel.openAiringCalendar()
         }
-        val widgetMalId = intent?.getIntExtra("extra_open_mal_id", -1) ?: -1
+        val widgetMalId = (intent?.getIntExtra("extra_open_mal_id", -1) ?: -1)
+            .let { if (it > 0) it else (intent?.getIntExtra("extra_mal_id", -1) ?: -1) }
         if (widgetMalId > 0) {
             intent?.removeExtra("extra_open_mal_id")
+            intent?.removeExtra("extra_mal_id")
             val matchingAnime = libraryViewModel.libraryState.value.animeList.firstOrNull { it.malId == widgetMalId }
             if (matchingAnime != null) {
                 globalViewModel.openDetail(matchingAnime, com.canim.app.data.model.MediaType.ANIME)

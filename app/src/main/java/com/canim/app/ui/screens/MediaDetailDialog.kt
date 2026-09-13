@@ -52,6 +52,7 @@ fun MediaDetailDialog(
 
     val userItem = item as? UserMediaItem
     val mediaItem = item as? MediaItem
+    val airingItem = item as? com.canim.app.data.model.AiringAnimeItem
 
     var status by remember { mutableStateOf(userItem?.status ?: if (isAnime) "watching" else "reading") }
     var score by remember { mutableIntStateOf(userItem?.score ?: 0) }
@@ -60,11 +61,12 @@ fun MediaDetailDialog(
     var activeSubTab by remember { mutableIntStateOf(0) } // 0: Tracking, 1: Karakter & VA, 2: Crew / Staff, 3: Detail
 
     val total = userItem?.let { if (isAnime) it.totalEpisodes else it.totalChapters }
-        ?: mediaItem?.let { if (isAnime) it.episodes ?: 0 else it.chapters ?: 0 } ?: 0
-    val title = userItem?.title ?: mediaItem?.title ?: ""
-    val imageUrl = userItem?.imageUrl ?: mediaItem?.imageUrl ?: ""
+        ?: mediaItem?.let { if (isAnime) it.episodes ?: 0 else it.chapters ?: 0 }
+        ?: airingItem?.episodes ?: 0
+    val title = userItem?.title ?: mediaItem?.title ?: airingItem?.title ?: ""
+    val imageUrl = userItem?.imageUrl ?: mediaItem?.imageUrl ?: airingItem?.imageUrl ?: ""
     val synopsis = userItem?.synopsis ?: mediaItem?.synopsis ?: ""
-    val genres = userItem?.genres ?: mediaItem?.genres?.joinToString(", ") ?: ""
+    val genres = userItem?.genres ?: mediaItem?.genres?.joinToString(", ") ?: airingItem?.genres?.joinToString(", ") ?: ""
 
     val animeStatusOptions = listOf(
         "watching" to "Ditonton",
@@ -163,28 +165,28 @@ fun MediaDetailDialog(
                                                 updatedAt = System.currentTimeMillis()
                                             )
                                         )
-                                    } else if (mediaItem != null) {
+                                    } else {
                                         val identity = MediaRef(
-                                            anilistId = mediaItem.anilistId,
-                                            malId = mediaItem.malId
+                                            anilistId = mediaItem?.anilistId ?: airingItem?.anilistId,
+                                            malId = mediaItem?.malId ?: airingItem?.malId
                                         )
                                         val metadata = MediaMetadata(
-                                            title = mediaItem.title,
-                                            titleEnglish = mediaItem.titleEnglish,
+                                            title = mediaItem?.title ?: airingItem?.title ?: title,
+                                            titleEnglish = mediaItem?.titleEnglish ?: airingItem?.titleEnglish,
                                             titleNative = null,
-                                            imageUrl = mediaItem.imageUrl,
+                                            imageUrl = mediaItem?.imageUrl ?: airingItem?.imageUrl ?: imageUrl,
                                             type = type,
-                                            score = mediaItem.score,
-                                            synopsis = mediaItem.synopsis,
-                                            totalEpisodes = mediaItem.episodes,
-                                            totalChapters = mediaItem.chapters,
-                                            totalVolumes = mediaItem.volumes,
-                                            status = mediaItem.status,
-                                            year = mediaItem.year,
-                                            season = mediaItem.season,
-                                            genres = mediaItem.genres,
-                                            format = mediaItem.format,
-                                            studio = mediaItem.studio
+                                            score = mediaItem?.score ?: airingItem?.score,
+                                            synopsis = mediaItem?.synopsis ?: synopsis,
+                                            totalEpisodes = mediaItem?.episodes ?: airingItem?.episodes,
+                                            totalChapters = mediaItem?.chapters,
+                                            totalVolumes = mediaItem?.volumes,
+                                            status = mediaItem?.status,
+                                            year = mediaItem?.year,
+                                            season = mediaItem?.season,
+                                            genres = mediaItem?.genres ?: airingItem?.genres ?: emptyList(),
+                                            format = mediaItem?.format,
+                                            studio = mediaItem?.studio ?: airingItem?.studio
                                         )
                                         val tracking = MalTracking(
                                             status = status,
@@ -194,7 +196,7 @@ fun MediaDetailDialog(
                                             updatedAt = System.currentTimeMillis()
                                         )
                                         UserMediaItem(identity = identity, metadata = metadata, tracking = tracking)
-                                    } else null
+                                    }
 
                                     if (updatedItem != null) {
                                         if (isAnime) onSaveAnime(updatedItem)

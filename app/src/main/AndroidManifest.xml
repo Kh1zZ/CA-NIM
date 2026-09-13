@@ -81,8 +81,19 @@
                 <action android:name="com.canim.app.widget.ACTION_QUICK_INCREMENT" />
                 <action android:name="com.canim.app.widget.ACTION_PREV_ANIME" />
                 <action android:name="com.canim.app.widget.ACTION_NEXT_ANIME" />
+                <action android:name="com.canim.app.widget.ACTION_OPEN_DETAIL" />
             </intent-filter>
         </receiver>
+
+        <service
+            android:name=".widget.TodayAiringRemoteViewsService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
+
+        <service
+            android:name=".widget.WatchingProgressRemoteViewsService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
     </application>
 
 </manifest>

@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.canim.app.data.model.MediaType
 import com.canim.app.data.model.UserMediaItem
+import com.canim.app.ui.components.CanimPullToRefreshLayout
 import com.canim.app.ui.theme.*
 import com.canim.app.ui.viewmodel.library.LibraryUiState
 
@@ -54,6 +55,7 @@ fun LibraryScreen(
     onQuickDecrementManga: (String) -> Unit = {},
     onSelectItem: (Any, MediaType) -> Unit,
     onOpenCalendar: () -> Unit = {},
+    onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val currentFilterType = libraryState.filterType
@@ -121,11 +123,14 @@ fun LibraryScreen(
         )
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    CanimPullToRefreshLayout(
+        isRefreshing = libraryState.isLoading,
+        onRefresh = onRefresh,
+        modifier = modifier.fillMaxSize().background(BlackBg)
+    ) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .background(BlackBg)
                 .padding(horizontal = 16.dp),
             contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)

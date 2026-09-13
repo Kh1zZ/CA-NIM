@@ -297,7 +297,7 @@ open class MalAuthManager(
                         hasMore = false
                     } else {
                         offset += pageSize
-                        delay(1_500L)
+                        delay(800L)
                     }
                 }
             } catch (e: Exception) {
@@ -388,7 +388,7 @@ open class MalAuthManager(
                         hasMore = false
                     } else {
                         offset += pageSize
-                        delay(1_500L)
+                        delay(800L)
                     }
                 }
             } catch (e: Exception) {

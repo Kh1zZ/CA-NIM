@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.widget.RemoteViews
 import com.canim.app.CanimApplication
+import com.canim.app.MainActivity
 import com.canim.app.R
 import com.canim.app.data.local.LibraryDao
 import com.canim.app.data.local.LocalDatabase
@@ -24,6 +25,7 @@ class WatchingWidgetActionReceiver : BroadcastReceiver() {
         const val ACTION_QUICK_INCREMENT = "com.canim.app.widget.ACTION_QUICK_INCREMENT"
         const val ACTION_PREV_ANIME = "com.canim.app.widget.ACTION_PREV_ANIME"
         const val ACTION_NEXT_ANIME = "com.canim.app.widget.ACTION_NEXT_ANIME"
+        const val ACTION_OPEN_DETAIL = "com.canim.app.widget.ACTION_OPEN_DETAIL"
         const val EXTRA_MAL_ID = "extra_mal_id"
     }
 
@@ -33,6 +35,14 @@ class WatchingWidgetActionReceiver : BroadcastReceiver() {
             ?: kotlinx.coroutines.CoroutineScope(Dispatchers.IO)
 
         when (action) {
+            ACTION_OPEN_DETAIL -> {
+                val malId = intent.getIntExtra(EXTRA_MAL_ID, -1)
+                val openIntent = Intent(context, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    if (malId > 0) putExtra(EXTRA_MAL_ID, malId)
+                }
+                context.startActivity(openIntent)
+            }
             ACTION_PREV_ANIME, ACTION_NEXT_ANIME -> {
                 val appWidgetId = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
                 if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) return
@@ -53,20 +63,8 @@ class WatchingWidgetActionReceiver : BroadcastReceiver() {
                             } else {
                                 (currentIndex + 1) % watchingItems.size
                             }
-                            prefs.edit().putInt("watching_index_$appWidgetId", newIndex).apply()
-
                             val appWidgetManager = AppWidgetManager.getInstance(context)
-                            val views = RemoteViews(context.packageName, R.layout.widget_watching_progress)
-                            val currentEntry = watchingItems[newIndex]
-                            WatchingProgressWidgetProvider.bindWatchingItem(
-                                context,
-                                views,
-                                currentEntry,
-                                newIndex,
-                                watchingItems.size,
-                                appWidgetId
-                            )
-                            appWidgetManager.updateAppWidget(appWidgetId, views)
+                            WatchingProgressWidgetProvider.renderWidgets(context, appWidgetManager, intArrayOf(appWidgetId))
                         }
                     } catch (_: Exception) {
                     } finally {

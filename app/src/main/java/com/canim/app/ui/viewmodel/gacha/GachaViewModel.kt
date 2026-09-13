@@ -33,6 +33,11 @@ class GachaViewModel @Inject constructor(
     init {
         val currentCredits = consumeGachaCreditUseCase.getCredits()
         _gachaState.update { it.copy(credits = currentCredits) }
+        viewModelScope.launch {
+            consumeGachaCreditUseCase.observeCredits().collect { updatedCredits ->
+                _gachaState.update { it.copy(credits = updatedCredits) }
+            }
+        }
     }
 
     fun onGachaEvent(event: GachaEvent) {

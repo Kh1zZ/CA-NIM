@@ -15,5 +15,6 @@ interface LibraryRepository {
     suspend fun updateMangaTracking(malId: Int, tracking: MalTracking): Result<Unit>
     suspend fun deleteAnimeTracking(malId: Int): Result<Unit>
     suspend fun deleteMangaTracking(malId: Int): Result<Unit>
+    suspend fun saveUserMediaItem(item: UserMediaItem): Result<Unit> = Result.success(Unit)
     suspend fun retryFailedMutations(mediaType: String? = null): Int
 }

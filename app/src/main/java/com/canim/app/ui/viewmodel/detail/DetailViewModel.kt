@@ -156,7 +156,7 @@ class DetailViewModel @Inject constructor(
             else -> item
         }
 
-        val anilistId = when (resolvedItem) {
+        val rawAnilistId = when (resolvedItem) {
             is UserMediaItem -> resolvedItem.anilistId
             is MediaItem -> resolvedItem.anilistId
             else -> null
@@ -166,6 +166,7 @@ class DetailViewModel @Inject constructor(
             is MediaItem -> resolvedItem.malId
             else -> null
         }
+        val anilistId = rawAnilistId ?: (if (malId != null) getExtendedDetailUseCase.getAniListIdForMalId(malId) else null)
 
         val mediaKey = getMediaKey(resolvedItem)
         val inMemoryDetail = detailCache[mediaKey]
@@ -174,7 +175,7 @@ class DetailViewModel @Inject constructor(
 
         val initialDetail = cachedDetail ?: when (resolvedItem) {
             is UserMediaItem -> ExtendedMediaDetail(
-                anilistId = resolvedItem.anilistId,
+                anilistId = anilistId,
                 malId = resolvedItem.malId,
                 title = resolvedItem.title,
                 titleEnglish = resolvedItem.metadata.titleEnglish,
@@ -187,7 +188,7 @@ class DetailViewModel @Inject constructor(
                 malScore = if (resolvedItem.score > 0) resolvedItem.score.toDouble() else resolvedItem.metadata.score
             )
             is MediaItem -> ExtendedMediaDetail(
-                anilistId = resolvedItem.anilistId,
+                anilistId = anilistId,
                 malId = resolvedItem.malId,
                 title = resolvedItem.title,
                 titleEnglish = resolvedItem.titleEnglish,
@@ -216,7 +217,7 @@ class DetailViewModel @Inject constructor(
                 selectedCastCrewProfile = null,
                 isLoadingCastCrewProfile = false,
                 extendedDetail = initialDetail,
-                isLoadingExtendedDetail = cachedDetail == null,
+                isLoadingExtendedDetail = (cachedDetail == null && initialDetail == null),
                 isAniListUnavailable = false
             )
         }
@@ -224,7 +225,7 @@ class DetailViewModel @Inject constructor(
         detailJob?.cancel()
         val token = ++detailRequestToken
         detailJob = viewModelScope.launch(Dispatchers.IO) {
-            delay(200L)
+            delay(50L)
             if (token != detailRequestToken) return@launch
             try {
                 val initialMalId = malId ?: (anilistId?.let { getExtendedDetailUseCase.getMalIdForAniListId(it, type) })
@@ -370,14 +371,14 @@ class DetailViewModel @Inject constructor(
                         _detailState.update {
                             it.copy(
                                 extendedDetail = malDetail,
-                                isLoadingExtendedDetail = isThrottledOrCooldown,
+                                isLoadingExtendedDetail = false,
                                 isAniListUnavailable = !isThrottledOrCooldown
                             )
                         }
                     } else {
                         _detailState.update {
                             it.copy(
-                                isLoadingExtendedDetail = isThrottledOrCooldown,
+                                isLoadingExtendedDetail = false,
                                 isAniListUnavailable = !isThrottledOrCooldown
                             )
                         }

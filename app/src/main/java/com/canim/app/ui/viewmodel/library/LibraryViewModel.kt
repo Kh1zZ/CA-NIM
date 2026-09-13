@@ -341,7 +341,7 @@ class LibraryViewModel @Inject constructor(
         showSnackbar("Perubahan \"${preparedItem.title}\" disimpan!")
 
         viewModelScope.launch {
-            val result = saveLibraryItemUseCase.saveAnime(preparedItem.malId, preparedItem.tracking)
+            val result = saveLibraryItemUseCase.saveAnimeItem(preparedItem)
             if (result.isFailure) {
                 updateLibraryData(currentList, _libraryState.value.mangaList)
                 showSnackbar("Gagal menyimpan ke MAL: ${result.exceptionOrNull()?.message ?: "Kesalahan jaringan"}")
@@ -363,7 +363,7 @@ class LibraryViewModel @Inject constructor(
         showSnackbar("Perubahan \"${preparedItem.title}\" disimpan!")
 
         viewModelScope.launch {
-            val result = saveLibraryItemUseCase.saveManga(preparedItem.malId, preparedItem.tracking)
+            val result = saveLibraryItemUseCase.saveMangaItem(preparedItem)
             if (result.isFailure) {
                 updateLibraryData(_libraryState.value.animeList, currentList)
                 showSnackbar("Gagal menyimpan ke MAL: ${result.exceptionOrNull()?.message ?: "Kesalahan jaringan"}")

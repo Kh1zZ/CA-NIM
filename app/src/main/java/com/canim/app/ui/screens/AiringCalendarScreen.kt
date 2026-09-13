@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.canim.app.data.model.AiringAnimeItem
 import com.canim.app.data.model.MediaType
+import com.canim.app.ui.components.CanimPullToRefreshLayout
 import com.canim.app.ui.theme.*
 import com.canim.app.ui.viewmodel.calendar.AiringCalendarUiState
 import java.time.DayOfWeek
@@ -77,15 +78,15 @@ fun AiringCalendarScreen(
                 title = {
                     Column {
                         Text(
-                            text = "Jadwal Rilis Anime",
-                            color = TextPrimary,
+                            text = "Jadwal Tayang Mingguan",
                             fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
                         )
                         Text(
-                            text = "Musim Ini • Waktu Lokal",
-                            color = TextSecondary,
-                            fontSize = 12.sp
+                            text = "Waktu Indonesia Barat (WIB)",
+                            fontSize = 11.sp,
+                            color = TextSecondary
                         )
                     }
                 },
@@ -113,11 +114,16 @@ fun AiringCalendarScreen(
             )
         }
     ) { innerPadding ->
-        Column(
+        CanimPullToRefreshLayout(
+            isRefreshing = state.isLoading,
+            onRefresh = onRefresh,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
+            Column(
+                modifier = Modifier.fillMaxSize()
+            ) {
             // Continuity Day Selector (2 Rows, no horizontal lazy scroll, continuity design)
             Column(
                 modifier = Modifier
@@ -287,6 +293,7 @@ fun AiringCalendarScreen(
             }
         }
     }
+}
 }
 
 @Composable

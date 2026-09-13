@@ -35,18 +35,34 @@ class SaveLibraryItemUseCase @Inject constructor(
         return repository.updateMangaTracking(malId, tracking).map { awarded }
     }
 
-    suspend operator fun invoke(item: UserMediaItem): Result<Int> {
+    suspend fun saveAnimeItem(item: UserMediaItem): Result<Int> {
         val awarded = recordProgressAndAwardCredits(item.id, item.tracking.progress)
-        val malId = item.malId
+        consumeGachaCreditUseCase?.onAnimeAdded(item.id, item.tracking.progress)
         val isLoggedIn = getMalUserUseCase?.invoke()?.isLoggedIn != false
-        if (malId == null || !isLoggedIn) {
+        if (!isLoggedIn) {
             return Result.success(awarded)
         }
-        val remoteResult = if (item.isAnime) {
-            repository.updateAnimeTracking(malId, item.tracking)
-        } else {
-            repository.updateMangaTracking(malId, item.tracking)
+        return repository.saveUserMediaItem(item).map { awarded }
+    }
+
+    suspend fun saveMangaItem(item: UserMediaItem): Result<Int> {
+        val awarded = recordProgressAndAwardCredits(item.id, item.tracking.progress)
+        val isLoggedIn = getMalUserUseCase?.invoke()?.isLoggedIn != false
+        if (!isLoggedIn) {
+            return Result.success(awarded)
         }
-        return remoteResult.map { awarded }
+        return repository.saveUserMediaItem(item).map { awarded }
+    }
+
+    suspend operator fun invoke(item: UserMediaItem): Result<Int> {
+        val awarded = recordProgressAndAwardCredits(item.id, item.tracking.progress)
+        if (item.isAnime) {
+            consumeGachaCreditUseCase?.onAnimeAdded(item.id, item.tracking.progress)
+        }
+        val isLoggedIn = getMalUserUseCase?.invoke()?.isLoggedIn != false
+        if (!isLoggedIn) {
+            return Result.success(awarded)
+        }
+        return repository.saveUserMediaItem(item).map { awarded }
     }
 }

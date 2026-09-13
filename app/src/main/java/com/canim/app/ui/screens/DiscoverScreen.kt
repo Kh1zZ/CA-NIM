@@ -40,6 +40,7 @@ import coil.request.ImageRequest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import com.canim.app.data.model.*
 import androidx.compose.ui.graphics.Brush
+import com.canim.app.ui.components.CanimPullToRefreshLayout
 import com.canim.app.ui.theme.*
 import com.canim.app.ui.viewmodel.discover.DiscoverUiState
 import com.canim.app.ui.viewmodel.library.LibraryUiState
@@ -65,6 +66,7 @@ fun DiscoverScreen(
     onSaveManga: (UserMediaItem) -> Unit = {},
     onOpenStudio: ((studioId: Int, studioName: String) -> Unit)? = null,
     onGetStudioInfo: ((studioId: Int, studioName: String) -> StudioBioInfo)? = null,
+    onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val studioState by studioViewModel.studioState.collectAsState()
@@ -142,12 +144,15 @@ fun DiscoverScreen(
         }
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    CanimPullToRefreshLayout(
+        isRefreshing = currentIsLoading,
+        onRefresh = onRefresh,
+        modifier = modifier.fillMaxSize().background(BlackBg)
+    ) {
         LazyColumn(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
-                .background(BlackBg)
                 .padding(horizontal = 16.dp),
             contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)

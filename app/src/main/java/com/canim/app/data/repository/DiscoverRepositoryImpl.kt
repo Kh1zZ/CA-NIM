@@ -157,14 +157,17 @@ class DiscoverRepositoryImpl @Inject constructor(
         // NOTE: AniList is the sole source for TRENDING_NOW (Anime & Manga) as MAL does not provide a trending algorithm.
         // For Manga, MAL only provides TOP_MANGA; remaining categories (RECENTLY_DONE_MANGA, NEWLY_ADDED_MANGA) are AniList-exclusive.
 
-        if (category != DiscoverCategory.TRENDING_NOW &&
+        val isFallback = (category != DiscoverCategory.TRENDING_NOW &&
             category != DiscoverCategory.RECENTLY_DONE_MANGA &&
             category != DiscoverCategory.NEWLY_ADDED_MANGA &&
-            results.isEmpty() && page == 1) {
+            results.isEmpty() && page == 1)
+
+        if (isFallback) {
             results = if (filter.format == "MANGA") MediaMappingUtils.fallbackManga() else MediaMappingUtils.fallbackAnime()
         }
 
-        if (results.isNotEmpty()) {
+        // Only cache authentic API results (ANTI-FALSE CACHE)
+        if (results.isNotEmpty() && !isFallback) {
             CacheManager.putDiscover(cacheKey, results)
         }
 

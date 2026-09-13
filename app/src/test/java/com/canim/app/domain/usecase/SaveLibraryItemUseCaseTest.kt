@@ -36,6 +36,17 @@ class SaveLibraryItemUseCaseTest {
             lastSavedMangaTracking = tracking
             return Result.success(Unit)
         }
+
+        override suspend fun saveUserMediaItem(item: UserMediaItem): Result<Unit> {
+            if (item.isAnime) {
+                lastSavedAnimeId = item.malId
+                lastSavedAnimeTracking = item.tracking
+            } else {
+                lastSavedMangaId = item.malId
+                lastSavedMangaTracking = item.tracking
+            }
+            return Result.success(Unit)
+        }
     }
 
     private lateinit var fakeRepo: TestSaveRepo

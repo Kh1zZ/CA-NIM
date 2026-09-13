@@ -2,11 +2,16 @@ package com.canim.app.data.local
 
 import android.content.Context
 import android.content.SharedPreferences
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import java.util.Calendar
 
 class GachaCreditManager(context: Context) {
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val _creditsFlow = MutableStateFlow(prefs.getInt(KEY_CREDITS, BASE_WEEKLY_CREDITS))
+    val creditsFlow: StateFlow<Int> = _creditsFlow.asStateFlow()
 
     companion object {
         private const val PREFS_NAME = "canim_gacha_prefs"
@@ -48,7 +53,9 @@ class GachaCreditManager(context: Context) {
     @Synchronized
     fun getCredits(): Int {
         checkAndApplyWeeklyReset()
-        return prefs.getInt(KEY_CREDITS, BASE_WEEKLY_CREDITS)
+        val c = prefs.getInt(KEY_CREDITS, BASE_WEEKLY_CREDITS)
+        _creditsFlow.value = c
+        return c
     }
 
     @Synchronized
@@ -56,7 +63,9 @@ class GachaCreditManager(context: Context) {
         checkAndApplyWeeklyReset()
         val current = prefs.getInt(KEY_CREDITS, BASE_WEEKLY_CREDITS)
         return if (current > 0) {
-            prefs.edit().putInt(KEY_CREDITS, current - 1).apply()
+            val updated = current - 1
+            prefs.edit().putInt(KEY_CREDITS, updated).apply()
+            _creditsFlow.value = updated
             true
         } else {
             false
@@ -69,16 +78,19 @@ class GachaCreditManager(context: Context) {
         val current = prefs.getInt(KEY_CREDITS, BASE_WEEKLY_CREDITS)
         val updated = current + amount
         prefs.edit().putInt(KEY_CREDITS, updated).apply()
+        _creditsFlow.value = updated
         return updated
     }
 
     @Synchronized
     fun setCredits(amount: Int) {
         checkAndApplyWeeklyReset()
+        val clamped = maxOf(0, amount)
         prefs.edit()
-            .putInt(KEY_CREDITS, maxOf(0, amount))
+            .putInt(KEY_CREDITS, clamped)
             .putLong(KEY_LAST_RESET_WEEK, getStartOfCurrentWeekMillis())
             .apply()
+        _creditsFlow.value = clamped
     }
 
     @Synchronized
@@ -95,6 +107,7 @@ class GachaCreditManager(context: Context) {
                 .putInt(KEY_CREDITS, newCredits)
                 .putLong(KEY_LAST_RESET_WEEK, currentWeekStart)
                 .apply()
+            _creditsFlow.value = newCredits
         }
     }
 
@@ -133,5 +146,17 @@ class GachaCreditManager(context: Context) {
         } else {
             0
         }
+    }
+
+    @Synchronized
+    fun onAnimeAdded(mediaId: String, currentProgress: Int = 0): Int {
+        val awarded = if (currentProgress > 0) {
+            recordProgressAndAwardCredits(mediaId, currentProgress)
+        } else {
+            addCredit(1)
+            1
+        }
+        _creditsFlow.value = getCredits()
+        return awarded
     }
 }

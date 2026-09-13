@@ -35,6 +35,7 @@ import com.canim.app.data.model.StudioBioInfo
 import com.canim.app.data.model.StudioFilmographySort
 import com.canim.app.data.model.StudioYearGroup
 import com.canim.app.data.model.groupAndSortFilmography
+import com.canim.app.ui.components.CanimPullToRefreshLayout
 import com.canim.app.ui.theme.*
 import kotlinx.coroutines.flow.distinctUntilChanged
 
@@ -49,6 +50,7 @@ fun StudioFilmographyScreen(
     onLoadMore: () -> Unit,
     onOpenDetail: (MediaItem, MediaType) -> Unit,
     onBack: () -> Unit,
+    onRefresh: () -> Unit = {},
     modifier: Modifier = Modifier,
     bioInfo: StudioBioInfo? = null,
     sort: StudioFilmographySort = StudioFilmographySort.YEAR_DESC,
@@ -152,19 +154,24 @@ fun StudioFilmographyScreen(
             val statusBarTop = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
             val dynamicGridTopPadding = statusBarTop + 42.dp + 16.dp
 
-            LazyVerticalGrid(
-                state = gridState,
-                columns = GridCells.Adaptive(minSize = 150.dp),
-                contentPadding = PaddingValues(
-                    top = dynamicGridTopPadding,
-                    start = 16.dp,
-                    end = 16.dp,
-                    bottom = 32.dp
-                ),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+            CanimPullToRefreshLayout(
+                isRefreshing = isLoading,
+                onRefresh = onRefresh,
                 modifier = Modifier.fillMaxSize()
             ) {
+                LazyVerticalGrid(
+                    state = gridState,
+                    columns = GridCells.Adaptive(minSize = 150.dp),
+                    contentPadding = PaddingValues(
+                        top = dynamicGridTopPadding,
+                        start = 16.dp,
+                        end = 16.dp,
+                        bottom = 32.dp
+                    ),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.fillMaxSize()
+                ) {
                 // Header section: Studio Title & Hero Banner (Tugas 3c)
                 item(span = { GridItemSpan(maxLineSpan) }, key = "studio_header") {
                     val heroCover = bioInfo?.coverUrl ?: items.firstOrNull()?.imageUrlHd ?: items.firstOrNull()?.imageUrl
@@ -312,6 +319,7 @@ fun StudioFilmographyScreen(
                 }
             }
         }
+    }
 
         // Top Gradient Scrim for FAB
         Box(

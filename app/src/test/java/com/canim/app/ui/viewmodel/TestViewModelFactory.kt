@@ -45,6 +45,7 @@ open class FakeCanimRepository : CanimTestRepository {
     override suspend fun updateMangaTracking(malId: Int, tracking: MalTracking): Result<Unit> = Result.success(Unit)
     override suspend fun deleteAnimeTracking(malId: Int): Result<Unit> = Result.success(Unit)
     override suspend fun deleteMangaTracking(malId: Int): Result<Unit> = Result.success(Unit)
+    override suspend fun saveUserMediaItem(item: UserMediaItem): Result<Unit> = Result.success(Unit)
     override fun searchFilterKey(query: String, genres: List<String>?, year: Int?, format: String?, page: Int): String = ""
     override fun getCachedSearch(filterKey: String, type: String): List<MediaItem>? = null
     override fun matchesSearchKey(eventKey: String, filterKey: String, type: String): Boolean = false

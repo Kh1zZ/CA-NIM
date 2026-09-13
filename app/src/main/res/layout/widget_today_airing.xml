@@ -4,41 +4,61 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_background"
-    android:padding="12dp">
+    android:padding="8dp">
 
-    <!-- Header: Icon, Day Tag & Count Badge -->
+    <!-- Header: 3-Day Switcher & Count Badge -->
     <LinearLayout
         android:id="@+id/widget_airing_header"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_alignParentTop="true"
         android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:gravity="center_vertical"
+        android:paddingBottom="6dp">
 
-        <ImageView
-            android:id="@+id/widget_airing_icon"
-            android:layout_width="16dp"
-            android:layout_height="16dp"
-            android:src="@drawable/ic_app_icon"
-            android:contentDescription="@string/app_name" />
-
+        <!-- Day 1 (Yesterday / Prev) -->
         <TextView
-            android:id="@+id/widget_airing_day_text"
+            android:id="@+id/widget_airing_day_prev"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="28dp"
             android:layout_weight="1"
-            android:layout_marginStart="6dp"
-            android:text="@string/widget_today_airing_title"
-            android:textColor="#9E9E9E"
-            android:textSize="11sp"
-            android:textStyle="bold"
-            android:textAllCaps="true"
-            android:singleLine="true" />
+            android:gravity="center"
+            android:text="KEMARIN"
+            android:textColor="#7A7A7A"
+            android:textSize="10sp"
+            android:textStyle="bold" />
 
+        <!-- Day 2 (Today / Active) -->
+        <TextView
+            android:id="@+id/widget_airing_day_today"
+            android:layout_width="0dp"
+            android:layout_height="28dp"
+            android:layout_weight="1.3"
+            android:gravity="center"
+            android:background="@drawable/widget_item_bg"
+            android:text="HARI INI"
+            android:textColor="#0066FF"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <!-- Day 3 (Tomorrow / Next) -->
+        <TextView
+            android:id="@+id/widget_airing_day_next"
+            android:layout_width="0dp"
+            android:layout_height="28dp"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="BESOK"
+            android:textColor="#7A7A7A"
+            android:textSize="10sp"
+            android:textStyle="bold" />
+
+        <!-- Count Badge -->
         <TextView
             android:id="@+id/widget_airing_count_badge"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
             android:text="0 Anime"
             android:textColor="#0066FF"
             android:textSize="11sp"
@@ -65,108 +85,15 @@
             android:gravity="center" />
     </LinearLayout>
 
-    <!-- Airing Content List Preview (Compact, Calendar-styled continuity layout) -->
-    <LinearLayout
-        android:id="@+id/widget_airing_content_container"
+    <!-- Vertical Scrollable ListView -->
+    <ListView
+        android:id="@+id/widget_airing_list"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:layout_below="@id/widget_airing_header"
-        android:layout_marginTop="6dp"
-        android:orientation="vertical">
-
-        <!-- Item 1 -->
-        <LinearLayout
-            android:id="@+id/widget_airing_row_1"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <TextView
-                android:id="@+id/widget_airing_time_1"
-                android:layout_width="60dp"
-                android:layout_height="wrap_content"
-                android:text="23:00"
-                android:textColor="#0066FF"
-                android:textSize="11sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/widget_airing_title_1"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Anime Title 1"
-                android:textColor="#F0F0F0"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:singleLine="true"
-                android:ellipsize="end" />
-        </LinearLayout>
-
-        <!-- Item 2 -->
-        <LinearLayout
-            android:id="@+id/widget_airing_row_2"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <TextView
-                android:id="@+id/widget_airing_time_2"
-                android:layout_width="60dp"
-                android:layout_height="wrap_content"
-                android:text="23:30"
-                android:textColor="#0066FF"
-                android:textSize="11sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/widget_airing_title_2"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Anime Title 2"
-                android:textColor="#F0F0F0"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:singleLine="true"
-                android:ellipsize="end" />
-        </LinearLayout>
-
-        <!-- Item 3 -->
-        <LinearLayout
-            android:id="@+id/widget_airing_row_3"
-            android:layout_width="match_parent"
-            android:layout_height="0dp"
-            android:layout_weight="1"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <TextView
-                android:id="@+id/widget_airing_time_3"
-                android:layout_width="60dp"
-                android:layout_height="wrap_content"
-                android:text="00:00"
-                android:textColor="#0066FF"
-                android:textSize="11sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/widget_airing_title_3"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Anime Title 3"
-                android:textColor="#F0F0F0"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:singleLine="true"
-                android:ellipsize="end" />
-        </LinearLayout>
-
-    </LinearLayout>
-
+        android:divider="@android:color/transparent"
+        android:dividerHeight="0dp"
+        android:fadingEdge="none"
+        android:overScrollMode="never"
+        android:scrollbars="none" />
 </RelativeLayout>

@@ -8,6 +8,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.media.AudioAttributes
+import android.media.RingtoneManager
+import android.net.Uri
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -31,6 +34,9 @@ class CanimNotificationManager @Inject constructor(
 ) {
 
     companion object {
+        const val PREFS_NAME = "canim_notification_prefs"
+        const val KEY_NOTIFICATION_SOUND_URI = "notif_sound_uri"
+
         const val CHANNEL_ID_UPDATES = "canim_app_updates"
         const val CHANNEL_NAME_UPDATES = "Pembaruan Aplikasi"
         const val CHANNEL_DESC_UPDATES = "Notifikasi rilis versi terbaru CA'NIM"
@@ -52,6 +58,22 @@ class CanimNotificationManager @Inject constructor(
         initChannels()
     }
 
+    fun getNotificationSoundUri(): Uri {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val uriStr = prefs.getString(KEY_NOTIFICATION_SOUND_URI, null)
+        return if (!uriStr.isNullOrBlank()) {
+            Uri.parse(uriStr)
+        } else {
+            RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+        }
+    }
+
+    fun setNotificationSoundUri(uri: Uri?) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_NOTIFICATION_SOUND_URI, uri?.toString()).apply()
+        initChannels()
+    }
+
     /**
      * Initializes all Android notification channels. Safe to call multiple times.
      */
@@ -59,6 +81,12 @@ class CanimNotificationManager @Inject constructor(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
                 ?: return
+
+            val soundUri = getNotificationSoundUri()
+            val audioAttributes = AudioAttributes.Builder()
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION)
+                .build()
 
             // Channel 1: App Updates
             val updateChannel = NotificationChannel(
@@ -68,6 +96,7 @@ class CanimNotificationManager @Inject constructor(
             ).apply {
                 description = CHANNEL_DESC_UPDATES
                 setShowBadge(true)
+                setSound(soundUri, audioAttributes)
             }
             notificationManager.createNotificationChannel(updateChannel)
 
@@ -79,6 +108,7 @@ class CanimNotificationManager @Inject constructor(
             ).apply {
                 description = CHANNEL_DESC_AIRING
                 setShowBadge(true)
+                setSound(soundUri, audioAttributes)
             }
             notificationManager.createNotificationChannel(airingChannel)
         }

@@ -37,6 +37,7 @@ import coil.request.ImageRequest
 import com.canim.app.R
 import com.canim.app.data.model.MediaType
 import com.canim.app.data.model.UserMediaItem
+import com.canim.app.ui.components.CanimPullToRefreshLayout
 import com.canim.app.ui.theme.*
 import com.canim.app.ui.viewmodel.library.LibraryUiState
 import com.canim.app.ui.viewmodel.global.GlobalUiState
@@ -63,6 +64,7 @@ fun DashboardScreen(
     onSyncMal: () -> Unit = {},
     onOpenStats: () -> Unit = {},
     onOpenFlashcard: () -> Unit = {},
+    onOpenWeeklyCalendar: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -76,23 +78,29 @@ fun DashboardScreen(
         { manga -> onSelectItem(manga, MediaType.MANGA) }
     }
 
-    LazyColumn(
-        modifier = modifier
-            .fillMaxSize()
-            .background(BlackBg)
-            .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp)
+    val isRefreshing = globalState.isSyncingMal || libraryState.isLoading
+
+    CanimPullToRefreshLayout(
+        isRefreshing = isRefreshing,
+        onRefresh = onSyncMal,
+        modifier = modifier.fillMaxSize().background(BlackBg)
     ) {
-        // Top App Bar: CA'NIM + Logo & Sync Status Badge
-        item(key = "dashboard_top_bar") {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp, bottom = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
+        ) {
+            // Top App Bar: CA'NIM + Logo & Sync Status Badge
+            item(key = "dashboard_top_bar") {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp, bottom = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                 // Left: User Avatar & Username from MAL
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -643,11 +651,12 @@ fun DashboardScreen(
                         contentPadding = PaddingValues(vertical = 4.dp)
                     ) {
                         items(readingManga, key = { it.id }, contentType = { "reading_card" }) { manga ->
-                            ReadingCard(
-                                manga = manga,
-                                onQuickAdd = onQuickAddChapter,
-                                onClick = onSelectMangaItem
-                            )
+                                ReadingCard(
+                                    manga = manga,
+                                    onQuickAdd = onQuickAddChapter,
+                                    onClick = onSelectMangaItem
+                                )
+                            }
                         }
                     }
                 }

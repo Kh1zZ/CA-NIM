@@ -59,6 +59,7 @@ fun MediaDetailScreen(
     onResolveAniListId: ((malId: Int) -> Int?)? = null,
     onSaveScrollPosition: ((key: String, index: Int, offset: Int) -> Unit)? = null,
     onGetScrollPosition: ((key: String) -> Pair<Int, Int>)? = null,
+    onRefresh: () -> Unit = {},
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -114,17 +115,18 @@ fun MediaDetailScreen(
         }
     }
 
-    val title: String = userItem?.title ?: mediaItem?.title ?: ""
-    val titleEnglish: String? = userItem?.metadata?.titleEnglish ?: mediaItem?.titleEnglish ?: extendedDetail?.titleEnglish
+    val airingItem: com.canim.app.data.model.AiringAnimeItem? = item as? com.canim.app.data.model.AiringAnimeItem
+    val title: String = userItem?.title ?: mediaItem?.title ?: airingItem?.title ?: extendedDetail?.title ?: ""
+    val titleEnglish: String? = userItem?.metadata?.titleEnglish ?: mediaItem?.titleEnglish ?: airingItem?.titleEnglish ?: extendedDetail?.titleEnglish
     val titleNative: String? = extendedDetail?.nativeTitle
-    val imageUrl: String = userItem?.imageUrl ?: mediaItem?.imageUrl ?: ""
+    val imageUrl: String = userItem?.imageUrl ?: mediaItem?.imageUrl ?: airingItem?.imageUrl ?: extendedDetail?.coverImage ?: ""
     val bannerUrl: String = imageUrl
-    val synopsis: String = userItem?.synopsis ?: mediaItem?.synopsis ?: ""
+    val synopsis: String = userItem?.synopsis ?: mediaItem?.synopsis ?: extendedDetail?.synopsis ?: ""
     val cleanSynopsis: String = remember(synopsis) {
         TextSanitizer.sanitize(synopsis)
     }
 
-    val totalEpisodes = userItem?.totalEpisodes ?: mediaItem?.episodes ?: 0
+    val totalEpisodes = userItem?.totalEpisodes ?: mediaItem?.episodes ?: airingItem?.episodes ?: 0
     val totalChapters = userItem?.totalChapters ?: mediaItem?.chapters ?: 0
     val maxProgress = if (isAnime) totalEpisodes else totalChapters
 
@@ -162,11 +164,16 @@ fun MediaDetailScreen(
     val currentStatusOptions = if (isAnime) animeStatusOptions else mangaStatusOptions
 
     Box(modifier = modifier.fillMaxSize().background(BlackBg)) {
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 90.dp)
+        com.canim.app.ui.components.CanimPullToRefreshLayout(
+            isRefreshing = isLoadingExtendedDetail,
+            onRefresh = onRefresh,
+            modifier = Modifier.fillMaxSize()
         ) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(bottom = 90.dp)
+            ) {
             // Header Backdrop Image with Gradient Overlay & Back Button
             item {
                 Box(
@@ -1278,19 +1285,30 @@ fun MediaDetailScreen(
                                 progress = finalProgress,
                                 comments = trackingNotes
                             )
-                            val identity = userItem?.identity ?: mediaItem?.identity ?: MediaRef()
-                            val metadata = userItem?.metadata ?: MediaMetadata(
+                            val effectiveMalId = userItem?.malId ?: mediaItem?.malId ?: airingItem?.malId ?: extendedDetail?.malId
+                            val effectiveAniId = userItem?.anilistId ?: mediaItem?.anilistId ?: airingItem?.anilistId ?: extendedDetail?.anilistId
+                            val identity = userItem?.identity ?: mediaItem?.identity ?: MediaRef(anilistId = effectiveAniId, malId = effectiveMalId)
+                            val initialGenres = userItem?.metadata?.genres
+                                ?: mediaItem?.genres
+                                ?: airingItem?.genres
+                                ?: extendedDetail?.genres
+                                ?: emptyList()
+                            val targetMetadata = userItem?.metadata ?: MediaMetadata(
                                 title = title,
                                 titleEnglish = titleEnglish,
                                 titleNative = titleNative,
                                 imageUrl = imageUrl,
                                 type = type,
                                 totalEpisodes = totalEpisodes,
-                                totalChapters = totalChapters
+                                totalChapters = totalChapters,
+                                status = userItem?.airingStatus ?: mediaItem?.status ?: extendedDetail?.airingStatus,
+                                studio = userItem?.studio ?: mediaItem?.studio ?: airingItem?.studio ?: extendedDetail?.studio,
+                                genres = initialGenres,
+                                synopsis = synopsis
                             )
                             val updatedUserItem = UserMediaItem(
                                 identity = identity,
-                                metadata = metadata,
+                                metadata = targetMetadata,
                                 tracking = tracking
                             )
 
@@ -1360,6 +1378,7 @@ fun MediaDetailScreen(
                 }
             }
         }
+    }
 
         // Top Gradient Scrim for Persistent Floating Action Buttons
         Box(

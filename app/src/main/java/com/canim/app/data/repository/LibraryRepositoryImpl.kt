@@ -337,6 +337,72 @@ class LibraryRepositoryImpl(
         malAuthManager.deleteMangaTracking(malId)
     }
 
+    override suspend fun saveUserMediaItem(item: UserMediaItem): Result<Unit> = withContext(Dispatchers.IO) {
+        val dao = libraryDao
+        val mutDao = pendingMutationDao
+        val mediaType = if (item.isAnime) "ANIME" else "MANGA"
+        val malId = item.malId ?: 0
+        if (dao != null && mutDao != null && malId > 0) {
+            return@withContext try {
+                val now = System.currentTimeMillis()
+                val existing = dao.getEntry(malId, mediaType)
+                val entryToSave = if (existing != null) {
+                    existing.copy(
+                        status = item.tracking.status,
+                        score = item.tracking.score,
+                        progress = item.tracking.progress,
+                        progressVolumes = item.tracking.progressVolumes,
+                        isRepeating = if (item.tracking.isRepeating) 1 else 0,
+                        numTimesRewatched = item.tracking.numTimesRewatched,
+                        rewatchValue = item.tracking.rewatchValue,
+                        priority = item.tracking.priority,
+                        tagsJson = gson.toJson(item.tracking.tags ?: emptyList<String>()),
+                        comments = item.tracking.comments,
+                        startDate = item.tracking.startDate,
+                        finishDate = item.tracking.finishDate,
+                        title = item.metadata.title.takeIf { it.isNotBlank() } ?: existing.title,
+                        titleEnglish = item.metadata.titleEnglish ?: existing.titleEnglish,
+                        imageUrl = item.metadata.imageUrl.takeIf { it.isNotBlank() } ?: existing.imageUrl,
+                        totalEpisodes = item.metadata.totalEpisodes?.takeIf { it > 0 } ?: existing.totalEpisodes,
+                        totalChapters = item.metadata.totalChapters?.takeIf { it > 0 } ?: existing.totalChapters,
+                        totalVolumes = item.metadata.totalVolumes?.takeIf { it > 0 } ?: existing.totalVolumes,
+                        airingStatus = item.metadata.status ?: existing.airingStatus,
+                        year = item.metadata.year?.takeIf { it > 0 } ?: existing.year,
+                        season = item.metadata.season ?: existing.season,
+                        genresJson = if (item.metadata.genres.isNotEmpty()) gson.toJson(item.metadata.genres) else existing.genresJson,
+                        format = item.metadata.format ?: existing.format,
+                        studio = item.metadata.studio ?: existing.studio,
+                        anilistId = item.anilistId ?: existing.anilistId,
+                        localUpdatedAt = now
+                    )
+                } else {
+                    item.toLibraryEntry(mediaType).copy(localUpdatedAt = now)
+                }
+
+                val mutation = PendingMutation(
+                    malId = malId,
+                    mediaType = mediaType,
+                    mutationType = PendingMutation.TYPE_UPDATE,
+                    payloadJson = gson.toJson(item.tracking),
+                    localUpdatedAt = now,
+                    createdAt = now
+                )
+
+                dao.upsertWithMutation(entryToSave, mutation, mutDao)
+                scope.launch { syncEngine?.trySendImmediate(malId, mediaType) }
+                Result.success(Unit)
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
+        if (item.isAnime) {
+            malAuthManager.updateAnimeTracking(malId, item.tracking)
+        } else {
+            malAuthManager.updateMangaTracking(malId, item.tracking)
+        }
+    }
+
     private suspend fun localFirstUpdate(
         malId: Int,
         mediaType: String,
@@ -347,7 +413,22 @@ class LibraryRepositoryImpl(
         return try {
             val now = System.currentTimeMillis()
             val existing = dao.getEntry(malId, mediaType)
-            val updated = (existing ?: LibraryEntry(malId = malId, mediaType = mediaType)).copy(
+            val baseEntry = existing ?: run {
+                val cachedDetail = CacheManager.getDetail(CacheManager.detailKey(null, malId))
+                LibraryEntry(
+                    malId = malId,
+                    mediaType = mediaType,
+                    title = cachedDetail?.title ?: "",
+                    titleEnglish = cachedDetail?.titleEnglish,
+                    imageUrl = cachedDetail?.coverImage ?: "",
+                    totalEpisodes = 0,
+                    airingStatus = cachedDetail?.airingStatus,
+                    genresJson = gson.toJson(cachedDetail?.genres ?: emptyList<String>()),
+                    studio = cachedDetail?.studio,
+                    anilistId = cachedDetail?.anilistId
+                )
+            }
+            val updated = baseEntry.copy(
                 status = tracking.status,
                 score = tracking.score,
                 progress = tracking.progress,

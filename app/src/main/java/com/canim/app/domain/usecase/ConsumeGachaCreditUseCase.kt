@@ -18,6 +18,11 @@ class ConsumeGachaCreditUseCase @Inject constructor(
         gachaCreditManager.initBaselineProgress(mediaId, progress)
     }
 
+    fun observeCredits(): kotlinx.coroutines.flow.StateFlow<Int> = gachaCreditManager.creditsFlow
+
+    fun onAnimeAdded(mediaId: String, progress: Int = 0): Int =
+        gachaCreditManager.onAnimeAdded(mediaId, progress)
+
     fun recordProgressAndAwardCredits(mediaId: String, progress: Int): Int =
         gachaCreditManager.recordProgressAndAwardCredits(mediaId, progress)
 }

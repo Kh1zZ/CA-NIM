@@ -34,6 +34,7 @@ import com.canim.app.ui.viewmodel.global.GlobalUiState
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
 
 import com.canim.app.ui.viewmodel.update.UpdateUiState
 
@@ -54,6 +55,8 @@ fun SettingsScreen(
     onDismissUpdateDialog: () -> Unit = {},
     onStartDownloadUpdate: () -> Unit = {},
     onInstallDownloadedUpdate: () -> Unit = {},
+    notificationSoundTitle: String = "Default Sistem",
+    onPickNotificationSound: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -68,21 +71,21 @@ fun SettingsScreen(
         modifier = modifier
             .fillMaxSize()
             .background(BlackBg)
-            .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+            .padding(horizontal = 12.dp),
+        contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
             Text(
-                text = "Pengaturan & Akun",
+                text = "Pengaturan",
                 color = TextPrimary,
-                fontSize = 20.sp,
+                fontSize = 18.sp,
                 fontWeight = FontWeight.ExtraBold
             )
             Text(
-                text = "Kelola sinkronisasi MyAnimeList, cache, dan data aplikasi",
+                text = "Akun MyAnimeList, notifikasi, cache, dan data aplikasi",
                 color = TextSecondary,
-                fontSize = 12.sp
+                fontSize = 11.sp
             )
         }
 
@@ -91,14 +94,14 @@ fun SettingsScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
+                    .border(1.dp, CardBorder, RoundedCornerShape(10.dp))
                     .testTag("mal_account_card"),
                 colors = CardDefaults.cardColors(containerColor = CardBg),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(10.dp)
             ) {
                 Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -108,21 +111,21 @@ fun SettingsScreen(
                         Text(
                             text = "Integrasi MyAnimeList",
                             color = TextPrimary,
-                            fontSize = 14.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
 
                         val isConnected = globalState.malUser.isLoggedIn
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
+                                .clip(RoundedCornerShape(8.dp))
                                 .background(if (isConnected) AccentGreen.copy(alpha = 0.15f) else Color.DarkGray)
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                .padding(horizontal = 7.dp, vertical = 3.dp)
                         ) {
                             Text(
                                 text = if (isConnected) "Terhubung" else "Belum Terhubung",
                                 color = if (isConnected) AccentGreen else TextMuted,
-                                fontSize = 11.sp,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -131,7 +134,7 @@ fun SettingsScreen(
                     if (globalState.malUser.isLoggedIn) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             if (!globalState.malUser.pictureUrl.isNullOrEmpty()) {
                                 AsyncImage(
@@ -139,13 +142,13 @@ fun SettingsScreen(
                                     contentDescription = "Avatar Pengguna",
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier
-                                        .size(44.dp)
+                                        .size(38.dp)
                                         .clip(CircleShape)
                                 )
                             } else {
                                 Box(
                                     modifier = Modifier
-                                        .size(44.dp)
+                                        .size(38.dp)
                                         .clip(CircleShape)
                                         .background(AccentGreen.copy(alpha = 0.2f)),
                                     contentAlignment = Alignment.Center
@@ -153,7 +156,8 @@ fun SettingsScreen(
                                     Icon(
                                         imageVector = Icons.Default.Person,
                                         contentDescription = null,
-                                        tint = AccentGreen
+                                        tint = AccentGreen,
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
                             }
@@ -162,13 +166,13 @@ fun SettingsScreen(
                                 Text(
                                     text = globalState.malUser.username,
                                     color = TextPrimary,
-                                    fontSize = 15.sp,
+                                    fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
                                     text = "ID: ${globalState.malUser.id}",
                                     color = TextSecondary,
-                                    fontSize = 12.sp
+                                    fontSize = 11.sp
                                 )
                             }
                         }
@@ -183,32 +187,32 @@ fun SettingsScreen(
                                 enabled = !globalState.isSyncingMal,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(42.dp)
+                                    .height(38.dp)
                                     .testTag("sync_mal_button"),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = AccentGreen,
                                     contentColor = BlackBg
                                 ),
                                 shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                             ) {
                                 if (globalState.isSyncingMal) {
                                     CircularProgressIndicator(
                                         color = BlackBg,
-                                        modifier = Modifier.size(16.dp),
+                                        modifier = Modifier.size(14.dp),
                                         strokeWidth = 2.dp
                                     )
                                 } else {
                                     Icon(
                                         imageVector = Icons.Default.Sync,
                                         contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
+                                        modifier = Modifier.size(15.dp)
                                     )
                                 }
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = if (globalState.isSyncingMal) "Sinkronisasi..." else "Sinkron MAL",
-                                    fontSize = 13.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -217,39 +221,40 @@ fun SettingsScreen(
                                 onClick = onLogoutMal,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(42.dp)
+                                    .height(38.dp)
                                     .testTag("logout_mal_button"),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = StatusDroppedColor),
                                 border = BorderStroke(1.dp, StatusDroppedColor.copy(alpha = 0.6f)),
                                 shape = RoundedCornerShape(8.dp),
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Close,
                                     contentDescription = null,
-                                    modifier = Modifier.size(16.dp),
+                                    modifier = Modifier.size(15.dp),
                                     tint = StatusDroppedColor
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = "Putuskan",
-                                    fontSize = 13.sp,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
                         }
                     } else {
                         Text(
-                            text = "Hubungkan akun MyAnimeList milikmu untuk melakukan sinkronisasi otomatis anime & manga secara penuh tanpa batas.",
+                            text = "Hubungkan akun MyAnimeList milikmu untuk sinkronisasi otomatis anime & manga.",
                             color = TextSecondary,
-                            fontSize = 12.sp,
-                            lineHeight = 17.sp
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp
                         )
 
                         Button(
                             onClick = onLoginMal,
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .height(38.dp)
                                 .testTag("login_mal_button"),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = AccentGreen,
@@ -260,11 +265,12 @@ fun SettingsScreen(
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.OpenInNew,
                                 contentDescription = null,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(15.dp)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Login dengan MyAnimeList",
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -273,64 +279,138 @@ fun SettingsScreen(
             }
         }
 
-        // Cache Management Section (PART 14 & PART 8)
+        // Notification Sound Settings Card
         item {
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .border(1.dp, CardBorder, RoundedCornerShape(12.dp)),
+                    .border(1.dp, CardBorder, RoundedCornerShape(10.dp))
+                    .clickable { onPickNotificationSound() }
+                    .testTag("notification_sound_card"),
                 colors = CardDefaults.cardColors(containerColor = CardBg),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(10.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = "Manajemen Cache Terpusat",
-                        color = TextPrimary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Membersihkan cache hanya menghapus file sementara gambar. Data query API, metrik, koleksi library, dan akun MyAnimeList kamu tidak akan terhapus.",
-                        color = TextMuted,
-                        fontSize = 11.sp,
-                        lineHeight = 16.sp
-                    )
-
-                    Button(
-                        onClick = onClearImageCache,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("clear_image_cache_button"),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = CardElevated,
-                            contentColor = TextPrimary
-                        ),
-                        shape = RoundedCornerShape(8.dp)
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.Image, contentDescription = null, modifier = Modifier.size(16.dp), tint = AccentGreen)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "Bersihkan Cache Gambar")
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(AccentBlue.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = null,
+                                tint = AccentBlue,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        Column {
+                            Text(
+                                text = "Suara Notifikasi",
+                                color = TextPrimary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = notificationSoundTitle,
+                                color = TextSecondary,
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
 
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Button(
-                        onClick = onClearMetadataCache,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("clear_metadata_cache_button"),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = CardElevated,
-                            contentColor = TextPrimary
-                        ),
-                        shape = RoundedCornerShape(8.dp)
+                    OutlinedButton(
+                        onClick = onPickNotificationSound,
+                        modifier = Modifier.height(32.dp),
+                        shape = RoundedCornerShape(6.dp),
+                        border = BorderStroke(1.dp, CardBorder),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 0.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.CleaningServices, contentDescription = null, modifier = Modifier.size(16.dp), tint = AccentBlueLight)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "Bersihkan Cache Metadata Lokal")
+                        Text(
+                            text = "Ubah",
+                            color = AccentBlue,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+        }
+
+        // Cache Management Section
+        item {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, CardBorder, RoundedCornerShape(10.dp)),
+                colors = CardDefaults.cardColors(containerColor = CardBg),
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "Manajemen Cache",
+                        color = TextPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = onClearImageCache,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp)
+                                .testTag("clear_image_cache_button"),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = CardElevated,
+                                contentColor = TextPrimary
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.Image, contentDescription = null, modifier = Modifier.size(15.dp), tint = AccentGreen)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(text = "Hapus Gambar", fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        }
+
+                        Button(
+                            onClick = onClearMetadataCache,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp)
+                                .testTag("clear_metadata_cache_button"),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = CardElevated,
+                                contentColor = TextPrimary
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+                        ) {
+                            Icon(imageVector = Icons.Default.CleaningServices, contentDescription = null, modifier = Modifier.size(15.dp), tint = AccentBlueLight)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(text = "Hapus Metadata", fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                        }
                     }
                 }
             }
