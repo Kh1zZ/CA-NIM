@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.canim.app.ui.components.CanimAsyncImage
 import com.canim.app.data.model.*
 import com.canim.app.ui.theme.*
 import androidx.compose.foundation.rememberScrollState
@@ -181,7 +182,7 @@ fun MediaDetailScreen(
                         .fillMaxWidth()
                         .height(220.dp)
                 ) {
-                    AsyncImage(
+                    CanimAsyncImage(
                         model = bannerUrl,
                         contentDescription = title,
                         modifier = Modifier
@@ -232,7 +233,7 @@ fun MediaDetailScreen(
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     // Overlapping Poster Image
-                    AsyncImage(
+                    CanimAsyncImage(
                         model = imageUrl,
                         contentDescription = title,
                         modifier = Modifier
@@ -1599,7 +1600,7 @@ private fun CastAvatarItem(
                 .fillMaxWidth()
                 .weight(0.68f)
         ) {
-            AsyncImage(
+            CanimAsyncImage(
                 model = imgUrl,
                 contentDescription = cast.characterName,
                 modifier = Modifier.fillMaxSize(),
@@ -1675,7 +1676,7 @@ private fun StaffAvatarItem(
                 .fillMaxWidth()
                 .weight(0.68f)
         ) {
-            AsyncImage(
+            CanimAsyncImage(
                 model = staff.image ?: "",
                 contentDescription = staff.name,
                 modifier = Modifier.fillMaxSize(),
@@ -1761,7 +1762,7 @@ private fun RelationCardItem(
                 .fillMaxWidth()
                 .weight(0.68f)
         ) {
-            AsyncImage(
+            CanimAsyncImage(
                 model = relation.imageUrl ?: "",
                 contentDescription = relation.title,
                 modifier = Modifier.fillMaxSize(),
@@ -1828,7 +1829,7 @@ private fun MediaItemMiniCard(
             .clickable(onClick = onClick),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        AsyncImage(
+        CanimAsyncImage(
             model = item.imageUrl,
             contentDescription = item.title,
             modifier = Modifier

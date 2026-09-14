@@ -24,6 +24,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.canim.app.ui.components.CanimAsyncImage
 import com.canim.app.data.model.CastCrewProfile
 import com.canim.app.data.model.FilmographyItem
 import com.canim.app.data.model.MediaItem
@@ -141,7 +142,7 @@ fun CastCrewProfileScreen(
                             horizontalArrangement = Arrangement.spacedBy(16.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            AsyncImage(
+                            CanimAsyncImage(
                                 model = profile.image,
                                 contentDescription = profile.name,
                                 modifier = Modifier
@@ -406,7 +407,7 @@ private fun FilmographyCard(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Media Poster
-            AsyncImage(
+            CanimAsyncImage(
                 model = item.imageUrl,
                 contentDescription = item.title,
                 modifier = Modifier
@@ -434,7 +435,7 @@ private fun FilmographyCard(
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         if (!item.characterImage.isNullOrBlank()) {
-                            AsyncImage(
+                            CanimAsyncImage(
                                 model = item.characterImage,
                                 contentDescription = item.characterName,
                                 modifier = Modifier

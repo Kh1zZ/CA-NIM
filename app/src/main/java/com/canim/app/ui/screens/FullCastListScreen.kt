@@ -23,6 +23,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.canim.app.ui.components.CanimAsyncImage
 import com.canim.app.data.model.CharacterCastItem
 import com.canim.app.data.model.StaffMemberItem
 import com.canim.app.ui.theme.*
@@ -217,7 +218,7 @@ private fun FullCastRowItem(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            AsyncImage(
+            CanimAsyncImage(
                 model = cast.characterImage ?: "",
                 contentDescription = cast.characterName,
                 modifier = Modifier
@@ -284,7 +285,7 @@ private fun FullCastRowItem(
                     )
                 }
                 Spacer(modifier = Modifier.width(10.dp))
-                AsyncImage(
+                CanimAsyncImage(
                     model = cast.actorImage ?: "",
                     contentDescription = cast.actorName,
                     modifier = Modifier
@@ -311,7 +312,7 @@ private fun FullStaffRowItem(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        AsyncImage(
+        CanimAsyncImage(
             model = staff.image ?: "",
             contentDescription = staff.name,
             modifier = Modifier

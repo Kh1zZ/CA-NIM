@@ -138,7 +138,7 @@ fun AiringCalendarScreen(
                 // Row 1: Senin - Kamis
                 val row1Days = daysOfWeek.take(4)
                 val row1SelectedIndex = row1Days.indexOf(state.selectedDay)
-                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(36.dp)) {
                     val segWidth = maxWidth / row1Days.size
                     if (row1SelectedIndex >= 0) {
                         val offset1 by androidx.compose.animation.core.animateDpAsState(
@@ -159,7 +159,7 @@ fun AiringCalendarScreen(
                         )
                     }
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxSize(),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
                         row1Days.forEach { day ->
@@ -172,7 +172,9 @@ fun AiringCalendarScreen(
                                 isToday = isToday,
                                 count = count,
                                 onClick = { onSelectDay(day) },
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
                             )
                         }
                     }
@@ -181,7 +183,7 @@ fun AiringCalendarScreen(
                 // Row 2: Jumat - Minggu
                 val row2Days = daysOfWeek.drop(4)
                 val row2SelectedIndex = row2Days.indexOf(state.selectedDay)
-                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(36.dp)) {
                     val segWidth2 = maxWidth / row2Days.size
                     if (row2SelectedIndex >= 0) {
                         val offset2 by androidx.compose.animation.core.animateDpAsState(
@@ -202,7 +204,7 @@ fun AiringCalendarScreen(
                         )
                     }
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxSize(),
                         horizontalArrangement = Arrangement.SpaceEvenly
                     ) {
                         row2Days.forEach { day ->
@@ -215,7 +217,9 @@ fun AiringCalendarScreen(
                                 isToday = isToday,
                                 count = count,
                                 onClick = { onSelectDay(day) },
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxHeight()
                             )
                         }
                     }
@@ -363,7 +367,7 @@ private fun DayPill(
     }
 
     val containerBg = when {
-        isSelected -> AccentBlue
+        isSelected -> Color.Transparent
         isToday -> AccentBlue.copy(alpha = 0.15f)
         else -> Color.Transparent
     }
@@ -420,7 +424,7 @@ private fun AiringAnimeCard(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AsyncImage(
+        com.canim.app.ui.components.CanimAsyncImage(
             model = item.imageUrl,
             contentDescription = item.title,
             contentScale = ContentScale.Crop,

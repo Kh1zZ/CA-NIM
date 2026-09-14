@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.canim.app.ui.components.CanimAsyncImage
 import kotlinx.coroutines.flow.distinctUntilChanged
 import com.canim.app.data.model.*
 import androidx.compose.ui.graphics.Brush
@@ -769,7 +770,7 @@ fun DiscoverScreen(
                             ) {
                                 Box(modifier = Modifier.fillMaxSize()) {
                                     if (!studioInfo.coverUrl.isNullOrBlank()) {
-                                        AsyncImage(
+                                        CanimAsyncImage(
                                             model = studioInfo.coverUrl,
                                             contentDescription = sName,
                                             contentScale = ContentScale.Crop,
@@ -945,7 +946,7 @@ fun DiscoverScreen(
                                 ) {
                                     Box(modifier = Modifier.fillMaxSize()) {
                                         if (!studioInfo.coverUrl.isNullOrBlank()) {
-                                            AsyncImage(
+                                            CanimAsyncImage(
                                                 model = studioInfo.coverUrl,
                                                 contentDescription = sName,
                                                 contentScale = ContentScale.Crop,
@@ -1045,7 +1046,7 @@ fun DiscoverItemCard(
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AsyncImage(
+            CanimAsyncImage(
                 model = item.imageUrl,
                 contentDescription = item.title,
                 contentScale = ContentScale.Crop,

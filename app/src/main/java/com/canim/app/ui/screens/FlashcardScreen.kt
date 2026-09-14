@@ -34,6 +34,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.canim.app.ui.components.CanimAsyncImage
 import com.canim.app.data.local.GachaCreditManager
 import com.canim.app.data.model.MediaItem
 import com.canim.app.data.model.MediaType
@@ -702,7 +703,7 @@ private fun PhysicalCard(
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             // High-resolution Cover Poster (HD preferred on Flashcards)
-            AsyncImage(
+            CanimAsyncImage(
                 model = item.imageUrlHd ?: item.imageUrl,
                 contentDescription = item.title,
                 contentScale = ContentScale.Crop,

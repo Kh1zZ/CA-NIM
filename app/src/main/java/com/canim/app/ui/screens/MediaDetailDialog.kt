@@ -30,6 +30,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.canim.app.ui.components.CanimAsyncImage
 import com.canim.app.data.model.*
 import com.canim.app.ui.theme.*
 
@@ -285,7 +286,7 @@ fun MediaDetailDialog(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    AsyncImage(
+                    CanimAsyncImage(
                         model = imageUrl,
                         contentDescription = title,
                         contentScale = ContentScale.Crop,
@@ -876,7 +877,7 @@ fun CastItemRow(cast: CharacterCastItem) {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AsyncImage(
+            CanimAsyncImage(
                 model = cast.characterImage,
                 contentDescription = cast.characterName,
                 contentScale = ContentScale.Crop,
@@ -927,7 +928,7 @@ fun CastItemRow(cast: CharacterCastItem) {
                     )
                 }
                 Spacer(modifier = Modifier.width(8.dp))
-                AsyncImage(
+                CanimAsyncImage(
                     model = cast.actorImage,
                     contentDescription = cast.actorName,
                     contentScale = ContentScale.Crop,
@@ -951,7 +952,7 @@ fun StaffItemRow(staff: StaffMemberItem) {
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AsyncImage(
+        CanimAsyncImage(
             model = staff.image,
             contentDescription = staff.name,
             contentScale = ContentScale.Crop,

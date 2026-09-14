@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.canim.app.ui.components.CanimAsyncImage
 import com.canim.app.data.model.MediaItem
 import com.canim.app.data.model.MediaType
 import com.canim.app.data.model.StudioBioInfo
@@ -188,7 +189,7 @@ fun StudioFilmographyScreen(
                                 .height(120.dp)
                         ) {
                             if (!heroCover.isNullOrBlank()) {
-                                AsyncImage(
+                                CanimAsyncImage(
                                     model = heroCover,
                                     contentDescription = studioName,
                                     contentScale = ContentScale.Crop,
@@ -628,7 +629,7 @@ private fun StudioMediaCard(
                     .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
                     .background(CardElevated)
             ) {
-                AsyncImage(
+                CanimAsyncImage(
                     model = item.imageUrl,
                     contentDescription = item.title,
                     contentScale = ContentScale.Crop,

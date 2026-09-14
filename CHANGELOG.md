@@ -5,6 +5,14 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.4.4] - 2026-09-14
+### Fixed
+- **Airing Calendar Day Selector**: Fixed height constraint bug where day highlight sliding indicator box expanded vertically and took up the entire screen.
+- **Universal Shimmer Animation**: Replaced standard static image loaders with `CanimAsyncImage` (subtle blue shimmer pulse) across all screens displaying anime and manga media (MediaDetailScreen, AiringCalendarScreen, DiscoverScreen, SearchScreen, FlashcardScreen, StatsScreen, FullCastListScreen, CastCrewProfileScreen, StudioFilmographyScreen, and MediaDetailDialog).
+
+### Changed
+- Bumped app version to v6.4.4 (versionCode 47).
+
 ## [v6.4.3] - 2026-09-14
 ### Added
 - Integrated CHANGELOG.md for release page notes and sequential semver verification in CI/CD pipelines.

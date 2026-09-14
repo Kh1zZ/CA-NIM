@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.canim.app.ui.components.CanimAsyncImage
 import com.canim.app.data.model.MediaItem
 import com.canim.app.data.model.MediaStatus
 import com.canim.app.data.model.MediaType
@@ -1122,7 +1123,7 @@ fun SearchResultCard(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AsyncImage(
+            CanimAsyncImage(
                 model = item.imageUrl,
                 contentDescription = item.title,
                 contentScale = ContentScale.Crop,

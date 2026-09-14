@@ -30,6 +30,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.canim.app.ui.components.CanimAsyncImage
 import com.canim.app.data.model.MediaType
 import com.canim.app.data.model.UserMediaItem
 import com.canim.app.ui.theme.*
@@ -710,7 +711,7 @@ private fun TopRankItemCard(
             }
 
             // Cover thumbnail
-            AsyncImage(
+            CanimAsyncImage(
                 model = item.imageUrl,
                 contentDescription = item.title,
                 modifier = Modifier
