@@ -118,25 +118,13 @@ Salah satu inovasi arsitektur terpenting CA'NIM adalah pemisahan peran antara **
 
 ---
 
-## ✨ 3. Fitur Utama & Pembaruan Sistem (v6.4.6)
+## ✨ 3. Ikhtisar Fitur Aplikasi
 
-* **Kustomisasi Top 5 Anime & Manga Pribadi**:
-  * Pengguna dapat memilih dan mengurasi secara mandiri 5 anime dan 5 manga favorit langsung dari layar Statistik.
-  * Dilengkapi slot kosong dengan garis putus-putus (*dashed line*), toggle edit/simpan (`Pencil` ↔ `Checkmark`), serta modal *bottom sheet* dari koleksi berstatus tamat (`completed`) yang terurut berdasarkan skor.
-  * Validasi ketat: seluruh 5 slot wajib terisi penuh sebelum dapat disimpan maupun diekspor (PDF, JPG, PNG dengan opsi multi-rasio kanvas).
-* **Eksplorasi & Navigasi Terpadu**:
-  * **Peringkat Kontinu**: Badge nomor urut (`#1`, `#2`, `#3`, ...) disematkan pada setiap kartu kategori *Top Anime* & *Top Manga* di menu Discovery.
-  * **Interaksi Metadata Chip**: Mengetuk genre langsung membuka layar Search dengan filter genre aktif; mengetuk peringkat membuka katalog teratas di Discovery.
-* **Studio Filmography Multivariasi**:
-  * Filter pengurutan filmografi studio (Tahun Rilis, Skor Tertinggi, Terlama) dengan *cache partitioning* independen.
-* **Kalender Penayangan 2D Fluid Motion**:
-  * Indikator seleksi hari pada kalender kini meluncur mulus secara 2 dimensi (horizontal, vertikal, dan diagonal).
-* **Flashcard Gacha Bertarget**:
-  * Algoritma rekomendasi cerdas berbasis bobot eksplorasi selera pengguna (menghindari fallback acak musiman).
-  * Cooldown 14 hari persisten dua arah (merekam MAL ID & AniList ID) dengan mekanisme *lazy pruning*.
-* **Universal Shimmer & Micro-Interactions**:
-  * Komponen visual `CanimAsyncImage` dengan shimmer pulse aksen biru lembut di seluruh penjuru aplikasi.
-  * Standardisasi peran kreator asli menjadi tag tunggal `"Author"`.
+* **Sinkronisasi & Pelacakan Koleksi**: Pelacakan progres tonton/baca real-time dengan sinkronisasi dua arah akun MyAnimeList dan antrean mutasi luring (*offline-first*).
+* **Metadata & Visual Detail Kaya**: Sinopsis, karakter, pengisi suara (VA), staf produksi, trailer, relasi waralaba, dan filmografi studio bertenaga AniList GraphQL.
+* **Eksplorasi & Pencarian Adaptif**: Katalog tren musiman, media teratas, jadwal penayangan kalender mingguan, serta filter pencarian instan berbasis genre, format, dan studio.
+* **Statistik Personal & Ekspor**: Ringkasan metrik koleksi, pie chart distribusi status, kurasi Top 5 pribadi, dan ekspor infografis statistik multi-format (PDF/JPG/PNG).
+* **Flashcard Rekomendasi (Gacha)**: Sistem rekomendasi judul adaptif berbasis preferensi selera pengguna dengan sistem cooldown pintar.
 
 ---
 
