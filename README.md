@@ -5,21 +5,21 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.3.4%20(Build%2042)-0052CC.svg?style=for-the-badge" alt="Version"></a>
+  <a href="https://github.com/Kh1zZ/CA-NIM/releases"><img src="https://img.shields.io/badge/Version-v6.4.6%20(Build%2049)-0052CC.svg?style=for-the-badge" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GPL--3.0-blue.svg?style=for-the-badge" alt="License"></a>
   <a href="#-tech-stack--toolchain-modern"><img src="https://img.shields.io/badge/Platform-Android%207.0%2B%20(API%2024%2B)-8B5CF6.svg?style=for-the-badge" alt="Platform"></a>
   <a href="#-tech-stack--toolchain-modern"><img src="https://img.shields.io/badge/Runtime-JDK%2021%20LTS-ED8B00.svg?style=for-the-badge" alt="JDK 21"></a>
   <a href="#-tech-stack--toolchain-modern"><img src="https://img.shields.io/badge/Kotlin-2.0.21%20(K2)-7F52FF.svg?style=for-the-badge" alt="Kotlin 2.0"></a>
   <a href="#-tech-stack--toolchain-modern"><img src="https://img.shields.io/badge/UI-Jetpack%20Compose%20M3-3B82F6.svg?style=for-the-badge" alt="UI"></a>
-  <a href="#-verifikasi-lokal--kebijakan-rekayasa"><img src="https://img.shields.io/badge/Tests-100%25%20Passing%20(386%20Tests)-10B981.svg?style=for-the-badge" alt="Tests"></a>
-  <a href="#-kredit--rekayasa-ai-google-gemini-38-flash"><img src="https://img.shields.io/badge/Engineered%20by-Gemini%203.8%20Flash-4285F4.svg?style=for-the-badge" alt="Gemini 3.8 Flash"></a>
+  <a href="#-kebijakan-pengujian--verifikasi-lokal"><img src="https://img.shields.io/badge/Tests-100%25%20Passing%20(410%20Tests)-10B981.svg?style=for-the-badge" alt="Tests"></a>
+  <a href="#-rekayasa--kolaborasi-ai"><img src="https://img.shields.io/badge/Engineered%20by-Gemini%203.8%20Flash-4285F4.svg?style=for-the-badge" alt="Gemini 3.8 Flash"></a>
 </p>
 
 ---
 
-Dokumentasi teknis resmi repositori **CA'NIM** (`com.canim.app`). Berkas ini merinci arsitektur perangkat lunak berbasis **Clean Architecture**, integrasi **Dual-Engine Synchronization** (AniList GraphQL & MyAnimeList REST), optimasi kompilasi modern, strategi konkurensi jaringan, serta panduan pengujian sistem.
+Dokumentasi teknis resmi repositori **CA'NIM** (`com.canim.app`). Aplikasi Android native berbasis **Clean Architecture** untuk pelacakan anime & manga dengan integrasi **Dual-Engine Synchronization** (MyAnimeList REST & AniList GraphQL), performa luring (*offline-first*), serta antarmuka modern Jetpack Compose Material 3.
 
-Untuk informasi visual pengguna, pengenalan fitur publik, dan tautan unduh rilis, silakan kunjungi landing page resmi di repositori [CA-NIM-LP](https://github.com/Kh1zZ/CA-NIM-LP).
+Landing page & visual showcase pengguna: [CA-NIM-LP](https://github.com/Kh1zZ/CA-NIM-LP).
 
 ---
 
@@ -118,22 +118,34 @@ Salah satu inovasi arsitektur terpenting CA'NIM adalah pemisahan peran antara **
 
 ---
 
-## 🎨 3. UI/UX Architecture: Invisible Continuity
+## ✨ 3. Fitur Utama & Pembaruan Sistem (v6.4.6)
 
-Antarmuka pengguna CA'NIM dirancang dengan fokus pada kelancaran animasi (*fluid continuity*), efisiensi render, dan gestur navigasi modern:
-
-* **Predictive Back Navigation:** Navigasi berbasis gesture Android modern yang terintegrasi secara mulus di seluruh jenjang layar (Dashboard ↔ Detail ↔ Cast & Crew Profile ↔ Studio Filmography).
-* **Fullscreen Media Detail (MDL-Style):** Presentasi detail visual yang mengaburkan poster latar belakang dengan palet dinamis Material 3.
-* **Popout Animation & Sheet Transitions:** Dialog interaktif, filter penelusuran, dan kartu gacha menggunakan transisi kurva pegas (*spring physics*) yang responsif.
-* **State Preservation:** State scroll, posisi tab, dan query pencarian dipelihara secara presisi di dalam ViewModel terpisah untuk mencegah re-komposisi yang boros memori.
+* **Kustomisasi Top 5 Anime & Manga Pribadi**:
+  * Pengguna dapat memilih dan mengurasi secara mandiri 5 anime dan 5 manga favorit langsung dari layar Statistik.
+  * Dilengkapi slot kosong dengan garis putus-putus (*dashed line*), toggle edit/simpan (`Pencil` ↔ `Checkmark`), serta modal *bottom sheet* dari koleksi berstatus tamat (`completed`) yang terurut berdasarkan skor.
+  * Validasi ketat: seluruh 5 slot wajib terisi penuh sebelum dapat disimpan maupun diekspor (PDF, JPG, PNG dengan opsi multi-rasio kanvas).
+* **Eksplorasi & Navigasi Terpadu**:
+  * **Peringkat Kontinu**: Badge nomor urut (`#1`, `#2`, `#3`, ...) disematkan pada setiap kartu kategori *Top Anime* & *Top Manga* di menu Discovery.
+  * **Interaksi Metadata Chip**: Mengetuk genre langsung membuka layar Search dengan filter genre aktif; mengetuk peringkat membuka katalog teratas di Discovery.
+* **Studio Filmography Multivariasi**:
+  * Filter pengurutan filmografi studio (Tahun Rilis, Skor Tertinggi, Terlama) dengan *cache partitioning* independen.
+* **Kalender Penayangan 2D Fluid Motion**:
+  * Indikator seleksi hari pada kalender kini meluncur mulus secara 2 dimensi (horizontal, vertikal, dan diagonal).
+* **Flashcard Gacha Bertarget**:
+  * Algoritma rekomendasi cerdas berbasis bobot eksplorasi selera pengguna (menghindari fallback acak musiman).
+  * Cooldown 14 hari persisten dua arah (merekam MAL ID & AniList ID) dengan mekanisme *lazy pruning*.
+* **Universal Shimmer & Micro-Interactions**:
+  * Komponen visual `CanimAsyncImage` dengan shimmer pulse aksen biru lembut di seluruh penjuru aplikasi.
+  * Standardisasi peran kreator asli menjadi tag tunggal `"Author"`.
 
 ---
 
 ## ⚡ 4. Offline-First & Keamanan Data
 
-* **Offline Mutation Queue (Room):** Setiap perubahan progres menonton atau status membaca yang dilakukan dalam kondisi luring (*offline*) disimpan dalam `PendingMutationDao`. Saat konektivitas pulih, antrean mutasi dieksekusi secara atomik ke server MyAnimeList dengan resolusi konflik teruji.
-* **Secure SharedPreferences (AndroidX Crypto):** Kredensial OAuth2 PKCE (access token, refresh token) disimpan menggunakan `EncryptedSharedPreferences` dengan kunci master AES-256 GCM berbasis Android Keystore.
-* **Memory Management:** Menggunakan Coil 2.6 dengan disk-cache bertingkat dan *bitmap pooling*, mencegah Out-Of-Memory (OOM) bahkan pada perangkat berspesifikasi rendah dengan RAM terbatas.
+* **Offline Mutation Queue (Room)**: Mutasi pelacakan luring dicatat dalam `PendingMutationDao` dan disinkronkan otomatis saat jaringan pulih.
+* **Secure Storage (AndroidX Crypto)**: Token OAuth2 PKCE terlindungi dalam `EncryptedSharedPreferences` dengan enkripsi AES-256 GCM berbasis Android Keystore.
+* **SWR Memory & Disk Cache**: Pipeline `CacheManager` dengan strategi *Stale-While-Revalidate* dan *negative-caching* untuk meminimalkan beban jaringan.
+* **Efisiensi Memori**: Coil 2.6 dengan *bitmap pooling* dan disk-caching bertingkat untuk mencegah Out-Of-Memory (OOM).
 
 ---
 
@@ -162,7 +174,7 @@ CA'NIM dibangun dengan standar teknologi Android paling modern saat ini:
 com.canim.app/
 ├── data/                               # DATA LAYER
 │   ├── cache/                          # SWR CacheManager, IdMapping, Memory stores
-│   ├── local/                          # Room Database, DAOs, GachaCreditManager
+│   ├── local/                          # Room Database, Top5CustomManager, GachaManager
 │   ├── model/                          # Entity mapping, DTO, Payload data transfer
 │   ├── remote/                         # Network engines
 │   │   ├── anilist/                    # Apollo GraphQL Client, Queries, Fragments
@@ -180,7 +192,7 @@ com.canim.app/
 ├── ui/                                 # PRESENTATION LAYER
 │   ├── components/                     # Reusable Compose widgets, Dialogs, Cards
 │   ├── navigation/                     # Navigation Graph, Route definitions
-│   ├── screen/                         # Screens: Dashboard, Library, Discover, Detail, Studio
+│   ├── screens/                        # Dashboard, Library, Discover, Detail, Stats, Studio
 │   ├── theme/                          # Material 3 Color scheme, Typography, Shapes
 │   └── viewmodel/                      # Feature ViewModels memancarkan UI State via UDF
 │
@@ -189,19 +201,19 @@ com.canim.app/
 
 ---
 
-## 🧪 7. Verifikasi Lokal & Kebijakan Rekayasa
+## 🧪 7. Kebijakan Pengujian & Verifikasi Lokal
 
-### Kebijakan Kompilasi (Zero Local APK Builds):
-* **DILARANG** menjalankan `./gradlew assembleDebug` atau `assembleRelease` secara lokal. Build APK release maupun debug resmi didelegasikan sepenuhnya ke runner **GitHub Actions** untuk menjamin lingkungan build yang steril dan konsisten.
-* **Verifikasi Lokal:** Pengujian lokal difokuskan 100% pada pengetesan unit otomatis (*unit test suite*).
+### Aturan Kompilasi (Zero Local APK Builds):
+* **DILARANG** menjalankan `./gradlew assembleDebug` atau `assembleRelease` secara lokal. Kompilasi APK rilis maupun debug resmi didelegasikan sepenuhnya ke runner **GitHub Actions** untuk menjamin lingkungan build yang steril dan konsisten.
+* **Verifikasi Lokal**: Verifikasi lokal berfokus murni pada pengujian logika bisnis inti (*core business logic*) melalui rangkaian unit test otomatis (*Lean Testing Policy*).
 
-### Menjalankan Pengujian Unit Otomatis:
+### Menjalankan Pengujian Unit:
 Sebelum melakukan commit, seluruh unit test wajib lulus 100%:
 ```cmd
 cmd /c "set JAVA_HOME=C:\Program Files\Java\jdk-21.0.12.1&& gradlew.bat testDebugUnitTest"
 ```
 
-* **Status Verifikasi:** **100% Lulus (386 Tests dalam 57 Test Suites)** mencakup pengujian GraphQL Apollo, Room database transactions, SWR caching, navigasi ViewModel, dan proteksi anti-abuse gacha.
+* **Status Verifikasi**: **100% Lulus (410 Tests)** mencakup pengujian use case domain, transaksi Room, SWR caching, sinkronisasi dual-engine, dan adaptive rate limiter.
 
 ---
 
@@ -209,78 +221,21 @@ cmd /c "set JAVA_HOME=C:\Program Files\Java\jdk-21.0.12.1&& gradlew.bat testDebu
 
 Proyek ini mengimplementasikan continuous integration dan delivery otomatis via **GitHub Actions**:
 
-1. **`ci.yml` (Test & Build Debug):**
-   * Berjalan otomatis saat ada perubahan pada branch `main` atau `Pull Request`.
-   * Mengatur runner dengan **JDK 21 Temurin**, memvalidasi unit test, dan mengompilasi APK debug.
-2. **`release.yml` (Build & Publish Release):**
-   * Dipicu secara otomatis saat tag rilis baru di-*push* (contoh: `v6.3.4`).
-   * Menandatangani APK menggunakan Android Release Keystore secara aman via GitHub Secrets.
-   * Mengoptimalkan ukuran dan bytecode menggunakan **R8 Shrinker (Full Mode)**.
-   * Memublikasikan release bundle otomatis ke tab **Releases** di GitHub.
+1. **`ci.yml` (Test & Verify)**:
+   * Berjalan otomatis pada branch `main` dan `Pull Request`.
+   * Memvalidasi seluruh unit test menggunakan **JDK 21 Temurin** dan mengompilasi APK debug.
+2. **`release.yml` (Build & Publish Release)**:
+   * Dipicu secara otomatis saat tag rilis baru di-*push* (format `v*`, contoh: `v6.4.6`).
+   * Memvalidasi kecocokan versi antara `versionName`, `versionCode`, dan catatan rilis di `CHANGELOG.md`.
+   * Menandatangani APK menggunakan Android Release Keystore via GitHub Secrets, menjalankan optimasi bytecode **R8 Shrinker (Full Mode)**, dan memublikasikan asset release secara otomatis.
 
-### 📋 Catatan Rilis v6.3.4 (Build 42):
-* **Penghapusan Total Fitur Observabilitas & Diagnostik**:
-  * Menghapus menyeluruh layar `DiagnosticsScreen`, kartu Ringkasan Observabilitas pada Pengaturan, serta seluruh rute navigasi dan kontrol terkait guna merampingkan antarmuka pengguna.
-* **Kebijakan Proteksi Pembersihan Cache**:
-  * Membatasi pembersihan cache hanya untuk file cache gambar (`clearImageCache`).
-  * Menghapus opsi pembersihan metadata dan seluruh cache dari antarmuka Pengaturan; query API, metrik, data pustaka lokal, dan akun tersimpan tidak dapat dihapus secara manual demi integritas data.
-* **Notifikasi Pop-Out Atas Layar Terbatas (Maksimal 5 Detik & Cold-Start Only)**:
-  * Banner notifikasi disrupsi/gangguan server di bagian atas layar kini hanya muncul sekali saat pengguna membuka aplikasi pertama kali (*cold start*).
-  * Dilengkapi timer otomatis: banner wajib menghilang secara otomatis setelah maksimal 5 detik dan disertai tombol tutup (X) instan.
-  * Tidak akan muncul berulang kali selama sesi aplikasi berjalan.
-* **Sistem Notifikasi Android untuk Pembaruan Aplikasi**:
-  * Menambahkan `CanimNotificationManager` dengan saluran notifikasi mandiri (`canim_app_updates`) dan dukungan runtime permission Android 13+ (`POST_NOTIFICATIONS`).
-  * Desain notifikasi minimalis elegan: hanya berupa teks informatif dan ikon aplikasi resmi tanpa elemen visual berlebih.
-  * Arsitektur extensible yang siap dikembangkan untuk fitur notifikasi lanjutan di masa depan.
-
-### 📋 Catatan Rilis v6.3.3 (Build 41):
-* **Audit & Penanganan Disrupsi AniList (Outage Handling)**:
-  * Verifikasi langsung kegagalan data Cast (VA), Crew, dan Studio akibat pemadaman darurat server global AniList GraphQL (HTTP 403: *"The AniList API has been temporarily disabled due to severe stability issues"*).
-  * Menghadirkan floating banner peringatan disrupsi API di bagian atas aplikasi (`MainActivity`) lengkap dengan tombol interaktif *"Cek Ulang"* untuk mengecek kesehatan koneksi secara langsung.
-  * Kartu status disrupsi elegan pada tab Discovery dan notice box informatif pada tab Cast & Crew saat AniList offline, memandu pengguna ke kategori yang didukung penuh oleh MyAnimeList.
-* **Penyempurnaan Fallback MyAnimeList (MAL) & Isolasi Kategori Discovery**:
-  * Menghilangkan fallback MAL `bypopularity` pada anime *"Trending Now"* karena MAL tidak memiliki sistem kalkulasi trending (hanya popularitas sepanjang masa).
-  * Mengisolasi kategori Manga pada Discovery agar hanya *"Manga Teratas"* yang dialihkan ke MAL; kategori eksklusif AniList (*"Trending Now"*, *"Baru Tamat"*, *"Baru Ditambahkan"*) menampilkan state disrupsi yang transparan dan aman tanpa mencemari data.
-  * Memperbaiki bug merge pada `DetailViewModel` sehingga metadata Studio & Publisher dari fallback MAL tetap dipreservasi dan dapat diklik untuk navigasi filmography.
-* **Optimasi Konkurensi & Optimistic UI di Library**:
-  * Pembaruan sinkron instan StateFlow saat penyimpanan flashcard maupun mutasi tracking untuk menghilangkan lag antarmuka.
-  * Manajemen pembatalan job statistik (*cancellable stats calculation job*) pada `Dispatchers.Default` guna meniadakan *race condition* dan penimpaan data pustaka.
-
-### 📋 Catatan Rilis v6.3.2 (Build 40):
-* **Navigasi Studio Filmography**:
-  * Memperbaiki navigasi ke halaman Studio Filmography dari tab Discover maupun dari layar Detail Anime.
-  * Teks nama studio pada Detail Anime kini bertema biru aksen (`AccentBlue`), responsif terhadap klik, dan otomatis meresolusi ID studio via `StudioBioRegistry` maupun pencarian studio AniList.
-* **Pembersihan Notice Box Cast & Normalisasi AniList Rate Limiter**:
-  * Menghapus notice box placeholder *"Daftar pemeran belum tersedia"* pada tab Cast & Crew agar tampilan tetap bersih dan elegan.
-  * Normalisasi konfigurasi token bucket AniList (`burstCapacity = 10`, `refillInterval = 700ms`, `maxConcurrent = 3`) agar pemanggilan cast dan kru produksi dapat dieksekusi secara normal melalui antrean limiter.
-  * Throttling ditangani secara non-intrusif menggunakan countdown floating `RateLimitBanner` di bagian atas layar tanpa memicu pop-up snackbar berlebih.
-  * Pencegahan *cache poisoning*: data fallback kosong tidak disimpan sebagai cache sukses permanen saat API AniList sedang mengalami throttling.
-* **Redesain Modern Informasi Anime & Kaidah Bahasa Indonesia**:
-  * Menggantikan tampilan teks polos pada "Informasi Detail" dengan Card bergaya modern yang dilengkapi ikon tematik untuk setiap properti (Format, Status, Episode, Durasi, Musim, Studio, dan Sumber).
-  * Menghilangkan semua karakter mentah seperti garis bawah (`_`) dan tanda strip (`—`), digantikan dengan pemformatan Bahasa Indonesia yang baku dan elegan via `MediaDisplayFormatter`.
-  * Menambahkan chip genre interaktif dan pemisah visual (*subtle dividers*) yang rapi dan konsisten dengan tema Material 3.
-
-### 📋 Catatan Rilis v6.3.1 (Build 39):
-* **Critical Fix**: Memperbaiki kendala pembukaan anime dari tab Discovery dan Search akibat hoisting callback `onSelectItem` yang belum terhubung ke `globalViewModel.openDetail`.
-* **Re-Arsitektur Dual API (Adaptasi Batasan AniList 30 req/min)**:
-  * Metriks (skor, rank, popularitas, member), info anime lengkap, poster, relasi, dan rekomendasi kini 100% diambil dari MyAnimeList API (AniList sebagai fallback).
-  * Cast VA dan kru produksi diambil dari AniList API (MAL sebagai fallback).
-  * Studio filmography diambil dari AniList API dengan fallback pencarian anime studio pada MAL.
-* **Pengetatan Adaptive Rate Limiter & Countdown Banner**:
-  * Pengetatan parameter token bucket AniList (`burstCapacity = 3`, `refillInterval = 2000ms`) dan MAL (`burstCapacity = 4`, `refillInterval = 1200ms`).
-  * *Zero-request lockdown*: seluruh pemanggilan jaringan ke host yang terkena cooldown langsung ditolak seketika di layer lokal.
-  * Floating Top Banner (`RateLimitBanner`) di bagian atas layar dengan live countdown timer per detik saat terjadi throttling.
-* **Penekanan Burst Request saat Sinkronisasi MAL**:
-  * Menghilangkan batch query AniList massal saat sinkronisasi pustaka; data kaya respons MAL langsung disajikan ke pustaka.
-  * Pacing 600ms antar-halaman pada paginasi anime & manga MyAnimeList.
+> ℹ️ **Catatan Riwayat Versi**: Catatan perubahan detail dari setiap versi aplikasi dapat dilihat pada berkas [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
-## 🤖 9. Kredit & Rekayasa AI: Google Gemini 3.8 Flash
+## 🤖 9. Rekayasa & Kolaborasi AI
 
-Seluruh perancangan arsitektur perangkat lunak, transformasi **Clean Architecture**, algoritma ketahanan jaringan (*Dual-Engine Synchronization & Adaptive Rate Limiter*), migrasi modernisasi toolchain (**JDK 21 LTS, Kotlin 2.0.21 K2, Gradle 8.10.2**), serta implementasi 383 unit test otomatis pada repositori ini **diciptakan, direkayasa, dan dikembangkan secara total bersama Google Gemini 3.8 Flash**.
-
-Gemini 3.8 Flash bertindak sebagai AI Software Architect & Lead Engineer dalam menyempurnakan performa, keandalan, struktur kode, dan ketahanan aplikasi CA'NIM.
+Seluruh perancangan arsitektur perangkat lunak, transformasi **Clean Architecture**, algoritma ketahanan jaringan (*Dual-Engine Synchronization & Adaptive Rate Limiter*), modernisasi toolchain (**JDK 21 LTS, Kotlin 2.0.21 K2, Gradle 8.10.2**), serta 410 unit test otomatis pada repositori ini **diciptakan, direkayasa, dan dikembangkan secara kolaboratif bersama Google Gemini 3.8 Flash** sebagai AI Software Architect & Lead Technical Partner.
 
 ---
 
