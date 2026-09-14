@@ -5,6 +5,20 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.4.6] - 2026-09-14
+### Added
+- **Manual Top 5 Anime & Manga Customization**: User can now manually curate their Top 5 Anime and Manga via an interactive 5-slot picker with edit/save toggles, persistent storage, and strict 5-item validation before saving or exporting.
+- **Continuous Rank Badges in Discovery**: Top Anime and Top Manga categories in the Discover screen now display rank numbers (`#1`, `#2`, `#3`, ...) on cards.
+- **Clickable Metadata Chips**: Genre tags on media detail screens navigate directly to Search with active genre filters; ranking indicators navigate to Discovery Top Anime or Top Manga.
+
+### Fixed
+- **Studio Filmography Sorting**: Restored sort-order filtering (Oldest to Newest, Newest to Oldest) by including sort key in CacheManager and Apollo query variables.
+- **People/Cast Occupation & Role Sanitize**: Stripped verbose episode tags from occupations and standardized Original Creator tags to "Author".
+- **UI Alignment**: Balanced top and bottom padding on Dashboard anime statistics card and centered the counter inside the Stats screen pie chart without redundant "Total" text.
+
+### Changed
+- Bumped app version to v6.4.6 (versionCode 49).
+
 ## [v6.4.5] - 2026-09-14
 ### Added
 - **2D Diagonal & Vertical Day Selector Animation**: Airing calendar day indicator now animates smoothly across rows (horizontal, vertical, and diagonal movement) inside a unified 2D container.

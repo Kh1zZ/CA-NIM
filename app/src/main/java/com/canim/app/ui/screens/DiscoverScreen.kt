@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -403,11 +404,12 @@ fun DiscoverScreen(
                 }
             }
         } else {
-            items(
+            val isTopRanking = currentSelectedCategory == DiscoverCategory.TOP_ANIME || currentSelectedCategory == DiscoverCategory.TOP_MANGA
+            itemsIndexed(
                 currentDiscoverItems,
-                key = { "${it.type}_${it.malId}_${it.anilistId}" },
-                contentType = { "discover_item" }
-            ) { media ->
+                key = { _, it -> "${it.type}_${it.malId}_${it.anilistId}" },
+                contentType = { _, _ -> "discover_item" }
+            ) { index, media ->
                 val isInLibrary = if (media.type == MediaType.MANGA) {
                     libraryMangaMalIds.contains(media.malId)
                 } else {
@@ -416,6 +418,7 @@ fun DiscoverScreen(
                 DiscoverItemCard(
                     item = media,
                     isInLibrary = isInLibrary,
+                    rank = if (isTopRanking) index + 1 else null,
                     onClick = onSelectDiscoverMedia,
                     onAddClick = onAddDiscoverMedia,
                     onEditClick = onEditDiscoverMedia
@@ -1026,6 +1029,7 @@ fun DiscoverScreen(
 fun DiscoverItemCard(
     item: MediaItem,
     isInLibrary: Boolean = false,
+    rank: Int? = null,
     onClick: (MediaItem) -> Unit,
     onAddClick: (MediaItem) -> Unit,
     onEditClick: (MediaItem) -> Unit = {}
@@ -1043,9 +1047,42 @@ fun DiscoverItemCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Continuity Rank Badge for Top Anime / Top Manga
+            if (rank != null) {
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .clip(CircleShape)
+                        .background(
+                            when (rank) {
+                                1 -> StarGold
+                                in 2..3 -> themeAccent
+                                else -> CardElevated
+                            }
+                        )
+                        .border(
+                            1.dp,
+                            when (rank) {
+                                1 -> StarGold.copy(alpha = 0.5f)
+                                in 2..3 -> themeAccent.copy(alpha = 0.5f)
+                                else -> CardBorder
+                            },
+                            CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "$rank",
+                        color = if (rank == 1) BlackBg else Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+            }
+
             CanimAsyncImage(
                 model = item.imageUrl,
                 contentDescription = item.title,

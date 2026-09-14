@@ -348,8 +348,8 @@ fun DashboardScreen(
                 border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderSubtle)
             ) {
                 Column(
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -362,36 +362,42 @@ fun DashboardScreen(
                         ) {
                             Box(
                                 modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(AccentBlue)
+                                    .size(6.dp)
+                                    .clip(CircleShape)
+                                    .background(AccentBlue)
                             )
                             Text(
                                 text = "RINGKASAN STATISTIK",
                                 color = TextSecondary,
-                                fontSize = 10.sp,
+                                fontSize = 10.5.sp,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.sp
                             )
                         }
 
-                        TextButton(
-                            onClick = onOpenStats,
-                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = AccentBlue.copy(alpha = 0.12f),
+                            modifier = Modifier.clickable { onOpenStats() }
                         ) {
-                            Text(
-                                text = "Detail dan Ekspor",
-                                color = AccentBlueLight,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.width(3.dp))
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
-                                contentDescription = null,
-                                tint = AccentBlueLight,
-                                modifier = Modifier.size(12.dp)
-                            )
+                            Row(
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = "Detail dan Ekspor",
+                                    color = AccentBlueLight,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                    contentDescription = null,
+                                    tint = AccentBlueLight,
+                                    modifier = Modifier.size(11.dp)
+                                )
+                            }
                         }
                     }
 
@@ -412,7 +418,7 @@ fun DashboardScreen(
                         Box(
                             modifier = Modifier
                                 .width(1.dp)
-                                .height(22.dp)
+                                .height(26.dp)
                                 .background(DividerSubtle)
                         )
 
@@ -427,7 +433,7 @@ fun DashboardScreen(
                         Box(
                             modifier = Modifier
                                 .width(1.dp)
-                                .height(22.dp)
+                                .height(26.dp)
                                 .background(DividerSubtle)
                         )
 
@@ -442,7 +448,7 @@ fun DashboardScreen(
                         Box(
                             modifier = Modifier
                                 .width(1.dp)
-                                .height(22.dp)
+                                .height(26.dp)
                                 .background(DividerSubtle)
                         )
 

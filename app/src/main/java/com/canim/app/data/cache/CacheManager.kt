@@ -102,7 +102,8 @@ object CacheManager {
 
     fun discoverKey(categoryKey: String): String = "discover_$categoryKey"
 
-    fun studioKey(studioId: Int, page: Int): String = "studio_${studioId}_page_${page}_main"
+    fun studioKey(studioId: Int, page: Int, sort: com.canim.app.data.model.StudioFilmographySort = com.canim.app.data.model.StudioFilmographySort.YEAR_DESC): String =
+        "studio_${studioId}_page_${page}_${sort.name}_main"
 
     fun mediaMetadataKey(malId: Int, type: MediaType): String = "meta_${type.name}_$malId"
     fun mediaMetadataKey(malId: Int, type: String): String = "meta_${type.uppercase()}_$malId"
@@ -288,8 +289,12 @@ object CacheManager {
     }
 
     // --- Studio Filmography Cache ---
-    fun getStudioFilmography(studioId: Int, page: Int): StudioFilmographyPage? {
-        val key = studioKey(studioId, page)
+    fun getStudioFilmography(
+        studioId: Int,
+        page: Int,
+        sort: com.canim.app.data.model.StudioFilmographySort = com.canim.app.data.model.StudioFilmographySort.YEAR_DESC
+    ): StudioFilmographyPage? {
+        val key = studioKey(studioId, page, sort)
         val entry = studioCache[key] ?: return null
         return if (entry.isExpired) {
             studioCache.remove(key)
@@ -299,8 +304,13 @@ object CacheManager {
         }
     }
 
-    fun putStudioFilmography(studioId: Int, page: Int, pageData: StudioFilmographyPage) {
-        val key = studioKey(studioId, page)
+    fun putStudioFilmography(
+        studioId: Int,
+        page: Int,
+        pageData: StudioFilmographyPage,
+        sort: com.canim.app.data.model.StudioFilmographySort = com.canim.app.data.model.StudioFilmographySort.YEAR_DESC
+    ) {
+        val key = studioKey(studioId, page, sort)
         studioCache[key] = CacheEntry(pageData, ttlMillis = TTL_STUDIO)
     }
 

@@ -62,8 +62,7 @@ object StatsExporter {
         aspectRatio: ExportAspectRatio = ExportAspectRatio.STORY_9_16
     ): Result<Uri> = withContext(Dispatchers.IO) {
         try {
-            // Apply Top 5 Sequel exclusion rule for Anime
-            val filteredTopAnime = AnimeFranchiseFilter.selectTopAnimeNonSequel(topAnime, 5)
+            val filteredTopAnime = topAnime.take(5)
             val filteredTopManga = topManga.take(5)
 
             val bitmap = renderStatsBitmap(context, stats, malUser, filteredTopAnime, filteredTopManga, aspectRatio)

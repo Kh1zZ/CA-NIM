@@ -372,13 +372,26 @@ object AniListApolloMapper {
         )
     }
 
+    private fun sanitizeRoleText(role: String): String {
+        // Remove episode references like (eps 1-12), (ep 4), (eps 1, 3, 5), (ED 1), (OP), etc.
+        var cleaned = role
+            .replace(Regex("""\s*\((?:eps?|episodes?|ed|op|\d+)[^)]*\)""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""\s*\(.*?\d+.*?\)"""), "")
+            .trim()
+        // Strip trailing commas, dashes, colons or semicolons
+        cleaned = cleaned.trimEnd(',', '-', ':', ';', ' ')
+        return cleaned.ifBlank { role.trim() }
+    }
+
     private fun translateOccupationToIndonesian(role: String): String {
-        val trimmed = role.trim()
+        val sanitized = sanitizeRoleText(role)
+        val trimmed = sanitized.trim()
         val lower = trimmed.lowercase()
         return when {
             lower == "voice actor" || lower == "voice actress" || lower == "seiyuu" -> "Pengisi Suara (Seiyuu)"
-            lower == "original creator" || lower == "original story" || lower == "original author" -> "Kreator Asli"
+            lower == "original creator" || lower == "original story" || lower == "original author" || lower == "author" -> "Author"
             lower == "director" -> "Sutradara"
+            lower == "episode director" -> "Sutradara Episode"
             lower == "series composition" -> "Komposisi Seri"
             lower == "character design" || lower == "original character design" -> "Desain Karakter"
             lower == "chief animation director" -> "Kepala Sutradara Animasi"

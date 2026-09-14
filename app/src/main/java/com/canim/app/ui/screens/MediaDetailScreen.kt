@@ -60,6 +60,8 @@ fun MediaDetailScreen(
     onResolveAniListId: ((malId: Int) -> Int?)? = null,
     onSaveScrollPosition: ((key: String, index: Int, offset: Int) -> Unit)? = null,
     onGetScrollPosition: ((key: String) -> Pair<Int, Int>)? = null,
+    onGenreClick: ((String) -> Unit)? = null,
+    onRankClick: ((MediaType) -> Unit)? = null,
     onRefresh: () -> Unit = {},
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier
@@ -485,7 +487,11 @@ fun MediaDetailScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable(enabled = onRankClick != null) { onRankClick?.invoke(type) }
+                                    .padding(vertical = 4.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(2.dp)
                             ) {
@@ -759,7 +765,10 @@ fun MediaDetailScreen(
                                             Surface(
                                                 color = CardElevated,
                                                 shape = RoundedCornerShape(8.dp),
-                                                border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderSubtle)
+                                                border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderSubtle),
+                                                modifier = Modifier.clickable(enabled = onGenreClick != null) {
+                                                    onGenreClick?.invoke(genre)
+                                                }
                                             ) {
                                                 Text(
                                                     text = genre,

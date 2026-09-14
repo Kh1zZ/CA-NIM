@@ -731,6 +731,35 @@ class MainActivity : ComponentActivity() {
                                             detailViewModel.saveDetailScrollPosition(key, index, offset)
                                         },
                                         onGetScrollPosition = { key -> detailViewModel.getDetailScrollPosition(key) },
+                                        onGenreClick = { genre ->
+                                            detailViewModel.closeDetail()
+                                            globalViewModel.clearScreenStack()
+                                            searchViewModel.setSearchType(currentScreen.type)
+                                            searchViewModel.applySearchFilters(listOf(genre), null, null)
+                                            globalViewModel.setTab("search")
+                                        },
+                                        onRankClick = { mediaType ->
+                                            detailViewModel.closeDetail()
+                                            globalViewModel.clearScreenStack()
+                                            val category = if (mediaType == MediaType.MANGA) {
+                                                com.canim.app.data.model.DiscoverCategory.TOP_MANGA
+                                            } else {
+                                                com.canim.app.data.model.DiscoverCategory.TOP_ANIME
+                                            }
+                                            val filter = if (mediaType == MediaType.MANGA) {
+                                                com.canim.app.data.model.DiscoverFilter(format = "MANGA")
+                                            } else {
+                                                com.canim.app.data.model.DiscoverFilter()
+                                            }
+                                            discoverViewModel.onDiscoverEvent(
+                                                com.canim.app.ui.viewmodel.discover.DiscoverEvent.CategorySelected(
+                                                    category = category,
+                                                    filter = filter,
+                                                    mediaType = mediaType
+                                                )
+                                            )
+                                            globalViewModel.setTab("discover")
+                                        },
                                         onRefresh = {
                                             detailViewModel.openDetail(detailItem, currentScreen.type)
                                         },

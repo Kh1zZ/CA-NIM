@@ -690,7 +690,7 @@ object AniListApolloClient {
     ): StudioFilmographyPage? = withContext(Dispatchers.IO) {
         if (studioId == null && search.isNullOrBlank()) return@withContext null
         if (!forceRefresh && studioId != null) {
-            val cached = CacheManager.getStudioFilmography(studioId, page)
+            val cached = CacheManager.getStudioFilmography(studioId, page, sort)
             if (cached != null) {
                 AniListMetrics.recordCacheHit()
                 return@withContext cached
@@ -756,7 +756,7 @@ object AniListApolloClient {
                     favourites = favourites,
                     isAnimationStudio = isAnimationStudio
                 )
-                CacheManager.putStudioFilmography(resolvedId, page, result)
+                CacheManager.putStudioFilmography(resolvedId, page, result, sort)
                 result
             } catch (e: CancellationException) {
                 throw e

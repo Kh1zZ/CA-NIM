@@ -125,7 +125,7 @@ class ApiRequestReductionTest {
     @Test
     fun testStudioFilmographyKeyIncludesMainSuffix() {
         val key = CacheManager.studioKey(569, 1)
-        assertEquals("studio_569_page_1_main", key)
+        assertEquals("studio_569_page_1_YEAR_DESC_main", key)
 
         val page = com.canim.app.data.cache.StudioFilmographyPage(
             studioId = 569,

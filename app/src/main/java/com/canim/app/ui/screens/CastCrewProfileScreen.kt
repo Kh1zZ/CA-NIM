@@ -458,11 +458,18 @@ private fun FilmographyCard(
 
                 // Role / Jabatan Badge
                 if (!item.role.isNullOrBlank()) {
-                    val roleLabel = when (item.role.uppercase()) {
-                        "MAIN" -> "Main Role"
-                        "SUPPORTING" -> "Support Role"
-                        "BACKGROUND" -> "Background Role"
-                        else -> item.role
+                    var cleanedRole = item.role
+                        .replace(Regex("""\s*\((?:eps?|episodes?|ed|op|\d+)[^)]*\)""", RegexOption.IGNORE_CASE), "")
+                        .replace(Regex("""\s*\(.*?\d+.*?\)"""), "")
+                        .trim()
+                        .trimEnd(',', '-', ':', ';', ' ')
+                    val roleUpper = cleanedRole.uppercase()
+                    val roleLabel = when {
+                        roleUpper == "MAIN" -> "Main Role"
+                        roleUpper == "SUPPORTING" -> "Support Role"
+                        roleUpper == "BACKGROUND" -> "Background Role"
+                        roleUpper == "ORIGINAL CREATOR" || roleUpper == "ORIGINAL STORY" || roleUpper == "ORIGINAL AUTHOR" -> "Author"
+                        else -> cleanedRole.ifBlank { item.role }
                     }
                     Text(
                         text = roleLabel,

@@ -19,9 +19,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -31,12 +33,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.canim.app.ui.components.CanimAsyncImage
+import com.canim.app.data.local.Top5CustomManager
 import com.canim.app.data.model.MediaType
 import com.canim.app.data.model.UserMediaItem
 import com.canim.app.ui.theme.*
 import com.canim.app.ui.viewmodel.library.LibraryUiState
 import com.canim.app.ui.viewmodel.global.GlobalUiState
-import com.canim.app.util.AnimeFranchiseFilter
 import kotlinx.coroutines.launch
 
 object StatsColors {
@@ -81,17 +83,54 @@ fun StatsScreen(
         }
     }
 
-    // Calculate Top 5 by personal score (excluding sequel anime)
-    val topAnime = remember(libraryState.animeList) {
-        AnimeFranchiseFilter.selectTopAnimeNonSequel(libraryState.animeList, 5)
+    val top5Manager = remember { Top5CustomManager.getInstance(context) }
+    var top5AnimeIds by remember { mutableStateOf(top5Manager.getTop5AnimeIds()) }
+    var top5MangaIds by remember { mutableStateOf(top5Manager.getTop5MangaIds()) }
+
+    var isEditingAnime by remember { mutableStateOf(false) }
+    var isEditingManga by remember { mutableStateOf(false) }
+
+    // Picker BottomSheet state
+    var pickingMediaType by remember { mutableStateOf<MediaType?>(null) } // ANIME or MANGA
+    var pickingSlotIndex by remember { mutableIntStateOf(-1) }
+
+    // Resolve IDs to UserMediaItem or null for empty slots
+    val top5AnimeItems: List<UserMediaItem?> = remember(top5AnimeIds, libraryState.animeList) {
+        val list = mutableListOf<UserMediaItem?>()
+        for (i in 0 until 5) {
+            val id = top5AnimeIds.getOrNull(i)
+            val item = if (id != null) libraryState.animeList.find { it.id == id } else null
+            list.add(item)
+        }
+        list
     }
 
-    val topManga = remember(libraryState.mangaList) {
-        libraryState.mangaList
-            .filter { it.score > 0 }
-            .sortedByDescending { it.score }
-            .take(5)
+    val top5MangaItems: List<UserMediaItem?> = remember(top5MangaIds, libraryState.mangaList) {
+        val list = mutableListOf<UserMediaItem?>()
+        for (i in 0 until 5) {
+            val id = top5MangaIds.getOrNull(i)
+            val item = if (id != null) libraryState.mangaList.find { it.id == id } else null
+            list.add(item)
+        }
+        list
     }
+
+    // Filter completed items sorted by score descending for picker bottom sheet
+    val completedAnimeList = remember(libraryState.animeList) {
+        libraryState.animeList
+            .filter { it.status == "completed" }
+            .sortedWith(compareByDescending<UserMediaItem> { it.score }.thenBy { it.title })
+    }
+
+    val completedMangaList = remember(libraryState.mangaList) {
+        libraryState.mangaList
+            .filter { it.status == "completed" }
+            .sortedWith(compareByDescending<UserMediaItem> { it.score }.thenBy { it.title })
+    }
+
+    // TopAnime and TopManga for export
+    val topAnime = remember(top5AnimeItems) { top5AnimeItems.filterNotNull() }
+    val topManga = remember(top5MangaItems) { top5MangaItems.filterNotNull() }
 
     // Pie chart data with unified StatsColors
     val animeSlices = remember(libraryState.stats) {
@@ -136,7 +175,19 @@ fun StatsScreen(
                 },
                 actions = {
                     FilledTonalButton(
-                        onClick = { showExportDialog = true },
+                        onClick = {
+                            val animeFull = top5AnimeItems.all { it != null }
+                            val mangaFull = top5MangaItems.all { it != null }
+                            if (!animeFull || !mangaFull) {
+                                Toast.makeText(
+                                    context,
+                                    "Isi penuh Top 5 Anime dan Top 5 Manga (5 judul masing-masing) sebelum mengekspor!",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            } else {
+                                showExportDialog = true
+                            }
+                        },
                         colors = ButtonDefaults.filledTonalButtonColors(
                             containerColor = AccentBlue.copy(alpha = 0.2f),
                             contentColor = AccentBlue
@@ -323,28 +374,79 @@ fun StatsScreen(
 
             // Top 5 Anime Section
             item {
-                Text(
-                    text = "TOP 5 ANIME PRIBADI",
-                    color = TextSecondary,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "TOP 5 ANIME PRIBADI",
+                        color = TextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                    IconButton(
+                        onClick = {
+                            if (isEditingAnime) {
+                                // Save action: validate that all 5 slots are populated
+                                val isComplete = top5AnimeItems.all { it != null }
+                                if (!isComplete) {
+                                    Toast.makeText(
+                                        context,
+                                        "Top 5 Anime harus terisi lengkap (5 judul) sebelum disimpan.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                } else {
+                                    top5Manager.saveTop5AnimeIds(top5AnimeIds)
+                                    isEditingAnime = false
+                                    Toast.makeText(context, "Top 5 Anime berhasil disimpan", Toast.LENGTH_SHORT).show()
+                                }
+                            } else {
+                                isEditingAnime = true
+                            }
+                        },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isEditingAnime) Icons.Default.Check else Icons.Default.Edit,
+                            contentDescription = if (isEditingAnime) "Simpan Top 5 Anime" else "Ubah Top 5 Anime",
+                            tint = if (isEditingAnime) AccentGreen else AccentBlue,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
             }
 
-            if (topAnime.isEmpty()) {
-                item {
-                    EmptyTopScoreCard("Belum ada anime yang diberi rating skor personal.")
-                }
-            } else {
-                itemsIndexed(topAnime) { index, anime ->
+            itemsIndexed(top5AnimeItems) { index, item ->
+                if (item != null) {
                     TopRankItemCard(
                         rank = index + 1,
-                        item = anime,
+                        item = item,
                         isAnime = true,
+                        isEditing = isEditingAnime,
                         onClick = {
-                            onSaveScrollPosition?.invoke(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
-                            onSelectItem(anime, MediaType.ANIME)
+                            if (isEditingAnime) {
+                                pickingMediaType = MediaType.ANIME
+                                pickingSlotIndex = index
+                            } else {
+                                onSaveScrollPosition?.invoke(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+                                onSelectItem(item, MediaType.ANIME)
+                            }
+                        }
+                    )
+                } else {
+                    EmptyTopSlotCard(
+                        rank = index + 1,
+                        label = "Tambah Anime",
+                        isEditing = isEditingAnime,
+                        onClick = {
+                            if (isEditingAnime) {
+                                pickingMediaType = MediaType.ANIME
+                                pickingSlotIndex = index
+                            } else {
+                                Toast.makeText(context, "Tekan tombol edit (ikon pensil) untuk memilih anime", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     )
                 }
@@ -352,29 +454,80 @@ fun StatsScreen(
 
             // Top 5 Manga Section
             item {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "TOP 5 MANGA PRIBADI",
-                    color = TextSecondary,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "TOP 5 MANGA PRIBADI",
+                        color = TextSecondary,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp
+                    )
+                    IconButton(
+                        onClick = {
+                            if (isEditingManga) {
+                                // Save action: validate that all 5 slots are populated
+                                val isComplete = top5MangaItems.all { it != null }
+                                if (!isComplete) {
+                                    Toast.makeText(
+                                        context,
+                                        "Top 5 Manga harus terisi lengkap (5 judul) sebelum disimpan.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                } else {
+                                    top5Manager.saveTop5MangaIds(top5MangaIds)
+                                    isEditingManga = false
+                                    Toast.makeText(context, "Top 5 Manga berhasil disimpan", Toast.LENGTH_SHORT).show()
+                                }
+                            } else {
+                                isEditingManga = true
+                            }
+                        },
+                        modifier = Modifier.size(28.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isEditingManga) Icons.Default.Check else Icons.Default.Edit,
+                            contentDescription = if (isEditingManga) "Simpan Top 5 Manga" else "Ubah Top 5 Manga",
+                            tint = if (isEditingManga) AccentGreen else MangaAccentDarkBlue,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
             }
 
-            if (topManga.isEmpty()) {
-                item {
-                    EmptyTopScoreCard("Belum ada manga yang diberi rating skor personal.")
-                }
-            } else {
-                itemsIndexed(topManga) { index, manga ->
+            itemsIndexed(top5MangaItems) { index, item ->
+                if (item != null) {
                     TopRankItemCard(
                         rank = index + 1,
-                        item = manga,
+                        item = item,
                         isAnime = false,
+                        isEditing = isEditingManga,
                         onClick = {
-                            onSaveScrollPosition?.invoke(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
-                            onSelectItem(manga, MediaType.MANGA)
+                            if (isEditingManga) {
+                                pickingMediaType = MediaType.MANGA
+                                pickingSlotIndex = index
+                            } else {
+                                onSaveScrollPosition?.invoke(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+                                onSelectItem(item, MediaType.MANGA)
+                            }
+                        }
+                    )
+                } else {
+                    EmptyTopSlotCard(
+                        rank = index + 1,
+                        label = "Tambah Manga",
+                        isEditing = isEditingManga,
+                        onClick = {
+                            if (isEditingManga) {
+                                pickingMediaType = MediaType.MANGA
+                                pickingSlotIndex = index
+                            } else {
+                                Toast.makeText(context, "Tekan tombol edit (ikon pensil) untuk memilih manga", Toast.LENGTH_SHORT).show()
+                            }
                         }
                     )
                 }
@@ -475,8 +628,179 @@ fun StatsScreen(
                 }
             },
             containerColor = CardElevated,
-            shape = RoundedCornerShape(16.dp)
         )
+    }
+
+    // Modal Bottom Sheet for picking anime / manga
+    if (pickingMediaType != null && pickingSlotIndex in 0..4) {
+        val currentType = pickingMediaType!!
+        val isAnime = currentType == MediaType.ANIME
+        val candidateList = if (isAnime) completedAnimeList else completedMangaList
+        val modalBottomSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+        ModalBottomSheet(
+            onDismissRequest = {
+                pickingMediaType = null
+                pickingSlotIndex = -1
+            },
+            sheetState = modalBottomSheetState,
+            containerColor = CardElevated,
+            dragHandle = { BottomSheetDefaults.DragHandle() }
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.85f)
+                    .padding(horizontal = 16.dp)
+            ) {
+                Text(
+                    text = "Pilih ${if (isAnime) "Anime" else "Manga"} untuk Slot #${pickingSlotIndex + 1}",
+                    color = TextPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Hanya menampilkan judul berstatus tamat/selesai di koleksi Anda, diurutkan dari rating skor tertinggi.",
+                    color = TextSecondary,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                )
+
+                if (candidateList.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Belum ada ${if (isAnime) "anime" else "manga"} dengan status tamat/selesai di koleksi.",
+                            color = TextMuted,
+                            fontSize = 13.sp
+                        )
+                    }
+                } else {
+                    androidx.compose.foundation.lazy.LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(bottom = 24.dp)
+                    ) {
+                        itemsIndexed(candidateList) { _, item ->
+                            val isAlreadySelected = if (isAnime) {
+                                top5AnimeIds.contains(item.id)
+                            } else {
+                                top5MangaIds.contains(item.id)
+                            }
+
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .border(
+                                        1.dp,
+                                        if (isAlreadySelected) AccentBlue.copy(alpha = 0.6f) else CardBorderSubtle,
+                                        RoundedCornerShape(12.dp)
+                                    )
+                                    .clickable {
+                                        if (isAnime) {
+                                            val currentList = top5AnimeIds.toMutableList()
+                                            while (currentList.size < 5) currentList.add("")
+                                            // Check if item is already in another slot, if so swap or replace
+                                            val existingIndex = currentList.indexOf(item.id)
+                                            if (existingIndex != -1 && existingIndex != pickingSlotIndex) {
+                                                currentList[existingIndex] = currentList[pickingSlotIndex]
+                                            }
+                                            currentList[pickingSlotIndex] = item.id
+                                            top5AnimeIds = currentList.take(5)
+                                        } else {
+                                            val currentList = top5MangaIds.toMutableList()
+                                            while (currentList.size < 5) currentList.add("")
+                                            val existingIndex = currentList.indexOf(item.id)
+                                            if (existingIndex != -1 && existingIndex != pickingSlotIndex) {
+                                                currentList[existingIndex] = currentList[pickingSlotIndex]
+                                            }
+                                            currentList[pickingSlotIndex] = item.id
+                                            top5MangaIds = currentList.take(5)
+                                        }
+                                        pickingMediaType = null
+                                        pickingSlotIndex = -1
+                                    },
+                                colors = CardDefaults.cardColors(containerColor = CardBg),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    CanimAsyncImage(
+                                        model = item.imageUrl,
+                                        contentDescription = item.title,
+                                        modifier = Modifier
+                                            .width(42.dp)
+                                            .height(58.dp)
+                                            .clip(RoundedCornerShape(6.dp)),
+                                        contentScale = ContentScale.Crop
+                                    )
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = item.title,
+                                            color = TextPrimary,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = if (isAnime) {
+                                                "${item.progress} / ${if (item.totalEpisodes > 0) item.totalEpisodes else "?"} Episode"
+                                            } else {
+                                                "${item.progressChapters} Bab"
+                                            },
+                                            color = TextSecondary,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+
+                                    if (item.score > 0) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(StarGold.copy(alpha = 0.15f))
+                                                .border(1.dp, StarGold.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Star,
+                                                    contentDescription = null,
+                                                    tint = StarGold,
+                                                    modifier = Modifier.size(12.dp)
+                                                )
+                                                Text(
+                                                    text = "${item.score}",
+                                                    color = StarGold,
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Black
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -618,19 +942,13 @@ private fun StatusPieChartCard(
                             }
                         }
 
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = "$totalItems",
-                                color = TextPrimary,
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Black
-                            )
-                            Text(
-                                text = "Total",
-                                color = TextMuted,
-                                fontSize = 10.sp
-                            )
-                        }
+                        Text(
+                            text = "$totalItems",
+                            color = TextPrimary,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Black,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
                     }
 
                     // Legend Column
@@ -677,12 +995,17 @@ private fun TopRankItemCard(
     rank: Int,
     item: UserMediaItem,
     isAnime: Boolean,
+    isEditing: Boolean = false,
     onClick: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, CardBorder, RoundedCornerShape(12.dp))
+            .border(
+                1.dp,
+                if (isEditing) AccentBlue else CardBorder,
+                RoundedCornerShape(12.dp)
+            )
             .clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = CardBg),
         shape = RoundedCornerShape(12.dp)
@@ -749,25 +1072,47 @@ private fun TopRankItemCard(
                 )
             }
 
-            // Score Pill
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(StarGold.copy(alpha = 0.15f))
-                    .border(1.dp, StarGold.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                .padding(horizontal = 10.dp, vertical = 6.dp)
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+            // Score Pill or Edit indicator
+            if (isEditing) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(AccentBlue.copy(alpha = 0.15f))
+                        .border(1.dp, AccentBlue.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
                 ) {
-                    Icon(imageVector = Icons.Default.Star, contentDescription = null, tint = StarGold, modifier = Modifier.size(14.dp))
-                    Text(
-                        text = "${item.score}",
-                        color = StarGold,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Black
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Ganti",
+                        tint = AccentBlue,
+                        modifier = Modifier.size(14.dp)
                     )
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(StarGold.copy(alpha = 0.15f))
+                        .border(1.dp, StarGold.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            tint = StarGold,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = "${item.score}",
+                            color = StarGold,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
                 }
             }
         }
@@ -775,21 +1120,70 @@ private fun TopRankItemCard(
 }
 
 @Composable
-private fun EmptyTopScoreCard(message: String) {
-    Card(
+private fun EmptyTopSlotCard(
+    rank: Int,
+    label: String,
+    isEditing: Boolean,
+    onClick: () -> Unit
+) {
+    val borderColor = if (isEditing) AccentBlue else CardBorderSubtle
+    val shape = RoundedCornerShape(12.dp)
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, CardBorder, RoundedCornerShape(12.dp)),
-        colors = CardDefaults.cardColors(containerColor = CardBg),
-        shape = RoundedCornerShape(12.dp)
+            .height(78.dp)
+            .drawBehind {
+                val stroke = Stroke(
+                    width = 2.dp.toPx(),
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(16f, 12f), 0f)
+                )
+                drawRoundRect(
+                    color = borderColor,
+                    style = stroke,
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(12.dp.toPx())
+                )
+            }
+            .clip(shape)
+            .background(CardBg.copy(alpha = 0.5f))
+            .clickable(onClick = onClick)
+            .padding(12.dp),
+        contentAlignment = Alignment.CenterStart
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(20.dp),
-            contentAlignment = Alignment.Center
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Text(text = message, color = TextMuted, fontSize = 12.sp)
+            // Rank Badge
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(CardElevated),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "#$rank",
+                    color = TextMuted,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = null,
+                tint = if (isEditing) AccentBlue else TextMuted,
+                modifier = Modifier.size(20.dp)
+            )
+
+            Text(
+                text = label,
+                color = if (isEditing) AccentBlue else TextMuted,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium
+            )
         }
     }
 }
