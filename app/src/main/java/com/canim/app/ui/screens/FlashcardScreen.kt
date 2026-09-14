@@ -55,6 +55,7 @@ fun FlashcardScreen(
     onOpenDetail: (MediaItem, MediaType) -> Unit,
     onRefreshDeck: () -> Unit,
     onSavePlanToWatch: (MediaItem, (Boolean) -> Unit) -> Unit = { _, cb -> cb(true) },
+    onCardRevealed: (MediaItem) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -253,6 +254,7 @@ fun FlashcardScreen(
                         if (!isCardFlipped && !isFlipping && !isAnimating && credits > 0) {
                             isFlipping = true
                             isAnimating = true
+                            onCardRevealed(topCard)
                             coroutineScope.launch {
                                 flipRotation.animateTo(
                                     targetValue = 180f,

@@ -5,6 +5,15 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.4.5] - 2026-09-14
+### Added
+- **2D Diagonal & Vertical Day Selector Animation**: Airing calendar day indicator now animates smoothly across rows (horizontal, vertical, and diagonal movement) inside a unified 2D container.
+- **Dual-Engine Flashcard Cooldown**: Flashcard gacha 14-day cooldown now records and evaluates both MAL ID and AniList ID with lazy pruning to eliminate cross-engine duplicates.
+- **Targeted Candidate Discovery Pool**: Adaptive gacha recommendation replaces generic seasonal fallback with breadth-bonus exploration to provide personalized candidates matching user genre tastes without querying seasonal defaults.
+
+### Changed
+- Bumped app version to v6.4.5 (versionCode 48).
+
 ## [v6.4.4] - 2026-09-14
 ### Fixed
 - **Airing Calendar Day Selector**: Fixed height constraint bug where day highlight sliding indicator box expanded vertically and took up the entire screen.

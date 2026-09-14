@@ -72,8 +72,20 @@ object AdaptivePreferenceModel {
     }
 
     /**
+     * Extracts top preferred genres from the tendencies map, ordered by affinity weight descending.
+     */
+    fun getTopGenres(tendencies: Map<String, Double>, limit: Int = 3): List<String> {
+        if (tendencies.isEmpty()) return emptyList()
+        return tendencies.entries
+            .sortedByDescending { it.value }
+            .take(limit)
+            .map { it.key }
+    }
+
+    /**
      * Scores a candidate anime against the user's genre tendencies.
      * Higher score = stronger match with user preferences.
+     * Incorporates breadth bonus for candidates matching multiple preferred genres.
      */
     fun calculateAffinityScore(candidateGenres: List<String>, tendencies: Map<String, Double>): Double {
         if (candidateGenres.isEmpty() || tendencies.isEmpty()) return 0.1
@@ -89,7 +101,9 @@ object AdaptivePreferenceModel {
         }
 
         return if (matchCount > 0) {
-            scoreSum / matchCount
+            val avgScore = scoreSum / matchCount
+            val breadthBonus = (matchCount - 1) * 0.15
+            (avgScore + breadthBonus).coerceAtMost(2.0)
         } else {
             0.05 // Baseline for genres not yet in library to allow gentle discovery
         }

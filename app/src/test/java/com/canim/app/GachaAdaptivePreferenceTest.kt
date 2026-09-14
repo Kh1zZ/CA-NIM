@@ -152,4 +152,61 @@ class GachaAdaptivePreferenceTest {
         assertEquals(9999, retrieved[0].malId)
         assertEquals(listOf("Psychological", "Thriller"), retrieved[0].genres)
     }
+
+    @Test
+    fun testAniListOnlyCooldownPersistenceAndExpiry() {
+        val now = System.currentTimeMillis()
+        val aniOnlyItem = MediaItem(
+            malId = null,
+            anilistId = 88888,
+            title = "AniList Exclusive",
+            imageUrl = "https://example.com/88888.jpg",
+            type = MediaType.ANIME
+        )
+
+        assertFalse(cooldownManager.isUnderCooldown(aniOnlyItem, now))
+
+        // Record draw
+        cooldownManager.recordGachaDrawn(aniOnlyItem, now)
+        assertTrue("AniList-only item must be under cooldown right after draw", cooldownManager.isUnderCooldown(aniOnlyItem, now))
+        assertTrue(cooldownManager.getCooldownAniListIds(now).contains(88888))
+
+        // After 7 days (still under cooldown)
+        val sevenDaysLater = now + (7L * 24 * 60 * 60 * 1000L)
+        assertTrue("AniList-only item must remain under cooldown after 7 days", cooldownManager.isUnderCooldown(aniOnlyItem, sevenDaysLater))
+
+        // After 14 days + 1 second (cooldown expired)
+        val fourteenDaysAndOneSecond = now + (14L * 24 * 60 * 60 * 1000L) + 1000L
+        assertFalse("AniList-only item must be eligible again after 14 days", cooldownManager.isUnderCooldown(aniOnlyItem, fourteenDaysAndOneSecond))
+        assertFalse(cooldownManager.getCooldownAniListIds(fourteenDaysAndOneSecond).contains(88888))
+    }
+
+    @Test
+    fun testMultiGenreAffinityBonus() {
+        val tendencies = mapOf("Sci-Fi" to 1.0, "Action" to 1.0, "Drama" to 0.8)
+
+        val singleGenre = listOf("Sci-Fi")
+        val multiGenre = listOf("Sci-Fi", "Action")
+
+        val singleAffinity = AdaptivePreferenceModel.calculateAffinityScore(singleGenre, tendencies)
+        val multiAffinity = AdaptivePreferenceModel.calculateAffinityScore(multiGenre, tendencies)
+
+        assertTrue(
+            "Multi-genre match ($multiAffinity) must be higher than single-genre match ($singleAffinity)",
+            multiAffinity > singleAffinity
+        )
+    }
+
+    @Test
+    fun testTopGenresExtraction() {
+        val tendencies = mapOf(
+            "Comedy" to 0.3,
+            "Sci-Fi" to 1.0,
+            "Action" to 0.8,
+            "Romance" to 0.1
+        )
+
+        val top2 = AdaptivePreferenceModel.getTopGenres(tendencies, limit = 2)
+        assertEquals(listOf("Sci-Fi", "Action"), top2)
+    }
 }

@@ -2,10 +2,7 @@ package com.canim.app.domain.usecase
 
 import com.canim.app.data.local.GachaCandidateStore
 import com.canim.app.data.local.GachaCooldownManager
-import com.canim.app.data.model.DiscoverCategory
-import com.canim.app.data.model.DiscoverFilter
-import com.canim.app.data.model.MediaItem
-import com.canim.app.data.model.MediaType
+import com.canim.app.data.model.*
 import com.canim.app.data.repository.MediaMappingUtils
 import com.canim.app.domain.gacha.AdaptivePreferenceModel
 import com.canim.app.domain.repository.DetailRepository
@@ -23,78 +20,118 @@ class LoadFlashcardDeckUseCase @Inject constructor(
 ) {
     suspend operator fun invoke(customExcludedIds: Set<Int> = emptySet()): List<MediaItem> {
         // 1. Library Exclusions (Highest Priority - Never return items already in user library)
-        val cachedAnime = libraryRepository.getCachedTracking("ANIME") ?: libraryRepository.getDemoAnime()
-        val libraryExcludedIds = cachedAnime.mapNotNull { it.malId }.toSet()
+        // Read directly from Room DB via getUserAnimeList to avoid cold-start in-memory null cache.
+        val userTrackedAnime = try {
+            when (val result = libraryRepository.getUserAnimeList(forceRefresh = false)) {
+                is MalFetchResult.Success -> result.data.ifEmpty { libraryRepository.getCachedTracking("ANIME") ?: emptyList() }
+                is MalFetchResult.Partial -> result.data.ifEmpty { libraryRepository.getCachedTracking("ANIME") ?: emptyList() }
+                else -> libraryRepository.getCachedTracking("ANIME") ?: emptyList()
+            }
+        } catch (_: Exception) {
+            libraryRepository.getCachedTracking("ANIME") ?: emptyList()
+        }
 
-        // 2. 14-Day Cooldown Exclusions
-        val cooldownExcludedIds = cooldownManager?.getCooldownMalIds() ?: emptySet()
+        val libraryMalIds = userTrackedAnime.mapNotNull { it.malId }.toSet()
+        val libraryAniListIds = userTrackedAnime.mapNotNull { it.anilistId }.toSet()
 
-        val allExcludedMalIds = libraryExcludedIds + cooldownExcludedIds + customExcludedIds
+        // 2. 14-Day Cooldown Exclusions (Dual-Engine: MAL ID + AniList ID)
+        val cooldownMalIds = cooldownManager?.getCooldownMalIds() ?: emptySet()
+        val cooldownAniListIds = cooldownManager?.getCooldownAniListIds() ?: emptySet()
 
-        // 3. Derive Dynamic Genre Tendencies from user's current library (Adapts continuously, no hardcoded table)
-        val genreTendencies = AdaptivePreferenceModel.deriveTendencies(cachedAnime)
+        val allExcludedMalIds = libraryMalIds + cooldownMalIds + customExcludedIds
+        val allExcludedAniListIds = libraryAniListIds + cooldownAniListIds
 
-        // 4. Candidate Pool Acquisition (Lightweight tokens: MAL ID + genres)
+        fun isExcluded(item: MediaItem): Boolean {
+            val mId = item.malId
+            val aId = item.anilistId
+            if (mId != null && mId > 0 && allExcludedMalIds.contains(mId)) return true
+            if (aId != null && aId > 0 && allExcludedAniListIds.contains(aId)) return true
+            if (cooldownManager != null && cooldownManager.isUnderCooldown(item)) return true
+            return false
+        }
+
+        // 3. Derive Dynamic Genre Tendencies: use user's tracked library, or bootstrap from demo if library is empty
+        val animeForTendencies = userTrackedAnime.ifEmpty { libraryRepository.getDemoAnime() }
+        val genreTendencies = AdaptivePreferenceModel.deriveTendencies(animeForTendencies)
+        val topGenres = AdaptivePreferenceModel.getTopGenres(genreTendencies, limit = 3)
+
+        // 4. Candidate Pool Acquisition (Targeted Pool Architecture)
+        val targetedPool = mutableListOf<MediaItem>()
+
+        // 4a. Candidates from CandidateStore if present
         val candidateTokens = candidateStore?.getAllCandidates()?.filter { token ->
             token.malId > 0 && !allExcludedMalIds.contains(token.malId)
         }?.toMutableList() ?: mutableListOf()
 
-        // If candidate store is low, opportunistically expand
         if (candidateTokens.size < 15 && expandCandidatesUseCase != null) {
-            expandCandidatesUseCase(forceExpand = false)
-            candidateStore?.getAllCandidates()?.forEach { token ->
-                if (token.malId > 0 && !allExcludedMalIds.contains(token.malId) && candidateTokens.none { it.malId == token.malId }) {
-                    candidateTokens.add(token)
+            try {
+                expandCandidatesUseCase(forceExpand = false)
+                candidateStore?.getAllCandidates()?.forEach { token ->
+                    if (token.malId > 0 && !allExcludedMalIds.contains(token.malId) && candidateTokens.none { it.malId == token.malId }) {
+                        candidateTokens.add(token)
+                    }
                 }
-            }
+            } catch (_: Exception) {}
         }
 
-        // 5. If candidates are available, sort by affinity score
-        val selectedTokens = if (candidateTokens.isNotEmpty()) {
-            candidateTokens.shuffled().sortedByDescending { token ->
+        if (candidateTokens.isNotEmpty()) {
+            val selectedTokens = candidateTokens.shuffled().sortedByDescending { token ->
                 AdaptivePreferenceModel.calculateAffinityScore(token.genres, genreTendencies)
             }.take(15)
-        } else {
-            emptyList()
-        }
 
-        // 6. Selected Candidate Resolution: Fetch full details only after selection (MAL first, AniList fallback)
-        val resolvedMediaItems = mutableListOf<MediaItem>()
-        for (token in selectedTokens) {
-            val item = resolveCandidateDetails(token.malId, token.genres)
-            if (item != null) {
-                resolvedMediaItems.add(item)
-            }
-        }
-
-        if (resolvedMediaItems.isNotEmpty()) {
-            return resolvedMediaItems
-        }
-
-        // 7. Fallback to Discover repository (Current Season + Upcoming) if candidate store is not yet populated
-        val currentSeason = discoverRepository.getDiscoverMedia(DiscoverCategory.CURRENT_SEASON, DiscoverFilter(), page = 1)
-        val upcoming = discoverRepository.getDiscoverMedia(DiscoverCategory.UPCOMING, DiscoverFilter(), page = 1)
-
-        var rawPool = (currentSeason + upcoming)
-            .filter { item ->
-                val mId = item.malId
-                mId == null || !allExcludedMalIds.contains(mId)
-            }
-            .distinctBy { it.malId ?: it.anilistId }
-
-        if (rawPool.isEmpty()) {
-            val trending = discoverRepository.getDiscoverMedia(DiscoverCategory.TRENDING_NOW, DiscoverFilter(), page = 1)
-            val topAnime = discoverRepository.getDiscoverMedia(DiscoverCategory.TOP_ANIME, DiscoverFilter(), page = 1)
-            rawPool = (trending + topAnime)
-                .filter { item ->
-                    val mId = item.malId
-                    mId == null || !allExcludedMalIds.contains(mId)
+            for (token in selectedTokens) {
+                val item = resolveCandidateDetails(token.malId, token.genres)
+                if (item != null && !isExcluded(item)) {
+                    targetedPool.add(item)
                 }
-                .distinctBy { it.malId ?: it.anilistId }
+            }
         }
 
-        if (rawPool.isEmpty()) {
-            rawPool = libraryRepository.getDemoAnime().map { demo ->
+        // 4b. Genre-Targeted Discovery Pool: Fetch top anime matching user's top genres + Trending + Top Anime
+        if (targetedPool.size < 15) {
+            val genreDiscoveryItems = mutableListOf<MediaItem>()
+
+            // Fetch Top Anime per user's top genres
+            for (genre in topGenres) {
+                try {
+                    val genreMedia = discoverRepository.getDiscoverMedia(
+                        category = DiscoverCategory.TOP_ANIME,
+                        filter = DiscoverFilter(genre = genre),
+                        page = 1
+                    )
+                    genreDiscoveryItems.addAll(genreMedia)
+                } catch (_: Exception) {}
+            }
+
+            // Also fetch all-time Top Anime and Trending Now to enrich diversity
+            try {
+                val topAnime = discoverRepository.getDiscoverMedia(
+                    category = DiscoverCategory.TOP_ANIME,
+                    filter = DiscoverFilter(),
+                    page = 1
+                )
+                genreDiscoveryItems.addAll(topAnime)
+            } catch (_: Exception) {}
+
+            try {
+                val trending = discoverRepository.getDiscoverMedia(
+                    category = DiscoverCategory.TRENDING_NOW,
+                    filter = DiscoverFilter(),
+                    page = 1
+                )
+                genreDiscoveryItems.addAll(trending)
+            } catch (_: Exception) {}
+
+            for (item in genreDiscoveryItems) {
+                if (!isExcluded(item) && targetedPool.none { it.id == item.id || (it.malId != null && it.malId == item.malId) }) {
+                    targetedPool.add(item)
+                }
+            }
+        }
+
+        // 4c. Demo Anime Fallback only if network/data pool is completely dry
+        if (targetedPool.isEmpty()) {
+            val fallbackDemo = libraryRepository.getDemoAnime().map { demo ->
                 MediaItem(
                     malId = demo.malId,
                     anilistId = demo.anilistId,
@@ -110,14 +147,15 @@ class LoadFlashcardDeckUseCase @Inject constructor(
                     genres = demo.metadata.genres,
                     studio = demo.studio
                 )
-            }.filter { item ->
-                val mId = item.malId
-                mId == null || !allExcludedMalIds.contains(mId)
-            }
+            }.filter { !isExcluded(it) }
+            targetedPool.addAll(fallbackDemo)
         }
 
-        // Apply Adaptive Preference scoring to rank Discover pool
-        return rawPool
+        // 5. Deduplicate and rank candidates using Adaptive Preference Model
+        val distinctPool = targetedPool
+            .distinctBy { it.malId?.let { m -> "mal_$m" } ?: it.anilistId?.let { a -> "ani_$a" } ?: it.id }
+
+        return distinctPool
             .shuffled()
             .sortedByDescending { item ->
                 AdaptivePreferenceModel.calculateAffinityScore(item.genres, genreTendencies)
@@ -127,7 +165,6 @@ class LoadFlashcardDeckUseCase @Inject constructor(
 
     private suspend fun resolveCandidateDetails(malId: Int, genres: List<String>): MediaItem? {
         if (detailRepository != null) {
-            // Attempt full detail resolution (MAL primary with AniList fallback in DetailRepository)
             val ext = try {
                 detailRepository.getMalExtendedDetailFallback(malId, MediaType.ANIME)
                     ?: detailRepository.getExtendedDetails(null, malId, MediaType.ANIME)
@@ -156,7 +193,6 @@ class LoadFlashcardDeckUseCase @Inject constructor(
             }
         }
 
-        // Fallback from static fallbacks if available
         val matchedFallback = MediaMappingUtils.fallbackAnime().find { it.malId == malId }
         return matchedFallback
     }

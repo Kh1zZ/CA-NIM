@@ -2,6 +2,7 @@ package com.canim.app.data.local
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.canim.app.data.model.MediaItem
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 
@@ -9,7 +10,7 @@ import com.google.gson.reflect.TypeToken
  * Manages 14-day persistent cooldown for anime items drawn via Flashcard Gacha.
  *
  * Requirements:
- * - Persists MAL ID and draw timestamp.
+ * - Persists MAL ID and/or AniList ID and draw timestamp.
  * - Excludes anime for 14 days (14 * 24 * 60 * 60 * 1000 ms).
  * - Cooldown survives app restart.
  * - After 14 days, the anime becomes eligible again (provided library exclusion allows it).
@@ -22,6 +23,7 @@ class GachaCooldownManager(context: Context) {
     companion object {
         private const val PREFS_NAME = "canim_gacha_cooldown_prefs"
         private const val KEY_COOLDOWN_MAP = "cooldown_timestamps"
+        private const val KEY_COOLDOWN_ANI_MAP = "cooldown_anilist_timestamps"
         const val COOLDOWN_DURATION_MS = 14L * 24 * 60 * 60 * 1000L // 14 days
 
         @Volatile
@@ -34,8 +36,8 @@ class GachaCooldownManager(context: Context) {
         }
     }
 
-    private fun loadMap(): MutableMap<String, Long> {
-        val json = prefs.getString(KEY_COOLDOWN_MAP, null) ?: return mutableMapOf()
+    private fun loadMap(key: String): MutableMap<String, Long> {
+        val json = prefs.getString(key, null) ?: return mutableMapOf()
         return try {
             val type = object : TypeToken<Map<String, Long>>() {}.type
             gson.fromJson<Map<String, Long>>(json, type)?.toMutableMap() ?: mutableMapOf()
@@ -44,29 +46,80 @@ class GachaCooldownManager(context: Context) {
         }
     }
 
-    private fun saveMap(map: Map<String, Long>) {
-        prefs.edit().putString(KEY_COOLDOWN_MAP, gson.toJson(map)).apply()
+    private fun saveMap(key: String, map: Map<String, Long>) {
+        prefs.edit().putString(key, gson.toJson(map)).apply()
     }
 
     @Synchronized
     fun recordGachaDrawn(malId: Int, timestamp: Long = System.currentTimeMillis()) {
-        if (malId <= 0) return
-        val map = loadMap()
-        map[malId.toString()] = timestamp
-        saveMap(map)
+        recordGachaDrawn(malId = malId, anilistId = null, timestamp = timestamp)
+    }
+
+    @Synchronized
+    fun recordGachaDrawn(malId: Int?, anilistId: Int?, timestamp: Long = System.currentTimeMillis()) {
+        if ((malId == null || malId <= 0) && (anilistId == null || anilistId <= 0)) return
+
+        if (malId != null && malId > 0) {
+            val malMap = loadMap(KEY_COOLDOWN_MAP)
+            malMap[malId.toString()] = timestamp
+            saveMap(KEY_COOLDOWN_MAP, malMap)
+        }
+
+        if (anilistId != null && anilistId > 0) {
+            val aniMap = loadMap(KEY_COOLDOWN_ANI_MAP)
+            aniMap[anilistId.toString()] = timestamp
+            saveMap(KEY_COOLDOWN_ANI_MAP, aniMap)
+        }
+    }
+
+    @Synchronized
+    fun recordGachaDrawn(item: MediaItem, timestamp: Long = System.currentTimeMillis()) {
+        recordGachaDrawn(malId = item.malId, anilistId = item.anilistId, timestamp = timestamp)
     }
 
     @Synchronized
     fun isUnderCooldown(malId: Int, now: Long = System.currentTimeMillis()): Boolean {
-        if (malId <= 0) return false
-        val map = loadMap()
-        val drawnAt = map[malId.toString()] ?: return false
-        return (now - drawnAt) < COOLDOWN_DURATION_MS
+        return isUnderCooldown(malId = malId, anilistId = null, now = now)
+    }
+
+    @Synchronized
+    fun isUnderCooldown(malId: Int?, anilistId: Int?, now: Long = System.currentTimeMillis()): Boolean {
+        if (malId != null && malId > 0) {
+            val malMap = loadMap(KEY_COOLDOWN_MAP)
+            val drawnAt = malMap[malId.toString()]
+            if (drawnAt != null && (now - drawnAt) < COOLDOWN_DURATION_MS) {
+                return true
+            }
+        }
+
+        if (anilistId != null && anilistId > 0) {
+            val aniMap = loadMap(KEY_COOLDOWN_ANI_MAP)
+            val drawnAt = aniMap[anilistId.toString()]
+            if (drawnAt != null && (now - drawnAt) < COOLDOWN_DURATION_MS) {
+                return true
+            }
+        }
+
+        return false
+    }
+
+    @Synchronized
+    fun isUnderCooldown(item: MediaItem, now: Long = System.currentTimeMillis()): Boolean {
+        return isUnderCooldown(malId = item.malId, anilistId = item.anilistId, now = now)
     }
 
     @Synchronized
     fun getCooldownMalIds(now: Long = System.currentTimeMillis()): Set<Int> {
-        val map = loadMap()
+        return getActiveIdsPruningExpired(KEY_COOLDOWN_MAP, now)
+    }
+
+    @Synchronized
+    fun getCooldownAniListIds(now: Long = System.currentTimeMillis()): Set<Int> {
+        return getActiveIdsPruningExpired(KEY_COOLDOWN_ANI_MAP, now)
+    }
+
+    private fun getActiveIdsPruningExpired(prefKey: String, now: Long): Set<Int> {
+        val map = loadMap(prefKey)
         val activeIds = mutableSetOf<Int>()
         val expiredKeys = mutableListOf<String>()
 
@@ -81,7 +134,7 @@ class GachaCooldownManager(context: Context) {
         // Lazy prune expired keys
         if (expiredKeys.isNotEmpty()) {
             expiredKeys.forEach { map.remove(it) }
-            saveMap(map)
+            saveMap(prefKey, map)
         }
 
         return activeIds

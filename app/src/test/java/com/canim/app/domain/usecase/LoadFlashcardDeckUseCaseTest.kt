@@ -102,4 +102,49 @@ class LoadFlashcardDeckUseCaseTest {
         // Fallback uses demo anime items
         assertTrue(deck.isNotEmpty())
     }
+
+    @Test
+    fun testExcludesItemsMatchingAniListIdEvenIfMalIdIsNull() = runTest {
+        // Given anime with anilistId 5000 is in the user's library
+        fakeRepo.cachedAnime = listOf(
+            UserMediaItem(
+                identity = MediaRef(malId = null, anilistId = 5000),
+                metadata = MediaMetadata(title = "AniList Only Library", imageUrl = "https://example.com/5000.jpg", type = MediaType.ANIME),
+                tracking = MalTracking(status = "completed")
+            )
+        )
+
+        // Given discover returns an item with anilistId 5000 (malId null) and another with 6000
+        fakeRepo.discoverItems = listOf(
+            MediaItem(malId = null, anilistId = 5000, title = "AniList Only Library", imageUrl = "https://example.com/5000.jpg", type = MediaType.ANIME),
+            MediaItem(malId = null, anilistId = 6000, title = "AniList Only Eligible", imageUrl = "https://example.com/6000.jpg", type = MediaType.ANIME)
+        )
+
+        val deck = useCase()
+
+        assertFalse("AniList-only item in library must be excluded", deck.any { it.anilistId == 5000 })
+        assertTrue("Eligible item must be included", deck.any { it.anilistId == 6000 })
+    }
+
+    @Test
+    fun testTargetedPoolPrioritizesUserPreferredGenres() = runTest {
+        // User library with Sci-Fi completed
+        fakeRepo.cachedAnime = listOf(
+            UserMediaItem(
+                identity = MediaRef(malId = 1, anilistId = 1001),
+                metadata = MediaMetadata(title = "SciFi Hit", imageUrl = "https://example.com/1.jpg", type = MediaType.ANIME, genres = listOf("Sci-Fi")),
+                tracking = MalTracking(status = "completed", score = 10)
+            )
+        )
+
+        fakeRepo.discoverItems = listOf(
+            createMediaItem(2, "Romance Anime").copy(genres = listOf("Romance")),
+            createMediaItem(3, "Sci-Fi Anime").copy(genres = listOf("Sci-Fi"))
+        )
+
+        val deck = useCase()
+
+        assertTrue(deck.isNotEmpty())
+        assertEquals("Top card must match user's top genre", 3, deck.first().malId)
+    }
 }

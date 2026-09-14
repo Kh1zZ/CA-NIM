@@ -779,7 +779,8 @@ class MainActivity : ComponentActivity() {
                                             globalViewModel.openDetail(media, type)
                                         },
                                         onRefreshDeck = { gachaViewModel.loadFlashcardDeck() },
-                                        onSavePlanToWatch = { media, cb -> libraryViewModel.saveFlashcardPlanToWatch(media, cb) }
+                                        onSavePlanToWatch = { media, cb -> libraryViewModel.saveFlashcardPlanToWatch(media, cb) },
+                                        onCardRevealed = { gachaViewModel.onCardRevealed(it) }
                                     )
                                 }
                                 is ScreenRoute.Stats -> {

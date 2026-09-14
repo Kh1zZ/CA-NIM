@@ -78,11 +78,12 @@ class GachaViewModel @Inject constructor(
         return success
     }
 
+    fun onCardRevealed(item: MediaItem) {
+        cooldownManager?.recordGachaDrawn(item)
+    }
+
     fun swipeDismissFlashcard(item: MediaItem) {
-        val mId = item.malId
-        if (mId != null && mId > 0) {
-            cooldownManager?.recordGachaDrawn(mId)
-        }
+        cooldownManager?.recordGachaDrawn(item)
         _gachaState.update {
             val updatedDeck = it.deck.filter { card -> card.id != item.id }
             it.copy(deck = updatedDeck)
