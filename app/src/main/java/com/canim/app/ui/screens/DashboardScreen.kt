@@ -89,7 +89,7 @@ fun DashboardScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp),
+            contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             // Top App Bar: CA'NIM + Logo & Sync Status Badge
@@ -106,7 +106,8 @@ fun DashboardScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier
-                        .padding(start = 4.dp)
+                        .weight(1f, fill = false)
+                        .padding(start = 4.dp, end = 8.dp)
                         .testTag("dashboard_user_header")
                 ) {
                     if (!globalState.malUser.pictureUrl.isNullOrBlank()) {
@@ -136,7 +137,7 @@ fun DashboardScreen(
                         }
                     }
 
-                    Column {
+                    Column(modifier = Modifier.weight(1f, fill = false)) {
                         Text(
                             text = globalState.malUser.username.ifBlank { "MyAnimeList" },
                             color = TextPrimary,

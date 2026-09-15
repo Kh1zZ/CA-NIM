@@ -5,6 +5,19 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.4.8] - 2026-09-15
+### Added
+- **Adaptive Navigation Rail**: Introduced side `AdaptiveNavigationRail` on the start edge for Android tablets, foldables, and wide displays (\(\ge 600\text{dp}\)) to preserve vertical viewing space in landscape mode and eliminate stretched navigation bars.
+
+### Fixed
+- **Navigation Bar System Insets & Cutoff**: Fixed bottom navigation bar being cut off on smartphones with 3-button navigation (Back/Home/Recents) or gesture pills by applying `navigationBarsPadding()` to the inner navigation container within an edge-to-edge `Surface`.
+- **Overlay Navigation Duplication**: Automatically hides the root bottom navigation bar when overlay screens (MediaDetailScreen, FullCastListScreen, CastCrewProfileScreen) are open, preventing double navigation bars or duplicate system insets.
+- **Header Row Overflow on Narrow Aspect Ratios**: Constrained user header text with weight and ellipsis in Dashboard and Settings screens, preventing long usernames from pushing the MAL synchronization badge off-screen.
+- **Dynamic Backdrop & Responsive Selectors**: Made media detail backdrop height responsive across screen sizes (300dp on tablets, 220dp on phones) and center-constrained wide segmented selectors (`widthIn(max = 520.dp)`) in Library and Search screens.
+
+### Changed
+- Bumped app version to v6.4.8 (versionCode 51).
+
 ## [v6.4.7] - 2026-09-15
 ### Added
 - **Background Notification Scheduler**: Lightweight, battery-efficient background scheduler using `AlarmManager` with inexact repeating (~30m interval) and `goAsync()` BroadcastReceiver. Dispatches timely notifications for newly aired episodes, plan-to-watch premieres, and app updates with near-zero idle RAM/CPU footprint.

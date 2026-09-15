@@ -167,6 +167,7 @@ fun MediaDetailScreen(
     val currentStatusOptions = if (isAnime) animeStatusOptions else mangaStatusOptions
 
     Box(modifier = modifier.fillMaxSize().background(BlackBg)) {
+        val screenWidthDp = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
         com.canim.app.ui.components.CanimPullToRefreshLayout(
             isRefreshing = isLoadingExtendedDetail,
             onRefresh = onRefresh,
@@ -175,14 +176,14 @@ fun MediaDetailScreen(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 90.dp)
+                contentPadding = PaddingValues(bottom = 32.dp)
             ) {
             // Header Backdrop Image with Gradient Overlay & Back Button
             item {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(220.dp)
+                        .height(if (screenWidthDp >= 600) 300.dp else 220.dp)
                 ) {
                     CanimAsyncImage(
                         model = bannerUrl,

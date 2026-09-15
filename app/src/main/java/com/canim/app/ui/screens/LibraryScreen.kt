@@ -132,23 +132,29 @@ fun LibraryScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 16.dp),
-            contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp),
+            contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
         // Media Type Selector (Anime vs Manga) with Smooth Sliding Indicator
         item {
-            com.canim.app.ui.components.SmoothSegmentedSelector(
-                options = listOf(MediaType.ANIME, MediaType.MANGA),
-                selectedOption = currentFilterType,
-                onOptionSelected = { onSelectMediaType(it) },
-                labelProvider = { type ->
-                    if (type == MediaType.ANIME) "Anime (${currentAnimeList.size})" else "Manga (${currentMangaList.size})"
-                },
-                highlightColor = if (currentFilterType == MediaType.ANIME) AccentBlue else MangaAccentDarkBlue,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp)
-            )
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                com.canim.app.ui.components.SmoothSegmentedSelector(
+                    options = listOf(MediaType.ANIME, MediaType.MANGA),
+                    selectedOption = currentFilterType,
+                    onOptionSelected = { onSelectMediaType(it) },
+                    labelProvider = { type ->
+                        if (type == MediaType.ANIME) "Anime (${currentAnimeList.size})" else "Manga (${currentMangaList.size})"
+                    },
+                    highlightColor = if (currentFilterType == MediaType.ANIME) AccentBlue else MangaAccentDarkBlue,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 520.dp)
+                        .height(44.dp)
+                )
+            }
         }
 
         // Search Bar in Library

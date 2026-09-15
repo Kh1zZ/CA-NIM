@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.saveable.rememberSaveable
 import dagger.hilt.android.AndroidEntryPoint
 import com.canim.app.data.model.MediaType
+import com.canim.app.ui.components.AdaptiveNavigationRail
 import com.canim.app.ui.components.RateLimitBanner
 import com.canim.app.ui.navigation.ScreenRoute
 import com.canim.app.ui.screens.*
@@ -225,145 +226,167 @@ class MainActivity : ComponentActivity() {
                         isExchangingToken = globalState.isExchangingToken
                     )
                 } else {
-                    Scaffold(
-                        modifier = Modifier.fillMaxSize(),
-                    containerColor = BlackBg,
-                    snackbarHost = {
-                        SnackbarHost(
-                            hostState = snackbarHostState,
-                            modifier = Modifier.padding(bottom = 80.dp)
-                        ) { data ->
-                            Snackbar(
-                                snackbarData = data,
-                                containerColor = CardElevated,
-                                contentColor = TextPrimary,
-                                actionColor = AccentBlue
-                            )
-                        }
-                    },
-                    floatingActionButton = {},
-                    bottomBar = {
-                        val activeIndex = navItems.indexOfFirst { it.route == globalState.activeTab }.coerceAtLeast(0)
+                    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                        val isWideScreen = maxWidth >= 600.dp
+                        val hasOverlay = screenStack.isNotEmpty()
 
-                        Surface(
-                            color = CardBg,
-                            contentColor = TextPrimary,
-                            tonalElevation = 8.dp,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(64.dp)
-                                .testTag("main_bottom_nav")
-                        ) {
-                            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                                val count = navItems.size
-                                val itemWidth = maxWidth / count
-                                val indicatorOffset by androidx.compose.animation.core.animateDpAsState(
-                                    targetValue = itemWidth * activeIndex,
-                                    animationSpec = androidx.compose.animation.core.spring(
-                                        dampingRatio = 0.8f,
-                                        stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
-                                    ),
-                                    label = "nav_indicator_offset"
+                        Row(modifier = Modifier.fillMaxSize()) {
+                            if (isWideScreen) {
+                                AdaptiveNavigationRail(
+                                    navItems = navItems,
+                                    activeTab = globalState.activeTab,
+                                    onTabSelected = { globalViewModel.setTab(it) }
                                 )
+                            }
 
-                                // Sliding Highlight Pill
-                                Box(
-                                    modifier = Modifier
-                                        .offset(x = indicatorOffset)
-                                        .width(itemWidth)
-                                        .fillMaxHeight(),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (activeIndex == 2) {
-                                        // Center search tab glowing aura
-                                        Box(
-                                            modifier = Modifier
-                                                .size(48.dp)
-                                                .clip(CircleShape)
-                                                .background(AccentBlue.copy(alpha = 0.2f))
-                                        )
-                                    } else {
-                                        Box(
-                                            modifier = Modifier
-                                                .height(36.dp)
-                                                .width(54.dp)
-                                                .clip(RoundedCornerShape(18.dp))
-                                                .background(AccentBlue.copy(alpha = 0.16f))
-                                                .border(1.dp, AccentBlue.copy(alpha = 0.35f), RoundedCornerShape(18.dp))
-                                        )
-                                    }
-                                }
-
-                                // Interactive Tab Items Row
-                                Row(
+                            Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                                Scaffold(
                                     modifier = Modifier.fillMaxSize(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    navItems.forEachIndexed { _, item ->
-                                        val selected = globalState.activeTab == item.route
-                                        val isSearch = item.route == "search"
+                                    containerColor = BlackBg,
+                                    snackbarHost = {
+                                        SnackbarHost(
+                                            hostState = snackbarHostState,
+                                            modifier = Modifier.padding(bottom = if (isWideScreen) 16.dp else 80.dp)
+                                        ) { data ->
+                                            Snackbar(
+                                                snackbarData = data,
+                                                containerColor = CardElevated,
+                                                contentColor = TextPrimary,
+                                                actionColor = AccentBlue
+                                            )
+                                        }
+                                    },
+                                    floatingActionButton = {},
+                                    bottomBar = {
+                                        if (!isWideScreen && !hasOverlay) {
+                                            val activeIndex = navItems.indexOfFirst { it.route == globalState.activeTab }.coerceAtLeast(0)
 
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .fillMaxHeight()
-                                                .clickable(
-                                                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                                                    indication = null
-                                                ) {
-                                                    globalViewModel.setTab(item.route)
-                                                }
-                                                .testTag("nav_tab_${item.route}"),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            if (isSearch) {
-                                                // Unique Cyber Floating Search Button
+                                            Surface(
+                                                color = CardBg,
+                                                contentColor = TextPrimary,
+                                                tonalElevation = 8.dp,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .testTag("main_bottom_nav")
+                                            ) {
                                                 Box(
                                                     modifier = Modifier
-                                                        .size(46.dp)
-                                                        .clip(CircleShape)
-                                                        .background(
-                                                            if (selected) {
-                                                                Brush.linearGradient(listOf(AccentBlue, Color(0xFF1D4ED8)))
-                                                            } else {
-                                                                Brush.linearGradient(listOf(Color(0xFF1E293B), Color(0xFF0F172A)))
-                                                            }
-                                                        )
-                                                        .border(
-                                                            width = if (selected) 2.dp else 1.dp,
-                                                            color = if (selected) Color(0xFF60A5FA) else CardBorderSubtle,
-                                                            shape = CircleShape
-                                                        ),
-                                                    contentAlignment = Alignment.Center
+                                                        .fillMaxWidth()
+                                                        .navigationBarsPadding()
+                                                        .height(64.dp)
                                                 ) {
-                                                    Icon(
-                                                        imageVector = Icons.Filled.Search,
-                                                        contentDescription = "Cari",
-                                                        tint = if (selected) Color.White else AccentBlueLight,
-                                                        modifier = Modifier.size(22.dp)
-                                                    )
+                                                    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                                                        val count = navItems.size
+                                                        val itemWidth = maxWidth / count
+                                                        val indicatorOffset by androidx.compose.animation.core.animateDpAsState(
+                                                            targetValue = itemWidth * activeIndex,
+                                                            animationSpec = androidx.compose.animation.core.spring(
+                                                                dampingRatio = 0.8f,
+                                                                stiffness = androidx.compose.animation.core.Spring.StiffnessMediumLow
+                                                            ),
+                                                            label = "nav_indicator_offset"
+                                                        )
+
+                                                        // Sliding Highlight Pill
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .offset(x = indicatorOffset)
+                                                                .width(itemWidth)
+                                                                .fillMaxHeight(),
+                                                            contentAlignment = Alignment.Center
+                                                        ) {
+                                                            if (activeIndex == 2) {
+                                                                // Center search tab glowing aura
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .size(48.dp)
+                                                                        .clip(CircleShape)
+                                                                        .background(AccentBlue.copy(alpha = 0.2f))
+                                                                )
+                                                            } else {
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .height(36.dp)
+                                                                        .width(54.dp)
+                                                                        .clip(RoundedCornerShape(18.dp))
+                                                                        .background(AccentBlue.copy(alpha = 0.16f))
+                                                                        .border(1.dp, AccentBlue.copy(alpha = 0.35f), RoundedCornerShape(18.dp))
+                                                                )
+                                                            }
+                                                        }
+
+                                                        // Interactive Tab Items Row
+                                                        Row(
+                                                            modifier = Modifier.fillMaxSize(),
+                                                            verticalAlignment = Alignment.CenterVertically
+                                                        ) {
+                                                            navItems.forEachIndexed { _, item ->
+                                                                val selected = globalState.activeTab == item.route
+                                                                val isSearch = item.route == "search"
+
+                                                                Box(
+                                                                    modifier = Modifier
+                                                                        .weight(1f)
+                                                                        .fillMaxHeight()
+                                                                        .clickable(
+                                                                            interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                                                                            indication = null
+                                                                        ) {
+                                                                            globalViewModel.setTab(item.route)
+                                                                        }
+                                                                        .testTag("nav_tab_${item.route}"),
+                                                                    contentAlignment = Alignment.Center
+                                                                ) {
+                                                                    if (isSearch) {
+                                                                        // Unique Cyber Floating Search Button
+                                                                        Box(
+                                                                            modifier = Modifier
+                                                                                .size(46.dp)
+                                                                                .clip(CircleShape)
+                                                                                .background(
+                                                                                    if (selected) {
+                                                                                        Brush.linearGradient(listOf(AccentBlue, Color(0xFF1D4ED8)))
+                                                                                    } else {
+                                                                                        Brush.linearGradient(listOf(Color(0xFF1E293B), Color(0xFF0F172A)))
+                                                                                    }
+                                                                                )
+                                                                                .border(
+                                                                                    width = if (selected) 2.dp else 1.dp,
+                                                                                    color = if (selected) Color(0xFF60A5FA) else CardBorderSubtle,
+                                                                                    shape = CircleShape
+                                                                                ),
+                                                                            contentAlignment = Alignment.Center
+                                                                        ) {
+                                                                            Icon(
+                                                                                imageVector = Icons.Filled.Search,
+                                                                                contentDescription = "Cari",
+                                                                                tint = if (selected) Color.White else AccentBlueLight,
+                                                                                modifier = Modifier.size(22.dp)
+                                                                            )
+                                                                        }
+                                                                    } else {
+                                                                        Icon(
+                                                                            imageVector = if (selected) item.selectedIcon else item.unselectedIcon,
+                                                                            contentDescription = item.title,
+                                                                            tint = if (selected) AccentBlue else TextMuted,
+                                                                            modifier = Modifier.size(24.dp)
+                                                                        )
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
                                                 }
-                                            } else {
-                                                Icon(
-                                                    imageVector = if (selected) item.selectedIcon else item.unselectedIcon,
-                                                    contentDescription = item.title,
-                                                    tint = if (selected) AccentBlue else TextMuted,
-                                                    modifier = Modifier.size(24.dp)
-                                                )
                                             }
                                         }
                                     }
-                                }
-                            }
-                        }
-                    }
-                ) { innerPadding ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding)
-                            .background(BlackBg)
-                    ) {
+                                ) { innerPadding ->
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(innerPadding)
+                                            .background(BlackBg)
+                                    ) {
                         // Stable hoisted callbacks to ensure 100% skippable recomposition during scrolling
                         val onQuickAddEpisode: (String) -> Unit = remember { {
                             libraryViewModel.quickIncrementAnime(it)
@@ -1020,9 +1043,12 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-                }
             }
         }
+    }
+}
+}
+}
     }
 
     override fun onNewIntent(intent: Intent) {

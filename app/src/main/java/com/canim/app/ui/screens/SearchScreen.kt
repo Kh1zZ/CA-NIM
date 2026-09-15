@@ -154,7 +154,7 @@ fun SearchScreen(
             .fillMaxSize()
             .background(BlackBg)
             .padding(horizontal = 16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 96.dp),
+        contentPadding = PaddingValues(top = 16.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
@@ -173,26 +173,32 @@ fun SearchScreen(
 
         // Media Type Selector (Anime / Manga) with Smooth Sliding Indicator
         item {
-            com.canim.app.ui.components.SmoothSegmentedSelector(
-                options = listOf(MediaType.ANIME, MediaType.MANGA),
-                selectedOption = searchType,
-                onOptionSelected = { selected ->
-                    if (searchType != selected) {
-                        searchType = selected
-                        tempGenres = emptySet()
-                        tempYear = null
-                        typedYearText = ""
-                        tempFormat = null
-                        onResetFilters()
-                        onSearch(searchInput.trim(), selected)
-                    }
-                },
-                labelProvider = { type -> if (type == MediaType.ANIME) "Cari Anime" else "Cari Manga" },
-                highlightColor = if (searchType == MediaType.ANIME) AccentBlue else MangaAccentDarkBlue,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(44.dp)
-            )
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                com.canim.app.ui.components.SmoothSegmentedSelector(
+                    options = listOf(MediaType.ANIME, MediaType.MANGA),
+                    selectedOption = searchType,
+                    onOptionSelected = { selected ->
+                        if (searchType != selected) {
+                            searchType = selected
+                            tempGenres = emptySet()
+                            tempYear = null
+                            typedYearText = ""
+                            tempFormat = null
+                            onResetFilters()
+                            onSearch(searchInput.trim(), selected)
+                        }
+                    },
+                    labelProvider = { type -> if (type == MediaType.ANIME) "Cari Anime" else "Cari Manga" },
+                    highlightColor = if (searchType == MediaType.ANIME) AccentBlue else MangaAccentDarkBlue,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = 520.dp)
+                        .height(44.dp)
+                )
+            }
         }
 
         // Search Bar with Tactile Clear & Submit (Harmonized 44.dp height)

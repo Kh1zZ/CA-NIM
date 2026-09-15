@@ -72,7 +72,7 @@ fun SettingsScreen(
             .fillMaxSize()
             .background(BlackBg)
             .padding(horizontal = 12.dp),
-        contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp),
+        contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
@@ -167,7 +167,9 @@ fun SettingsScreen(
                                     text = globalState.malUser.username,
                                     color = TextPrimary,
                                     fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
                                     text = "ID: ${globalState.malUser.id}",
