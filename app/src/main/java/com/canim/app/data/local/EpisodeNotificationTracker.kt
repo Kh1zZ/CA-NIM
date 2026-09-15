@@ -21,6 +21,7 @@ class EpisodeNotificationTracker @Inject constructor(
     companion object {
         private const val PREFS_NAME = "canim_airing_episode_notifications"
         private const val KEY_PREFIX = "notified_ep_"
+        private const val KEY_PREFIX_AIRING_STARTED = "notified_airing_started_"
     }
 
     /**
@@ -48,6 +49,23 @@ class EpisodeNotificationTracker @Inject constructor(
      */
     fun getLastNotifiedEpisode(malId: Int): Int {
         return prefs.getInt("${KEY_PREFIX}$malId", 0)
+    }
+
+    /**
+     * Checks if the "started airing" notification has already been sent for the given anime.
+     */
+    fun shouldNotifyAiringStarted(malId: Int): Boolean {
+        if (malId <= 0) return false
+        return !prefs.getBoolean("${KEY_PREFIX_AIRING_STARTED}$malId", false)
+    }
+
+    /**
+     * Marks the "started airing" notification as sent for the given anime.
+     */
+    fun markAiringStartedNotified(malId: Int) {
+        if (malId > 0) {
+            prefs.edit().putBoolean("${KEY_PREFIX_AIRING_STARTED}$malId", true).apply()
+        }
     }
 
     /**

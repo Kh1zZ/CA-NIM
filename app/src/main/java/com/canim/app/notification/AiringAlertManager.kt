@@ -54,4 +54,39 @@ class AiringAlertManager @Inject constructor(
         }
         notifiedCount
     }
+
+    /**
+     * Checks all plan-to-watch anime in the user's library.
+     * If an anime has started airing in the current season and hasn't been notified yet,
+     * dispatches a notification that the anime has begun airing.
+     * Returns the count of notifications sent.
+     */
+    suspend fun checkAndDispatchPlanToWatchAiringAlerts(
+        planToWatchList: List<UserMediaItem>,
+        forceRefresh: Boolean = false
+    ): Int = withContext(Dispatchers.IO) {
+        val planWithMalId = planToWatchList.filter { it.malId != null && it.status == "plan_to_watch" }
+        if (planWithMalId.isEmpty()) return@withContext 0
+
+        val planMalIds = planWithMalId.mapNotNull { it.malId }.toSet()
+        val airingItems = calendarRepository.getWatchingAiringAnime(planMalIds, forceRefresh)
+
+        var notifiedCount = 0
+        for (airing in airingItems) {
+            val malId = airing.malId ?: continue
+
+            if (notificationTracker.shouldNotifyAiringStarted(malId)) {
+                val animeTitle = airing.title.ifBlank {
+                    planWithMalId.firstOrNull { it.malId == malId }?.title ?: "Anime"
+                }
+                notificationManager.showPlanToWatchStartedAiringNotification(
+                    animeTitle = animeTitle,
+                    malId = malId
+                )
+                notificationTracker.markAiringStartedNotified(malId)
+                notifiedCount++
+            }
+        }
+        notifiedCount
+    }
 }

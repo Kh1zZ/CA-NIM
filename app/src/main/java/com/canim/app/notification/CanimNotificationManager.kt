@@ -212,6 +212,45 @@ class CanimNotificationManager @Inject constructor(
     }
 
     /**
+     * Dispatches a notification when an anime in the user's "Rencana" (Plan to Watch) status begins airing for the season.
+     */
+    fun showPlanToWatchStartedAiringNotification(animeTitle: String, malId: Int) {
+        if (!canPostNotifications()) return
+
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra(EXTRA_OPEN_AIRING_MAL_ID, malId)
+        }
+
+        val pendingIntent = PendingIntent.getActivity(
+            context,
+            REQUEST_CODE_AIRING + 10000 + (malId % 10000),
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val title = "Anime Rencanamu Mulai Tayang!"
+        val message = "$animeTitle kini telah resmi mulai tayang untuk musim ini. Siap menonton?"
+
+        val notificationId = 60000 + (malId % 10000)
+
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID_AIRING)
+            .setSmallIcon(R.drawable.ic_app_icon)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+
+        try {
+            NotificationManagerCompat.from(context).notify(notificationId, builder.build())
+        } catch (_: SecurityException) {
+            // Permission revoked concurrently
+        }
+    }
+
+    /**
      * Extensible generic notification dispatcher for future features.
      */
     fun showGenericNotification(

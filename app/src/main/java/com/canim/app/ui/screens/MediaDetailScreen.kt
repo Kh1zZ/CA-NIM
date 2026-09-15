@@ -119,12 +119,12 @@ fun MediaDetailScreen(
     }
 
     val airingItem: com.canim.app.data.model.AiringAnimeItem? = item as? com.canim.app.data.model.AiringAnimeItem
-    val title: String = userItem?.title ?: mediaItem?.title ?: airingItem?.title ?: extendedDetail?.title ?: ""
-    val titleEnglish: String? = userItem?.metadata?.titleEnglish ?: mediaItem?.titleEnglish ?: airingItem?.titleEnglish ?: extendedDetail?.titleEnglish
+    val title: String = userItem?.title?.takeIf { it.isNotBlank() } ?: mediaItem?.title?.takeIf { it.isNotBlank() } ?: airingItem?.title?.takeIf { it.isNotBlank() } ?: extendedDetail?.title ?: ""
+    val titleEnglish: String? = userItem?.metadata?.titleEnglish?.takeIf { it.isNotBlank() } ?: mediaItem?.titleEnglish?.takeIf { it.isNotBlank() } ?: airingItem?.titleEnglish?.takeIf { it.isNotBlank() } ?: extendedDetail?.titleEnglish
     val titleNative: String? = extendedDetail?.nativeTitle
-    val imageUrl: String = userItem?.imageUrl ?: mediaItem?.imageUrl ?: airingItem?.imageUrl ?: extendedDetail?.coverImage ?: ""
+    val imageUrl: String = userItem?.imageUrl?.takeIf { it.isNotBlank() } ?: mediaItem?.imageUrl?.takeIf { it.isNotBlank() } ?: airingItem?.imageUrl?.takeIf { it.isNotBlank() } ?: extendedDetail?.coverImage?.takeIf { it.isNotBlank() } ?: ""
     val bannerUrl: String = imageUrl
-    val synopsis: String = userItem?.synopsis ?: mediaItem?.synopsis ?: extendedDetail?.synopsis ?: ""
+    val synopsis: String = userItem?.synopsis?.takeIf { it.isNotBlank() } ?: mediaItem?.synopsis?.takeIf { it.isNotBlank() } ?: extendedDetail?.synopsis ?: ""
     val cleanSynopsis: String = remember(synopsis) {
         TextSanitizer.sanitize(synopsis)
     }

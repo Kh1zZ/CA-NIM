@@ -5,6 +5,20 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.4.7] - 2026-09-15
+### Added
+- **Background Notification Scheduler**: Lightweight, battery-efficient background scheduler using `AlarmManager` with inexact repeating (~30m interval) and `goAsync()` BroadcastReceiver. Dispatches timely notifications for newly aired episodes, plan-to-watch premieres, and app updates with near-zero idle RAM/CPU footprint.
+- **Plan to Watch Airing Alerts**: Automatically detects when anime in the user's "Rencana" (Plan to Watch) status starts broadcasting for the season and dispatches deduplicated notification alerts.
+
+### Fixed
+- **Library Direct Add Metadata Enrichment**: Fixed bug where adding anime (e.g., Gintama) directly to library without opening detail screen failed to enrich metadata and cover images. Added batch AniList query fallback (`getMediaBatchByMalIds`), bidirectional ID resolution in `saveUserMediaItem`, and safe local entry merging on MAL sync reconciliation to prevent wiping high-quality local cover art.
+- **Empty String Cover Masking**: Fixed cover image resolution in `MediaDetailScreen` where blank string `""` from user tracking items blocked high-res AniList fallback images.
+- **Library Sorting & Filtering Robustness**: Hardened library sorting fallback for titles (checking title and titleEnglish), scores, and update timestamps when metadata fields are sparse.
+
+### Changed
+- **Library Status Filter Reordering**: Status filter chips in the Library screen now place "Ditonton" (Watching) / "Dibaca" (Reading) on the far left as default, followed by "Semua" (All), "Selesai", "Ditunda", "Ditinggalkan", and "Rencana".
+- Bumped app version to v6.4.7 (versionCode 50).
+
 ## [v6.4.6] - 2026-09-14
 ### Added
 - **Manual Top 5 Anime & Manga Customization**: User can now manually curate their Top 5 Anime and Manga via an interactive 5-slot picker with edit/save toggles, persistent storage, and strict 5-item validation before saving or exporting.

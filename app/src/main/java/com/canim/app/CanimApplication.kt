@@ -37,6 +37,7 @@ class CanimApplication : Application(), ImageLoaderFactory {
         // remote, atau UI mengakses entri cache selama lifecycle proses aplikasi berlangsung.
         com.canim.app.data.cache.CacheManager.init(this)
         com.canim.app.notification.CanimNotificationManager(this).initChannels()
+        com.canim.app.notification.NotificationScheduler.schedulePeriodicCheck(this)
     }
 
     override fun newImageLoader(): ImageLoader {

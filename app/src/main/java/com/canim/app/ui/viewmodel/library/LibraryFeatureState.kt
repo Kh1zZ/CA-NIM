@@ -15,7 +15,7 @@ data class LibraryUiState(
     val completedMangaMalIds: Set<Int> = emptySet(),
     val stats: TrackerStats = TrackerStats(),
     val filterType: MediaType = MediaType.ANIME,
-    val statusFilter: String? = null,
+    val statusFilter: String? = "watching",
     val searchQuery: String = "",
     val sortBy: String = "updated",
     val isLoading: Boolean = false

@@ -9,6 +9,8 @@ import com.canim.app.data.local.PendingMutation
 import com.canim.app.data.local.PendingMutationDao
 import com.canim.app.data.model.*
 import com.canim.app.data.remote.AniListClient
+import com.canim.app.data.remote.anilist.AniListApolloClient
+import com.canim.app.data.resolver.MediaResolver
 import com.canim.app.domain.repository.LibraryRepository
 import com.google.gson.Gson
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -130,7 +132,13 @@ class LibraryRepositoryImpl(
         enrichedServer.forEach { serverItem ->
             val malId = serverItem.malId ?: return@forEach
             if (malId !in activePendingMalIds) {
-                dao.upsertEntry(serverItem.toLibraryEntry("ANIME"))
+                val existing = dao.getEntry(malId, "ANIME")
+                val entryToSave = if (existing != null) {
+                    mergeServerWithExisting(serverItem.toLibraryEntry("ANIME"), existing)
+                } else {
+                    serverItem.toLibraryEntry("ANIME")
+                }
+                dao.upsertEntry(entryToSave)
             }
         }
 
@@ -219,7 +227,13 @@ class LibraryRepositoryImpl(
         enrichedServer.forEach { serverItem ->
             val malId = serverItem.malId ?: return@forEach
             if (malId !in activePendingMalIds) {
-                dao.upsertEntry(serverItem.toLibraryEntry("MANGA"))
+                val existing = dao.getEntry(malId, "MANGA")
+                val entryToSave = if (existing != null) {
+                    mergeServerWithExisting(serverItem.toLibraryEntry("MANGA"), existing)
+                } else {
+                    serverItem.toLibraryEntry("MANGA")
+                }
+                dao.upsertEntry(entryToSave)
             }
         }
         val serverMalIds = enrichedServer.mapNotNull { it.malId }.toSet()
@@ -253,6 +267,24 @@ class LibraryRepositoryImpl(
 
         val dao = libraryDao
 
+        // First pass: identify items that lack metadata in cache and local Room
+        val missingMalIds = mutableListOf<Int>()
+        for (item in items) {
+            val mId = item.malId ?: continue
+            val cachedMeta = CacheManager.getMetadata(mId, type)
+            val localEntry = if (cachedMeta == null) dao?.getEntry(mId, type.name) else null
+            if (cachedMeta == null && (localEntry == null || localEntry.anilistId == null || localEntry.imageUrl.isBlank())) {
+                missingMalIds.add(mId)
+            }
+        }
+
+        // Batch fetch missing AniList metadata if any
+        if (missingMalIds.isNotEmpty()) {
+            try {
+                AniListApolloClient.getMediaBatchByMalIds(missingMalIds, type)
+            } catch (_: Exception) {}
+        }
+
         // Populate from local DB / Cache without bursting AniList network API during sync
         items.map { item ->
             val mId = item.malId ?: return@map item
@@ -275,31 +307,31 @@ class LibraryRepositoryImpl(
                     metadata = updatedMetadata
                 )
             } else {
-                    val localEntry = dao?.getEntry(mId, type.name)
-                    if (localEntry?.anilistId != null) {
-                        val localGenres = if (item.metadata.genres.isEmpty()) parseJsonList(localEntry.genresJson) else item.metadata.genres
-                        val updatedMetadata = item.metadata.copy(
-                            titleEnglish = localEntry.titleEnglish ?: item.metadata.titleEnglish,
-                            imageUrl = item.metadata.imageUrl.ifBlank { localEntry.imageUrl },
-                            totalEpisodes = (if (type == MediaType.ANIME && localEntry.totalEpisodes > 0) localEntry.totalEpisodes else null) ?: item.metadata.totalEpisodes,
-                            totalChapters = (if (type == MediaType.MANGA && localEntry.totalChapters > 0) localEntry.totalChapters else null) ?: item.metadata.totalChapters,
-                            totalVolumes = (if (type == MediaType.MANGA && localEntry.totalVolumes > 0) localEntry.totalVolumes else null) ?: item.metadata.totalVolumes,
-                            genres = localGenres,
-                            studio = localEntry.studio ?: item.metadata.studio,
-                            format = localEntry.format ?: item.metadata.format,
-                            year = (if (localEntry.year > 0) localEntry.year else null) ?: item.metadata.year,
-                            season = localEntry.season ?: item.metadata.season
-                        )
-                        item.copy(
-                            identity = MediaRef(anilistId = localEntry.anilistId, malId = mId),
-                            metadata = updatedMetadata
-                        )
-                    } else {
-                        item
-                    }
+                val localEntry = dao?.getEntry(mId, type.name)
+                if (localEntry?.anilistId != null) {
+                    val localGenres = if (item.metadata.genres.isEmpty()) parseJsonList(localEntry.genresJson) else item.metadata.genres
+                    val updatedMetadata = item.metadata.copy(
+                        titleEnglish = localEntry.titleEnglish ?: item.metadata.titleEnglish,
+                        imageUrl = item.metadata.imageUrl.ifBlank { localEntry.imageUrl },
+                        totalEpisodes = (if (type == MediaType.ANIME && localEntry.totalEpisodes > 0) localEntry.totalEpisodes else null) ?: item.metadata.totalEpisodes,
+                        totalChapters = (if (type == MediaType.MANGA && localEntry.totalChapters > 0) localEntry.totalChapters else null) ?: item.metadata.totalChapters,
+                        totalVolumes = (if (type == MediaType.MANGA && localEntry.totalVolumes > 0) localEntry.totalVolumes else null) ?: item.metadata.totalVolumes,
+                        genres = localGenres,
+                        studio = localEntry.studio ?: item.metadata.studio,
+                        format = localEntry.format ?: item.metadata.format,
+                        year = (if (localEntry.year > 0) localEntry.year else null) ?: item.metadata.year,
+                        season = localEntry.season ?: item.metadata.season
+                    )
+                    item.copy(
+                        identity = MediaRef(anilistId = localEntry.anilistId, malId = mId),
+                        metadata = updatedMetadata
+                    )
+                } else {
+                    item
                 }
             }
         }
+    }
 
     override suspend fun updateAnimeTracking(malId: Int, tracking: MalTracking): Result<Unit> = withContext(Dispatchers.IO) {
         val dao = libraryDao
@@ -341,49 +373,79 @@ class LibraryRepositoryImpl(
         val dao = libraryDao
         val mutDao = pendingMutationDao
         val mediaType = if (item.isAnime) "ANIME" else "MANGA"
-        val malId = item.malId ?: 0
+        val mType = if (item.isAnime) MediaType.ANIME else MediaType.MANGA
+        var malId = item.malId ?: 0
+
+        // If malId is missing (0 or null), try to resolve it from AniList ID
+        if (malId <= 0 && item.anilistId != null) {
+            val resolvedMal = MediaResolver.resolveMalIdForAniListId(item.anilistId!!)
+            if (resolvedMal != null && resolvedMal > 0) {
+                malId = resolvedMal
+            }
+        }
+
+        // If anilistId is missing, try to resolve it from malId
+        var anilistId = item.anilistId
+        if (anilistId == null && malId > 0) {
+            anilistId = CacheManager.getAniListIdForMalId(malId, mType)
+                ?: MediaResolver.resolveAniListIdForMalId(malId, mType)
+        }
+
+        // Check if cover image is missing or empty, fall back to cache if available
+        var imageUrl = item.metadata.imageUrl
+        if (imageUrl.isBlank() && malId > 0) {
+            imageUrl = CacheManager.getMetadata(malId, mType)?.imageUrl
+                ?: CacheManager.getDetail(CacheManager.detailKey(anilistId, malId))?.coverImage
+                ?: ""
+        }
+
+        val enrichedItem = item.copy(
+            identity = MediaRef(anilistId = anilistId, malId = if (malId > 0) malId else item.malId),
+            metadata = item.metadata.copy(imageUrl = imageUrl)
+        )
+
         if (dao != null && mutDao != null && malId > 0) {
             return@withContext try {
                 val now = System.currentTimeMillis()
                 val existing = dao.getEntry(malId, mediaType)
                 val entryToSave = if (existing != null) {
                     existing.copy(
-                        status = item.tracking.status,
-                        score = item.tracking.score,
-                        progress = item.tracking.progress,
-                        progressVolumes = item.tracking.progressVolumes,
-                        isRepeating = if (item.tracking.isRepeating) 1 else 0,
-                        numTimesRewatched = item.tracking.numTimesRewatched,
-                        rewatchValue = item.tracking.rewatchValue,
-                        priority = item.tracking.priority,
-                        tagsJson = gson.toJson(item.tracking.tags ?: emptyList<String>()),
-                        comments = item.tracking.comments,
-                        startDate = item.tracking.startDate,
-                        finishDate = item.tracking.finishDate,
-                        title = item.metadata.title.takeIf { it.isNotBlank() } ?: existing.title,
-                        titleEnglish = item.metadata.titleEnglish ?: existing.titleEnglish,
-                        imageUrl = item.metadata.imageUrl.takeIf { it.isNotBlank() } ?: existing.imageUrl,
-                        totalEpisodes = item.metadata.totalEpisodes?.takeIf { it > 0 } ?: existing.totalEpisodes,
-                        totalChapters = item.metadata.totalChapters?.takeIf { it > 0 } ?: existing.totalChapters,
-                        totalVolumes = item.metadata.totalVolumes?.takeIf { it > 0 } ?: existing.totalVolumes,
-                        airingStatus = item.metadata.status ?: existing.airingStatus,
-                        year = item.metadata.year?.takeIf { it > 0 } ?: existing.year,
-                        season = item.metadata.season ?: existing.season,
-                        genresJson = if (item.metadata.genres.isNotEmpty()) gson.toJson(item.metadata.genres) else existing.genresJson,
-                        format = item.metadata.format ?: existing.format,
-                        studio = item.metadata.studio ?: existing.studio,
-                        anilistId = item.anilistId ?: existing.anilistId,
+                        status = enrichedItem.tracking.status,
+                        score = enrichedItem.tracking.score,
+                        progress = enrichedItem.tracking.progress,
+                        progressVolumes = enrichedItem.tracking.progressVolumes,
+                        isRepeating = if (enrichedItem.tracking.isRepeating) 1 else 0,
+                        numTimesRewatched = enrichedItem.tracking.numTimesRewatched,
+                        rewatchValue = enrichedItem.tracking.rewatchValue,
+                        priority = enrichedItem.tracking.priority,
+                        tagsJson = gson.toJson(enrichedItem.tracking.tags ?: emptyList<String>()),
+                        comments = enrichedItem.tracking.comments,
+                        startDate = enrichedItem.tracking.startDate,
+                        finishDate = enrichedItem.tracking.finishDate,
+                        title = enrichedItem.metadata.title.takeIf { it.isNotBlank() } ?: existing.title,
+                        titleEnglish = enrichedItem.metadata.titleEnglish ?: existing.titleEnglish,
+                        imageUrl = enrichedItem.metadata.imageUrl.takeIf { it.isNotBlank() } ?: existing.imageUrl,
+                        totalEpisodes = enrichedItem.metadata.totalEpisodes?.takeIf { it > 0 } ?: existing.totalEpisodes,
+                        totalChapters = enrichedItem.metadata.totalChapters?.takeIf { it > 0 } ?: existing.totalChapters,
+                        totalVolumes = enrichedItem.metadata.totalVolumes?.takeIf { it > 0 } ?: existing.totalVolumes,
+                        airingStatus = enrichedItem.metadata.status ?: existing.airingStatus,
+                        year = enrichedItem.metadata.year?.takeIf { it > 0 } ?: existing.year,
+                        season = enrichedItem.metadata.season ?: existing.season,
+                        genresJson = if (enrichedItem.metadata.genres.isNotEmpty()) gson.toJson(enrichedItem.metadata.genres) else existing.genresJson,
+                        format = enrichedItem.metadata.format ?: existing.format,
+                        studio = enrichedItem.metadata.studio ?: existing.studio,
+                        anilistId = enrichedItem.anilistId ?: existing.anilistId,
                         localUpdatedAt = now
                     )
                 } else {
-                    item.toLibraryEntry(mediaType).copy(localUpdatedAt = now)
+                    enrichedItem.toLibraryEntry(mediaType).copy(localUpdatedAt = now)
                 }
 
                 val mutation = PendingMutation(
                     malId = malId,
                     mediaType = mediaType,
                     mutationType = PendingMutation.TYPE_UPDATE,
-                    payloadJson = gson.toJson(item.tracking),
+                    payloadJson = gson.toJson(enrichedItem.tracking),
                     localUpdatedAt = now,
                     createdAt = now
                 )
@@ -396,10 +458,10 @@ class LibraryRepositoryImpl(
             }
         }
 
-        if (item.isAnime) {
-            malAuthManager.updateAnimeTracking(malId, item.tracking)
+        if (enrichedItem.isAnime) {
+            malAuthManager.updateAnimeTracking(malId, enrichedItem.tracking)
         } else {
-            malAuthManager.updateMangaTracking(malId, item.tracking)
+            malAuthManager.updateMangaTracking(malId, enrichedItem.tracking)
         }
     }
 
@@ -617,9 +679,33 @@ class LibraryRepositoryImpl(
     private fun upsertLibraryEntries(dao: LibraryDao, items: List<UserMediaItem>, mediaType: String) {
         items.forEach { item ->
             try {
-                dao.upsertEntry(item.toLibraryEntry(mediaType))
+                val malId = item.malId ?: return@forEach
+                val existing = dao.getEntry(malId, mediaType)
+                val entryToSave = if (existing != null) {
+                    mergeServerWithExisting(item.toLibraryEntry(mediaType), existing)
+                } else {
+                    item.toLibraryEntry(mediaType)
+                }
+                dao.upsertEntry(entryToSave)
             } catch (_: Exception) { }
         }
+    }
+
+    private fun mergeServerWithExisting(serverEntry: LibraryEntry, existing: LibraryEntry): LibraryEntry {
+        return serverEntry.copy(
+            titleEnglish = serverEntry.titleEnglish ?: existing.titleEnglish,
+            imageUrl = serverEntry.imageUrl.takeIf { it.isNotBlank() } ?: existing.imageUrl,
+            totalEpisodes = if (serverEntry.totalEpisodes > 0) serverEntry.totalEpisodes else existing.totalEpisodes,
+            totalChapters = if (serverEntry.totalChapters > 0) serverEntry.totalChapters else existing.totalChapters,
+            totalVolumes = if (serverEntry.totalVolumes > 0) serverEntry.totalVolumes else existing.totalVolumes,
+            airingStatus = serverEntry.airingStatus ?: existing.airingStatus,
+            year = if (serverEntry.year > 0) serverEntry.year else existing.year,
+            season = serverEntry.season ?: existing.season,
+            genresJson = serverEntry.genresJson.takeIf { it.isNotBlank() && it != "[]" } ?: existing.genresJson,
+            format = serverEntry.format ?: existing.format,
+            studio = serverEntry.studio ?: existing.studio,
+            anilistId = serverEntry.anilistId ?: existing.anilistId
+        )
     }
 
     private fun UserMediaItem.toLibraryEntry(mediaType: String): LibraryEntry {

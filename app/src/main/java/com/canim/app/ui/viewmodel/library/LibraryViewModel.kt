@@ -167,7 +167,14 @@ class LibraryViewModel @Inject constructor(
     fun onLibraryEvent(event: LibraryEvent) {
         when (event) {
             is LibraryEvent.SetFilterType -> {
-                _libraryState.update { it.copy(filterType = event.type) }
+                _libraryState.update { current ->
+                    val newStatusFilter = when {
+                        current.statusFilter == "watching" && event.type == MediaType.MANGA -> "reading"
+                        current.statusFilter == "reading" && event.type == MediaType.ANIME -> "watching"
+                        else -> current.statusFilter
+                    }
+                    current.copy(filterType = event.type, statusFilter = newStatusFilter)
+                }
             }
             is LibraryEvent.SetStatusFilter -> {
                 _libraryState.update { it.copy(statusFilter = event.status) }

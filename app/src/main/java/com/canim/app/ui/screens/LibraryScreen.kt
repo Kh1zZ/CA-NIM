@@ -72,13 +72,13 @@ fun LibraryScreen(
         val filtered = currentAnimeList
             .filter { anime ->
                 (currentStatusFilter == null || anime.status == currentStatusFilter) &&
-                (currentSearchQuery.isBlank() || anime.title.contains(currentSearchQuery, ignoreCase = true))
+                (currentSearchQuery.isBlank() || anime.title.contains(currentSearchQuery, ignoreCase = true) || (anime.titleEnglish?.contains(currentSearchQuery, ignoreCase = true) == true))
             }
         when (currentSortBy) {
-            "title" -> filtered.sortedBy { it.title.lowercase() }
-            "score" -> filtered.sortedByDescending { it.score }
+            "title" -> filtered.sortedBy { (it.title.takeIf { t -> t.isNotBlank() } ?: it.titleEnglish ?: "").lowercase() }
+            "score" -> filtered.sortedByDescending { if (it.score > 0) it.score.toDouble() else (it.metadata.score ?: 0.0) }
             "progress" -> filtered.sortedByDescending { it.progress }
-            else -> filtered.sortedByDescending { it.updatedAt }
+            else -> filtered.sortedByDescending { maxOf(it.updatedAt, it.tracking.updatedAt) }
         }
     }
 
@@ -86,13 +86,13 @@ fun LibraryScreen(
         val filtered = currentMangaList
             .filter { manga ->
                 (currentStatusFilter == null || manga.status == currentStatusFilter) &&
-                (currentSearchQuery.isBlank() || manga.title.contains(currentSearchQuery, ignoreCase = true))
+                (currentSearchQuery.isBlank() || manga.title.contains(currentSearchQuery, ignoreCase = true) || (manga.titleEnglish?.contains(currentSearchQuery, ignoreCase = true) == true))
             }
         when (currentSortBy) {
-            "title" -> filtered.sortedBy { it.title.lowercase() }
-            "score" -> filtered.sortedByDescending { it.score }
+            "title" -> filtered.sortedBy { (it.title.takeIf { t -> t.isNotBlank() } ?: it.titleEnglish ?: "").lowercase() }
+            "score" -> filtered.sortedByDescending { if (it.score > 0) it.score.toDouble() else (it.metadata.score ?: 0.0) }
             "progress" -> filtered.sortedByDescending { it.progressChapters }
-            else -> filtered.sortedByDescending { it.updatedAt }
+            else -> filtered.sortedByDescending { maxOf(it.updatedAt, it.tracking.updatedAt) }
         }
     }
 
@@ -105,8 +105,8 @@ fun LibraryScreen(
 
     val statuses = if (isAnime) {
         listOf(
-            null to "Semua",
             "watching" to "Ditonton",
+            null to "Semua",
             "completed" to "Selesai",
             "on_hold" to "Ditunda",
             "dropped" to "Ditinggalkan",
@@ -114,8 +114,8 @@ fun LibraryScreen(
         )
     } else {
         listOf(
-            null to "Semua",
             "reading" to "Dibaca",
+            null to "Semua",
             "completed" to "Selesai",
             "on_hold" to "Ditunda",
             "dropped" to "Ditinggalkan",
