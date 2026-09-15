@@ -36,7 +36,7 @@ interface MalApiService {
         @Header("Authorization") authHeader: String,
         @Query("limit") limit: Int = 500,
         @Query("offset") offset: Int = 0,
-        @Query("fields") fields: String = "list_status{status,score,num_episodes_watched,is_rewatching,num_times_rewatched,priority,comments,start_date,finish_date,updated_at},num_episodes,status,genres,main_picture,synopsis,start_date,end_date,studios,source,mean,rank,popularity,num_list_users",
+        @Query("fields") fields: String = "list_status{status,score,num_episodes_watched,is_rewatching,num_times_rewatched,priority,comments,start_date,finish_date,updated_at},num_episodes,status,genres,main_picture,synopsis,start_date,end_date,studios,source,mean,rank,popularity,num_list_users,media_type",
         @Query("nsfw") nsfw: Boolean = true
     ): MalAnimeListResponse
 
@@ -45,7 +45,7 @@ interface MalApiService {
         @Header("Authorization") authHeader: String,
         @Query("limit") limit: Int = 500,
         @Query("offset") offset: Int = 0,
-        @Query("fields") fields: String = "list_status{status,score,num_chapters_read,num_volumes_read,is_rereading,num_times_reread,priority,comments,start_date,finish_date,updated_at},num_chapters,num_volumes,status,genres,main_picture,synopsis,start_date,end_date,authors,mean,rank,popularity,num_list_users",
+        @Query("fields") fields: String = "list_status{status,score,num_chapters_read,num_volumes_read,is_rereading,num_times_reread,priority,comments,start_date,finish_date,updated_at},num_chapters,num_volumes,status,genres,main_picture,synopsis,start_date,end_date,authors,mean,rank,popularity,num_list_users,media_type",
         @Query("nsfw") nsfw: Boolean = true
     ): MalMangaListResponse
 
@@ -101,28 +101,28 @@ interface MalApiService {
     suspend fun getAnimeDetailFallback(
         @Header("X-MAL-CLIENT-ID") clientId: String,
         @Path("anime_id") animeId: Int,
-        @Query("fields") fields: String = "id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_episodes,status,genres,my_list_status,studios,source,related_anime,recommendations"
+        @Query("fields") fields: String = "id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_episodes,status,genres,my_list_status,studios,source,related_anime,recommendations,media_type"
     ): Response<MalAnimeNode>
 
     @GET("manga/{manga_id}")
     suspend fun getMangaDetailFallback(
         @Header("X-MAL-CLIENT-ID") clientId: String,
         @Path("manga_id") mangaId: Int,
-        @Query("fields") fields: String = "id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_chapters,num_volumes,status,genres,my_list_status,authors,related_manga,recommendations"
+        @Query("fields") fields: String = "id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_chapters,num_volumes,status,genres,my_list_status,authors,related_manga,recommendations,media_type"
     ): Response<MalMangaNode>
 
     @GET("anime/{anime_id}")
     suspend fun getAnimeDetailAuth(
         @Header("Authorization") authHeader: String,
         @Path("anime_id") animeId: Int,
-        @Query("fields") fields: String = "id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_episodes,status,genres,my_list_status,studios,source,related_anime,recommendations"
+        @Query("fields") fields: String = "id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_episodes,status,genres,my_list_status,studios,source,related_anime,recommendations,media_type"
     ): Response<MalAnimeNode>
 
     @GET("manga/{manga_id}")
     suspend fun getMangaDetailAuth(
         @Header("Authorization") authHeader: String,
         @Path("manga_id") mangaId: Int,
-        @Query("fields") fields: String = "id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_chapters,num_volumes,status,genres,my_list_status,authors,related_manga,recommendations"
+        @Query("fields") fields: String = "id,title,main_picture,alternative_titles,start_date,end_date,synopsis,mean,rank,popularity,num_list_users,num_chapters,num_volumes,status,genres,my_list_status,authors,related_manga,recommendations,media_type"
     ): Response<MalMangaNode>
 
     @GET("anime/ranking")
@@ -131,7 +131,7 @@ interface MalApiService {
         @Query("ranking_type") rankingType: String = "all",
         @Query("limit") limit: Int = 50,
         @Query("offset") offset: Int = 0,
-        @Query("fields") fields: String = "id,title,main_picture,mean,rank,popularity,num_list_users,num_episodes,status,genres,synopsis,start_date,studios"
+        @Query("fields") fields: String = "id,title,main_picture,mean,rank,popularity,num_list_users,num_episodes,status,genres,synopsis,start_date,studios,media_type"
     ): Response<MalAnimeListResponse>
 
     @GET("manga/ranking")
@@ -140,7 +140,7 @@ interface MalApiService {
         @Query("ranking_type") rankingType: String = "all",
         @Query("limit") limit: Int = 50,
         @Query("offset") offset: Int = 0,
-        @Query("fields") fields: String = "id,title,main_picture,mean,rank,popularity,num_list_users,num_chapters,num_volumes,status,genres,synopsis,start_date,authors"
+        @Query("fields") fields: String = "id,title,main_picture,mean,rank,popularity,num_list_users,num_chapters,num_volumes,status,genres,synopsis,start_date,authors,media_type"
     ): Response<MalMangaListResponse>
 
     @GET("anime")
@@ -149,7 +149,7 @@ interface MalApiService {
         @Query("q") query: String,
         @Query("limit") limit: Int = 30,
         @Query("offset") offset: Int = 0,
-        @Query("fields") fields: String = "id,title,main_picture,mean,rank,popularity,num_list_users,num_episodes,status,genres,synopsis,start_date,studios"
+        @Query("fields") fields: String = "id,title,main_picture,mean,rank,popularity,num_list_users,num_episodes,status,genres,synopsis,start_date,studios,media_type"
     ): Response<MalAnimeListResponse>
 
     @GET("manga")
@@ -158,7 +158,7 @@ interface MalApiService {
         @Query("q") query: String,
         @Query("limit") limit: Int = 30,
         @Query("offset") offset: Int = 0,
-        @Query("fields") fields: String = "id,title,main_picture,mean,rank,popularity,num_list_users,num_chapters,num_volumes,status,genres,synopsis,start_date,authors"
+        @Query("fields") fields: String = "id,title,main_picture,mean,rank,popularity,num_list_users,num_chapters,num_volumes,status,genres,synopsis,start_date,authors,media_type"
     ): Response<MalMangaListResponse>
 
     @GET("anime/season/{year}/{season}")
@@ -168,6 +168,6 @@ interface MalApiService {
         @Path("season") season: String,
         @Query("limit") limit: Int = 50,
         @Query("offset") offset: Int = 0,
-        @Query("fields") fields: String = "id,title,main_picture,mean,rank,popularity,num_list_users,num_episodes,status,genres,synopsis,start_date,studios"
+        @Query("fields") fields: String = "id,title,main_picture,mean,rank,popularity,num_list_users,num_episodes,status,genres,synopsis,start_date,studios,media_type"
     ): Response<MalAnimeListResponse>
 }

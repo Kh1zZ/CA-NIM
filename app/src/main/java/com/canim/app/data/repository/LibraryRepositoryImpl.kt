@@ -702,7 +702,13 @@ class LibraryRepositoryImpl(
             year = if (serverEntry.year > 0) serverEntry.year else existing.year,
             season = serverEntry.season ?: existing.season,
             genresJson = serverEntry.genresJson.takeIf { it.isNotBlank() && it != "[]" } ?: existing.genresJson,
-            format = serverEntry.format ?: existing.format,
+            format = if (existing.format?.equals("movie", ignoreCase = true) == true) {
+                existing.format
+            } else if (serverEntry.format?.equals("movie", ignoreCase = true) == true) {
+                serverEntry.format
+            } else {
+                serverEntry.format ?: existing.format
+            },
             studio = serverEntry.studio ?: existing.studio,
             anilistId = serverEntry.anilistId ?: existing.anilistId
         )

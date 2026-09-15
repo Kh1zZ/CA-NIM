@@ -103,6 +103,10 @@ class AniListApolloMapperTest {
             genres = null,
             averageScore = null,
             popularity = null,
+            format = null,
+            episodes = null,
+            chapters = null,
+            volumes = null,
             rankings = null,
             recommendations = null,
             startDate = null,
@@ -117,11 +121,45 @@ class AniListApolloMapperTest {
         assertEquals(1, detail.anilistId)
         assertEquals(999, detail.malId)
         assertEquals("", detail.title)
+        assertNull(detail.format)
+        assertNull(detail.episodes)
         assertTrue(detail.cast.isEmpty())
         assertTrue(detail.crew.isEmpty())
         assertTrue(detail.relations.isEmpty())
         assertTrue(detail.recommendations.isEmpty())
         assertNull(detail.averageScore)
+    }
+
+    @Test
+    fun testToExtendedMediaDetailMovieFormat() {
+        val fields = ExtendedMediaDetailFields(
+            id = 100,
+            idMal = 500,
+            title = null,
+            duration = 120,
+            source = null,
+            status = null,
+            genres = null,
+            averageScore = null,
+            popularity = null,
+            format = com.canim.app.data.remote.anilist.graphql.type.MediaFormat.MOVIE,
+            episodes = 1,
+            chapters = null,
+            volumes = null,
+            rankings = null,
+            recommendations = null,
+            startDate = null,
+            endDate = null,
+            studios = null,
+            characters = null,
+            staff = null,
+            relations = null
+        )
+
+        val detail = AniListApolloMapper.toExtendedMediaDetail(fields)
+        assertEquals("MOVIE", detail.format)
+        assertEquals(1, detail.episodes)
+        assertEquals(120, detail.durationMinutes)
     }
 
     @Test

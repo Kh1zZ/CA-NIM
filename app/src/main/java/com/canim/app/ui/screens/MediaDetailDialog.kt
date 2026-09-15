@@ -61,7 +61,11 @@ fun MediaDetailDialog(
     var notes by remember { mutableStateOf(userItem?.notes ?: "") }
     var activeSubTab by remember { mutableIntStateOf(0) } // 0: Tracking, 1: Karakter & VA, 2: Crew / Staff, 3: Detail
 
-    val total = userItem?.let { if (isAnime) it.totalEpisodes else it.totalChapters }
+    val format = extendedDetail?.format ?: userItem?.metadata?.format ?: mediaItem?.format
+    val isMovie = format?.equals("movie", ignoreCase = true) == true
+
+    val total = extendedDetail?.let { if (isAnime) it.episodes else it.chapters }
+        ?: userItem?.let { if (isAnime) it.totalEpisodes else it.totalChapters }
         ?: mediaItem?.let { if (isAnime) it.episodes ?: 0 else it.chapters ?: 0 }
         ?: airingItem?.episodes ?: 0
     val title = userItem?.title ?: mediaItem?.title ?: airingItem?.title ?: ""
@@ -526,7 +530,9 @@ fun MediaDetailDialog(
                                 // Progress Stepper
                                 item {
                                     Text(
-                                        text = if (isAnime) "Episode Ditonton" else "Chapter Dibaca",
+                                        text = if (isAnime) {
+                                            if (isMovie) "Status Tonton Film" else "Episode Ditonton"
+                                        } else "Chapter Dibaca",
                                         color = TextSecondary,
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.SemiBold
@@ -558,7 +564,11 @@ fun MediaDetailDialog(
                                         }
 
                                         Text(
-                                            text = "$progress / ${if (total > 0) "$total" else "?"}",
+                                            text = if (isMovie) {
+                                                if (progress >= 1) "Selesai Ditonton" else "Belum Ditonton"
+                                            } else {
+                                                "$progress / ${if (total > 0) "$total" else "?"}"
+                                            },
                                             color = TextPrimary,
                                             fontSize = 16.sp,
                                             fontWeight = FontWeight.ExtraBold

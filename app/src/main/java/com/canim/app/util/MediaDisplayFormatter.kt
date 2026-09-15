@@ -126,9 +126,10 @@ object MediaDisplayFormatter {
     /**
      * Formats duration in minutes into grammatically correct Indonesian.
      */
-    fun formatDuration(durationMinutes: Int?): String? {
+    fun formatDuration(durationMinutes: Int?, format: String? = null): String? {
         if (durationMinutes == null || durationMinutes <= 0) return null
-        return "$durationMinutes menit per episode"
+        val isMovie = format?.equals("movie", ignoreCase = true) == true
+        return if (isMovie) "$durationMinutes menit (Durasi Penuh)" else "$durationMinutes menit per episode"
     }
 
     /**

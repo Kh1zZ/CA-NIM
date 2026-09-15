@@ -129,8 +129,8 @@ fun MediaDetailScreen(
         TextSanitizer.sanitize(synopsis)
     }
 
-    val totalEpisodes = userItem?.totalEpisodes ?: mediaItem?.episodes ?: airingItem?.episodes ?: 0
-    val totalChapters = userItem?.totalChapters ?: mediaItem?.chapters ?: 0
+    val totalEpisodes = extendedDetail?.episodes ?: userItem?.totalEpisodes ?: mediaItem?.episodes ?: airingItem?.episodes ?: 0
+    val totalChapters = extendedDetail?.chapters ?: userItem?.totalChapters ?: mediaItem?.chapters ?: 0
     val maxProgress = if (isAnime) totalEpisodes else totalChapters
 
     var showTrackingSheet by remember { mutableStateOf(false) }
@@ -332,7 +332,7 @@ fun MediaDetailScreen(
                                 )
                             }
 
-                            val fmt = userItem?.metadata?.format ?: mediaItem?.format ?: extendedDetail?.source
+                            val fmt = extendedDetail?.format ?: userItem?.metadata?.format ?: mediaItem?.format ?: extendedDetail?.source
                             if (!fmt.isNullOrBlank()) {
                                 Surface(
                                     color = CardElevated,
@@ -649,8 +649,11 @@ fun MediaDetailScreen(
                                 HorizontalDivider(color = DividerSubtle.copy(alpha = 0.5f), thickness = 0.5.dp)
                             }
 
-                            val episodes = userItem?.metadata?.totalEpisodes ?: mediaItem?.episodes
-                            if (isAnime && episodes != null && episodes > 0) {
+                            val rawFormat = extendedDetail?.format ?: userItem?.metadata?.format ?: mediaItem?.format ?: extendedDetail?.source
+                            val isMovie = rawFormat?.equals("movie", ignoreCase = true) == true
+
+                            val episodes = extendedDetail?.episodes ?: userItem?.metadata?.totalEpisodes ?: mediaItem?.episodes
+                            if (isAnime && !isMovie && episodes != null && episodes > 0) {
                                 DetailRowItem(
                                     label = "Total Episode",
                                     value = "$episodes Episode",
@@ -659,7 +662,7 @@ fun MediaDetailScreen(
                                 HorizontalDivider(color = DividerSubtle.copy(alpha = 0.5f), thickness = 0.5.dp)
                             }
 
-                            val chapters = userItem?.metadata?.totalChapters ?: mediaItem?.chapters
+                            val chapters = extendedDetail?.chapters ?: userItem?.metadata?.totalChapters ?: mediaItem?.chapters
                             if (isManga && chapters != null && chapters > 0) {
                                 DetailRowItem(
                                     label = "Total Chapter",
@@ -669,7 +672,7 @@ fun MediaDetailScreen(
                                 HorizontalDivider(color = DividerSubtle.copy(alpha = 0.5f), thickness = 0.5.dp)
                             }
 
-                            val durationStr = MediaDisplayFormatter.formatDuration(extendedDetail?.durationMinutes)
+                            val durationStr = MediaDisplayFormatter.formatDuration(extendedDetail?.durationMinutes, rawFormat)
                             if (durationStr != null) {
                                 DetailRowItem(
                                     label = "Durasi",
@@ -679,12 +682,11 @@ fun MediaDetailScreen(
                                 HorizontalDivider(color = DividerSubtle.copy(alpha = 0.5f), thickness = 0.5.dp)
                             }
 
-                            val rawFormat = userItem?.metadata?.format ?: mediaItem?.format ?: extendedDetail?.source
                             if (!rawFormat.isNullOrBlank()) {
                                 DetailRowItem(
                                     label = "Format",
                                     value = MediaDisplayFormatter.formatFormat(rawFormat),
-                                    icon = Icons.Default.Tv
+                                    icon = if (isMovie) Icons.Default.Movie else Icons.Default.Tv
                                 )
                                 HorizontalDivider(color = DividerSubtle.copy(alpha = 0.5f), thickness = 0.5.dp)
                             }
@@ -1151,9 +1153,13 @@ fun MediaDetailScreen(
 
                     // Progress Counter (+1 / -1 / Direct input)
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        val trackingFormat = extendedDetail?.format ?: userItem?.metadata?.format ?: mediaItem?.format ?: extendedDetail?.source
+                        val isMovieTracking = trackingFormat?.equals("movie", ignoreCase = true) == true
                         Text(
-                            text = if (isAnime) "Progres Episode (Total: ${if (totalEpisodes > 0) totalEpisodes else "?"}):"
-                            else "Progres Bab (Total: ${if (totalChapters > 0) totalChapters else "?"}):",
+                            text = if (isAnime) {
+                                if (isMovieTracking) "Status Tonton Film (1 Film):"
+                                else "Progres Episode (Total: ${if (totalEpisodes > 0) totalEpisodes else "?"}):"
+                            } else "Progres Bab (Total: ${if (totalChapters > 0) totalChapters else "?"}):",
                             color = TextSecondary,
                             fontSize = 12.sp
                         )

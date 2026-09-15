@@ -93,7 +93,7 @@ object AniListApolloMapper {
 
     fun toExtendedMediaDetail(
         fields: ExtendedMediaDetailFields,
-        fallbackMalId: Int?
+        fallbackMalId: Int? = null
     ): ExtendedMediaDetail {
         val castList = fields.characters?.edges?.mapNotNull { edge ->
             val charNode = edge?.node ?: return@mapNotNull null
@@ -179,6 +179,10 @@ object AniListApolloMapper {
             endDate = formatFuzzyDate(fields.endDate?.year, fields.endDate?.month, fields.endDate?.day),
             genres = fields.genres?.filterNotNull() ?: emptyList(),
             durationMinutes = fields.duration,
+            format = fields.format?.rawValue,
+            episodes = fields.episodes,
+            chapters = fields.chapters,
+            volumes = fields.volumes,
             cast = castList,
             crew = staffList,
             relations = relationsList,

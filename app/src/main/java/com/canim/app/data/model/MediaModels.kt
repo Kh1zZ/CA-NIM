@@ -286,7 +286,11 @@ data class ExtendedMediaDetail(
     val rank: Int? = null,
     val watchers: Int? = null,
     val recommendations: List<MediaItem> = emptyList(),
-    val isFromFallback: Boolean = false
+    val isFromFallback: Boolean = false,
+    val format: String? = null,
+    val episodes: Int? = null,
+    val chapters: Int? = null,
+    val volumes: Int? = null
 )
 
 fun formatCompactNumber(value: Int): String {

@@ -5,6 +5,20 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.4.9] - 2026-09-15
+### Fixed
+- **Movie vs TV Format Consistency**: Resolved critical data inconsistency where anime movies (*Kimi no Na wa*, *Koe no Katachi*, *Spirited Away*, *Jujutsu Kaisen 0*, etc.) appeared correctly as `MOVIE` / "Film Layar Lebar" in Search, but were mistakenly displayed as `"TV"` with `"1 Episode"` in Discover and Library screens.
+- **MAL REST API Media Type Field**: Requested `media_type` in all MAL REST endpoints (`anime/ranking`, `user/{username}/animelist`, `anime/{id}`, `anime/season`, `manga/ranking`, etc.) and dynamically mapped `movie`, `tv`, `ova`, `ona`, `special`, `music` in `MediaMappingUtils` and `MalAuthManager` instead of hardcoding `format = "TV"`.
+- **AniList GraphQL Detail Format Integration**: Added `format`, `episodes`, `chapters`, and `volumes` to AniList GraphQL fragment `ExtendedMediaDetailFields`, mapped them in `AniListApolloMapper`, and prioritized AniList format over ambiguous fallbacks in `DetailRepositoryImpl` and `DetailViewModel`.
+- **Library Sync Format Preservation**: Prevented library reconciliation and server sync in `LibraryRepositoryImpl` from overwriting authoritative `"MOVIE"` format with stale or generic server types.
+- **Movie UI Presentation**:
+  - Hid redundant "Total Episode: 1 Episode" row for movies in `MediaDetailScreen` and replaced the generic TV icon with `Icons.Default.Movie` labeled "Film Layar Lebar".
+  - Enhanced `MediaDisplayFormatter.formatDuration` to display `"$durationMinutes menit (Durasi Penuh)"` instead of `"per episode"` for movies.
+  - Formatted movie progress in `LibraryScreen`, `DashboardScreen`, and `MediaDetailDialog` to clearly show "Ditonton (Movie)" / "Belum Ditonton" instead of confusing episode counters like `"0/1 ep"`.
+
+### Changed
+- Bumped app version to v6.4.9 (versionCode 52).
+
 ## [v6.4.8] - 2026-09-15
 ### Added
 - **Adaptive Navigation Rail**: Introduced side `AdaptiveNavigationRail` on the start edge for Android tablets, foldables, and wide displays (\(\ge 600\text{dp}\)) to preserve vertical viewing space in landscape mode and eliminate stretched navigation bars.

@@ -411,8 +411,14 @@ fun AnimeLibraryCard(
                     )
                 }
 
+                val isMovie = anime.metadata.format?.equals("movie", ignoreCase = true) == true
                 Text(
-                    text = "${anime.progress}/${if (anime.totalEpisodes > 0) anime.totalEpisodes else "?"} ep",
+                    text = if (isMovie) {
+                        if (anime.progress >= 1 || anime.status.equals("completed", ignoreCase = true)) "Ditonton (Movie)"
+                        else "Belum Ditonton"
+                    } else {
+                        "${anime.progress}/${if (anime.totalEpisodes > 0) anime.totalEpisodes else "?"} ep"
+                    },
                     color = TextSecondary,
                     fontSize = 11.sp
                 )

@@ -907,8 +907,14 @@ fun WatchingCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                val isMovie = anime.metadata.format?.equals("movie", ignoreCase = true) == true
                 Text(
-                    text = "Ep. ${anime.progress}/${if (anime.totalEpisodes > 0) anime.totalEpisodes else "?"}",
+                    text = if (isMovie) {
+                        if (anime.progress >= 1 || anime.status.equals("completed", ignoreCase = true)) "Ditonton (Movie)"
+                        else "Belum Ditonton (Movie)"
+                    } else {
+                        "Ep. ${anime.progress}/${if (anime.totalEpisodes > 0) anime.totalEpisodes else "?"}"
+                    },
                     color = TextSecondary,
                     fontSize = 11.sp
                 )

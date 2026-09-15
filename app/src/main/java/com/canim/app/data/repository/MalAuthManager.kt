@@ -274,6 +274,15 @@ open class MalAuthManager(
                             finishDate = ls.finishDate,
                             updatedAt = System.currentTimeMillis()
                         )
+                        val formatStr = when (node.mediaType?.lowercase()?.trim()) {
+                            "movie" -> "MOVIE"
+                            "tv" -> "TV"
+                            "ova" -> "OVA"
+                            "ona" -> "ONA"
+                            "special" -> "SPECIAL"
+                            "music" -> "MUSIC"
+                            else -> node.mediaType?.uppercase()
+                        }
                         val metadata = MediaMetadata(
                             title = node.title,
                             imageUrl = node.mainPicture?.large ?: node.mainPicture?.medium ?: "",
@@ -283,6 +292,7 @@ open class MalAuthManager(
                             totalEpisodes = node.numEpisodes,
                             status = node.status,
                             genres = node.genres?.map { it.name } ?: emptyList(),
+                            format = formatStr,
                             studio = node.studios?.firstOrNull()?.name
                         )
                         val userItem = UserMediaItem(
@@ -365,6 +375,15 @@ open class MalAuthManager(
                             finishDate = ls.finishDate,
                             updatedAt = System.currentTimeMillis()
                         )
+                        val formatStr = when (node.mediaType?.lowercase()?.trim()) {
+                            "novel" -> "NOVEL"
+                            "one_shot" -> "ONE_SHOT"
+                            "doujinshi" -> "DOUJINSHI"
+                            "manhwa" -> "MANHWA"
+                            "manhua" -> "MANHUA"
+                            "manga" -> "MANGA"
+                            else -> node.mediaType?.uppercase()
+                        }
                         val metadata = MediaMetadata(
                             title = node.title,
                             imageUrl = node.mainPicture?.large ?: node.mainPicture?.medium ?: "",
@@ -374,7 +393,8 @@ open class MalAuthManager(
                             totalChapters = node.numChapters,
                             totalVolumes = node.numVolumes,
                             status = node.status,
-                            genres = node.genres?.map { it.name } ?: emptyList()
+                            genres = node.genres?.map { it.name } ?: emptyList(),
+                            format = formatStr
                         )
                         val userItem = UserMediaItem(
                             identity = MediaRef(malId = node.id),
@@ -660,6 +680,15 @@ open class MalAuthManager(
                         )
                     } ?: emptyList()
 
+                    val formatStr = when (body.mediaType?.lowercase()?.trim()) {
+                        "movie" -> "MOVIE"
+                        "tv" -> "TV"
+                        "ova" -> "OVA"
+                        "ona" -> "ONA"
+                        "special" -> "SPECIAL"
+                        "music" -> "MUSIC"
+                        else -> body.mediaType?.uppercase()
+                    }
                     val ext = ExtendedMediaDetail(
                         malId = body.id,
                         title = body.title,
@@ -671,6 +700,8 @@ open class MalAuthManager(
                         studio = body.studios?.firstOrNull()?.name,
                         studioId = body.studios?.firstOrNull()?.id,
                         source = body.source,
+                        format = formatStr,
+                        episodes = body.numEpisodes,
                         airingStatus = body.status,
                         startDate = body.startDate,
                         endDate = body.endDate,
@@ -716,6 +747,15 @@ open class MalAuthManager(
                         )
                     } ?: emptyList()
 
+                    val mangaFormatStr = when (body.mediaType?.lowercase()?.trim()) {
+                        "novel" -> "NOVEL"
+                        "one_shot" -> "ONE_SHOT"
+                        "doujinshi" -> "DOUJINSHI"
+                        "manhwa" -> "MANHWA"
+                        "manhua" -> "MANHUA"
+                        "manga" -> "MANGA"
+                        else -> body.mediaType?.uppercase()
+                    }
                     val ext = ExtendedMediaDetail(
                         malId = body.id,
                         title = body.title,
@@ -725,6 +765,9 @@ open class MalAuthManager(
                         bannerImage = body.mainPicture?.large ?: body.mainPicture?.medium,
                         synopsis = body.synopsis,
                         publisher = body.authors?.firstOrNull()?.name,
+                        format = mangaFormatStr,
+                        chapters = body.numChapters,
+                        volumes = body.numVolumes,
                         airingStatus = body.status,
                         startDate = body.startDate,
                         endDate = body.endDate,

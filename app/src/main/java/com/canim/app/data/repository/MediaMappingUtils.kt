@@ -9,6 +9,15 @@ import com.canim.app.data.model.MediaType
 internal object MediaMappingUtils {
 
     fun mapMalAnimeNodeToMediaItem(node: MalAnimeNode): MediaItem {
+        val formatStr = when (node.mediaType?.lowercase()?.trim()) {
+            "movie" -> "MOVIE"
+            "tv" -> "TV"
+            "ova" -> "OVA"
+            "ona" -> "ONA"
+            "special" -> "SPECIAL"
+            "music" -> "MUSIC"
+            else -> node.mediaType?.uppercase() ?: "TV"
+        }
         return MediaItem(
             malId = node.id,
             anilistId = CacheManager.getAniListIdForMalId(node.id),
@@ -30,12 +39,21 @@ internal object MediaMappingUtils {
             year = node.startDate?.take(4)?.toIntOrNull(),
             season = null,
             genres = node.genres?.map { it.name } ?: emptyList(),
-            format = "TV",
+            format = formatStr,
             studio = node.studios?.firstOrNull()?.name
         )
     }
 
     fun mapMalMangaNodeToMediaItem(node: MalMangaNode): MediaItem {
+        val formatStr = when (node.mediaType?.lowercase()?.trim()) {
+            "novel" -> "NOVEL"
+            "one_shot" -> "ONE_SHOT"
+            "doujinshi" -> "DOUJINSHI"
+            "manhwa" -> "MANHWA"
+            "manhua" -> "MANHUA"
+            "manga" -> "MANGA"
+            else -> node.mediaType?.uppercase() ?: "MANGA"
+        }
         return MediaItem(
             malId = node.id,
             anilistId = CacheManager.getAniListIdForMalId(node.id),
@@ -58,7 +76,7 @@ internal object MediaMappingUtils {
             year = node.startDate?.take(4)?.toIntOrNull(),
             season = null,
             genres = node.genres?.map { it.name } ?: emptyList(),
-            format = "MANGA",
+            format = formatStr,
             studio = node.authors?.firstOrNull()?.name
         )
     }

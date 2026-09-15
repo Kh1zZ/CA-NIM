@@ -132,7 +132,11 @@ class DetailRepositoryImpl @Inject constructor(
                         rank = malExt.malRank ?: aniDetail.rank,
                         watchers = malExt.malMembers ?: aniDetail.watchers,
                         recommendations = if (malExt.recommendations.isNotEmpty()) malExt.recommendations else aniDetail.recommendations,
-                        isFromFallback = false
+                        isFromFallback = false,
+                        format = aniDetail.format ?: malExt.format,
+                        episodes = aniDetail.episodes ?: malExt.episodes,
+                        chapters = aniDetail.chapters ?: malExt.chapters,
+                        volumes = aniDetail.volumes ?: malExt.volumes
                     )
                 } else if (malExt != null) {
                     malExt

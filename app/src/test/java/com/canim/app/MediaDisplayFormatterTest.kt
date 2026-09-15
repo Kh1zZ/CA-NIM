@@ -58,8 +58,11 @@ class MediaDisplayFormatterTest {
     fun testFormatDuration() {
         assertEquals("24 menit per episode", MediaDisplayFormatter.formatDuration(24))
         assertEquals("120 menit per episode", MediaDisplayFormatter.formatDuration(120))
+        assertEquals("120 menit (Durasi Penuh)", MediaDisplayFormatter.formatDuration(120, "movie"))
+        assertEquals("105 menit (Durasi Penuh)", MediaDisplayFormatter.formatDuration(105, "MOVIE"))
         assertNull(MediaDisplayFormatter.formatDuration(null))
         assertNull(MediaDisplayFormatter.formatDuration(0))
+        assertNull(MediaDisplayFormatter.formatDuration(0, "movie"))
     }
 
     @Test

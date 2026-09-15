@@ -12,6 +12,10 @@ fragment ExtendedMediaDetailFields on Media {
   genres
   averageScore
   popularity
+  format
+  episodes
+  chapters
+  volumes
   rankings {
     rank
     allTime

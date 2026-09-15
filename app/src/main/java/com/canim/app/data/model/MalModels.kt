@@ -49,11 +49,11 @@ data class MalAnimeNodeItem(
 data class MalAnimeNode(
     @SerializedName("id") val id: Int,
     @SerializedName("title") val title: String,
-    @SerializedName("main_picture") val mainPicture: MalPicture?,
-    @SerializedName("num_episodes") val numEpisodes: Int?,
-    @SerializedName("status") val status: String?,
-    @SerializedName("genres") val genres: List<MalGenre>?,
-    @SerializedName("synopsis") val synopsis: String?,
+    @SerializedName("main_picture") val mainPicture: MalPicture? = null,
+    @SerializedName("num_episodes") val numEpisodes: Int? = null,
+    @SerializedName("status") val status: String? = null,
+    @SerializedName("genres") val genres: List<MalGenre>? = null,
+    @SerializedName("synopsis") val synopsis: String? = null,
     @SerializedName("start_date") val startDate: String? = null,
     @SerializedName("end_date") val endDate: String? = null,
     @SerializedName("studios") val studios: List<MalGenre>? = null,
@@ -65,7 +65,8 @@ data class MalAnimeNode(
     @SerializedName("my_list_status") val myListStatus: MalAnimeListStatus? = null,
     @SerializedName("related_anime") val relatedAnime: List<MalRelatedEdge>? = null,
     @SerializedName("recommendations") val recommendations: List<MalRecommendationEdge>? = null,
-    @SerializedName("alternative_titles") val alternativeTitles: MalAlternativeTitles? = null
+    @SerializedName("alternative_titles") val alternativeTitles: MalAlternativeTitles? = null,
+    @SerializedName("media_type") val mediaType: String? = null
 )
 
 data class MalMangaNodeItem(
@@ -76,12 +77,12 @@ data class MalMangaNodeItem(
 data class MalMangaNode(
     @SerializedName("id") val id: Int,
     @SerializedName("title") val title: String,
-    @SerializedName("main_picture") val mainPicture: MalPicture?,
-    @SerializedName("num_chapters") val numChapters: Int?,
-    @SerializedName("num_volumes") val numVolumes: Int?,
-    @SerializedName("status") val status: String?,
-    @SerializedName("genres") val genres: List<MalGenre>?,
-    @SerializedName("synopsis") val synopsis: String?,
+    @SerializedName("main_picture") val mainPicture: MalPicture? = null,
+    @SerializedName("num_chapters") val numChapters: Int? = null,
+    @SerializedName("num_volumes") val numVolumes: Int? = null,
+    @SerializedName("status") val status: String? = null,
+    @SerializedName("genres") val genres: List<MalGenre>? = null,
+    @SerializedName("synopsis") val synopsis: String? = null,
     @SerializedName("start_date") val startDate: String? = null,
     @SerializedName("end_date") val endDate: String? = null,
     @SerializedName("authors") val authors: List<MalGenre>? = null,
@@ -92,7 +93,8 @@ data class MalMangaNode(
     @SerializedName("my_list_status") val myListStatus: MalMangaListStatus? = null,
     @SerializedName("related_manga") val relatedManga: List<MalRelatedEdge>? = null,
     @SerializedName("recommendations") val recommendations: List<MalRecommendationEdge>? = null,
-    @SerializedName("alternative_titles") val alternativeTitles: MalAlternativeTitles? = null
+    @SerializedName("alternative_titles") val alternativeTitles: MalAlternativeTitles? = null,
+    @SerializedName("media_type") val mediaType: String? = null
 )
 
 data class MalRelatedEdge(
