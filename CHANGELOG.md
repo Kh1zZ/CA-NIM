@@ -5,6 +5,13 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.4.13] - 2026-09-16
+### Fixed
+- **Rombak Total Sistem Animasi Navigasi (NavState State Machine)**: Mengganti semua state navigasi terpisah dengan `NavState` sealed class yang mutually exclusive (`Idle`, `GestureDragging`, `GestureCommitting`, `GestureCancelling`, `Popping`, `Pushing`). Eliminasi total race condition antara `PredictiveBackHandler` dan `LaunchedEffect`, bug snap animasi di `finally` block yang menyebabkan layar teleport, dan flash satu frame saat `isPredictiveActive` flip. Gesture live drag kini membaca `backEvent.progress` langsung (zero latency, tanpa Animatable overhead).
+
+### Changed
+- Bumped app version to v6.4.13 (versionCode 56).
+
 ## [v6.4.12] - 2026-09-16
 ### Fixed
 - **Predictive Back Gestures & Stage Transitions (Animite-Inspired)**: Overhauled overlay screen navigation with a dedicated `PredictiveBackOverlayContainer` using Android's `PredictiveBackHandler`. Swipe gestures track the user's thumb in real-time with smooth scaling, corner rounding, and parallax reveal of the previous screen, supporting cancellation and spring-back.
