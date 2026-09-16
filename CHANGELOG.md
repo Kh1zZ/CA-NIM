@@ -5,9 +5,13 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
-## [v6.4.13] - 2026-09-16
+## [v6.4.13] - 2026-09-17
 ### Fixed
-- **Rombak Total Sistem Animasi Navigasi (NavState State Machine)**: Mengganti semua state navigasi terpisah dengan `NavState` sealed class yang mutually exclusive (`Idle`, `GestureDragging`, `GestureCommitting`, `GestureCancelling`, `Popping`, `Pushing`). Eliminasi total race condition antara `PredictiveBackHandler` dan `LaunchedEffect`, bug snap animasi di `finally` block yang menyebabkan layar teleport, dan flash satu frame saat `isPredictiveActive` flip. Gesture live drag kini membaca `backEvent.progress` langsung (zero latency, tanpa Animatable overhead).
+- **Perombakan Total Kinematika Animasi Navigasi (PredictiveBackOverlayContainer)**:
+  - **Eliminasi Gerakan Nyerong (Diagonal)**: Menghapus seluruh pergeseran sumbu vertikal `translationY`. Seluruh transisi masuk (push) dan keluar (pop) kini 100% horizontal murni searah sapuan jari pengguna.
+  - **Anti Layar Nyangkut (Uninterruptible Gesture Recovery)**: Membungkus animasi spring reset pada pembatalan gesture di dalam `withContext(NonCancellable)`, menjamin animasi selesai tuntas hingga resting 0f tanpa terinterupsi pembatalan coroutine.
+  - **Anti Layar Blink & Flashing**: Memastikan animasi commit meluncur penuh ke 1.0f (100% di luar viewport) sebelum memutasi `screenStack`, serta menggunakan guard deterministik `wasGesturePop` untuk mencegah eksekusi animasi ganda.
+  - **Penghapusan AnimatedVisibility Vertikal**: Mengganti pembungkus root `AnimatedVisibility` dengan layer container horizontal murni sehingga tidak ada lagi tabrakan arah gerakan saat stack kembali ke tab utama.
 
 ### Changed
 - Bumped app version to v6.4.13 (versionCode 56).

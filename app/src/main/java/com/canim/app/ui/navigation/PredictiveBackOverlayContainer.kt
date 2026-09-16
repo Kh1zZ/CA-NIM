@@ -1,17 +1,11 @@
 package com.canim.app.ui.navigation
 
 import androidx.activity.compose.PredictiveBackHandler
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -20,6 +14,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -29,69 +25,35 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import com.canim.app.ui.theme.BlackBg
 import kotlinx.coroutines.CancellationException
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Navigation Transition State Machine
-//
-// Exactly ONE of these states is active at any point. This eliminates every
-// race condition between PredictiveBackHandler and LaunchedEffect because the
-// "what is currently happening" answer is always unambiguous.
-// ─────────────────────────────────────────────────────────────────────────────
-private sealed class NavState {
-    /** Nothing is animating. Only the top screen is rendered. */
-    object Idle : NavState()
-
-    /**
-     * User is actively dragging — predictive back gesture in progress.
-     * [progress] is 0..1 sourced directly from BackEvent (no Animatable overhead).
-     * [underRoute] is the screen beneath, shown as parallax layer.
-     */
-    data class GestureDragging(val progress: Float, val underRoute: ScreenRoute?) : NavState()
-
-    /**
-     * User released and committed the gesture — animating the exit to 1f.
-     * [progress] is driven by Animatable, starts from where gesture left off.
-     * [underRoute] is the screen beneath, still visible.
-     */
-    data class GestureCommitting(val progress: Float, val underRoute: ScreenRoute?) : NavState()
-
-    /**
-     * User released and cancelled the gesture — spring back to 0.
-     * [progress] is driven by Animatable spring.
-     */
-    data class GestureCancelling(val progress: Float) : NavState()
-
-    /**
-     * Discrete pop triggered by back button / programmatic call.
-     * [exitRoute] slides out to the right.
-     * [progress] goes from 0 → 1.
-     */
-    data class Popping(val exitRoute: ScreenRoute, val progress: Float) : NavState()
-
-    /**
-     * New screen pushed — slides in from the right.
-     * [underRoute] is the screen that was on top before the push.
-     * [progress] goes from 0 → 1.
-     */
-    data class Pushing(val underRoute: ScreenRoute, val progress: Float) : NavState()
-}
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 
 /**
- * High-performance overlay navigation container for CA'NIM.
+ * High-Performance Two-Layer Overlay Navigation Container for CA'NIM.
  *
- * Architecture — State Machine Navigation:
+ * Architecture & Design Principles:
+ * 1. Pure Horizontal Kinematics (Zero Diagonal / "Nyerong" Movement):
+ *    - All push entries slide in from the RIGHT (width -> 0).
+ *    - All pop exits slide out to the RIGHT (0 -> width).
+ *    - Under-screen follows with a synchronized -25% parallax shift and smooth darkening scrim.
+ *    - Absolutely zero translationY is applied, guaranteeing 100% natural, thumb-aligned gestures.
  *
- * A single [NavState] sealed class is the ONLY source of truth for what is
- * happening at any moment. The states are mutually exclusive, eliminating:
- *   - Race conditions between PredictiveBackHandler and LaunchedEffect
- *   - Double-pop bugs from concurrent pop triggers
- *   - Visual flashes from finally-block resets interrupting active animations
+ * 2. Uninterruptible Gesture Cancellation (Zero "Layar Nyangkut"):
+ *    - Cancel recovery animation is wrapped inside `withContext(NonCancellable)`.
+ *    - When the system cancels the gesture flow, the spring reset to 0f runs to full completion
+ *      without being aborted by coroutine cancellation, preventing frozen offset states.
  *
- * Gesture driver: Native [PredictiveBackHandler] only (Android 13+ covers all
- * cases — hardware back, 3-button nav, and edge swipe with live progress).
+ * 3. 100% Off-screen Commit (Zero "Layar Blink"):
+ *    - When a swipe-to-back gesture is committed, the foreground screen is animated fully to
+ *      1.0f (entirely outside the right viewport) BEFORE calling `onPopScreen()`.
+ *    - Deterministic `wasGesturePop` flag prevents `LaunchedEffect(screenStack)` from triggering
+ *      a duplicate discrete exit animation.
  *
- * Rendering: Dual-layer parallax + scale + scrim (only during transitions;
- * idle state renders only the top screen for zero background overhead).
+ * 4. Transparent Root & Zero-Overhead Idle State:
+ *    - The container itself is transparent; when `screenStack.isEmpty()` and no transition is running,
+ *      zero layers are drawn and all pointer events pass directly to the bottom tab bar.
+ *    - When idle with active screens, only the top screen is composed, preventing background
+ *      recomposition or duplicate network calls via `isTopScreen = true`.
  */
 @Composable
 fun PredictiveBackOverlayContainer(
@@ -100,190 +62,172 @@ fun PredictiveBackOverlayContainer(
     modifier: Modifier = Modifier,
     content: @Composable (route: ScreenRoute, isTopScreen: Boolean) -> Unit
 ) {
-    // The one and only state. All renders and animations derive from this.
-    var navState by remember { mutableStateOf<NavState>(NavState.Idle) }
+    // ── Gesture State ─────────────────────────────────────────────────────────
+    var isGestureActive by remember { mutableStateOf(false) }
+    var gestureProgress by remember { mutableFloatStateOf(0f) }
+    val gestureAnim = remember { Animatable(0f) }
+    var wasGesturePop by remember { mutableStateOf(false) }
 
-    // Animatable used only for commit and cancel springs — NOT for live drag.
-    // Live drag reads progress directly from BackEvent for zero latency.
-    val springAnim = remember { Animatable(0f) }
-
-    // Tracks the previous stack so LaunchedEffect can detect push vs pop.
+    // ── Discrete Animation State (Button Pop & Push) ──────────────────────────
     var previousStack by remember { mutableStateOf(screenStack) }
+    var exitingRoute by remember { mutableStateOf<ScreenRoute?>(null) }
+    val popAnim = remember { Animatable(0f) }
 
-    // ── Predictive Back Handler ───────────────────────────────────────────────
-    //
-    // This is the ONLY gesture driver. CancellationException MUST be rethrown
-    // so Compose structured concurrency can clean up. The finally block ONLY
-    // resets the state flag — it does NOT touch springAnim, because by the
-    // time finally runs the spring has already completed (or was cancelled).
+    var pushUnderRoute by remember { mutableStateOf<ScreenRoute?>(null) }
+    val pushAnim = remember { Animatable(0f) }
+
+    // ── 1. Native Predictive Back Handler (System Edge Swipe) ─────────────────
     PredictiveBackHandler(enabled = screenStack.isNotEmpty()) { progressFlow ->
-        val underRoute = if (screenStack.size > 1) screenStack[screenStack.size - 2] else null
-        var lastProgress = 0f
-
         try {
-            // Live drag — read progress directly, no Animatable overhead.
+            isGestureActive = true
             progressFlow.collect { backEvent ->
-                lastProgress = backEvent.progress
-                navState = NavState.GestureDragging(lastProgress, underRoute)
+                gestureProgress = backEvent.progress
             }
 
-            // Gesture committed. Animate remaining gap to 1f, then pop.
-            // The springAnim drives rendering from here via GestureCommitting state.
-            springAnim.snapTo(lastProgress)
-            navState = NavState.GestureCommitting(lastProgress, underRoute)
-            springAnim.animateTo(
+            // Gesture committed: animate remaining distance to 1.0f (fully offscreen right)
+            wasGesturePop = true
+            gestureAnim.snapTo(gestureProgress)
+            gestureAnim.animateTo(
                 targetValue = 1f,
-                animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing)
+                animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)
             )
-            // Pop AFTER the exit animation fully completes.
-            // State transition to Idle happens in LaunchedEffect(screenStack)
-            // once the stack update propagates — no flag needed.
+
+            // Screen is now 100% offscreen; safe to update stack without visual flicker
             onPopScreen()
+            isGestureActive = false
+            gestureProgress = 0f
+            gestureAnim.snapTo(0f)
 
         } catch (e: CancellationException) {
-            // Gesture cancelled — spring back to resting position.
-            springAnim.snapTo(lastProgress)
-            navState = NavState.GestureCancelling(lastProgress)
-            springAnim.animateTo(
-                targetValue = 0f,
-                animationSpec = spring(
-                    stiffness = Spring.StiffnessMedium,
-                    dampingRatio = Spring.DampingRatioNoBouncy
+            // Gesture cancelled: spring smoothly back to resting position.
+            // MUST run inside NonCancellable so the animation isn't cancelled immediately!
+            withContext(NonCancellable) {
+                gestureAnim.snapTo(gestureProgress)
+                gestureAnim.animateTo(
+                    targetValue = 0f,
+                    animationSpec = spring(
+                        stiffness = Spring.StiffnessMediumLow,
+                        dampingRatio = Spring.DampingRatioNoBouncy
+                    )
                 )
-            )
-            navState = NavState.Idle
-            throw e  // MUST rethrow — do NOT swallow CancellationException
-
-        } finally {
-            // Only reached after try or catch fully complete.
-            // springAnim is already at its final value; do NOT snapTo(0f) here
-            // or it will teleport the animation mid-render on the commit path.
+                isGestureActive = false
+                gestureProgress = 0f
+                gestureAnim.snapTo(0f)
+            }
+            throw e
         }
     }
 
-    // ── Discrete Navigation Transitions ──────────────────────────────────────
-    //
-    // Handles push and pop triggered by buttons / programmatic calls.
-    // Gesture-initiated pops are handled above and will cause navState to be
-    // GestureCommitting when this LaunchedEffect runs — so we skip them by
-    // checking the current state rather than a boolean flag.
+    // ── 2. Discrete Navigation Transitions (Button Clicks / Programmatic) ─────
     LaunchedEffect(screenStack) {
         val oldStack = previousStack
         previousStack = screenStack
 
         when {
-            // ── POP ──────────────────────────────────────────────────────────
+            // ── POP (Stack size decreased) ────────────────────────────────────
             screenStack.size < oldStack.size -> {
-                val currentState = navState
-
-                if (currentState is NavState.GestureCommitting ||
-                    currentState is NavState.GestureDragging) {
-                    // Gesture handled this pop — transition to Idle and let
-                    // the handler coroutine clean up springAnim naturally.
-                    navState = NavState.Idle
-                } else if (oldStack.size > 1) {
-                    // Discrete pop: slide the exiting screen out to the right.
-                    val exitRoute = oldStack.last()
-                    springAnim.snapTo(0f)
-                    navState = NavState.Popping(exitRoute, 0f)
-                    springAnim.animateTo(
-                        targetValue = 1f,
-                        animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing)
-                    )
-                    navState = NavState.Idle
+                if (wasGesturePop) {
+                    // Gesture already smoothly slid the screen offscreen to 1f; skip discrete anim
+                    wasGesturePop = false
                 } else {
-                    // Stack went to empty (e.g. clearScreenStack) — just idle.
-                    navState = NavState.Idle
+                    // Discrete pop (e.g. user clicked the back button)
+                    val popped = oldStack.lastOrNull()
+                    if (popped != null) {
+                        exitingRoute = popped
+                        popAnim.snapTo(0f)
+                        popAnim.animateTo(
+                            targetValue = 1f,
+                            animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing)
+                        )
+                        exitingRoute = null
+                        popAnim.snapTo(0f)
+                    }
                 }
             }
 
-            // ── PUSH ─────────────────────────────────────────────────────────
-            screenStack.size > oldStack.size && oldStack.isNotEmpty() -> {
-                val underRoute = oldStack.last()
-                springAnim.snapTo(0f)
-                navState = NavState.Pushing(underRoute, 0f)
-                springAnim.animateTo(
+            // ── PUSH (Stack size increased) ───────────────────────────────────
+            screenStack.size > oldStack.size -> {
+                pushUnderRoute = oldStack.lastOrNull()
+                pushAnim.snapTo(0f)
+                pushAnim.animateTo(
                     targetValue = 1f,
                     animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing)
                 )
-                navState = NavState.Idle
+                pushUnderRoute = null
+                pushAnim.snapTo(0f)
             }
         }
     }
 
-    // ── AnimatedVisibility: entire stack slides in/out from below ─────────────
-    val isVisible = screenStack.isNotEmpty() ||
-        navState is NavState.Popping ||
-        navState is NavState.GestureCommitting
+    // ── 3. Kinematic Render Pass ──────────────────────────────────────────────
+    val hasContent = screenStack.isNotEmpty() || exitingRoute != null || isGestureActive
 
-    AnimatedVisibility(
-        visible = isVisible,
-        enter = slideInVertically(
-            initialOffsetY = { it },
-            animationSpec = tween(260, easing = FastOutSlowInEasing)
-        ) + fadeIn(animationSpec = tween(200, easing = LinearOutSlowInEasing)),
-        exit = slideOutVertically(
-            targetOffsetY = { it },
-            animationSpec = tween(220, easing = FastOutSlowInEasing)
-        ) + fadeOut(animationSpec = tween(180)),
-        modifier = modifier.fillMaxSize()
-    ) {
-        BoxWithConstraints(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(BlackBg)
-        ) {
-            val widthPx = constraints.maxWidth.toFloat().coerceAtLeast(1f)
-            val heightPx = constraints.maxHeight.toFloat().coerceAtLeast(1f)
+    if (!hasContent) {
+        // Completely idle with empty stack: zero layout, zero draw overhead, tabs 100% active
+        return
+    }
 
-            val state = navState
-            val currentTopScreen = screenStack.lastOrNull()
-            val isMultiLayer = screenStack.size > 1
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val widthPx = constraints.maxWidth.toFloat().coerceAtLeast(1f)
+        val currentTopScreen = screenStack.lastOrNull()
 
-            Box(modifier = Modifier.fillMaxSize()) {
+        // ── Determine Layer 1 (Underlying Screen & Parallax Progress) ──────────
+        val underScreen: ScreenRoute?
+        val underProgress: Float // 0f = fully covered/receded, 1f = fully revealed/centered
+        val showTabsScrim: Boolean
+        val tabsScrimAlpha: Float
 
-                // ── UNDERLYING SCREEN ─────────────────────────────────────────
-                // Rendered only when a transition requires it. In Idle state
-                // this block is skipped entirely → zero background overhead.
+        when {
+            isGestureActive -> {
+                val p = if (gestureAnim.isRunning) gestureAnim.value else gestureProgress
+                underScreen = if (screenStack.size > 1) screenStack[screenStack.size - 2] else null
+                underProgress = p
+                showTabsScrim = screenStack.size <= 1
+                tabsScrimAlpha = (1f - p) * 0.35f
+            }
+            exitingRoute != null -> {
+                val p = popAnim.value
+                underScreen = currentTopScreen
+                underProgress = p
+                showTabsScrim = screenStack.isEmpty()
+                tabsScrimAlpha = (1f - p) * 0.35f
+            }
+            pushUnderRoute != null -> {
+                val p = pushAnim.value
+                underScreen = pushUnderRoute
+                underProgress = 1f - p
+                showTabsScrim = false
+                tabsScrimAlpha = 0f
+            }
+            else -> {
+                underScreen = null
+                underProgress = 0f
+                showTabsScrim = false
+                tabsScrimAlpha = 0f
+            }
+        }
 
-                val underScreen: ScreenRoute?
-                val underProgress: Float
+        Box(modifier = Modifier.fillMaxSize()) {
 
-                when (state) {
-                    is NavState.GestureDragging -> {
-                        underScreen = state.underRoute
-                        underProgress = state.progress
-                    }
-                    is NavState.GestureCommitting -> {
-                        underScreen = state.underRoute
-                        underProgress = springAnim.value
-                    }
-                    is NavState.GestureCancelling -> {
-                        underScreen = if (isMultiLayer) screenStack.getOrNull(screenStack.size - 2) else null
-                        underProgress = springAnim.value
-                    }
-                    is NavState.Popping -> {
-                        underScreen = currentTopScreen
-                        underProgress = springAnim.value
-                    }
-                    is NavState.Pushing -> {
-                        underScreen = state.underRoute
-                        underProgress = 1f - springAnim.value
-                    }
-                    NavState.Idle -> {
-                        underScreen = null
-                        underProgress = 0f
-                    }
-                }
+            // ── Background Scrim for Tabs (when Stack is 1 -> 0) ───────────────
+            if (showTabsScrim && tabsScrimAlpha > 0.005f) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = tabsScrimAlpha))
+                )
+            }
 
-                if (underScreen != null && underProgress >= 0f) {
+            // ── Layer 1: UNDERLYING SCREEN (Screen N-1) ───────────────────────
+            // Composed ONLY during transitions with isTopScreen = false.
+            if (underScreen != null) {
+                key(underScreen) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(BlackBg)
                             .graphicsLayer {
-                                // Parallax: slides in from -22% to 0 as underProgress → 1
-                                translationX = -(1f - underProgress) * (widthPx * 0.22f)
+                                translationX = -(1f - underProgress) * (widthPx * 0.25f)
                                 val scale = 0.95f + (underProgress * 0.05f)
                                 scaleX = scale
                                 scaleY = scale
@@ -291,9 +235,9 @@ fun PredictiveBackOverlayContainer(
                     ) {
                         content(underScreen, false)
 
-                        // Scrim darkens under-screen; clears as it comes to front
-                        val scrimAlpha = (1f - underProgress) * 0.35f
-                        if (scrimAlpha > 0.01f) {
+                        // Darkening scrim that clears as under-screen comes to foreground
+                        val scrimAlpha = (1f - underProgress).coerceIn(0f, 1f) * 0.35f
+                        if (scrimAlpha > 0.005f) {
                             Box(
                                 modifier = Modifier
                                     .fillMaxSize()
@@ -302,141 +246,65 @@ fun PredictiveBackOverlayContainer(
                         }
                     }
                 }
+            }
 
-                // ── TOP / ACTIVE SCREEN ───────────────────────────────────────
-                // The screen the user is currently on. Its transform depends
-                // entirely on the current NavState.
+            // ── Determine Layer 2 (Foreground Screen & Exit Progress) ──────────
+            val foregroundRoute: ScreenRoute?
+            val foregroundProgress: Float // 0f = centered/resting, 1f = fully offscreen to right
+            val foregroundIsTop: Boolean
 
-                if (currentTopScreen != null) {
-                    val topTranslationX: Float
-                    val topTranslationY: Float
-                    val topScale: Float
-                    val topCornerDp: Float
-                    val topAlpha: Float
-                    val showTop: Boolean
-
-                    when (state) {
-                        is NavState.GestureDragging -> {
-                            val p = state.progress
-                            showTop = true
-                            if (isMultiLayer) {
-                                // Multi-layer: slide right, subtle scale, corner rounding
-                                topTranslationX = p * widthPx
-                                topTranslationY = 0f
-                                topScale = 1f - (p * 0.05f)
-                                topCornerDp = p * 16f
-                                topAlpha = 1f
-                            } else {
-                                // Back to tabs: slide + shrink + fade
-                                topTranslationX = p * (widthPx * 0.15f)
-                                topTranslationY = p * (heightPx * 0.08f)
-                                topScale = 1f - (p * 0.08f)
-                                topCornerDp = p * 16f
-                                topAlpha = 1f - (p * 0.25f)
-                            }
-                        }
-                        is NavState.GestureCommitting -> {
-                            val p = springAnim.value
-                            showTop = true
-                            if (isMultiLayer) {
-                                topTranslationX = p * widthPx
-                                topTranslationY = 0f
-                                topScale = 1f - (p * 0.05f)
-                                topCornerDp = p * 16f
-                                topAlpha = 1f
-                            } else {
-                                topTranslationX = p * (widthPx * 0.15f)
-                                topTranslationY = p * (heightPx * 0.08f)
-                                topScale = 1f - (p * 0.08f)
-                                topCornerDp = p * 16f
-                                topAlpha = 1f - (p * 0.25f)
-                            }
-                        }
-                        is NavState.GestureCancelling -> {
-                            val p = springAnim.value
-                            showTop = true
-                            topTranslationX = p * widthPx
-                            topTranslationY = 0f
-                            topScale = 1f - (p * 0.05f)
-                            topCornerDp = p * 16f
-                            topAlpha = 1f
-                        }
-                        is NavState.Pushing -> {
-                            // New screen slides in from the right
-                            showTop = true
-                            topTranslationX = (1f - springAnim.value) * widthPx
-                            topTranslationY = 0f
-                            topScale = 1f
-                            topCornerDp = 0f
-                            topAlpha = 1f
-                        }
-                        is NavState.Popping -> {
-                            // During pop, the exiting screen is drawn by the block below;
-                            // currentTopScreen is the newly revealed screen — keep it at rest.
-                            showTop = true
-                            topTranslationX = 0f
-                            topTranslationY = 0f
-                            topScale = 1f
-                            topCornerDp = 0f
-                            topAlpha = 1f
-                        }
-                        NavState.Idle -> {
-                            showTop = true
-                            topTranslationX = 0f
-                            topTranslationY = 0f
-                            topScale = 1f
-                            topCornerDp = 0f
-                            topAlpha = 1f
-                        }
-                    }
-
-                    if (showTop) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(BlackBg)
-                                .graphicsLayer {
-                                    translationX = topTranslationX
-                                    translationY = topTranslationY
-                                    scaleX = topScale
-                                    scaleY = topScale
-                                    alpha = topAlpha
-                                    if (topCornerDp > 0f) {
-                                        clip = true
-                                        shape = RoundedCornerShape(topCornerDp.dp)
-                                    }
-                                }
-                        ) {
-                            content(currentTopScreen, true)
-                        }
-                    }
+            when {
+                exitingRoute != null -> {
+                    foregroundRoute = exitingRoute
+                    foregroundProgress = popAnim.value
+                    foregroundIsTop = false
                 }
+                isGestureActive -> {
+                    foregroundRoute = currentTopScreen
+                    foregroundProgress = if (gestureAnim.isRunning) gestureAnim.value else gestureProgress
+                    foregroundIsTop = true
+                }
+                pushUnderRoute != null -> {
+                    foregroundRoute = currentTopScreen
+                    foregroundProgress = (1f - pushAnim.value).coerceIn(0f, 1f)
+                    foregroundIsTop = true
+                }
+                currentTopScreen != null -> {
+                    foregroundRoute = currentTopScreen
+                    foregroundProgress = 0f
+                    foregroundIsTop = true
+                }
+                else -> {
+                    foregroundRoute = null
+                    foregroundProgress = 0f
+                    foregroundIsTop = false
+                }
+            }
 
-                // ── EXITING SCREEN (discrete pop only) ────────────────────────
-                // Slides out to the right while the under-screen is revealed.
-                // Gesture commits do NOT use this block — they animate the top
-                // screen directly via GestureCommitting state above.
-                if (state is NavState.Popping) {
-                    val p = springAnim.value
+            // ── Layer 2: FOREGROUND ACTIVE SCREEN (Screen N) ───────────────────
+            if (foregroundRoute != null) {
+                key(foregroundRoute) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .background(BlackBg)
                             .graphicsLayer {
-                                translationX = p * widthPx
-                                val scale = 1f - (p * 0.05f)
+                                translationX = foregroundProgress * widthPx
+                                val scale = 1f - (foregroundProgress * 0.05f)
                                 scaleX = scale
                                 scaleY = scale
-                                if (p > 0.01f) {
+                                val cornerRadius = foregroundProgress * 16f
+                                if (cornerRadius > 0.5f) {
                                     clip = true
-                                    shape = RoundedCornerShape((p * 16f).dp)
+                                    shape = RoundedCornerShape(cornerRadius.dp)
                                 }
                             }
                     ) {
-                        content(state.exitRoute, false)
+                        content(foregroundRoute, foregroundIsTop)
                     }
                 }
             }
         }
     }
 }
+
