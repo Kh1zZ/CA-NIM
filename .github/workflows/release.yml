@@ -193,15 +193,6 @@ jobs:
           echo "Staged release assets:"
           ls -lh release-dist/
 
-      - name: Generate Cryptographic SHA-256 Checksums
-        run: |
-          cd release-dist
-          VERSION_NAME="${{ steps.version_check.outputs.version_name }}"
-          sha256sum "canim-universal-release-${VERSION_NAME}.apk" > SHA256SUMS.txt
-          echo "=== SHA256SUMS.txt ==="
-          cat SHA256SUMS.txt
-          cd ..
-
       - name: Upload Release Assets Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -318,7 +309,6 @@ jobs:
           sections.append("| File | Type | Description |")
           sections.append("| :--- | :---: | :--- |")
           sections.append(f"| `canim-universal-release-{current_tag}.apk` | **Release** | **Official Production APK** (Universal arm64/arm32/x86_64, R8 optimized) |")
-          sections.append("| `SHA256SUMS.txt` | **Checksum** | Cryptographic SHA-256 hash list for integrity verification |")
 
           with open("release_notes.md", "w", encoding="utf-8") as f:
               f.write("\n".join(sections) + "\n")
@@ -335,10 +325,9 @@ jobs:
         run: |
           echo "Publishing GitHub Release for tag $TAG_NAME..."
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
-            echo "Release $TAG_NAME already exists, uploading release APK and checksum assets..."
+            echo "Release $TAG_NAME already exists, uploading release APK asset..."
             gh release upload "$TAG_NAME" \
               "release-dist/canim-universal-release-${TAG_NAME}.apk" \
-              "release-dist/SHA256SUMS.txt" \
               --clobber
             echo "Ensuring release is published (not draft)..."
             gh release edit "$TAG_NAME" --draft=false || true
@@ -346,7 +335,6 @@ jobs:
             echo "Creating new GitHub Release for tag $TAG_NAME..."
             gh release create "$TAG_NAME" \
               "release-dist/canim-universal-release-${TAG_NAME}.apk" \
-              "release-dist/SHA256SUMS.txt" \
               --title "CA'NIM $TAG_NAME" \
               --notes-file release_notes.md \
               --target "${{ github.sha }}"
