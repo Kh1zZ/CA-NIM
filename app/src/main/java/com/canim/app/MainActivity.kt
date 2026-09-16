@@ -162,6 +162,7 @@ class MainActivity : ComponentActivity() {
                 val libraryState by libraryViewModel.libraryState.collectAsState()
                 val globalState by globalViewModel.globalState.collectAsState()
                 val screenStack by globalViewModel.screenStack.collectAsState()
+                val isPushNavigation by globalViewModel.isPushNavigation.collectAsState()
                 val calendarState by calendarViewModel.calendarState.collectAsState()
                 val context = LocalContext.current
                 val snackbarHostState = remember { SnackbarHostState() }
@@ -599,6 +600,14 @@ class MainActivity : ComponentActivity() {
                                 val isEnteringFromNull = initialState == null && targetState != null
                                 val isExitingToNull = initialState != null && targetState == null
 
+                                val isPush = if (isEnteringFromNull) {
+                                    true
+                                } else if (isExitingToNull) {
+                                    false
+                                } else {
+                                    isPushNavigation
+                                }
+
                                 if (isEnteringFromNull) {
                                     // Initial stack entry: smooth vertical slide-up from bottom over active tab
                                     (slideInVertically(
@@ -621,19 +630,9 @@ class MainActivity : ComponentActivity() {
                                         )
                                         .using(noClipSizeTransform)
                                         .apply { targetContentZIndex = -1f }
-                                } else {
-                                    // In-stack overlay transitions (e.g. Detail <-> CastCrew, Detail <-> Studio, Detail <-> FullCast)
-                                    val isPush = if (targetState != null && !screenStack.contains(initialState)) {
-                                        false
-                                    } else if (initialState != null && !screenStack.contains(targetState)) {
-                                        false
-                                    } else {
-                                        screenStack.indexOf(targetState) > screenStack.indexOf(initialState)
-                                    }
-
-                                    if (isPush) {
-                                        // Pushing deeper overlay: target slides in horizontally from right, outgoing shifts slightly left.
-                                        // CRUCIAL: No fadeOut to transparent or scale down, preventing the underlying Discover/active tab from flashing frozen!
+                                } else if (isPush) {
+                                    // Pushing deeper overlay: target slides in horizontally from right, outgoing shifts slightly left.
+                                    // CRUCIAL: No fadeOut to transparent or scale down, preventing the underlying Discover/active tab from flashing frozen!
                                         slideInHorizontally(
                                             initialOffsetX = { it },
                                             animationSpec = tween(280, easing = FastOutSlowInEasing)
@@ -660,7 +659,6 @@ class MainActivity : ComponentActivity() {
                                         .using(noClipSizeTransform)
                                         .apply { targetContentZIndex = -1f }
                                     }
-                                }
                             },
                             label = "ScreenOverlayTransition"
                         ) { currentScreen ->
@@ -737,6 +735,13 @@ class MainActivity : ComponentActivity() {
                                     val isCurrentDetailSelected = (currentMal != null && currentMal == selectedMal) ||
                                         (currentAni != null && currentAni == selectedAni) ||
                                         (detailState.selectedItem != null && currentMal == null && currentAni == null)
+
+                                    LaunchedEffect(currentScreen.item, currentScreen.type) {
+                                        if (!isCurrentDetailSelected) {
+                                            detailViewModel.openDetail(currentScreen.item, currentScreen.type)
+                                        }
+                                    }
+
                                     val detailItem = if (isCurrentDetailSelected) {
                                         detailState.selectedItem ?: currentScreen.item
                                     } else {
@@ -744,11 +749,10 @@ class MainActivity : ComponentActivity() {
                                     }
                                     val detailExtended = (if (isCurrentDetailSelected) detailState.extendedDetail else null)
                                         ?: detailViewModel.getCachedDetail(currentScreen.item)
-                                        ?: detailState.extendedDetail
                                     val detailIsLoading = if (isCurrentDetailSelected) {
                                         detailState.isLoadingExtendedDetail
                                     } else {
-                                        false
+                                        detailExtended == null
                                     }
                                     val detailTitle = (detailItem as? com.canim.app.data.model.UserMediaItem)?.title
                                         ?: (detailItem as? com.canim.app.data.model.MediaItem)?.title

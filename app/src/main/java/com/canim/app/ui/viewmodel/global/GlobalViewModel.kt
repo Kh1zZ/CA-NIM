@@ -57,6 +57,9 @@ class GlobalViewModel @Inject constructor(
     private val _screenStack = MutableStateFlow<List<ScreenRoute>>(emptyList())
     val screenStack: StateFlow<List<ScreenRoute>> = _screenStack.asStateFlow()
 
+    private val _isPushNavigation = MutableStateFlow(true)
+    val isPushNavigation: StateFlow<Boolean> = _isPushNavigation.asStateFlow()
+
     private val _snackbarEvent = Channel<String>(Channel.BUFFERED)
     val snackbarEvent = _snackbarEvent.receiveAsFlow()
 
@@ -133,11 +136,13 @@ class GlobalViewModel @Inject constructor(
 
     // --- Screen Stack Navigation ---
     fun pushScreen(route: ScreenRoute) {
+        _isPushNavigation.value = true
         _screenStack.update { it + route }
     }
 
     fun popScreen(): Boolean {
         var popped = false
+        _isPushNavigation.value = false
         _screenStack.update { stack ->
             if (stack.isNotEmpty()) {
                 popped = true
@@ -150,6 +155,7 @@ class GlobalViewModel @Inject constructor(
     }
 
     fun clearScreenStack() {
+        _isPushNavigation.value = false
         _screenStack.value = emptyList()
     }
 

@@ -245,9 +245,10 @@ object CacheManager {
             if (memEntry.isExpired) {
                 detailCache.remove(key)
                 deleteDetailDisk(key)
-                return null
+                null
+            } else {
+                return SWRResult(memEntry.data, memEntry.isStale)
             }
-            return SWRResult(memEntry.data, memEntry.isStale)
         }
         // Fallback to disk — disk entries loaded into memory are treated as potentially stale
         // (disk doesn't track the original in-memory stale window, so we mark as stale to trigger refresh)
@@ -266,13 +267,20 @@ object CacheManager {
                 return null
             }
             val json = file.readText()
-            gson.fromJson(json, ExtendedMediaDetail::class.java)
+            val detail = gson.fromJson(json, ExtendedMediaDetail::class.java)
+            if (detail?.isFromFallback == true) {
+                file.delete()
+                null
+            } else {
+                detail
+            }
         } catch (_: Exception) {
             null
         }
     }
 
     private fun putDetailDisk(key: String, detail: ExtendedMediaDetail) {
+        if (detail.isFromFallback) return
         val dir = detailCacheDir ?: return
         try {
             val file = File(dir, "${key.hashCode().toUInt()}.json")

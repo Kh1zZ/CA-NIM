@@ -174,6 +174,14 @@ class DetailViewModel @Inject constructor(
         val cachedDetail = inMemoryDetail
             ?: getExtendedDetailUseCase.getCachedExtendedDetail(anilistId, malId, type)
 
+        val isCompleteDetail = cachedDetail != null && !cachedDetail.isFromFallback && cachedDetail.cast.isNotEmpty()
+
+        if (inMemoryDetail != null && inMemoryDetail.isFromFallback) {
+            detailCache.remove(mediaKey)
+            anilistId?.let { detailCache.remove(it.toString()) }
+            malId?.let { detailCache.remove(it.toString()) }
+        }
+
         val initialDetail = cachedDetail ?: when (resolvedItem) {
             is UserMediaItem -> ExtendedMediaDetail(
                 anilistId = anilistId,
@@ -213,18 +221,13 @@ class DetailViewModel @Inject constructor(
             else -> null
         }
 
-        if (initialDetail != null) {
-            cacheDetail(resolvedItem, initialDetail)
-            cacheDetail(item, initialDetail)
-        }
-
         _detailState.update {
             it.copy(
                 selectedItem = resolvedItem,
                 mediaType = type,
                 isOpen = true,
-                extendedDetail = initialDetail,
-                isLoadingExtendedDetail = (cachedDetail == null && initialDetail == null),
+                extendedDetail = cachedDetail ?: initialDetail,
+                isLoadingExtendedDetail = !isCompleteDetail,
                 isAniListUnavailable = false
             )
         }
@@ -279,11 +282,8 @@ class DetailViewModel @Inject constructor(
                                         recommendations = if (malDetail.recommendations.isNotEmpty()) malDetail.recommendations else (currentExt?.recommendations ?: emptyList()),
                                         isFromFallback = currentExt == null || currentExt.isFromFallback
                                     )
-                                    cacheDetail(resolvedItem, merged)
-                                    cacheDetail(item, merged)
                                     current.copy(
-                                        extendedDetail = merged,
-                                        isLoadingExtendedDetail = false
+                                        extendedDetail = merged
                                     )
                                 }
                             }
@@ -382,11 +382,6 @@ class DetailViewModel @Inject constructor(
                     val isThrottledOrCooldown = ApiClient.aniListLimiter.isCooldownActive()
 
                     if (malDetail != null) {
-                        // Only cache if AniList was NOT throttled or in cooldown (ANTI-FALSE CACHE)
-                        if (!isThrottledOrCooldown) {
-                            cacheDetail(resolvedItem, malDetail)
-                            cacheDetail(item, malDetail)
-                        }
                         _detailState.update {
                             it.copy(
                                 extendedDetail = malDetail,

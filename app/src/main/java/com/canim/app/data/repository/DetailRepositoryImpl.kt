@@ -53,7 +53,8 @@ class DetailRepositoryImpl @Inject constructor(
                 ?: (resolvedAniListId?.let { CacheManager.getDetailSwr(CacheManager.detailKey(it, null)) })
                 ?: (resolvedMalId?.let { CacheManager.getDetailSwr(CacheManager.detailKey(null, it)) })
             if (swrHit != null && (swrHit.data.malScore != null || resolvedMalId == null) && (!swrHit.data.isFromFallback || swrHit.data.cast.isNotEmpty())) {
-                if (swrHit.isStale) {
+                val isEffectivelyStale = swrHit.isStale || swrHit.data.isFromFallback
+                if (isEffectivelyStale) {
                     val capAniId = resolvedAniListId
                     val capMalId = resolvedMalId
                     val capType = type
@@ -61,7 +62,7 @@ class DetailRepositoryImpl @Inject constructor(
                     swrCoordinator.launchSwrJob(capPrimaryKey) {
                         runCatching {
                             val fresh = AniListClient.getExtendedDetails(capAniId, capMalId, capType, forceRefresh = true)
-                            if (fresh != null) {
+                            if (fresh != null && !fresh.isFromFallback && fresh.cast.isNotEmpty()) {
                                 CacheManager.putDetail(capPrimaryKey, fresh)
                                 capAniId?.let { CacheManager.putDetail(CacheManager.detailKey(it, null), fresh) }
                                 capMalId?.let { CacheManager.putDetail(CacheManager.detailKey(null, it), fresh) }
@@ -150,8 +151,8 @@ class DetailRepositoryImpl @Inject constructor(
                     if (effectiveAni != null && effectiveMal != null) {
                         CacheManager.putIdMapping(effectiveMal, effectiveAni, type)
                     }
-                    // Only store in persistent cache when full AniList detail succeeded or media is non-AniList (and not in cooldown)
-                    if (!ApiClient.aniListLimiter.isCooldownActive() && (aniDetail != null || (malExt != null && resolvedAniListId == null))) {
+                    // Anti-false cache: Only store in persistent cache when AniList succeeded or non-fallback MAL
+                    if (!ApiClient.aniListLimiter.isCooldownActive() && (aniDetail != null || (malExt != null && resolvedAniListId == null && !malExt.isFromFallback))) {
                         CacheManager.putDetail(CacheManager.detailKey(effectiveAni, effectiveMal), merged)
                         if (effectiveAni != null) {
                             CacheManager.putDetail(CacheManager.detailKey(effectiveAni, null), merged)

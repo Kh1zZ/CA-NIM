@@ -5,6 +5,16 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.4.11] - 2026-09-16
+### Fixed
+- **Anti-False Cache for Incomplete AniList Metadata**: Anime details that fail to load cast & crew due to AniList API errors (such as 429 rate limits, cooldowns, or network timeouts) are excluded from being treated or stored as valid completed cache entries. Complete cache is only registered once all anime metadata along with cast & crew are successfully populated without warnings.
+- **Automatic Metadata & Cast Re-request on Open**: Re-opening any anime with incomplete metadata, fallback status, or missing cast automatically dispatches a fresh AniList API request with live loading indicators, resolving transient failures seamlessly without stale state lock-in.
+- **Multi-Layer Back Navigation Visual Blink**: Fixed transition flicker and visual stutter occurring during consecutive back navigation across 2 or more stack layers (e.g., Detail -> Cast VA -> Detail -> Back -> Back). Implemented explicit push/pop navigation state tracking (`isPushNavigation`) in `GlobalViewModel` and synchronized `DetailViewModel` restoration without leaking child metadata during exit transitions.
+
+### Changed
+- **Rate Limiter & Burst Request Tuning**: Reduced burst capacity and adjusted token refill intervals for both AniList and MyAnimeList APIs (AniList burst 6, refill 500ms, max concurrent 4; MAL burst 4, refill 700ms, max concurrent 3) to prevent API throttling and rate-limit violations while maintaining responsive UI performance.
+- Bumped app version to v6.4.11 (versionCode 54).
+
 ## [v6.4.10] - 2026-09-16
 ### Fixed
 - **Overlay Navigation Animations**: Eliminated visual glitch where the background Discover screen flashed frozen during slide animations between overlay screens (Media Detail, Cast/Crew Profile, Studio Filmography, and Full Cast List). Seamless in-stack horizontal push/pop transitions keep screens opaque without transparent fade-outs or scale gaps that expose the underlying tab.
