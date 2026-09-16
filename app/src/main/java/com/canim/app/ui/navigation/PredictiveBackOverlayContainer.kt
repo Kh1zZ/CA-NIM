@@ -13,6 +13,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,7 +28,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.canim.app.ui.theme.BlackBg
@@ -37,37 +40,48 @@ import kotlinx.coroutines.launch
 /**
  * High-performance overlay navigation container inspired by Animite.
  *
- * Key features:
- * 1. Stage-Based Predictive Back Gesture: Tracks swipe distance in real-time with smooth
- *    corner rounding, scaling, and parallax reveal of the previous screen.
- * 2. True Two-Layer Stack Rendering: When stack depth > 1, the immediate underlying screen
- *    is kept fully composed with an opaque background directly behind the active screen,
- *    eliminating blank frames, stutter, and active tab background leaks on multi-back.
- * 3. Unified Stack Boundaries: Initial stack entry slides smoothly up from bottom; final
- *    stack exit slides down off bottom edge.
+ * Architecture:
+ * 1. Stage-Based Predictive Back Gesture:
+ *    - Native Android 14+ PredictiveBackHandler with real-time progress callbacks.
+ *    - Universal Left-Edge Touch Drag fallback (detectHorizontalDragGestures) ensuring interactive
+ *      drag-to-back works on every Android version and OEM ROM without lag or suppression.
+ * 2. True Two-Layer Stack Rendering (Transitions Only):
+ *    - During active push, pop, or swipe gesture, the underlying screen is composed with
+ *      isTopScreen = false (preventing secondary ViewModel fetches or state corruption),
+ *      accompanied by parallax slide, subtle scale, and darkening scrim.
+ * 3. Idle State Single-Screen Optimization:
+ *    - When idle, only the active top screen is composed. Zero background composable overhead,
+ *      zero memory leaks, and solid BlackBg backdrop shielding the active bottom tabs.
+ * 4. Unified Stack Boundaries:
+ *    - Stack 0 -> 1 enters smoothly via vertical slide-up from bottom.
+ *    - Stack 1 -> 0 exits cleanly via vertical slide-down / fade-out to active tabs.
  */
 @Composable
 fun PredictiveBackOverlayContainer(
     screenStack: List<ScreenRoute>,
     onPopScreen: () -> Unit,
     modifier: Modifier = Modifier,
-    content: @Composable (ScreenRoute) -> Unit
+    content: @Composable (route: ScreenRoute, isTopScreen: Boolean) -> Unit
 ) {
     val coroutineScope = rememberCoroutineScope()
     val density = LocalDensity.current
 
-    // Predictive back gesture state
+    // Gesture state
     var isPredictiveActive by remember { mutableStateOf(false) }
     var predictiveProgress by remember { mutableFloatStateOf(0f) }
-    val predictiveProgressAnim = remember { Animatable(0f) }
+    val gestureAnim = remember { Animatable(0f) }
+    var isTouchDragging by remember { mutableStateOf(false) }
+    var touchDragOffset by remember { mutableFloatStateOf(0f) }
+    var handledByGesture by remember { mutableStateOf(false) }
 
     // Discrete navigation transition state
     var previousStack by remember { mutableStateOf(screenStack) }
     var exitingRoute by remember { mutableStateOf<ScreenRoute?>(null) }
-    val inStackPopProgress = remember { Animatable(0f) }
-    val inStackPushProgress = remember { Animatable(0f) }
+    val popProgress = remember { Animatable(0f) }
+    var pushUnderRoute by remember { mutableStateOf<ScreenRoute?>(null) }
+    val pushProgress = remember { Animatable(0f) }
 
-    // Gesture back handler
+    // 1. Native Android 14+ Predictive Back Handler
     PredictiveBackHandler(enabled = screenStack.isNotEmpty()) { progressFlow ->
         try {
             isPredictiveActive = true
@@ -75,63 +89,68 @@ fun PredictiveBackOverlayContainer(
                 predictiveProgress = backEvent.progress
             }
 
-            // Gesture committed: animate remaining progress smoothly and pop
-            predictiveProgressAnim.snapTo(predictiveProgress)
-            predictiveProgressAnim.animateTo(
+            // Gesture committed: animate remaining progress to 1f and pop
+            gestureAnim.snapTo(predictiveProgress)
+            gestureAnim.animateTo(
                 targetValue = 1f,
-                animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)
+                animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing)
             )
-            isPredictiveActive = false
-            predictiveProgress = 0f
-            predictiveProgressAnim.snapTo(0f)
+            handledByGesture = true
             onPopScreen()
         } catch (e: CancellationException) {
-            // Gesture cancelled: spring smoothly back to resting position
-            predictiveProgressAnim.snapTo(predictiveProgress)
-            predictiveProgressAnim.animateTo(
+            // Gesture cancelled: spring smoothly back to resting 0f
+            gestureAnim.snapTo(predictiveProgress)
+            gestureAnim.animateTo(
                 targetValue = 0f,
                 animationSpec = spring(
                     stiffness = Spring.StiffnessMediumLow,
                     dampingRatio = Spring.DampingRatioLowBouncy
                 )
             )
+        } finally {
             isPredictiveActive = false
             predictiveProgress = 0f
-            predictiveProgressAnim.snapTo(0f)
+            gestureAnim.snapTo(0f)
         }
     }
 
-    // Detect stack changes for discrete transitions (e.g. button click or non-gesture pop)
+    // 2. Discrete Navigation Transitions (Push & Pop via button/action)
     LaunchedEffect(screenStack) {
         val oldStack = previousStack
         previousStack = screenStack
 
         if (screenStack.size < oldStack.size) {
-            // Popped
-            if (!isPredictiveActive) {
+            // Screen was popped
+            if (handledByGesture) {
+                // Exit was already smoothly animated by gesture; no discrete animation needed
+                handledByGesture = false
+                exitingRoute = null
+            } else {
+                // Discrete pop (e.g. user clicked "Kembali" button)
                 val popped = oldStack.lastOrNull()
                 if (popped != null && oldStack.size > 1) {
-                    // In-stack pop (e.g. Detail 2 -> Cast VA)
                     exitingRoute = popped
-                    inStackPopProgress.snapTo(0f)
-                    inStackPopProgress.animateTo(
+                    popProgress.snapTo(0f)
+                    popProgress.animateTo(
                         targetValue = 1f,
-                        animationSpec = tween(durationMillis = 260, easing = FastOutSlowInEasing)
+                        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)
                     )
                     exitingRoute = null
-                    inStackPopProgress.snapTo(0f)
+                    popProgress.snapTo(0f)
                 } else if (screenStack.isEmpty()) {
-                    // Final exit handled by AnimatedVisibility below
                     exitingRoute = null
                 }
             }
         } else if (screenStack.size > oldStack.size && oldStack.isNotEmpty()) {
-            // In-stack push (e.g. Detail 1 -> Cast VA)
-            inStackPushProgress.snapTo(1f)
-            inStackPushProgress.animateTo(
-                targetValue = 0f,
-                animationSpec = tween(durationMillis = 280, easing = FastOutSlowInEasing)
+            // Screen was pushed onto existing stack
+            pushUnderRoute = oldStack.lastOrNull()
+            pushProgress.snapTo(0f)
+            pushProgress.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing)
             )
+            pushUnderRoute = null
+            pushProgress.snapTo(0f)
         }
     }
 
@@ -141,11 +160,11 @@ fun PredictiveBackOverlayContainer(
         visible = !isStackEmpty,
         enter = slideInVertically(
             initialOffsetY = { it },
-            animationSpec = tween(260, easing = FastOutSlowInEasing)
+            animationSpec = tween(240, easing = FastOutSlowInEasing)
         ) + fadeIn(animationSpec = tween(200, easing = LinearOutSlowInEasing)),
         exit = slideOutVertically(
             targetOffsetY = { it },
-            animationSpec = tween(240, easing = FastOutSlowInEasing)
+            animationSpec = tween(220, easing = FastOutSlowInEasing)
         ) + fadeOut(animationSpec = tween(180)),
         modifier = modifier.fillMaxSize()
     ) {
@@ -154,127 +173,218 @@ fun PredictiveBackOverlayContainer(
                 .fillMaxSize()
                 .background(BlackBg)
         ) {
-            val widthPx = constraints.maxWidth.toFloat()
-            val heightPx = constraints.maxHeight.toFloat()
+            val widthPx = constraints.maxWidth.toFloat().coerceAtLeast(1f)
+            val heightPx = constraints.maxHeight.toFloat().coerceAtLeast(1f)
+            val edgeThresholdPx = with(density) { 36.dp.toPx() }
 
-            val effectiveProgress = if (isPredictiveActive) {
-                predictiveProgress
-            } else {
-                predictiveProgressAnim.value
+            // Unified gesture progress calculation
+            val activeGestureProgress = when {
+                isTouchDragging -> (touchDragOffset / widthPx).coerceIn(0f, 1f)
+                isPredictiveActive -> predictiveProgress
+                else -> gestureAnim.value
             }
 
             val currentTopScreen = screenStack.lastOrNull()
-            val previousScreen = if (screenStack.size > 1) {
-                screenStack[screenStack.size - 2]
-            } else if (exitingRoute != null && screenStack.isNotEmpty()) {
-                screenStack.last()
+            val isMultiLayer = screenStack.size > 1 || exitingRoute != null || pushUnderRoute != null
+
+            // Determine underlying screen to compose during transitions ONLY
+            val underScreen: ScreenRoute? = when {
+                activeGestureProgress > 0f && screenStack.size > 1 -> screenStack[screenStack.size - 2]
+                exitingRoute != null && popProgress.value > 0f -> currentTopScreen
+                pushUnderRoute != null && pushProgress.value < 1f -> pushUnderRoute
+                else -> null // Idle state: underScreen is null, 0% CPU/GPU waste
+            }
+
+            // Universal Left-Edge Drag-to-Dismiss Gesture Modifier
+            val gestureModifier = if (screenStack.isNotEmpty()) {
+                Modifier.pointerInput(screenStack.size) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { offset ->
+                            if (!isPredictiveActive && offset.x <= edgeThresholdPx) {
+                                isTouchDragging = true
+                                touchDragOffset = 0f
+                            }
+                        },
+                        onDragEnd = {
+                            if (isTouchDragging) {
+                                val progress = (touchDragOffset / widthPx).coerceIn(0f, 1f)
+                                coroutineScope.launch {
+                                    if (progress > 0.28f) {
+                                        // Committed: animate out to right and pop
+                                        gestureAnim.snapTo(progress)
+                                        gestureAnim.animateTo(
+                                            targetValue = 1f,
+                                            animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing)
+                                        )
+                                        handledByGesture = true
+                                        onPopScreen()
+                                    } else {
+                                        // Cancelled: spring back
+                                        gestureAnim.snapTo(progress)
+                                        gestureAnim.animateTo(
+                                            targetValue = 0f,
+                                            animationSpec = spring(
+                                                stiffness = Spring.StiffnessMediumLow,
+                                                dampingRatio = Spring.DampingRatioLowBouncy
+                                            )
+                                        )
+                                    }
+                                    isTouchDragging = false
+                                    touchDragOffset = 0f
+                                    gestureAnim.snapTo(0f)
+                                }
+                            }
+                        },
+                        onDragCancel = {
+                            if (isTouchDragging) {
+                                coroutineScope.launch {
+                                    gestureAnim.snapTo((touchDragOffset / widthPx).coerceIn(0f, 1f))
+                                    gestureAnim.animateTo(
+                                        targetValue = 0f,
+                                        animationSpec = spring(
+                                            stiffness = Spring.StiffnessMediumLow,
+                                            dampingRatio = Spring.DampingRatioLowBouncy
+                                        )
+                                    )
+                                    isTouchDragging = false
+                                    touchDragOffset = 0f
+                                    gestureAnim.snapTo(0f)
+                                }
+                            }
+                        },
+                        onHorizontalDrag = { change, dragAmount ->
+                            if (isTouchDragging) {
+                                change.consume()
+                                touchDragOffset = (touchDragOffset + dragAmount).coerceIn(0f, widthPx)
+                            }
+                        }
+                    )
+                }
             } else {
-                null
+                Modifier
             }
 
-            val activeExitingRoute = exitingRoute
-
-            // 1. UNDERLYING SCREEN (Screen N-1):
-            // Kept composed directly underneath the top screen with solid BlackBg,
-            // acting as a complete physical shield against background tab leaks.
-            if (previousScreen != null) {
-                val underParallaxProgress = when {
-                    isPredictiveActive || predictiveProgressAnim.value > 0f -> effectiveProgress
-                    inStackPopProgress.value > 0f -> inStackPopProgress.value
-                    inStackPushProgress.value > 0f -> 1f - inStackPushProgress.value
-                    else -> 0f
-                }
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(BlackBg)
-                        .graphicsLayer {
-                            translationX = -(1f - underParallaxProgress) * (widthPx * 0.22f)
-                            val scale = 0.94f + (underParallaxProgress * 0.06f)
-                            scaleX = scale
-                            scaleY = scale
-                        }
-                ) {
-                    content(previousScreen)
-                }
-            }
-
-            // 2. TOP ACTIVE SCREEN (Screen N):
-            // Renders the current top of the stack with gesture or push/pop animations.
-            if (currentTopScreen != null) {
-                val isMultiLayer = screenStack.size > 1 || activeExitingRoute != null
-
-                val topTranslationX: Float
-                val topTranslationY: Float
-                val topScale: Float
-                val topCornerRadiusDp: Float
-
-                if (isPredictiveActive || predictiveProgressAnim.value > 0f) {
-                    if (isMultiLayer) {
-                        topTranslationX = effectiveProgress * widthPx
-                        topTranslationY = 0f
-                        topScale = 1f - (effectiveProgress * 0.08f)
-                        topCornerRadiusDp = effectiveProgress * 16f
-                    } else {
-                        // Single layer stack exit to active tab: slight scale and downward shift
-                        topTranslationX = effectiveProgress * (widthPx * 0.12f)
-                        topTranslationY = effectiveProgress * (heightPx * 0.08f)
-                        topScale = 1f - (effectiveProgress * 0.1f)
-                        topCornerRadiusDp = effectiveProgress * 16f
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .then(gestureModifier)
+            ) {
+                // 1. UNDERLYING SCREEN (Screen N-1):
+                // Composed ONLY during transitions with isTopScreen = false so background screens
+                // do NOT trigger ViewModel state mutations or duplicate network fetches.
+                if (underScreen != null) {
+                    val underProgress = when {
+                        activeGestureProgress > 0f -> activeGestureProgress
+                        exitingRoute != null -> popProgress.value
+                        pushUnderRoute != null -> 1f - pushProgress.value
+                        else -> 0f
                     }
-                } else if (inStackPushProgress.value > 0f) {
-                    // Animating in from right on push
-                    topTranslationX = inStackPushProgress.value * widthPx
-                    topTranslationY = 0f
-                    topScale = 1f
-                    topCornerRadiusDp = 0f
-                } else {
-                    topTranslationX = 0f
-                    topTranslationY = 0f
-                    topScale = 1f
-                    topCornerRadiusDp = 0f
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(BlackBg)
+                            .graphicsLayer {
+                                translationX = -(1f - underProgress) * (widthPx * 0.22f)
+                                val scale = 0.95f + (underProgress * 0.05f)
+                                scaleX = scale
+                                scaleY = scale
+                            }
+                    ) {
+                        content(underScreen, false)
+
+                        // Darkening scrim overlay that clears as screen comes to front
+                        val scrimAlpha = (1f - underProgress) * 0.35f
+                        if (scrimAlpha > 0.01f) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = scrimAlpha))
+                            )
+                        }
+                    }
                 }
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(BlackBg)
-                        .graphicsLayer {
-                            translationX = topTranslationX
-                            translationY = topTranslationY
-                            scaleX = topScale
-                            scaleY = topScale
-                            if (topCornerRadiusDp > 0f) {
-                                clip = true
-                                shape = RoundedCornerShape(topCornerRadiusDp.dp)
-                            }
-                        }
-                ) {
-                    content(currentTopScreen)
-                }
-            }
+                // 2. TOP ACTIVE SCREEN (Screen N):
+                if (currentTopScreen != null && exitingRoute == null) {
+                    val topTranslationX: Float
+                    val topTranslationY: Float
+                    val topScale: Float
+                    val topCornerRadiusDp: Float
+                    val topAlpha: Float
 
-            // 3. EXITING SCREEN (During discrete pop):
-            // Smoothly slides out to the right over the underlying screen.
-            if (activeExitingRoute != null && inStackPopProgress.value > 0f) {
-                val popExitProgress = inStackPopProgress.value
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(BlackBg)
-                        .graphicsLayer {
-                            translationX = popExitProgress * widthPx
-                            val scale = 1f - (popExitProgress * 0.05f)
-                            scaleX = scale
-                            scaleY = scale
-                            if (popExitProgress > 0.05f) {
-                                clip = true
-                                shape = RoundedCornerShape((popExitProgress * 14f).dp)
-                            }
+                    if (activeGestureProgress > 0f) {
+                        if (isMultiLayer) {
+                            topTranslationX = activeGestureProgress * widthPx
+                            topTranslationY = 0f
+                            topScale = 1f - (activeGestureProgress * 0.05f)
+                            topCornerRadiusDp = activeGestureProgress * 16f
+                            topAlpha = 1f
+                        } else {
+                            // Stack 1 -> 0 to tabs
+                            topTranslationX = activeGestureProgress * (widthPx * 0.15f)
+                            topTranslationY = activeGestureProgress * (heightPx * 0.08f)
+                            topScale = 1f - (activeGestureProgress * 0.08f)
+                            topCornerRadiusDp = activeGestureProgress * 16f
+                            topAlpha = 1f - (activeGestureProgress * 0.25f)
                         }
-                ) {
-                    content(activeExitingRoute)
+                    } else if (pushUnderRoute != null && pushProgress.value < 1f) {
+                        // Push in from right
+                        topTranslationX = (1f - pushProgress.value) * widthPx
+                        topTranslationY = 0f
+                        topScale = 1f
+                        topCornerRadiusDp = 0f
+                        topAlpha = 1f
+                    } else {
+                        // Idle resting state
+                        topTranslationX = 0f
+                        topTranslationY = 0f
+                        topScale = 1f
+                        topCornerRadiusDp = 0f
+                        topAlpha = 1f
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(BlackBg)
+                            .graphicsLayer {
+                                translationX = topTranslationX
+                                translationY = topTranslationY
+                                scaleX = topScale
+                                scaleY = topScale
+                                alpha = topAlpha
+                                if (topCornerRadiusDp > 0f) {
+                                    clip = true
+                                    shape = RoundedCornerShape(topCornerRadiusDp.dp)
+                                }
+                            }
+                    ) {
+                        content(currentTopScreen, true)
+                    }
+                }
+
+                // 3. EXITING SCREEN (During discrete pop):
+                // Smoothly slides out to the right over the revealed underlying screen
+                if (exitingRoute != null && popProgress.value > 0f) {
+                    val p = popProgress.value
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(BlackBg)
+                            .graphicsLayer {
+                                translationX = p * widthPx
+                                val scale = 1f - (p * 0.05f)
+                                scaleX = scale
+                                scaleY = scale
+                                if (p > 0.02f) {
+                                    clip = true
+                                    shape = RoundedCornerShape((p * 16f).dp)
+                                }
+                            }
+                    ) {
+                        content(exitingRoute!!, false)
+                    }
                 }
             }
         }

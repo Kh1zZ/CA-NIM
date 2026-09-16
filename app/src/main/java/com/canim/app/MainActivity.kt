@@ -592,7 +592,7 @@ class MainActivity : ComponentActivity() {
                             screenStack = screenStack,
                             onPopScreen = { globalViewModel.popScreen() },
                             modifier = Modifier.fillMaxSize()
-                        ) { currentScreen ->
+                        ) { currentScreen, isTop ->
                             when (currentScreen) {
                                 is ScreenRoute.CastCrew -> {
                                     val isCurrentProfile = detailState.selectedCastCrewProfile?.id == currentScreen.id &&
@@ -603,8 +603,8 @@ class MainActivity : ComponentActivity() {
                                         detailViewModel.getCachedCastCrewProfile(currentScreen.id, currentScreen.isStaff)
                                     }
 
-                                    LaunchedEffect(currentScreen.id, currentScreen.isStaff) {
-                                        if (effectiveProfile == null) {
+                                    LaunchedEffect(currentScreen.id, currentScreen.isStaff, isTop) {
+                                        if (isTop && effectiveProfile == null) {
                                             detailViewModel.openCastCrewProfile(currentScreen.id, currentScreen.isStaff)
                                         }
                                     }
@@ -667,8 +667,8 @@ class MainActivity : ComponentActivity() {
                                         (currentAni != null && currentAni == selectedAni) ||
                                         (detailState.selectedItem != null && currentMal == null && currentAni == null)
 
-                                    LaunchedEffect(currentScreen.item, currentScreen.type) {
-                                        if (!isCurrentDetailSelected) {
+                                    LaunchedEffect(currentScreen.item, currentScreen.type, isTop) {
+                                        if (isTop && !isCurrentDetailSelected) {
                                             detailViewModel.openDetail(currentScreen.item, currentScreen.type)
                                         }
                                     }

@@ -206,23 +206,6 @@ fun MediaDetailScreen(
                                 )
                             )
                     )
-                    // Back button on backdrop banner
-                    IconButton(
-                        onClick = onDismiss,
-                        modifier = Modifier
-                            .statusBarsPadding()
-                            .padding(start = 12.dp, top = 8.dp)
-                            .size(38.dp)
-                            .clip(CircleShape)
-                            .background(Color.Black.copy(alpha = 0.55f))
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Kembali",
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
                 }
             }
 
