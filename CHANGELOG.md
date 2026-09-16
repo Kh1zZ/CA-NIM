@@ -7,11 +7,12 @@ Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6
 
 ## [v6.4.13] - 2026-09-17
 ### Fixed
-- **Perombakan Total Kinematika Animasi Navigasi (PredictiveBackOverlayContainer)**:
-  - **Eliminasi Gerakan Nyerong (Diagonal)**: Menghapus seluruh pergeseran sumbu vertikal `translationY`. Seluruh transisi masuk (push) dan keluar (pop) kini 100% horizontal murni searah sapuan jari pengguna.
-  - **Anti Layar Nyangkut (Uninterruptible Gesture Recovery)**: Membungkus animasi spring reset pada pembatalan gesture di dalam `withContext(NonCancellable)`, menjamin animasi selesai tuntas hingga resting 0f tanpa terinterupsi pembatalan coroutine.
-  - **Anti Layar Blink & Flashing**: Memastikan animasi commit meluncur penuh ke 1.0f (100% di luar viewport) sebelum memutasi `screenStack`, serta menggunakan guard deterministik `wasGesturePop` untuk mencegah eksekusi animasi ganda.
-  - **Penghapusan AnimatedVisibility Vertikal**: Mengganti pembungkus root `AnimatedVisibility` dengan layer container horizontal murni sehingga tidak ada lagi tabrakan arah gerakan saat stack kembali ke tab utama.
+- **Animasi Navigasi Seamless ala Animite (Card Expansion & Kinematics Overhaul)**:
+  - **Card Expansion saat Buka Detail (0 -> 1)**: Membuka media detail dari menu kini menampilkan efek ekspansi card yang seamless (skala membesar dari `0.92f` ke `1.0f`, elevasi halus `56dp` ke atas, fade-in, dan sudut rounded `24dp` yang menghalus ke `0dp` dengan tab background scrim `40%`).
+  - **Card Collapse saat Kembali ke Menu (1 -> 0)**: Kembali ke tab menu menyusutkan layar detail kembali ke ukuran card (`1.0f` ke `0.92f`, slide-down `56dp`, fade-out, rounded `24dp`) memperlihatkan tab menu yang sudah standby tanpa kedipan hitam.
+  - **Multi-layer Parallax (N -> N+1)**: Navigasi nested (Detail -> Cast/Crew -> Full Cast) meluncur horizontal mulus dengan parallax `-22%` dan darkening scrim `35%` pada layer bawah.
+  - **Predictive Back Gesture Organik & Anti-Nyangkut**: Mengikuti gerakan jari secara live dengan scale dan corner radius adaptif. Pembatalan gesture dilindungi `withContext(NonCancellable)` sehingga spring reset ke `0f` berjalan tuntas 100% tanpa risiko freeze.
+  - **Zero-Blink Commit**: Animasi commit gesture meluncur penuh ke `1.0f` sebelum memutasi `screenStack` dengan guard deterministik `wasGesturePop`.
 
 ### Changed
 - Bumped app version to v6.4.13 (versionCode 56).
