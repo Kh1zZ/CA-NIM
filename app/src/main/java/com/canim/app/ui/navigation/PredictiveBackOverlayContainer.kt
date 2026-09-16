@@ -13,7 +13,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,27 +23,24 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.canim.app.ui.theme.BlackBg
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.launch
 
 /**
  * High-performance overlay navigation container inspired by Animite.
  *
  * Architecture:
- * 1. Stage-Based Predictive Back Gesture:
- *    - Native Android 14+ PredictiveBackHandler with real-time progress callbacks.
- *    - Universal Left-Edge Touch Drag fallback (detectHorizontalDragGestures) ensuring interactive
- *      drag-to-back works on every Android version and OEM ROM without lag or suppression.
+ * 1. Single-Source Predictive Back Gesture:
+ *    - Native PredictiveBackHandler is the ONLY gesture driver. No manual
+ *      detectHorizontalDragGestures fallback — that caused dual-gesture conflict where both
+ *      systems mutated the same Animatable concurrently, producing jank and double-pops.
+ *    - PredictiveBackHandler already covers all cases: system back button, 3-button nav,
+ *      and edge-swipe gesture on Android 13+. No fallback needed.
  * 2. True Two-Layer Stack Rendering (Transitions Only):
  *    - During active push, pop, or swipe gesture, the underlying screen is composed with
  *      isTopScreen = false (preventing secondary ViewModel fetches or state corruption),
@@ -63,25 +59,26 @@ fun PredictiveBackOverlayContainer(
     modifier: Modifier = Modifier,
     content: @Composable (route: ScreenRoute, isTopScreen: Boolean) -> Unit
 ) {
-    val coroutineScope = rememberCoroutineScope()
-    val density = LocalDensity.current
-
-    // Gesture state
+    // ── Gesture state ────────────────────────────────────────────────────────
+    // Single source of truth: PredictiveBackHandler drives everything.
     var isPredictiveActive by remember { mutableStateOf(false) }
     var predictiveProgress by remember { mutableFloatStateOf(0f) }
     val gestureAnim = remember { Animatable(0f) }
-    var isTouchDragging by remember { mutableStateOf(false) }
-    var touchDragOffset by remember { mutableFloatStateOf(0f) }
+
+    // Flag that tells the discrete-pop LaunchedEffect to skip its own animation
+    // because the gesture already completed the visual exit.
     var handledByGesture by remember { mutableStateOf(false) }
 
-    // Discrete navigation transition state
+    // ── Discrete navigation transition state ─────────────────────────────────
     var previousStack by remember { mutableStateOf(screenStack) }
     var exitingRoute by remember { mutableStateOf<ScreenRoute?>(null) }
     val popProgress = remember { Animatable(0f) }
     var pushUnderRoute by remember { mutableStateOf<ScreenRoute?>(null) }
     val pushProgress = remember { Animatable(0f) }
 
-    // 1. Native Android 14+ Predictive Back Handler
+    // ── 1. Native Predictive Back Handler ─────────────────────────────────────
+    // This is the ONLY gesture driver. CancellationException MUST be rethrown
+    // so Compose's structured-concurrency machinery can clean up properly.
     PredictiveBackHandler(enabled = screenStack.isNotEmpty()) { progressFlow ->
         try {
             isPredictiveActive = true
@@ -89,7 +86,7 @@ fun PredictiveBackOverlayContainer(
                 predictiveProgress = backEvent.progress
             }
 
-            // Gesture committed: animate remaining progress to 1f and pop
+            // Gesture committed: animate the remaining gap to 1f, then pop.
             gestureAnim.snapTo(predictiveProgress)
             gestureAnim.animateTo(
                 targetValue = 1f,
@@ -98,15 +95,16 @@ fun PredictiveBackOverlayContainer(
             handledByGesture = true
             onPopScreen()
         } catch (e: CancellationException) {
-            // Gesture cancelled: spring smoothly back to resting 0f
+            // Gesture cancelled: spring crisply back to 0 — NoBouncy so it doesn't overshoot.
             gestureAnim.snapTo(predictiveProgress)
             gestureAnim.animateTo(
                 targetValue = 0f,
                 animationSpec = spring(
                     stiffness = Spring.StiffnessMediumLow,
-                    dampingRatio = Spring.DampingRatioLowBouncy
+                    dampingRatio = Spring.DampingRatioNoBouncy
                 )
             )
+            throw e // MUST rethrow — do NOT swallow CancellationException
         } finally {
             isPredictiveActive = false
             predictiveProgress = 0f
@@ -114,7 +112,7 @@ fun PredictiveBackOverlayContainer(
         }
     }
 
-    // 2. Discrete Navigation Transitions (Push & Pop via button/action)
+    // ── 2. Discrete Navigation Transitions (push & pop via button/action) ─────
     LaunchedEffect(screenStack) {
         val oldStack = previousStack
         previousStack = screenStack
@@ -122,11 +120,11 @@ fun PredictiveBackOverlayContainer(
         if (screenStack.size < oldStack.size) {
             // Screen was popped
             if (handledByGesture) {
-                // Exit was already smoothly animated by gesture; no discrete animation needed
+                // The gesture already animated the exit; skip discrete animation.
                 handledByGesture = false
                 exitingRoute = null
             } else {
-                // Discrete pop (e.g. user clicked "Kembali" button)
+                // Discrete pop (e.g. user tapped the back button)
                 val popped = oldStack.lastOrNull()
                 if (popped != null && oldStack.size > 1) {
                     exitingRoute = popped
@@ -175,11 +173,11 @@ fun PredictiveBackOverlayContainer(
         ) {
             val widthPx = constraints.maxWidth.toFloat().coerceAtLeast(1f)
             val heightPx = constraints.maxHeight.toFloat().coerceAtLeast(1f)
-            val edgeThresholdPx = with(density) { 36.dp.toPx() }
 
-            // Unified gesture progress calculation
-            val activeGestureProgress = when {
-                isTouchDragging -> (touchDragOffset / widthPx).coerceIn(0f, 1f)
+            // Single source of truth for gesture progress.
+            // isPredictiveActive  → live drag (read predictiveProgress directly for zero-lag)
+            // else                → gestureAnim handles commit/cancel spring
+            val activeGestureProgress: Float = when {
                 isPredictiveActive -> predictiveProgress
                 else -> gestureAnim.value
             }
@@ -187,91 +185,20 @@ fun PredictiveBackOverlayContainer(
             val currentTopScreen = screenStack.lastOrNull()
             val isMultiLayer = screenStack.size > 1 || exitingRoute != null || pushUnderRoute != null
 
-            // Determine underlying screen to compose during transitions ONLY
+            // Determine underlying screen to compose during transitions ONLY.
+            // Idle → underScreen is null → 0% CPU/GPU overhead on background screens.
             val underScreen: ScreenRoute? = when {
                 activeGestureProgress > 0f && screenStack.size > 1 -> screenStack[screenStack.size - 2]
                 exitingRoute != null && popProgress.value > 0f -> currentTopScreen
                 pushUnderRoute != null && pushProgress.value < 1f -> pushUnderRoute
-                else -> null // Idle state: underScreen is null, 0% CPU/GPU waste
+                else -> null
             }
 
-            // Universal Left-Edge Drag-to-Dismiss Gesture Modifier
-            val gestureModifier = if (screenStack.isNotEmpty()) {
-                Modifier.pointerInput(screenStack.size) {
-                    detectHorizontalDragGestures(
-                        onDragStart = { offset ->
-                            if (!isPredictiveActive && offset.x <= edgeThresholdPx) {
-                                isTouchDragging = true
-                                touchDragOffset = 0f
-                            }
-                        },
-                        onDragEnd = {
-                            if (isTouchDragging) {
-                                val progress = (touchDragOffset / widthPx).coerceIn(0f, 1f)
-                                coroutineScope.launch {
-                                    if (progress > 0.28f) {
-                                        // Committed: animate out to right and pop
-                                        gestureAnim.snapTo(progress)
-                                        gestureAnim.animateTo(
-                                            targetValue = 1f,
-                                            animationSpec = tween(durationMillis = 160, easing = FastOutSlowInEasing)
-                                        )
-                                        handledByGesture = true
-                                        onPopScreen()
-                                    } else {
-                                        // Cancelled: spring back
-                                        gestureAnim.snapTo(progress)
-                                        gestureAnim.animateTo(
-                                            targetValue = 0f,
-                                            animationSpec = spring(
-                                                stiffness = Spring.StiffnessMediumLow,
-                                                dampingRatio = Spring.DampingRatioLowBouncy
-                                            )
-                                        )
-                                    }
-                                    isTouchDragging = false
-                                    touchDragOffset = 0f
-                                    gestureAnim.snapTo(0f)
-                                }
-                            }
-                        },
-                        onDragCancel = {
-                            if (isTouchDragging) {
-                                coroutineScope.launch {
-                                    gestureAnim.snapTo((touchDragOffset / widthPx).coerceIn(0f, 1f))
-                                    gestureAnim.animateTo(
-                                        targetValue = 0f,
-                                        animationSpec = spring(
-                                            stiffness = Spring.StiffnessMediumLow,
-                                            dampingRatio = Spring.DampingRatioLowBouncy
-                                        )
-                                    )
-                                    isTouchDragging = false
-                                    touchDragOffset = 0f
-                                    gestureAnim.snapTo(0f)
-                                }
-                            }
-                        },
-                        onHorizontalDrag = { change, dragAmount ->
-                            if (isTouchDragging) {
-                                change.consume()
-                                touchDragOffset = (touchDragOffset + dragAmount).coerceIn(0f, widthPx)
-                            }
-                        }
-                    )
-                }
-            } else {
-                Modifier
-            }
+            Box(modifier = Modifier.fillMaxSize()) {
 
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .then(gestureModifier)
-            ) {
-                // 1. UNDERLYING SCREEN (Screen N-1):
-                // Composed ONLY during transitions with isTopScreen = false so background screens
-                // do NOT trigger ViewModel state mutations or duplicate network fetches.
+                // ── Layer 1: UNDERLYING SCREEN (Screen N-1) ──────────────────────
+                // Composed ONLY during transitions with isTopScreen = false so background
+                // screens do NOT trigger ViewModel mutations or duplicate network fetches.
                 if (underScreen != null) {
                     val underProgress = when {
                         activeGestureProgress > 0f -> activeGestureProgress
@@ -293,7 +220,7 @@ fun PredictiveBackOverlayContainer(
                     ) {
                         content(underScreen, false)
 
-                        // Darkening scrim overlay that clears as screen comes to front
+                        // Darkening scrim clears progressively as the under-screen comes to front
                         val scrimAlpha = (1f - underProgress) * 0.35f
                         if (scrimAlpha > 0.01f) {
                             Box(
@@ -305,7 +232,7 @@ fun PredictiveBackOverlayContainer(
                     }
                 }
 
-                // 2. TOP ACTIVE SCREEN (Screen N):
+                // ── Layer 2: TOP ACTIVE SCREEN (Screen N) ────────────────────────
                 if (currentTopScreen != null && exitingRoute == null) {
                     val topTranslationX: Float
                     val topTranslationY: Float
@@ -313,35 +240,40 @@ fun PredictiveBackOverlayContainer(
                     val topCornerRadiusDp: Float
                     val topAlpha: Float
 
-                    if (activeGestureProgress > 0f) {
-                        if (isMultiLayer) {
-                            topTranslationX = activeGestureProgress * widthPx
-                            topTranslationY = 0f
-                            topScale = 1f - (activeGestureProgress * 0.05f)
-                            topCornerRadiusDp = activeGestureProgress * 16f
-                            topAlpha = 1f
-                        } else {
-                            // Stack 1 -> 0 to tabs
-                            topTranslationX = activeGestureProgress * (widthPx * 0.15f)
-                            topTranslationY = activeGestureProgress * (heightPx * 0.08f)
-                            topScale = 1f - (activeGestureProgress * 0.08f)
-                            topCornerRadiusDp = activeGestureProgress * 16f
-                            topAlpha = 1f - (activeGestureProgress * 0.25f)
+                    when {
+                        activeGestureProgress > 0f -> {
+                            if (isMultiLayer) {
+                                // Slide right with subtle scale + corner rounding
+                                topTranslationX = activeGestureProgress * widthPx
+                                topTranslationY = 0f
+                                topScale = 1f - (activeGestureProgress * 0.05f)
+                                topCornerRadiusDp = activeGestureProgress * 16f
+                                topAlpha = 1f
+                            } else {
+                                // Stack 1 → 0: slide + shrink + fade toward tabs
+                                topTranslationX = activeGestureProgress * (widthPx * 0.15f)
+                                topTranslationY = activeGestureProgress * (heightPx * 0.08f)
+                                topScale = 1f - (activeGestureProgress * 0.08f)
+                                topCornerRadiusDp = activeGestureProgress * 16f
+                                topAlpha = 1f - (activeGestureProgress * 0.25f)
+                            }
                         }
-                    } else if (pushUnderRoute != null && pushProgress.value < 1f) {
-                        // Push in from right
-                        topTranslationX = (1f - pushProgress.value) * widthPx
-                        topTranslationY = 0f
-                        topScale = 1f
-                        topCornerRadiusDp = 0f
-                        topAlpha = 1f
-                    } else {
-                        // Idle resting state
-                        topTranslationX = 0f
-                        topTranslationY = 0f
-                        topScale = 1f
-                        topCornerRadiusDp = 0f
-                        topAlpha = 1f
+                        pushUnderRoute != null && pushProgress.value < 1f -> {
+                            // Push in from right
+                            topTranslationX = (1f - pushProgress.value) * widthPx
+                            topTranslationY = 0f
+                            topScale = 1f
+                            topCornerRadiusDp = 0f
+                            topAlpha = 1f
+                        }
+                        else -> {
+                            // Idle resting state
+                            topTranslationX = 0f
+                            topTranslationY = 0f
+                            topScale = 1f
+                            topCornerRadiusDp = 0f
+                            topAlpha = 1f
+                        }
                     }
 
                     Box(
@@ -364,8 +296,8 @@ fun PredictiveBackOverlayContainer(
                     }
                 }
 
-                // 3. EXITING SCREEN (During discrete pop):
-                // Smoothly slides out to the right over the revealed underlying screen
+                // ── Layer 3: EXITING SCREEN (during discrete pop) ────────────────
+                // Smoothly slides out to the right over the revealed underlying screen.
                 if (exitingRoute != null && popProgress.value > 0f) {
                     val p = popProgress.value
                     Box(
