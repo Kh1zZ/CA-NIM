@@ -3,6 +3,7 @@ package com.canim.app.ui.viewmodel.detail
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.canim.app.data.cache.CacheManager
 import com.canim.app.data.model.*
 import com.canim.app.data.remote.ApiClient
 import com.canim.app.data.repository.CacheRefreshType
@@ -222,8 +223,6 @@ class DetailViewModel @Inject constructor(
                 selectedItem = resolvedItem,
                 mediaType = type,
                 isOpen = true,
-                selectedCastCrewProfile = null,
-                isLoadingCastCrewProfile = false,
                 extendedDetail = initialDetail,
                 isLoadingExtendedDetail = (cachedDetail == null && initialDetail == null),
                 isAniListUnavailable = false
@@ -516,6 +515,14 @@ class DetailViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    fun getCachedCastCrewProfile(id: Int, isStaff: Boolean): CastCrewProfile? {
+        val current = _detailState.value.selectedCastCrewProfile
+        if (current != null && current.id == id && current.isStaff == isStaff) {
+            return current
+        }
+        return CacheManager.getCastCrewProfile(id, isStaff)
     }
 
     fun closeCastCrewProfile() {

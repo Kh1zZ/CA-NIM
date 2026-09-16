@@ -233,4 +233,13 @@ class StudioViewModel @Inject constructor(
             _snackbarEvent.emit(message)
         }
     }
+
+    private val scrollPositions = mutableMapOf<String, Pair<Int, Int>>()
+
+    fun saveScrollPosition(key: String, index: Int, offset: Int) {
+        scrollPositions[key] = Pair(index, offset)
+    }
+
+    fun getScrollPosition(key: String): Pair<Int, Int> =
+        scrollPositions[key] ?: Pair(0, 0)
 }

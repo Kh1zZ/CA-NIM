@@ -5,6 +5,16 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.4.10] - 2026-09-16
+### Fixed
+- **Overlay Navigation Animations**: Eliminated visual glitch where the background Discover screen flashed frozen during slide animations between overlay screens (Media Detail, Cast/Crew Profile, Studio Filmography, and Full Cast List). Seamless in-stack horizontal push/pop transitions keep screens opaque without transparent fade-outs or scale gaps that expose the underlying tab.
+- **Cast/Crew Filmography Back Navigation Spinner**: Fixed infinite loading spinner occurring when pressing Back from a media detail opened via Cast/Crew filmography. Preserved `selectedCastCrewProfile` in `DetailViewModel` when opening child media details and added automatic cached profile restoration and reload fallback in `MainActivity`.
+- **Studio Filmography Scroll State Preservation**: Resolved scroll alignment resetting to the top when navigating back to Studio Filmography from an anime detail. Persisted `firstVisibleItemIndex` and `firstVisibleItemScrollOffset` across unmount and restore cycles via `StudioViewModel`.
+- **Cast & Crew Profile and Full Cast Scroll Retention**: Extended scroll position preservation to Cast & Crew Profile and Full Cast & Crew screens, ensuring users return to their exact scroll position after viewing child items.
+
+### Changed
+- Bumped app version to v6.4.10 (versionCode 53).
+
 ## [v6.4.9] - 2026-09-15
 ### Fixed
 - **Movie vs TV Format Consistency**: Resolved critical data inconsistency where anime movies (*Kimi no Na wa*, *Koe no Katachi*, *Spirited Away*, *Jujutsu Kaisen 0*, etc.) appeared correctly as `MOVIE` / "Film Layar Lebar" in Search, but were mistakenly displayed as `"TV"` with `"1 Episode"` in Discover and Library screens.

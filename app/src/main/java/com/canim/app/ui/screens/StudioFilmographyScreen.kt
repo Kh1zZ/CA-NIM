@@ -56,9 +56,22 @@ fun StudioFilmographyScreen(
     bioInfo: StudioBioInfo? = null,
     sort: StudioFilmographySort = StudioFilmographySort.YEAR_DESC,
     onSortChanged: (StudioFilmographySort) -> Unit = {},
-    totalEntries: Int = 0
+    totalEntries: Int = 0,
+    onSaveScrollPosition: ((key: String, index: Int, offset: Int) -> Unit)? = null,
+    onGetScrollPosition: ((key: String) -> Pair<Int, Int>)? = null
 ) {
-    val gridState = rememberLazyGridState()
+    val scrollKey = remember(studioId, studioName) { "studio_${studioId}_$studioName" }
+    val initialPos = remember(scrollKey) { onGetScrollPosition?.invoke(scrollKey) ?: Pair(0, 0) }
+    val gridState = rememberLazyGridState(
+        initialFirstVisibleItemIndex = initialPos.first,
+        initialFirstVisibleItemScrollOffset = initialPos.second
+    )
+
+    DisposableEffect(scrollKey) {
+        onDispose {
+            onSaveScrollPosition?.invoke(scrollKey, gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset)
+        }
+    }
 
     // Robust pagination: detect when user scrolls near the bottom without re-trigger loops
     LaunchedEffect(gridState, canLoadMore, isLoading, isLoadingMore) {
@@ -296,7 +309,10 @@ fun StudioFilmographyScreen(
                     ) { _, media ->
                         StudioMediaCard(
                             item = media,
-                            onClick = { onOpenDetail(media, MediaType.ANIME) }
+                            onClick = {
+                                onSaveScrollPosition?.invoke(scrollKey, gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset)
+                                onOpenDetail(media, MediaType.ANIME)
+                            }
                         )
                     }
                 }

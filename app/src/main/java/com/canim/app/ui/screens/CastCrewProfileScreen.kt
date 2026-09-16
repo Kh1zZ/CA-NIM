@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -39,7 +40,9 @@ fun CastCrewProfileScreen(
     isLoading: Boolean,
     onBack: () -> Unit,
     onSelectMedia: (MediaItem) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onSaveScrollPosition: ((key: String, index: Int, offset: Int) -> Unit)? = null,
+    onGetScrollPosition: ((key: String) -> Pair<Int, Int>)? = null
 ) {
     var isBioExpanded by remember { mutableStateOf(false) }
     var selectedFilter by remember { mutableStateOf("Semua") }
@@ -119,7 +122,21 @@ fun CastCrewProfileScreen(
                 }
             }
 
+            val scrollKey = remember(profile.id, profile.isStaff) { "profile_${profile.id}_${profile.isStaff}" }
+            val initialPos = remember(scrollKey) { onGetScrollPosition?.invoke(scrollKey) ?: Pair(0, 0) }
+            val listState = rememberLazyListState(
+                initialFirstVisibleItemIndex = initialPos.first,
+                initialFirstVisibleItemScrollOffset = initialPos.second
+            )
+
+            DisposableEffect(scrollKey) {
+                onDispose {
+                    onSaveScrollPosition?.invoke(scrollKey, listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+                }
+            }
+
             LazyColumn(
+                state = listState,
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
@@ -350,6 +367,7 @@ fun CastCrewProfileScreen(
                                     year = item.year,
                                     format = item.format
                                 )
+                                onSaveScrollPosition?.invoke(scrollKey, listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
                                 onSelectMedia(media)
                             }
                         )

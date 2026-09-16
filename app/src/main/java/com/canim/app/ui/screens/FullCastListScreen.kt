@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -37,9 +38,33 @@ fun FullCastListScreen(
     isCrewInitial: Boolean = false,
     onOpenCastCrew: (id: Int, isStaff: Boolean) -> Unit,
     onBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onSaveScrollPosition: ((key: String, index: Int, offset: Int) -> Unit)? = null,
+    onGetScrollPosition: ((key: String) -> Pair<Int, Int>)? = null
 ) {
     var selectedTab by remember { mutableIntStateOf(if (isCrewInitial) 1 else 0) }
+
+    val castScrollKey = remember(mediaTitle) { "fullcast_cast_$mediaTitle" }
+    val staffScrollKey = remember(mediaTitle) { "fullcast_staff_$mediaTitle" }
+
+    val castInitialPos = remember(castScrollKey) { onGetScrollPosition?.invoke(castScrollKey) ?: Pair(0, 0) }
+    val castListState = rememberLazyListState(
+        initialFirstVisibleItemIndex = castInitialPos.first,
+        initialFirstVisibleItemScrollOffset = castInitialPos.second
+    )
+
+    val staffInitialPos = remember(staffScrollKey) { onGetScrollPosition?.invoke(staffScrollKey) ?: Pair(0, 0) }
+    val staffListState = rememberLazyListState(
+        initialFirstVisibleItemIndex = staffInitialPos.first,
+        initialFirstVisibleItemScrollOffset = staffInitialPos.second
+    )
+
+    DisposableEffect(castScrollKey, staffScrollKey) {
+        onDispose {
+            onSaveScrollPosition?.invoke(castScrollKey, castListState.firstVisibleItemIndex, castListState.firstVisibleItemScrollOffset)
+            onSaveScrollPosition?.invoke(staffScrollKey, staffListState.firstVisibleItemIndex, staffListState.firstVisibleItemScrollOffset)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -130,6 +155,7 @@ fun FullCastListScreen(
                     }
                 } else {
                     LazyColumn(
+                        state = castListState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(vertical = 8.dp)
                     ) {
@@ -138,11 +164,17 @@ fun FullCastListScreen(
                                 cast = cast,
                                 onCharacterClick = {
                                     val charId = cast.characterId ?: 0
-                                    if (charId > 0) onOpenCastCrew(charId, false)
+                                    if (charId > 0) {
+                                        onSaveScrollPosition?.invoke(castScrollKey, castListState.firstVisibleItemIndex, castListState.firstVisibleItemScrollOffset)
+                                        onOpenCastCrew(charId, false)
+                                    }
                                 },
                                 onActorClick = {
                                     val actId = cast.actorId ?: 0
-                                    if (actId > 0) onOpenCastCrew(actId, true)
+                                    if (actId > 0) {
+                                        onSaveScrollPosition?.invoke(castScrollKey, castListState.firstVisibleItemIndex, castListState.firstVisibleItemScrollOffset)
+                                        onOpenCastCrew(actId, true)
+                                    }
                                 }
                             )
                             HorizontalDivider(
@@ -165,6 +197,7 @@ fun FullCastListScreen(
                     }
                 } else {
                     LazyColumn(
+                        state = staffListState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(vertical = 8.dp)
                     ) {
@@ -173,7 +206,10 @@ fun FullCastListScreen(
                                 staff = staff,
                                 onClick = {
                                     val sId = staff.staffId ?: 0
-                                    if (sId > 0) onOpenCastCrew(sId, true)
+                                    if (sId > 0) {
+                                        onSaveScrollPosition?.invoke(staffScrollKey, staffListState.firstVisibleItemIndex, staffListState.firstVisibleItemScrollOffset)
+                                        onOpenCastCrew(sId, true)
+                                    }
                                 }
                             )
                             HorizontalDivider(

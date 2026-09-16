@@ -596,68 +596,105 @@ class MainActivity : ComponentActivity() {
                             contentAlignment = Alignment.Center,
                             transitionSpec = {
                                 val noClipSizeTransform = SizeTransform(clip = false)
-                                val isPush = if (initialState == null && targetState != null) {
-                                    true
-                                } else if (initialState != null && targetState == null) {
-                                    false
-                                } else if (targetState != null && !screenStack.contains(initialState)) {
-                                    false
-                                } else if (initialState != null && !screenStack.contains(targetState)) {
-                                    false
-                                } else {
-                                    screenStack.indexOf(targetState) > screenStack.indexOf(initialState)
-                                }
+                                val isEnteringFromNull = initialState == null && targetState != null
+                                val isExitingToNull = initialState != null && targetState == null
 
-                                if (isPush) {
-                                    // Smooth vertical popup entry: rises from bottom of screen to top, rapid fade
+                                if (isEnteringFromNull) {
+                                    // Initial stack entry: smooth vertical slide-up from bottom over active tab
                                     (slideInVertically(
                                         initialOffsetY = { it },
-                                        animationSpec = tween(240, easing = FastOutSlowInEasing)
-                                    ) + scaleIn(
-                                        initialScale = 0.92f,
-                                        animationSpec = tween(240, easing = FastOutSlowInEasing)
-                                    ) + fadeIn(animationSpec = tween(150, easing = LinearOutSlowInEasing)))
+                                        animationSpec = tween(260, easing = FastOutSlowInEasing)
+                                    ) + fadeIn(animationSpec = tween(200, easing = LinearOutSlowInEasing)))
                                         .togetherWith(
-                                            scaleOut(
-                                                targetScale = 0.92f,
-                                                animationSpec = tween(200, easing = FastOutSlowInEasing)
-                                            ) + fadeOut(animationSpec = tween(140))
+                                            fadeOut(animationSpec = tween(150))
                                         )
                                         .using(noClipSizeTransform)
                                         .apply { targetContentZIndex = 1f }
-                                } else {
-                                    // Instant popdown exit: drops down immediately off bottom edge with zero still-image hesitation
-                                    (scaleIn(
-                                        initialScale = 0.94f,
-                                        animationSpec = tween(200, easing = LinearOutSlowInEasing)
-                                    ) + fadeIn(animationSpec = tween(150, easing = LinearOutSlowInEasing)))
+                                } else if (isExitingToNull) {
+                                    // Final stack exit: smooth vertical slide-down off bottom edge back to active tab
+                                    fadeIn(animationSpec = tween(150))
                                         .togetherWith(
                                             slideOutVertically(
                                                 targetOffsetY = { it },
-                                                animationSpec = tween(180, easing = LinearEasing)
-                                            ) + scaleOut(
-                                                targetScale = 0.92f,
-                                                animationSpec = tween(180, easing = LinearEasing)
-                                            ) + fadeOut(animationSpec = tween(140, easing = LinearEasing))
+                                                animationSpec = tween(220, easing = FastOutSlowInEasing)
+                                            ) + fadeOut(animationSpec = tween(180, easing = LinearEasing))
                                         )
                                         .using(noClipSizeTransform)
                                         .apply { targetContentZIndex = -1f }
+                                } else {
+                                    // In-stack overlay transitions (e.g. Detail <-> CastCrew, Detail <-> Studio, Detail <-> FullCast)
+                                    val isPush = if (targetState != null && !screenStack.contains(initialState)) {
+                                        false
+                                    } else if (initialState != null && !screenStack.contains(targetState)) {
+                                        false
+                                    } else {
+                                        screenStack.indexOf(targetState) > screenStack.indexOf(initialState)
+                                    }
+
+                                    if (isPush) {
+                                        // Pushing deeper overlay: target slides in horizontally from right, outgoing shifts slightly left.
+                                        // CRUCIAL: No fadeOut to transparent or scale down, preventing the underlying Discover/active tab from flashing frozen!
+                                        slideInHorizontally(
+                                            initialOffsetX = { it },
+                                            animationSpec = tween(280, easing = FastOutSlowInEasing)
+                                        ).togetherWith(
+                                            slideOutHorizontally(
+                                                targetOffsetX = { -it / 4 },
+                                                animationSpec = tween(280, easing = FastOutSlowInEasing)
+                                            )
+                                        )
+                                        .using(noClipSizeTransform)
+                                        .apply { targetContentZIndex = 1f }
+                                    } else {
+                                        // Popping overlay back: outgoing slides off to right, previous target slides back from left.
+                                        // Zero transparent gaps, preventing any underlying background flash.
+                                        slideInHorizontally(
+                                            initialOffsetX = { -it / 4 },
+                                            animationSpec = tween(250, easing = FastOutSlowInEasing)
+                                        ).togetherWith(
+                                            slideOutHorizontally(
+                                                targetOffsetX = { it },
+                                                animationSpec = tween(250, easing = FastOutSlowInEasing)
+                                            )
+                                        )
+                                        .using(noClipSizeTransform)
+                                        .apply { targetContentZIndex = -1f }
+                                    }
                                 }
                             },
                             label = "ScreenOverlayTransition"
                         ) { currentScreen ->
                             when (currentScreen) {
                                 is ScreenRoute.CastCrew -> {
+                                    val isCurrentProfile = detailState.selectedCastCrewProfile?.id == currentScreen.id &&
+                                        detailState.selectedCastCrewProfile?.isStaff == currentScreen.isStaff
+                                    val effectiveProfile = if (isCurrentProfile) {
+                                        detailState.selectedCastCrewProfile
+                                    } else {
+                                        detailViewModel.getCachedCastCrewProfile(currentScreen.id, currentScreen.isStaff)
+                                    }
+
+                                    LaunchedEffect(currentScreen.id, currentScreen.isStaff) {
+                                        if (effectiveProfile == null) {
+                                            detailViewModel.openCastCrewProfile(currentScreen.id, currentScreen.isStaff)
+                                        }
+                                    }
+
                                     CastCrewProfileScreen(
-                                        profile = detailState.selectedCastCrewProfile,
-                                        isLoading = detailState.isLoadingCastCrewProfile,
+                                        profile = effectiveProfile,
+                                        isLoading = if (effectiveProfile != null) false else detailState.isLoadingCastCrewProfile,
                                         onBack = {
-                                            detailViewModel.closeCastCrewProfile()
                                             globalViewModel.popScreen()
                                         },
                                         onSelectMedia = { mediaItem ->
                                             detailViewModel.openDetail(mediaItem, mediaItem.type)
                                             globalViewModel.openDetail(mediaItem, mediaItem.type)
+                                        },
+                                        onSaveScrollPosition = { key, index, offset ->
+                                            detailViewModel.saveDetailScrollPosition(key, index, offset)
+                                        },
+                                        onGetScrollPosition = { key ->
+                                            detailViewModel.getDetailScrollPosition(key)
                                         }
                                     )
                                 }
@@ -673,6 +710,12 @@ class MainActivity : ComponentActivity() {
                                         onOpenCastCrew = { id, isStaff ->
                                             detailViewModel.openCastCrewProfile(id, isStaff)
                                             globalViewModel.openCastCrewProfile(id, isStaff)
+                                        },
+                                        onSaveScrollPosition = { key, index, offset ->
+                                            detailViewModel.saveDetailScrollPosition(key, index, offset)
+                                        },
+                                        onGetScrollPosition = { key ->
+                                            detailViewModel.getDetailScrollPosition(key)
                                         }
                                     )
                                 }
@@ -815,6 +858,12 @@ class MainActivity : ComponentActivity() {
                                         onSortChanged = { studioViewModel.setStudioFilmographySort(it) },
                                         onRefresh = {
                                             studioViewModel.openStudio(currentScreen.studioId, currentScreen.studioName)
+                                        },
+                                        onSaveScrollPosition = { key, index, offset ->
+                                            studioViewModel.saveScrollPosition(key, index, offset)
+                                        },
+                                        onGetScrollPosition = { key ->
+                                            studioViewModel.getScrollPosition(key)
                                         }
                                     )
                                 }
