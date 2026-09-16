@@ -44,6 +44,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import com.canim.app.data.model.MediaType
 import com.canim.app.ui.components.AdaptiveNavigationRail
 import com.canim.app.ui.components.RateLimitBanner
+import com.canim.app.ui.navigation.PredictiveBackOverlayContainer
 import com.canim.app.ui.navigation.ScreenRoute
 import com.canim.app.ui.screens.*
 import com.canim.app.ui.theme.*
@@ -162,7 +163,6 @@ class MainActivity : ComponentActivity() {
                 val libraryState by libraryViewModel.libraryState.collectAsState()
                 val globalState by globalViewModel.globalState.collectAsState()
                 val screenStack by globalViewModel.screenStack.collectAsState()
-                val isPushNavigation by globalViewModel.isPushNavigation.collectAsState()
                 val calendarState by calendarViewModel.calendarState.collectAsState()
                 val context = LocalContext.current
                 val snackbarHostState = remember { SnackbarHostState() }
@@ -177,10 +177,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // Single centralized top-level BackHandler
-                BackHandler(enabled = screenStack.isNotEmpty()) {
-                    globalViewModel.popScreen()
-                }
+
 
                 LaunchedEffect(Unit) {
                     merge(
@@ -590,77 +587,11 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
-                        // Top-level modal/overlay stack rendering with unified smooth popup entry & popdown exit
-                        AnimatedContent(
-                            targetState = screenStack.lastOrNull(),
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center,
-                            transitionSpec = {
-                                val noClipSizeTransform = SizeTransform(clip = false)
-                                val isEnteringFromNull = initialState == null && targetState != null
-                                val isExitingToNull = initialState != null && targetState == null
-
-                                val isPush = if (isEnteringFromNull) {
-                                    true
-                                } else if (isExitingToNull) {
-                                    false
-                                } else {
-                                    isPushNavigation
-                                }
-
-                                if (isEnteringFromNull) {
-                                    // Initial stack entry: smooth vertical slide-up from bottom over active tab
-                                    (slideInVertically(
-                                        initialOffsetY = { it },
-                                        animationSpec = tween(260, easing = FastOutSlowInEasing)
-                                    ) + fadeIn(animationSpec = tween(200, easing = LinearOutSlowInEasing)))
-                                        .togetherWith(
-                                            fadeOut(animationSpec = tween(150))
-                                        )
-                                        .using(noClipSizeTransform)
-                                        .apply { targetContentZIndex = 1f }
-                                } else if (isExitingToNull) {
-                                    // Final stack exit: smooth vertical slide-down off bottom edge back to active tab
-                                    fadeIn(animationSpec = tween(150))
-                                        .togetherWith(
-                                            slideOutVertically(
-                                                targetOffsetY = { it },
-                                                animationSpec = tween(220, easing = FastOutSlowInEasing)
-                                            ) + fadeOut(animationSpec = tween(180, easing = LinearEasing))
-                                        )
-                                        .using(noClipSizeTransform)
-                                        .apply { targetContentZIndex = -1f }
-                                } else if (isPush) {
-                                    // Pushing deeper overlay: target slides in horizontally from right, outgoing shifts slightly left.
-                                    // CRUCIAL: No fadeOut to transparent or scale down, preventing the underlying Discover/active tab from flashing frozen!
-                                        slideInHorizontally(
-                                            initialOffsetX = { it },
-                                            animationSpec = tween(280, easing = FastOutSlowInEasing)
-                                        ).togetherWith(
-                                            slideOutHorizontally(
-                                                targetOffsetX = { -it / 4 },
-                                                animationSpec = tween(280, easing = FastOutSlowInEasing)
-                                            )
-                                        )
-                                        .using(noClipSizeTransform)
-                                        .apply { targetContentZIndex = 1f }
-                                    } else {
-                                        // Popping overlay back: outgoing slides off to right, previous target slides back from left.
-                                        // Zero transparent gaps, preventing any underlying background flash.
-                                        slideInHorizontally(
-                                            initialOffsetX = { -it / 4 },
-                                            animationSpec = tween(250, easing = FastOutSlowInEasing)
-                                        ).togetherWith(
-                                            slideOutHorizontally(
-                                                targetOffsetX = { it },
-                                                animationSpec = tween(250, easing = FastOutSlowInEasing)
-                                            )
-                                        )
-                                        .using(noClipSizeTransform)
-                                        .apply { targetContentZIndex = -1f }
-                                    }
-                            },
-                            label = "ScreenOverlayTransition"
+                        // Top-level modal/overlay stack rendering with Animite-inspired predictive back gestures & two-layer stack
+                        PredictiveBackOverlayContainer(
+                            screenStack = screenStack,
+                            onPopScreen = { globalViewModel.popScreen() },
+                            modifier = Modifier.fillMaxSize()
                         ) { currentScreen ->
                             when (currentScreen) {
                                 is ScreenRoute.CastCrew -> {

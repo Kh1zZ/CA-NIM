@@ -5,6 +5,15 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.4.12] - 2026-09-16
+### Fixed
+- **Predictive Back Gestures & Stage Transitions (Animite-Inspired)**: Overhauled overlay screen navigation with a dedicated `PredictiveBackOverlayContainer` using Android's `PredictiveBackHandler`. Swipe gestures track the user's thumb in real-time with smooth scaling, corner rounding, and parallax reveal of the previous screen, supporting cancellation and spring-back.
+- **Two-Layer Stack Rendering & Zero Background Leaks**: Replaced the legacy single-element `AnimatedContent` switcher with a true two-layer managed backstack container. When overlay depth is greater than 1, the immediate underlying screen remains composed with an opaque `BlackBg` directly behind the active screen, completely shielding and preventing the active tab (`DiscoverScreen`) from ever flashing or leaking through.
+- **Consecutive Multi-Back Navigation Stutter**: Eliminated the visual blink and layout interruption occurring on consecutive back actions (back 2x, 3x) across nested screens (Detail -> Cast VA -> Detail). The underlying screen is already measured and drawn, enabling instantaneous, silky-smooth transitions.
+
+### Changed
+- Bumped app version to v6.4.12 (versionCode 55).
+
 ## [v6.4.11] - 2026-09-16
 ### Fixed
 - **Anti-False Cache for Incomplete AniList Metadata**: Anime details that fail to load cast & crew due to AniList API errors (such as 429 rate limits, cooldowns, or network timeouts) are excluded from being treated or stored as valid completed cache entries. Complete cache is only registered once all anime metadata along with cast & crew are successfully populated without warnings.
