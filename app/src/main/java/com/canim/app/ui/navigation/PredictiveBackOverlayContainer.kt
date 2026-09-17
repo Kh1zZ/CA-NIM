@@ -72,12 +72,40 @@ fun PredictiveBackOverlayContainer(
     // Exiting route (popped screen animating out)
     var exitingRoute by remember { mutableStateOf<ScreenRoute?>(null) }
     var exitingFromSingleLayer by remember { mutableStateOf(false) }
+    var isExitingGesturePop by remember { mutableStateOf(false) }
+    var popStartProgress by remember { mutableFloatStateOf(0f) }
     val popAnim = remember { Animatable(0f) }
 
     // Push tracking
     var isPushing by remember { mutableStateOf(false) }
     var isPushingFromEmpty by remember { mutableStateOf(false) }
     val pushAnim = remember { Animatable(0f) }
+
+    // ── Synchronous Frame-1 State Detection (Eliminates 1-frame visual flash/gap) ───
+    if (screenStack != previousStack) {
+        val oldStack = previousStack
+        previousStack = screenStack
+
+        if (screenStack.size < oldStack.size) {
+            // POP: synchronously latch exiting route on Frame 1 before render pass
+            val popped = oldStack.lastOrNull()
+            if (popped != null) {
+                exitingRoute = popped
+                exitingFromSingleLayer = oldStack.size == 1
+                isExitingGesturePop = wasGesturePop
+                popStartProgress = if (wasGesturePop) lastGestureProgress else 0f
+                wasGesturePop = false
+                isPushing = false
+            }
+        } else if (screenStack.size > oldStack.size) {
+            // PUSH: synchronously latch pushing state on Frame 1 so screen starts at alpha=0
+            isPushing = true
+            isPushingFromEmpty = oldStack.isEmpty()
+            exitingRoute = null
+            isExitingGesturePop = false
+            popStartProgress = 0f
+        }
+    }
 
     // ── 1. Native Predictive Back Handler ─────────────────────────────────────
     PredictiveBackHandler(enabled = screenStack.isNotEmpty()) { progressFlow ->
@@ -114,61 +142,36 @@ fun PredictiveBackOverlayContainer(
         }
     }
 
-    // ── 2. Navigation Transitions ─────────────────────────────────────────────
+    // ── 2. Navigation Transition Driver ───────────────────────────────────────
     LaunchedEffect(screenStack) {
-        val oldStack = previousStack
-        previousStack = screenStack
-
         try {
-            when {
-                // ── POP (Stack size decreased) ────────────────────────────────────
-                screenStack.size < oldStack.size -> {
-                    val popped = oldStack.lastOrNull()
-                    if (popped != null) {
-                        exitingRoute = popped
-                        exitingFromSingleLayer = oldStack.size == 1
-
-                        if (wasGesturePop) {
-                            wasGesturePop = false
-                            // Smoothly finish the remaining distance from finger release to 1.0f
-                            popAnim.snapTo(lastGestureProgress)
-                            val remainingDistance = (1f - lastGestureProgress).coerceIn(0f, 1f)
-                            val duration = (remainingDistance * 180).toInt().coerceAtLeast(80)
-                            popAnim.animateTo(
-                                targetValue = 1f,
-                                animationSpec = tween(durationMillis = duration, easing = FastOutSlowInEasing)
-                            )
-                        } else {
-                            // Programmatic / in-app button pop
-                            popAnim.snapTo(0f)
-                            popAnim.animateTo(
-                                targetValue = 1f,
-                                animationSpec = tween(
-                                    durationMillis = if (exitingFromSingleLayer) 220 else 200,
-                                    easing = FastOutSlowInEasing
-                                )
-                            )
-                        }
-                    }
+            if (exitingRoute != null) {
+                popAnim.snapTo(0f)
+                val duration = if (isExitingGesturePop) {
+                    val remainingDistance = (1f - popStartProgress).coerceIn(0f, 1f)
+                    (remainingDistance * 200).toInt().coerceAtLeast(80)
+                } else {
+                    if (exitingFromSingleLayer) 220 else 200
                 }
-
-                // ── PUSH (Stack size increased) ───────────────────────────────────
-                screenStack.size > oldStack.size -> {
-                    isPushing = true
-                    isPushingFromEmpty = oldStack.isEmpty()
-                    pushAnim.snapTo(0f)
-                    pushAnim.animateTo(
-                        targetValue = 1f,
-                        animationSpec = tween(
-                            durationMillis = if (isPushingFromEmpty) 260 else 220,
-                            easing = FastOutSlowInEasing
-                        )
+                popAnim.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(durationMillis = duration, easing = FastOutSlowInEasing)
+                )
+            } else if (isPushing) {
+                pushAnim.snapTo(0f)
+                pushAnim.animateTo(
+                    targetValue = 1f,
+                    animationSpec = tween(
+                        durationMillis = if (isPushingFromEmpty) 240 else 220,
+                        easing = FastOutSlowInEasing
                     )
-                }
+                )
             }
         } finally {
             // Guaranteed cleanup: no state leaks, no frozen screens
             exitingRoute = null
+            isExitingGesturePop = false
+            popStartProgress = 0f
             popAnim.snapTo(0f)
             isPushing = false
             pushAnim.snapTo(0f)
@@ -200,6 +203,13 @@ fun PredictiveBackOverlayContainer(
         // Active foreground screen being animated:
         val foregroundRoute: ScreenRoute? = exitingRoute ?: currentTopScreen
 
+        // Calculate actual pop progress (starts at popStartProgress if gesture pop):
+        val actualPopProgress = if (isExitingGesturePop) {
+            popStartProgress + (popAnim.value * (1f - popStartProgress))
+        } else {
+            popAnim.value
+        }
+
         // Transition progress for underlying and foreground
         val underProgress: Float
         val showTabsScrim: Boolean
@@ -207,7 +217,7 @@ fun PredictiveBackOverlayContainer(
 
         when {
             exitingRoute != null -> {
-                val p = popAnim.value
+                val p = actualPopProgress
                 underProgress = p
                 showTabsScrim = exitingFromSingleLayer
                 tabsScrimAlpha = ((1f - p) * 0.35f).coerceIn(0f, 0.35f)
@@ -226,8 +236,8 @@ fun PredictiveBackOverlayContainer(
             }
             else -> {
                 underProgress = 0f
-                showTabsScrim = false
-                tabsScrimAlpha = 0f
+                showTabsScrim = screenStack.size == 1
+                tabsScrimAlpha = if (screenStack.size == 1) 0.35f else 0f
             }
         }
 
@@ -279,16 +289,23 @@ fun PredictiveBackOverlayContainer(
 
                 when {
                     exitingRoute != null -> {
-                        val p = popAnim.value
-                        if (exitingFromSingleLayer) {
-                            // Card collapse down to tabs
+                        val p = actualPopProgress
+                        if (isExitingGesturePop) {
+                            // Gesture Pop: continue smooth horizontal slide to right until off-screen!
+                            transX = p * widthPx
+                            transY = 0f
+                            fgScale = 1f - (p * 0.06f)
+                            fgAlpha = 1f
+                            cornerRadiusDp = p * 20f
+                        } else if (exitingFromSingleLayer) {
+                            // Programmatic pop from single layer: Card collapse down to tabs
                             transX = 0f
                             transY = p * elevationSlidePx
                             fgScale = 1f - (p * 0.06f)
                             fgAlpha = (1f - p).coerceIn(0f, 1f)
                             cornerRadiusDp = p * 20f
                         } else {
-                            // Multi-layer slide to right
+                            // Multi-layer programmatic slide to right
                             transX = p * widthPx
                             transY = 0f
                             fgScale = 1f

@@ -257,12 +257,7 @@ class MainActivity : ComponentActivity() {
                                     floatingActionButton = {},
                                     bottomBar = {
                                         if (!isWideScreen) {
-                                            androidx.compose.animation.AnimatedVisibility(
-                                                visible = !hasOverlay,
-                                                enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }) + androidx.compose.animation.fadeIn(),
-                                                exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it }) + androidx.compose.animation.fadeOut()
-                                            ) {
-                                                val activeIndex = navItems.indexOfFirst { it.route == globalState.activeTab }.coerceAtLeast(0)
+                                            val activeIndex = navItems.indexOfFirst { it.route == globalState.activeTab }.coerceAtLeast(0)
 
                                             Surface(
                                                 color = CardBg,
@@ -383,7 +378,6 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
                                     }
-                                }
                                 ) { innerPadding ->
                                     Box(
                                         modifier = Modifier
@@ -446,7 +440,39 @@ class MainActivity : ComponentActivity() {
                         AnimatedContent(
                             targetState = globalState.activeTab,
                             transitionSpec = {
-                                fadeIn(animationSpec = tween(180)).togetherWith(fadeOut(animationSpec = tween(180)))
+                                val initialIndex = navItems.indexOfFirst { it.route == initialState }.coerceAtLeast(0)
+                                val targetIndex = navItems.indexOfFirst { it.route == targetState }.coerceAtLeast(0)
+                                if (targetIndex > initialIndex) {
+                                    // Moving right (higher index): slide in from right, slide out to left
+                                    (slideInHorizontally(
+                                        initialOffsetX = { fullWidth -> (fullWidth * 0.35f).toInt() },
+                                        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)
+                                    ) + fadeIn(
+                                        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                                    )).togetherWith(
+                                        slideOutHorizontally(
+                                            targetOffsetX = { fullWidth -> -(fullWidth * 0.35f).toInt() },
+                                            animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                                        ) + fadeOut(
+                                            animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)
+                                        )
+                                    )
+                                } else {
+                                    // Moving left (lower index): slide in from left, slide out to right
+                                    (slideInHorizontally(
+                                        initialOffsetX = { fullWidth -> -(fullWidth * 0.35f).toInt() },
+                                        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)
+                                    ) + fadeIn(
+                                        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                                    )).togetherWith(
+                                        slideOutHorizontally(
+                                            targetOffsetX = { fullWidth -> (fullWidth * 0.35f).toInt() },
+                                            animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                                        ) + fadeOut(
+                                            animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)
+                                        )
+                                    )
+                                }
                             },
                             label = "TabContent"
                         ) { activeTab ->
@@ -592,8 +618,10 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         }
+                    }
+                }
 
-                        LaunchedEffect(screenStack.isEmpty()) {
+                LaunchedEffect(screenStack.isEmpty()) {
                             if (screenStack.isEmpty()) {
                                 detailViewModel.closeDetail()
                                 studioViewModel.closeStudio()
@@ -1038,8 +1066,6 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-}
-}
 }
     }
 
