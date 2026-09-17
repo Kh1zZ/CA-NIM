@@ -256,8 +256,13 @@ class MainActivity : ComponentActivity() {
                                     },
                                     floatingActionButton = {},
                                     bottomBar = {
-                                        if (!isWideScreen && !hasOverlay) {
-                                            val activeIndex = navItems.indexOfFirst { it.route == globalState.activeTab }.coerceAtLeast(0)
+                                        if (!isWideScreen) {
+                                            androidx.compose.animation.AnimatedVisibility(
+                                                visible = !hasOverlay,
+                                                enter = androidx.compose.animation.slideInVertically(initialOffsetY = { it }) + androidx.compose.animation.fadeIn(),
+                                                exit = androidx.compose.animation.slideOutVertically(targetOffsetY = { it }) + androidx.compose.animation.fadeOut()
+                                            ) {
+                                                val activeIndex = navItems.indexOfFirst { it.route == globalState.activeTab }.coerceAtLeast(0)
 
                                             Surface(
                                                 color = CardBg,
@@ -378,6 +383,7 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
                                     }
+                                }
                                 ) { innerPadding ->
                                     Box(
                                         modifier = Modifier
@@ -587,6 +593,13 @@ class MainActivity : ComponentActivity() {
                             }
                         }
 
+                        LaunchedEffect(screenStack.isEmpty()) {
+                            if (screenStack.isEmpty()) {
+                                detailViewModel.closeDetail()
+                                studioViewModel.closeStudio()
+                            }
+                        }
+
                         // Top-level modal/overlay stack rendering with Animite-inspired predictive back gestures & two-layer stack
                         PredictiveBackOverlayContainer(
                             screenStack = screenStack,
@@ -765,7 +778,6 @@ class MainActivity : ComponentActivity() {
                                             detailViewModel.openDetail(detailItem, currentScreen.type)
                                         },
                                         onDismiss = {
-                                            detailViewModel.closeDetail()
                                             globalViewModel.popScreen()
                                         }
                                     )
@@ -785,7 +797,6 @@ class MainActivity : ComponentActivity() {
                                             globalViewModel.openDetail(media, type)
                                         },
                                         onBack = {
-                                            studioViewModel.closeStudio()
                                             globalViewModel.popScreen()
                                         },
                                         bioInfo = studioState.bio,
@@ -879,9 +890,6 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onBack = { globalViewModel.popScreen() }
                                     )
-                                }
-                                null -> {
-                                    Spacer(modifier = Modifier.fillMaxSize())
                                 }
                             }
                         }

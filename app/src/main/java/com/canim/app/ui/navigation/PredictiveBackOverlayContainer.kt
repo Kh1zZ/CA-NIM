@@ -24,7 +24,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import com.canim.app.ui.theme.BlackBg
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
@@ -34,31 +33,25 @@ import kotlinx.coroutines.withContext
  *
  * Kinematic Architecture:
  * 1. Card Expansion & Hero Reveal (Stack 0 -> 1):
- *    - Opening any media detail from the menu triggers a cinematic expansion: the screen scales
- *      up gracefully from 0.92f to 1.0f, elevates with a subtle 56dp slide-up, fades in, and
- *      smooths its 24dp card corner radius to 0dp. The background tabs dim with a 40% scrim.
+ *    - Opening media detail expands vertically with scale (0.94f -> 1.0f) and fade (0f -> 1f).
+ *    - Background tabs dim with a translucent 35% scrim, remaining visible underneath.
  *
  * 2. Card Collapse on Dismiss (Stack 1 -> 0):
- *    - Returning to the menu collapses the detail screen back into card dimensions (1.0f -> 0.92f,
- *      56dp slide-down, fade-out, corner radius returning to 24dp), revealing the ready tabs
- *      underneath with zero black flash or layout stutter.
+ *    - Programmatic dismiss collapses vertically (1.0f -> 0.94f, slide-down, fade-out).
+ *    - Reveals the underlying tabs with zero black flash or layout stutter.
  *
- * 3. True Multi-Layer Parallax (Stack N -> N+1 & N+1 -> N):
- *    - Nested navigation (Detail -> Cast/Crew -> Full Cast) uses synchronized horizontal kinematics:
- *      foreground slides in/out from the right, while the underlying screen recedes with a
- *      -22% parallax shift and a 35% darkening scrim.
+ * 3. Pure Linear Edge-Swipe Kinematics:
+ *    - Gesture back follows the user's thumb horizontally with translationX only (translationY = 0f).
+ *    - Eliminates all diagonal / slanted ("nyerong") movement.
+ *    - Underneath, tabs or previous screen are fully visible through the gesture window.
  *
- * 4. Responsive & Uninterruptible Gesture Navigation:
- *    - System predictive back gesture tracks the user's thumb live with organic scale and corner
- *      rounding.
- *    - Gesture cancellation recovery is executed inside `withContext(NonCancellable)`, guaranteeing
- *      a crisp spring back to 0f without ever freezing ("layar nyangkut").
- *    - Commit path animates to full 1.0f completion before updating `screenStack`, eliminating
- *      instant unmount visual blinks.
+ * 4. Reliable Gesture Completion:
+ *    - PredictiveBackHandler immediately commits onPopScreen() upon gesture completion.
+ *    - Finishes the exit slide smoothly in LaunchedEffect, immune to AndroidX coroutine scope cancellations.
+ *    - Spring return on gesture cancellation runs in NonCancellable.
  *
- * 5. Zero-Overhead Idle State:
- *    - When `screenStack.isEmpty()` and no transition is running, the container renders nothing,
- *      letting all pointer events pass directly to the bottom tab bar.
+ * 5. Leak-Proof Lifecycle (try/finally):
+ *    - Guaranteed cleanup of all transition states preventing screen freeze ("layar nyangkut").
  */
 @Composable
 fun PredictiveBackOverlayContainer(
@@ -70,24 +63,23 @@ fun PredictiveBackOverlayContainer(
     // ── Gesture State ─────────────────────────────────────────────────────────
     var isGestureActive by remember { mutableStateOf(false) }
     var gestureProgress by remember { mutableFloatStateOf(0f) }
-    val gestureAnim = remember { Animatable(0f) }
     var wasGesturePop by remember { mutableStateOf(false) }
+    var lastGestureProgress by remember { mutableFloatStateOf(0f) }
 
-    // ── Discrete Animation State (Push & Pop) ─────────────────────────────────
+    // ── Stack Animation Tracking ──────────────────────────────────────────────
     var previousStack by remember { mutableStateOf(screenStack) }
 
-    // Pop tracking:
+    // Exiting route (popped screen animating out)
     var exitingRoute by remember { mutableStateOf<ScreenRoute?>(null) }
     var exitingFromSingleLayer by remember { mutableStateOf(false) }
     val popAnim = remember { Animatable(0f) }
 
-    // Push tracking:
+    // Push tracking
     var isPushing by remember { mutableStateOf(false) }
     var isPushingFromEmpty by remember { mutableStateOf(false) }
-    var pushUnderRoute by remember { mutableStateOf<ScreenRoute?>(null) }
     val pushAnim = remember { Animatable(0f) }
 
-    // ── 1. Native Predictive Back Handler (System Edge Swipe) ─────────────────
+    // ── 1. Native Predictive Back Handler ─────────────────────────────────────
     PredictiveBackHandler(enabled = screenStack.isNotEmpty()) { progressFlow ->
         try {
             isGestureActive = true
@@ -95,135 +87,144 @@ fun PredictiveBackOverlayContainer(
                 gestureProgress = backEvent.progress
             }
 
-            // Gesture committed: animate remaining distance to 1.0f (fully offscreen/collapsed)
+            // GESTURE COMMITTED:
+            // AndroidX cancels this coroutine scope immediately when onBackInvoked completes.
+            // We MUST NOT run a suspend animation here. Immediately notify pop:
+            lastGestureProgress = gestureProgress
             wasGesturePop = true
-            gestureAnim.snapTo(gestureProgress)
-            gestureAnim.animateTo(
-                targetValue = 1f,
-                animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
-            )
-
-            // Screen is now 100% offscreen; safe to update stack without visual flicker
             onPopScreen()
-            isGestureActive = false
-            gestureProgress = 0f
-            gestureAnim.snapTo(0f)
-
         } catch (e: CancellationException) {
-            // Gesture cancelled: spring smoothly back to resting position.
-            // MUST run inside NonCancellable so the animation isn't cancelled immediately!
+            // GESTURE CANCELLED:
+            // Spring smoothly back to 0f without popping
             withContext(NonCancellable) {
-                gestureAnim.snapTo(gestureProgress)
-                gestureAnim.animateTo(
+                val cancelAnim = Animatable(gestureProgress)
+                cancelAnim.animateTo(
                     targetValue = 0f,
                     animationSpec = spring(
                         stiffness = Spring.StiffnessMediumLow,
                         dampingRatio = Spring.DampingRatioNoBouncy
                     )
-                )
-                isGestureActive = false
-                gestureProgress = 0f
-                gestureAnim.snapTo(0f)
+                ) {
+                    gestureProgress = this.value
+                }
             }
-            throw e
+        } finally {
+            isGestureActive = false
+            gestureProgress = 0f
         }
     }
 
-    // ── 2. Discrete Navigation Transitions (Button Clicks / Programmatic) ─────
+    // ── 2. Navigation Transitions ─────────────────────────────────────────────
     LaunchedEffect(screenStack) {
         val oldStack = previousStack
         previousStack = screenStack
 
-        when {
-            // ── POP (Stack size decreased) ────────────────────────────────────
-            screenStack.size < oldStack.size -> {
-                if (wasGesturePop) {
-                    // Gesture already smoothly animated the exit to 1f; clear flag
-                    wasGesturePop = false
-                } else {
+        try {
+            when {
+                // ── POP (Stack size decreased) ────────────────────────────────────
+                screenStack.size < oldStack.size -> {
                     val popped = oldStack.lastOrNull()
                     if (popped != null) {
                         exitingRoute = popped
-                        exitingFromSingleLayer = oldStack.size == 1 // Stack was 1 -> now 0 (Card Collapse)
-                        popAnim.snapTo(0f)
-                        popAnim.animateTo(
-                            targetValue = 1f,
-                            animationSpec = tween(
-                                durationMillis = if (exitingFromSingleLayer) 260 else 240,
-                                easing = FastOutSlowInEasing
+                        exitingFromSingleLayer = oldStack.size == 1
+
+                        if (wasGesturePop) {
+                            wasGesturePop = false
+                            // Smoothly finish the remaining distance from finger release to 1.0f
+                            popAnim.snapTo(lastGestureProgress)
+                            val remainingDistance = (1f - lastGestureProgress).coerceIn(0f, 1f)
+                            val duration = (remainingDistance * 180).toInt().coerceAtLeast(80)
+                            popAnim.animateTo(
+                                targetValue = 1f,
+                                animationSpec = tween(durationMillis = duration, easing = FastOutSlowInEasing)
                             )
-                        )
-                        exitingRoute = null
-                        popAnim.snapTo(0f)
+                        } else {
+                            // Programmatic / in-app button pop
+                            popAnim.snapTo(0f)
+                            popAnim.animateTo(
+                                targetValue = 1f,
+                                animationSpec = tween(
+                                    durationMillis = if (exitingFromSingleLayer) 220 else 200,
+                                    easing = FastOutSlowInEasing
+                                )
+                            )
+                        }
                     }
                 }
-            }
 
-            // ── PUSH (Stack size increased) ───────────────────────────────────
-            screenStack.size > oldStack.size -> {
-                isPushing = true
-                isPushingFromEmpty = oldStack.isEmpty() // Stack was 0 -> now 1 (Card Expansion)
-                pushUnderRoute = oldStack.lastOrNull()
-                pushAnim.snapTo(0f)
-                pushAnim.animateTo(
-                    targetValue = 1f,
-                    animationSpec = tween(
-                        durationMillis = if (isPushingFromEmpty) 300 else 260,
-                        easing = FastOutSlowInEasing
+                // ── PUSH (Stack size increased) ───────────────────────────────────
+                screenStack.size > oldStack.size -> {
+                    isPushing = true
+                    isPushingFromEmpty = oldStack.isEmpty()
+                    pushAnim.snapTo(0f)
+                    pushAnim.animateTo(
+                        targetValue = 1f,
+                        animationSpec = tween(
+                            durationMillis = if (isPushingFromEmpty) 260 else 220,
+                            easing = FastOutSlowInEasing
+                        )
                     )
-                )
-                isPushing = false
-                pushUnderRoute = null
-                pushAnim.snapTo(0f)
+                }
             }
+        } finally {
+            // Guaranteed cleanup: no state leaks, no frozen screens
+            exitingRoute = null
+            popAnim.snapTo(0f)
+            isPushing = false
+            pushAnim.snapTo(0f)
+            lastGestureProgress = 0f
         }
     }
 
     // ── 3. Kinematic Render Pass ──────────────────────────────────────────────
     val hasContent = screenStack.isNotEmpty() || exitingRoute != null || isGestureActive || isPushing
-
-    if (!hasContent) {
-        // Completely idle with empty stack: zero layout, zero draw overhead, tabs 100% active
-        return
-    }
+    if (!hasContent) return
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val widthPx = constraints.maxWidth.toFloat().coerceAtLeast(1f)
         val density = LocalDensity.current
-        val elevationSlidePx = with(density) { 56.dp.toPx() }
-        val currentTopScreen = screenStack.lastOrNull()
-        val isSingleLayer = screenStack.size <= 1
+        val elevationSlidePx = with(density) { 48.dp.toPx() }
 
-        // ── Determine Layer 1 (Underlying Screen & Parallax Progress) ──────────
-        val underScreen: ScreenRoute?
-        val underProgress: Float // 0f = fully covered/receded, 1f = fully revealed/centered
+        // Top active screen in current stack
+        val currentTopScreen = screenStack.lastOrNull()
+
+        // Underlying screen (if nested stack):
+        // If an exitingRoute is present, underlying screen is currentTopScreen!
+        // If no exitingRoute and gesture/push is active, underlying screen is the second-to-last item!
+        val underlyingRoute: ScreenRoute? = when {
+            exitingRoute != null -> if (exitingFromSingleLayer) null else currentTopScreen
+            isGestureActive || isPushing -> if (screenStack.size > 1) screenStack[screenStack.size - 2] else null
+            else -> null
+        }
+
+        // Active foreground screen being animated:
+        val foregroundRoute: ScreenRoute? = exitingRoute ?: currentTopScreen
+
+        // Transition progress for underlying and foreground
+        val underProgress: Float
         val showTabsScrim: Boolean
         val tabsScrimAlpha: Float
 
         when {
-            isGestureActive -> {
-                val p = if (gestureAnim.isRunning) gestureAnim.value else gestureProgress
-                underScreen = if (screenStack.size > 1) screenStack[screenStack.size - 2] else null
-                underProgress = p
-                showTabsScrim = isSingleLayer
-                tabsScrimAlpha = ((1f - p) * 0.40f).coerceIn(0f, 0.40f)
-            }
             exitingRoute != null -> {
                 val p = popAnim.value
-                underScreen = if (exitingFromSingleLayer) null else currentTopScreen
                 underProgress = p
                 showTabsScrim = exitingFromSingleLayer
-                tabsScrimAlpha = ((1f - p) * 0.40f).coerceIn(0f, 0.40f)
+                tabsScrimAlpha = ((1f - p) * 0.35f).coerceIn(0f, 0.35f)
+            }
+            isGestureActive -> {
+                val p = gestureProgress
+                underProgress = p
+                showTabsScrim = screenStack.size <= 1
+                tabsScrimAlpha = ((1f - p) * 0.35f).coerceIn(0f, 0.35f)
             }
             isPushing -> {
                 val p = pushAnim.value
-                underScreen = pushUnderRoute
                 underProgress = 1f - p
                 showTabsScrim = isPushingFromEmpty
-                tabsScrimAlpha = (p * 0.40f).coerceIn(0f, 0.40f)
+                tabsScrimAlpha = (p * 0.35f).coerceIn(0f, 0.35f)
             }
             else -> {
-                underScreen = null
                 underProgress = 0f
                 showTabsScrim = false
                 tabsScrimAlpha = 0f
@@ -231,8 +232,7 @@ fun PredictiveBackOverlayContainer(
         }
 
         Box(modifier = Modifier.fillMaxSize()) {
-
-            // ── Background Scrim for Tabs (when Stack is 1 -> 0 or 0 -> 1) ─────────
+            // Scrim over underlying tabs (semi-transparent, tabs remain visible underneath!)
             if (showTabsScrim && tabsScrimAlpha > 0.005f) {
                 Box(
                     modifier = Modifier
@@ -241,25 +241,23 @@ fun PredictiveBackOverlayContainer(
                 )
             }
 
-            // ── Layer 1: UNDERLYING SCREEN (Screen N-1) ───────────────────────
-            // Composed ONLY during transitions with isTopScreen = false.
-            if (underScreen != null) {
-                key(underScreen) {
+            // ── Underlying Screen (Screen N-1) ────────────────────────────────
+            if (underlyingRoute != null) {
+                key(underlyingRoute) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(BlackBg)
                             .graphicsLayer {
-                                translationX = -(1f - underProgress) * (widthPx * 0.22f)
+                                translationX = -(1f - underProgress) * (widthPx * 0.20f)
                                 val scale = 0.95f + (underProgress * 0.05f)
                                 scaleX = scale
                                 scaleY = scale
                             }
                     ) {
-                        content(underScreen, false)
+                        content(underlyingRoute, false)
 
-                        // Darkening scrim that clears as under-screen comes to foreground
-                        val scrimAlpha = (1f - underProgress).coerceIn(0f, 1f) * 0.35f
+                        // Subtle darkening scrim that fades as screen comes to front
+                        val scrimAlpha = (1f - underProgress).coerceIn(0f, 1f) * 0.30f
                         if (scrimAlpha > 0.005f) {
                             Box(
                                 modifier = Modifier
@@ -271,103 +269,74 @@ fun PredictiveBackOverlayContainer(
                 }
             }
 
-            // ── Determine Layer 2 (Foreground Screen Kinematics) ──────────────
-            val foregroundRoute: ScreenRoute?
-            val foregroundIsTop: Boolean
-            val transX: Float
-            val transY: Float
-            val fgScale: Float
-            val fgAlpha: Float
-            val cornerRadiusDp: Float
+            // ── Foreground Screen (Screen N) ──────────────────────────────────
+            if (foregroundRoute != null) {
+                val transX: Float
+                val transY: Float
+                val fgScale: Float
+                val fgAlpha: Float
+                val cornerRadiusDp: Float
 
-            when {
-                exitingRoute != null -> {
-                    foregroundRoute = exitingRoute
-                    foregroundIsTop = false
-                    val p = popAnim.value
-                    if (exitingFromSingleLayer) {
-                        // Card Collapse back to tabs (Animite style)
-                        transX = 0f
-                        transY = p * elevationSlidePx
-                        fgScale = 1f - (p * 0.08f)
-                        fgAlpha = (1f - p).coerceIn(0f, 1f)
-                        cornerRadiusDp = p * 24f
-                    } else {
-                        // Multi-layer slide to right
+                when {
+                    exitingRoute != null -> {
+                        val p = popAnim.value
+                        if (exitingFromSingleLayer) {
+                            // Card collapse down to tabs
+                            transX = 0f
+                            transY = p * elevationSlidePx
+                            fgScale = 1f - (p * 0.06f)
+                            fgAlpha = (1f - p).coerceIn(0f, 1f)
+                            cornerRadiusDp = p * 20f
+                        } else {
+                            // Multi-layer slide to right
+                            transX = p * widthPx
+                            transY = 0f
+                            fgScale = 1f
+                            fgAlpha = 1f
+                            cornerRadiusDp = p * 16f
+                        }
+                    }
+                    isGestureActive -> {
+                        val p = gestureProgress
+                        // PURE HORIZONTAL GESTURE - translationY is ALWAYS 0f (NO DIAGONAL!)
                         transX = p * widthPx
                         transY = 0f
-                        fgScale = 1f - (p * 0.05f)
+                        fgScale = 1f - (p * 0.06f)
                         fgAlpha = 1f
-                        cornerRadiusDp = p * 16f
+                        cornerRadiusDp = p * 20f
                     }
-                }
-                isGestureActive -> {
-                    foregroundRoute = currentTopScreen
-                    foregroundIsTop = true
-                    val p = if (gestureAnim.isRunning) gestureAnim.value else gestureProgress
-                    if (isSingleLayer) {
-                        // Gesture back to tabs (follows thumb with organic shrink & radius)
-                        transX = p * (widthPx * 0.70f)
-                        transY = p * (elevationSlidePx * 0.40f)
-                        fgScale = 1f - (p * 0.10f)
-                        fgAlpha = (1f - (p * 0.30f)).coerceIn(0f, 1f)
-                        cornerRadiusDp = p * 24f
-                    } else {
-                        // Multi-layer gesture slide
-                        transX = p * widthPx
-                        transY = 0f
-                        fgScale = 1f - (p * 0.05f)
-                        fgAlpha = 1f
-                        cornerRadiusDp = p * 16f
+                    isPushing -> {
+                        val p = pushAnim.value
+                        if (isPushingFromEmpty) {
+                            // Card expansion up from tabs
+                            transX = 0f
+                            transY = (1f - p) * elevationSlidePx
+                            fgScale = 0.94f + (p * 0.06f)
+                            fgAlpha = p.coerceIn(0f, 1f)
+                            cornerRadiusDp = (1f - p) * 20f
+                        } else {
+                            // Multi-layer push from right
+                            transX = (1f - p) * widthPx
+                            transY = 0f
+                            fgScale = 1f
+                            fgAlpha = 1f
+                            cornerRadiusDp = 0f
+                        }
                     }
-                }
-                isPushing -> {
-                    foregroundRoute = currentTopScreen
-                    foregroundIsTop = true
-                    val p = pushAnim.value // 0f -> 1f
-                    if (isPushingFromEmpty) {
-                        // Card Expansion from menu into detail (Animite style!)
+                    else -> {
+                        // Resting state
                         transX = 0f
-                        transY = (1f - p) * elevationSlidePx
-                        fgScale = 0.92f + (p * 0.08f)
-                        fgAlpha = p.coerceIn(0f, 1f)
-                        cornerRadiusDp = (1f - p) * 24f
-                    } else {
-                        // Multi-layer push from right
-                        transX = (1f - p) * widthPx
                         transY = 0f
                         fgScale = 1f
                         fgAlpha = 1f
                         cornerRadiusDp = 0f
                     }
                 }
-                currentTopScreen != null -> {
-                    foregroundRoute = currentTopScreen
-                    foregroundIsTop = true
-                    transX = 0f
-                    transY = 0f
-                    fgScale = 1f
-                    fgAlpha = 1f
-                    cornerRadiusDp = 0f
-                }
-                else -> {
-                    foregroundRoute = null
-                    foregroundIsTop = false
-                    transX = 0f
-                    transY = 0f
-                    fgScale = 1f
-                    fgAlpha = 1f
-                    cornerRadiusDp = 0f
-                }
-            }
 
-            // ── Layer 2: FOREGROUND ACTIVE SCREEN (Screen N) ───────────────────
-            if (foregroundRoute != null) {
                 key(foregroundRoute) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(BlackBg)
                             .graphicsLayer {
                                 translationX = transX
                                 translationY = transY
@@ -380,7 +349,7 @@ fun PredictiveBackOverlayContainer(
                                 }
                             }
                     ) {
-                        content(foregroundRoute, foregroundIsTop)
+                        content(foregroundRoute, exitingRoute == null)
                     }
                 }
             }
