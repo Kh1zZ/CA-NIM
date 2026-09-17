@@ -188,20 +188,14 @@ fun PredictiveBackOverlayContainer(
         val density = LocalDensity.current
         val elevationSlidePx = with(density) { 48.dp.toPx() }
 
-        // Top active screen in current stack
-        val currentTopScreen = screenStack.lastOrNull()
-
-        // Underlying screen (if nested stack):
-        // If an exitingRoute is present, underlying screen is currentTopScreen!
-        // If no exitingRoute and gesture/push is active, underlying screen is the second-to-last item!
-        val underlyingRoute: ScreenRoute? = when {
-            exitingRoute != null -> if (exitingFromSingleLayer) null else currentTopScreen
-            isGestureActive || isPushing -> if (screenStack.size > 1) screenStack[screenStack.size - 2] else null
-            else -> null
+        val activeRoutes: List<ScreenRoute> = remember(screenStack, exitingRoute) {
+            val exiting = exitingRoute
+            if (exiting != null) {
+                screenStack + exiting
+            } else {
+                screenStack
+            }
         }
-
-        // Active foreground screen being animated:
-        val foregroundRoute: ScreenRoute? = exitingRoute ?: currentTopScreen
 
         // Calculate actual pop progress (starts at popStartProgress if gesture pop):
         val actualPopProgress = if (isExitingGesturePop) {
@@ -251,122 +245,133 @@ fun PredictiveBackOverlayContainer(
                 )
             }
 
-            // ── Underlying Screen (Screen N-1) ────────────────────────────────
-            if (underlyingRoute != null) {
-                key(underlyingRoute) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer {
-                                translationX = -(1f - underProgress) * (widthPx * 0.20f)
-                                val scale = 0.95f + (underProgress * 0.05f)
-                                scaleX = scale
-                                scaleY = scale
-                            }
-                    ) {
-                        content(underlyingRoute, false)
+            // ── Persistent Multi-Layer Screen Stack ───────────────────────────
+            // Maintains Composables in their exact tree positions, preserving
+            // LazyListState, Coil caches, and viewmodels across push and pop.
+            activeRoutes.forEachIndexed { index, route ->
+                val isTop = (index == activeRoutes.size - 1)
+                val isUnderlying = (index == activeRoutes.size - 2)
+                val isEffectivelyTop = isTop && (exitingRoute == null)
 
-                        // Subtle darkening scrim that fades as screen comes to front
-                        val scrimAlpha = (1f - underProgress).coerceIn(0f, 1f) * 0.30f
-                        if (scrimAlpha > 0.005f) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(Color.Black.copy(alpha = scrimAlpha))
-                            )
-                        }
-                    }
-                }
-            }
-
-            // ── Foreground Screen (Screen N) ──────────────────────────────────
-            if (foregroundRoute != null) {
-                val transX: Float
-                val transY: Float
-                val fgScale: Float
-                val fgAlpha: Float
-                val cornerRadiusDp: Float
+                val layerTransX: Float
+                val layerTransY: Float
+                val layerScale: Float
+                val layerAlpha: Float
+                val layerCornerRadiusDp: Float
+                val layerScrimAlpha: Float
 
                 when {
-                    exitingRoute != null -> {
-                        val p = actualPopProgress
-                        if (isExitingGesturePop) {
-                            // Gesture Pop: continue smooth horizontal slide to right until off-screen!
-                            transX = p * widthPx
-                            transY = 0f
-                            fgScale = 1f - (p * 0.06f)
-                            fgAlpha = 1f
-                            cornerRadiusDp = p * 20f
-                        } else if (exitingFromSingleLayer) {
-                            // Programmatic pop from single layer: Card collapse down to tabs
-                            transX = 0f
-                            transY = p * elevationSlidePx
-                            fgScale = 1f - (p * 0.06f)
-                            fgAlpha = (1f - p).coerceIn(0f, 1f)
-                            cornerRadiusDp = p * 20f
-                        } else {
-                            // Multi-layer programmatic slide to right
-                            transX = p * widthPx
-                            transY = 0f
-                            fgScale = 1f
-                            fgAlpha = 1f
-                            cornerRadiusDp = p * 16f
+                    isTop -> {
+                        layerScrimAlpha = 0f
+                        when {
+                            exitingRoute != null -> {
+                                val p = actualPopProgress
+                                if (isExitingGesturePop) {
+                                    // Gesture Pop: continue smooth horizontal slide to right until off-screen!
+                                    layerTransX = p * widthPx
+                                    layerTransY = 0f
+                                    layerScale = 1f - (p * 0.06f)
+                                    layerAlpha = 1f
+                                    layerCornerRadiusDp = p * 20f
+                                } else if (exitingFromSingleLayer) {
+                                    // Programmatic pop from single layer: Card collapse down to tabs
+                                    layerTransX = 0f
+                                    layerTransY = p * elevationSlidePx
+                                    layerScale = 1f - (p * 0.06f)
+                                    layerAlpha = (1f - p).coerceIn(0f, 1f)
+                                    layerCornerRadiusDp = p * 20f
+                                } else {
+                                    // Multi-layer programmatic slide to right
+                                    layerTransX = p * widthPx
+                                    layerTransY = 0f
+                                    layerScale = 1f
+                                    layerAlpha = 1f
+                                    layerCornerRadiusDp = p * 16f
+                                }
+                            }
+                            isGestureActive -> {
+                                val p = gestureProgress
+                                // PURE HORIZONTAL GESTURE - translationY is ALWAYS 0f (NO DIAGONAL!)
+                                layerTransX = p * widthPx
+                                layerTransY = 0f
+                                layerScale = 1f - (p * 0.06f)
+                                layerAlpha = 1f
+                                layerCornerRadiusDp = p * 20f
+                            }
+                            isPushing -> {
+                                val p = pushAnim.value
+                                if (isPushingFromEmpty) {
+                                    // Card expansion up from tabs
+                                    layerTransX = 0f
+                                    layerTransY = (1f - p) * elevationSlidePx
+                                    layerScale = 0.94f + (p * 0.06f)
+                                    layerAlpha = p.coerceIn(0f, 1f)
+                                    layerCornerRadiusDp = (1f - p) * 20f
+                                } else {
+                                    // Multi-layer push from right
+                                    layerTransX = (1f - p) * widthPx
+                                    layerTransY = 0f
+                                    layerScale = 1f
+                                    layerAlpha = 1f
+                                    layerCornerRadiusDp = 0f
+                                }
+                            }
+                            else -> {
+                                // Resting state
+                                layerTransX = 0f
+                                layerTransY = 0f
+                                layerScale = 1f
+                                layerAlpha = 1f
+                                layerCornerRadiusDp = 0f
+                            }
                         }
                     }
-                    isGestureActive -> {
-                        val p = gestureProgress
-                        // PURE HORIZONTAL GESTURE - translationY is ALWAYS 0f (NO DIAGONAL!)
-                        transX = p * widthPx
-                        transY = 0f
-                        fgScale = 1f - (p * 0.06f)
-                        fgAlpha = 1f
-                        cornerRadiusDp = p * 20f
-                    }
-                    isPushing -> {
-                        val p = pushAnim.value
-                        if (isPushingFromEmpty) {
-                            // Card expansion up from tabs
-                            transX = 0f
-                            transY = (1f - p) * elevationSlidePx
-                            fgScale = 0.94f + (p * 0.06f)
-                            fgAlpha = p.coerceIn(0f, 1f)
-                            cornerRadiusDp = (1f - p) * 20f
-                        } else {
-                            // Multi-layer push from right
-                            transX = (1f - p) * widthPx
-                            transY = 0f
-                            fgScale = 1f
-                            fgAlpha = 1f
-                            cornerRadiusDp = 0f
-                        }
+                    isUnderlying -> {
+                        layerTransX = -(1f - underProgress) * (widthPx * 0.20f)
+                        layerTransY = 0f
+                        layerScale = 0.95f + (underProgress * 0.05f)
+                        layerAlpha = 1f
+                        layerCornerRadiusDp = 0f
+                        layerScrimAlpha = (1f - underProgress).coerceIn(0f, 1f) * 0.30f
                     }
                     else -> {
-                        // Resting state
-                        transX = 0f
-                        transY = 0f
-                        fgScale = 1f
-                        fgAlpha = 1f
-                        cornerRadiusDp = 0f
+                        // Deeper layers (index < activeRoutes.size - 2)
+                        // Keep composition state alive without drawing overhead
+                        layerTransX = -(widthPx * 0.20f)
+                        layerTransY = 0f
+                        layerScale = 0.95f
+                        layerAlpha = 0f
+                        layerCornerRadiusDp = 0f
+                        layerScrimAlpha = 0f
                     }
                 }
 
-                key(foregroundRoute) {
+                key(index, route) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
                             .graphicsLayer {
-                                translationX = transX
-                                translationY = transY
-                                scaleX = fgScale
-                                scaleY = fgScale
-                                alpha = fgAlpha
-                                if (cornerRadiusDp > 0.5f) {
+                                translationX = layerTransX
+                                translationY = layerTransY
+                                scaleX = layerScale
+                                scaleY = layerScale
+                                alpha = layerAlpha
+                                if (layerCornerRadiusDp > 0.5f) {
                                     clip = true
-                                    shape = RoundedCornerShape(cornerRadiusDp.dp)
+                                    shape = RoundedCornerShape(layerCornerRadiusDp.dp)
                                 }
                             }
                     ) {
-                        content(foregroundRoute, exitingRoute == null)
+                        content(route, isEffectivelyTop)
+
+                        // Subtle darkening scrim that fades as screen comes to front
+                        if (layerScrimAlpha > 0.005f) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(Color.Black.copy(alpha = layerScrimAlpha))
+                            )
+                        }
                     }
                 }
             }

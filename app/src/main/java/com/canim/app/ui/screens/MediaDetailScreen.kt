@@ -91,15 +91,24 @@ fun MediaDetailScreen(
     }
     val userItem: UserMediaItem? = localUserItem ?: (item as? UserMediaItem)
     val mediaItem: MediaItem? = item as? MediaItem
+    val airingItem: com.canim.app.data.model.AiringAnimeItem? = item as? com.canim.app.data.model.AiringAnimeItem
 
+    // Deterministic itemKey computed directly from the item instance
+    // Ensures key never shifts when localUserItem or extended metadata finishes loading
     val itemKey = remember(item) {
-        userItem?.anilistId?.toString()
-            ?: userItem?.malId?.toString()
-            ?: mediaItem?.anilistId?.toString()
-            ?: mediaItem?.malId?.toString()
-            ?: userItem?.title
-            ?: mediaItem?.title
-            ?: item.toString()
+        val malId = when (item) {
+            is UserMediaItem -> item.malId
+            is MediaItem -> item.malId
+            is com.canim.app.data.model.AiringAnimeItem -> item.malId
+            else -> null
+        }
+        val aniId = when (item) {
+            is UserMediaItem -> item.anilistId
+            is MediaItem -> item.anilistId
+            is com.canim.app.data.model.AiringAnimeItem -> item.anilistId
+            else -> null
+        }
+        malId?.let { "media_mal_$it" } ?: aniId?.let { "media_ani_$it" } ?: "media_item_${item.hashCode()}"
     }
 
     val initialPos = remember(itemKey) { onGetScrollPosition?.invoke(itemKey) ?: Pair(0, 0) }
@@ -107,6 +116,17 @@ fun MediaDetailScreen(
         initialFirstVisibleItemIndex = initialPos.first,
         initialFirstVisibleItemScrollOffset = initialPos.second
     )
+
+    // Continuously persist scroll position to ViewModel in real-time as user scrolls
+    LaunchedEffect(listState, itemKey) {
+        androidx.compose.runtime.snapshotFlow {
+            Pair(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
+        }.collect { (index, offset) ->
+            if (index > 0 || offset > 0) {
+                onSaveScrollPosition?.invoke(itemKey, index, offset)
+            }
+        }
+    }
 
     DisposableEffect(itemKey) {
         onDispose {
@@ -117,8 +137,6 @@ fun MediaDetailScreen(
             )
         }
     }
-
-    val airingItem: com.canim.app.data.model.AiringAnimeItem? = item as? com.canim.app.data.model.AiringAnimeItem
     val title: String = userItem?.title?.takeIf { it.isNotBlank() } ?: mediaItem?.title?.takeIf { it.isNotBlank() } ?: airingItem?.title?.takeIf { it.isNotBlank() } ?: extendedDetail?.title ?: ""
     val titleEnglish: String? = userItem?.metadata?.titleEnglish?.takeIf { it.isNotBlank() } ?: mediaItem?.titleEnglish?.takeIf { it.isNotBlank() } ?: airingItem?.titleEnglish?.takeIf { it.isNotBlank() } ?: extendedDetail?.titleEnglish
     val titleNative: String? = extendedDetail?.nativeTitle

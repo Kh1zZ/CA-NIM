@@ -59,6 +59,24 @@ fun FullCastListScreen(
         initialFirstVisibleItemScrollOffset = staffInitialPos.second
     )
 
+    LaunchedEffect(castListState, castScrollKey) {
+        snapshotFlow { Pair(castListState.firstVisibleItemIndex, castListState.firstVisibleItemScrollOffset) }
+            .collect { (index, offset) ->
+                if (index > 0 || offset > 0) {
+                    onSaveScrollPosition?.invoke(castScrollKey, index, offset)
+                }
+            }
+    }
+
+    LaunchedEffect(staffListState, staffScrollKey) {
+        snapshotFlow { Pair(staffListState.firstVisibleItemIndex, staffListState.firstVisibleItemScrollOffset) }
+            .collect { (index, offset) ->
+                if (index > 0 || offset > 0) {
+                    onSaveScrollPosition?.invoke(staffScrollKey, index, offset)
+                }
+            }
+    }
+
     DisposableEffect(castScrollKey, staffScrollKey) {
         onDispose {
             onSaveScrollPosition?.invoke(castScrollKey, castListState.firstVisibleItemIndex, castListState.firstVisibleItemScrollOffset)

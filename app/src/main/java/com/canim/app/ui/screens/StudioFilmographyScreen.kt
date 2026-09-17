@@ -67,6 +67,15 @@ fun StudioFilmographyScreen(
         initialFirstVisibleItemScrollOffset = initialPos.second
     )
 
+    LaunchedEffect(gridState, scrollKey) {
+        snapshotFlow { Pair(gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset) }
+            .collect { (index, offset) ->
+                if (index > 0 || offset > 0) {
+                    onSaveScrollPosition?.invoke(scrollKey, index, offset)
+                }
+            }
+    }
+
     DisposableEffect(scrollKey) {
         onDispose {
             onSaveScrollPosition?.invoke(scrollKey, gridState.firstVisibleItemIndex, gridState.firstVisibleItemScrollOffset)

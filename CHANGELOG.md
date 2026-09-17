@@ -5,6 +5,19 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.5.0] - 2026-09-17
+### Fixed
+- **Persistent Multi-Layer Screen Stack (Anti-Scroll Reset & Anti-Push Blink)**:
+  - Merombak arsitektur perenderan `PredictiveBackOverlayContainer` menjadi persistent multi-layer screen stack berbasis `activeRoutes`. Setiap layar pada stack tetap terpasang di Compose composition tree pada z-index masing-masing dan tidak lagi dipindahkan atau dihancurkan antar-Box.
+  - Menghilangkan flicker/blink reset posisi scroll pada saat push screen baru (misal: Detail -> Cast & Crew) karena layar Detail di lapisan bawah tetap hidup pada posisi scroll aktifnya.
+  - Mempertahankan `LazyListState`, Coil memory cache, dan viewmodel state secara utuh saat kembali dari child screen (misal: Detail -> Cast & Crew -> Back) tanpa re-initialization atau re-fetching.
+- **Real-Time Continuous Scroll State Persistence**:
+  - Mengimplementasikan pengamat scroll real-time via `snapshotFlow` pada `MediaDetailScreen`, `CastCrewProfileScreen`, `StudioFilmographyScreen`, dan `FullCastListScreen`. Posisi scroll (`index` & `offset`) kini terus disinkronkan ke ViewModel secara live, mengeliminasi race condition `onDispose` saat pergantian route.
+  - Normalisasi `itemKey` deterministik pada `MediaDetailScreen` berdasarkan ID media awal sehingga key tidak pernah berubah saat metadata sekunder (Room/GraphQL) selesai dimuat.
+
+### Changed
+- Bumped app version to v6.5.0 (versionCode 57).
+
 ## [v6.4.13] - 2026-09-17
 ### Fixed
 - **Animasi Navigasi Seamless ala Animite (Card Expansion & Kinematics Overhaul)**:
