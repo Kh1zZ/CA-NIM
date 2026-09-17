@@ -256,7 +256,7 @@ class MainActivity : ComponentActivity() {
                                     },
                                     floatingActionButton = {},
                                     bottomBar = {
-                                        if (!isWideScreen && !hasOverlay) {
+                                        if (!isWideScreen) {
                                             val activeIndex = navItems.indexOfFirst { it.route == globalState.activeTab }.coerceAtLeast(0)
 
                                             Surface(
@@ -440,7 +440,39 @@ class MainActivity : ComponentActivity() {
                         AnimatedContent(
                             targetState = globalState.activeTab,
                             transitionSpec = {
-                                fadeIn(animationSpec = tween(180)).togetherWith(fadeOut(animationSpec = tween(180)))
+                                val initialIndex = navItems.indexOfFirst { it.route == initialState }.coerceAtLeast(0)
+                                val targetIndex = navItems.indexOfFirst { it.route == targetState }.coerceAtLeast(0)
+                                if (targetIndex > initialIndex) {
+                                    // Moving right (higher index): slide in from right, slide out to left
+                                    (slideInHorizontally(
+                                        initialOffsetX = { fullWidth -> (fullWidth * 0.35f).toInt() },
+                                        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)
+                                    ) + fadeIn(
+                                        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                                    )).togetherWith(
+                                        slideOutHorizontally(
+                                            targetOffsetX = { fullWidth -> -(fullWidth * 0.35f).toInt() },
+                                            animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                                        ) + fadeOut(
+                                            animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)
+                                        )
+                                    )
+                                } else {
+                                    // Moving left (lower index): slide in from left, slide out to right
+                                    (slideInHorizontally(
+                                        initialOffsetX = { fullWidth -> -(fullWidth * 0.35f).toInt() },
+                                        animationSpec = tween(durationMillis = 220, easing = FastOutSlowInEasing)
+                                    ) + fadeIn(
+                                        animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                                    )).togetherWith(
+                                        slideOutHorizontally(
+                                            targetOffsetX = { fullWidth -> (fullWidth * 0.35f).toInt() },
+                                            animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing)
+                                        ) + fadeOut(
+                                            animationSpec = tween(durationMillis = 180, easing = FastOutSlowInEasing)
+                                        )
+                                    )
+                                }
                             },
                             label = "TabContent"
                         ) { activeTab ->
@@ -584,6 +616,15 @@ class MainActivity : ComponentActivity() {
                                         onPickNotificationSound = { pickNotificationSound() }
                                     )
                                 }
+                            }
+                        }
+                    }
+                }
+
+                LaunchedEffect(screenStack.isEmpty()) {
+                            if (screenStack.isEmpty()) {
+                                detailViewModel.closeDetail()
+                                studioViewModel.closeStudio()
                             }
                         }
 
@@ -765,7 +806,6 @@ class MainActivity : ComponentActivity() {
                                             detailViewModel.openDetail(detailItem, currentScreen.type)
                                         },
                                         onDismiss = {
-                                            detailViewModel.closeDetail()
                                             globalViewModel.popScreen()
                                         }
                                     )
@@ -785,7 +825,6 @@ class MainActivity : ComponentActivity() {
                                             globalViewModel.openDetail(media, type)
                                         },
                                         onBack = {
-                                            studioViewModel.closeStudio()
                                             globalViewModel.popScreen()
                                         },
                                         bioInfo = studioState.bio,
@@ -879,9 +918,6 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onBack = { globalViewModel.popScreen() }
                                     )
-                                }
-                                null -> {
-                                    Spacer(modifier = Modifier.fillMaxSize())
                                 }
                             }
                         }
@@ -1030,8 +1066,6 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-}
-}
 }
     }
 

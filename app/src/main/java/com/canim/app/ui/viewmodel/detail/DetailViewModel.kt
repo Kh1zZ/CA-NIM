@@ -102,16 +102,19 @@ class DetailViewModel @Inject constructor(
         val aniId = when (item) {
             is UserMediaItem -> item.anilistId
             is MediaItem -> item.anilistId
+            is com.canim.app.data.model.AiringAnimeItem -> item.anilistId
             else -> null
         }
         val malId = when (item) {
             is UserMediaItem -> item.malId
             is MediaItem -> item.malId
+            is com.canim.app.data.model.AiringAnimeItem -> item.malId
             else -> null
         }
         val type = when (item) {
             is UserMediaItem -> item.metadata.type
             is MediaItem -> item.type
+            is com.canim.app.data.model.AiringAnimeItem -> MediaType.ANIME
             else -> null
         }
 
