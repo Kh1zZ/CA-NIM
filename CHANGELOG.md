@@ -5,6 +5,13 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.5.1] - 2026-09-24
+### Optimized
+- **Background Notification Aggressiveness & Doze Bypass**:
+  - Mengubah alarm schedule dari `ELAPSED_REALTIME` menjadi `ELAPSED_REALTIME_WAKEUP` dan memangkas interval ke 15 menit agar pengecekan notifikasi episode tayang tidak tertahan sistem Doze Android.
+- **I/O Threading di Secure Storage**:
+  - Mengeliminasi *synchronous disk blocking* di UI thread dengan mengganti 6 instans `SharedPreferences.commit()` menjadi `.apply()` pada modul otentikasi MAL dan state tersimpan, mengurangi potensi *micro-stutter*.
+
 ## [v6.5.0] - 2026-09-17
 ### Fixed
 - **Persistent Multi-Layer Screen Stack (Anti-Scroll Reset & Anti-Push Blink)**:
