@@ -5,6 +5,15 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.5.6] - 2026-09-24
+### Changed
+- **Stats Exporter Redesign (Hero Showcase Top 5)**: Merombak total visual hasil ekspor statistik pada kelima rasio (9:16, 4:5, 3:4, 1:1, 16:9).
+  - Mengalokasikan 70%+ luas kanvas untuk galeri poster Top 5 Anime dan Top 5 Manga dengan efek *cinematic dark gradient* dan medali peringkat eksklusif (👑 #1 Gold, #2 Silver, #3 Bronze).
+  - Menerapkan tema *Deep Midnight Navy* dengan *ambient dual-glow* yang selaras dengan tema aplikasi CA'NIM.
+  - Memadatkan data profil dan metrik koleksi ke dalam baris kapsul horizontal yang ramping dan elegan di bagian atas.
+  - Memperbarui header dengan slogan resmi (`"dibaca cak nim! | Aplikasi Pelacak Animanga berbasis akun MAL"`) dan footer link (`https://canim-lp.vercel.app/`).
+  - Membersihkan skrip utilitas sementara dan memperbarui `.gitignore`.
+
 ## [v6.5.5] - 2026-09-24
 ### Fixed
 - **Pull-To-Refresh Indicator Idle Bump**: Memperbaiki indikator refresh abu-abu yang menyembul (*peeking*) di bagian tengah atas pada kondisi diam di layar Dasbor, Library, Discover, dan Detail Screen dengan menambahkan pengecekan `state.isRefreshing || state.verticalOffset > 0f`.

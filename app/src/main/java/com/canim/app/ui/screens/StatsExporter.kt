@@ -208,24 +208,38 @@ object StatsExporter {
         val animeBitmaps = animeCoversDeferred.awaitAll()
         val mangaBitmaps = mangaCoversDeferred.awaitAll()
 
-        // Background Gradient
+        // 1. Deep Midnight Navy Background Gradient
         val bgPaint = Paint().apply {
             shader = LinearGradient(
-                0f, 0f, width, height,
-                intArrayOf(Color.parseColor("#050505"), Color.parseColor("#0F172A"), Color.parseColor("#020617")),
-                null, Shader.TileMode.CLAMP
+                0f, 0f, 0f, height,
+                intArrayOf(
+                    Color.parseColor("#050813"),
+                    Color.parseColor("#0B132B"),
+                    Color.parseColor("#070B16"),
+                    Color.parseColor("#040711")
+                ),
+                floatArrayOf(0f, 0.35f, 0.75f, 1f),
+                Shader.TileMode.CLAMP
             )
         }
         canvas.drawRect(0f, 0f, width, height, bgPaint)
 
-        // Subtle glowing orbs
-        val glowPaint = Paint().apply {
+        // 2. Ambient Dual-Glow (Cyan for Anime zone, Indigo for Manga zone)
+        val animeGlow = Paint().apply {
             shader = RadialGradient(
-                width * 0.8f, height * 0.2f, width * 0.5f,
-                Color.argb(30, 56, 189, 248), Color.TRANSPARENT, Shader.TileMode.CLAMP
+                width * 0.25f, height * 0.42f, width * 0.55f,
+                Color.argb(28, 56, 189, 248), Color.TRANSPARENT, Shader.TileMode.CLAMP
             )
         }
-        canvas.drawCircle(width * 0.8f, height * 0.2f, width * 0.5f, glowPaint)
+        canvas.drawCircle(width * 0.25f, height * 0.42f, width * 0.55f, animeGlow)
+
+        val mangaGlow = Paint().apply {
+            shader = RadialGradient(
+                width * 0.75f, height * 0.78f, width * 0.55f,
+                Color.argb(28, 129, 140, 248), Color.TRANSPARENT, Shader.TileMode.CLAMP
+            )
+        }
+        canvas.drawCircle(width * 0.75f, height * 0.78f, width * 0.55f, mangaGlow)
 
         val pieSlices = listOf(
             CanvasPieSlice("Ditonton / Baca", stats.animeWatching + stats.mangaReading, Color.rgb(56, 189, 248)),
@@ -251,78 +265,81 @@ object StatsExporter {
     }
 
     private fun drawGlobalHeader(canvas: Canvas, rect: RectF, logoBitmap: Bitmap?) {
-        val margin = 24f
+        val margin = 20f
         var textX = rect.left + margin
 
         if (logoBitmap != null) {
-            val logoHeight = rect.height() - (margin * 1.5f)
+            val logoHeight = rect.height() - (margin * 1.4f)
             val logoWidth = logoBitmap.width * (logoHeight / logoBitmap.height)
-            val logoRect = RectF(rect.left + margin, rect.top + margin * 0.75f, rect.left + margin + logoWidth, rect.bottom - margin * 0.75f)
+            val logoRect = RectF(rect.left + margin, rect.top + margin * 0.7f, rect.left + margin + logoWidth, rect.bottom - margin * 0.7f)
             canvas.drawBitmap(logoBitmap, null, logoRect, Paint(Paint.FILTER_BITMAP_FLAG))
             textX = logoRect.right + 20f
-            
-            // Draw a subtle vertical divider
-            val divPaint = Paint().apply { color = Color.rgb(51, 65, 85); strokeWidth = 2f }
-            canvas.drawLine(textX - 10f, rect.top + margin, textX - 10f, rect.bottom - margin, divPaint)
+
+            val divPaint = Paint().apply {
+                color = Color.argb(80, 56, 189, 248)
+                strokeWidth = 2.5f
+            }
+            canvas.drawLine(textX - 10f, rect.top + margin * 0.8f, textX - 10f, rect.bottom - margin * 0.8f, divPaint)
         }
 
-        val textPaint = Paint().apply {
+        val titlePaint = Paint().apply {
             color = Color.WHITE
             textSize = 28f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             isAntiAlias = true
         }
-        val subPaint = Paint().apply {
+        val sloganPaint = Paint().apply {
             color = Color.rgb(148, 163, 184)
-            textSize = 24f
+            textSize = 21f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
             isAntiAlias = true
         }
 
-        val primaryText = "CA'NIM | "
-        val textY = rect.centerY() + 8f // adjust for text baseline
-        canvas.drawText(primaryText, textX, textY, textPaint)
-        
-        val primaryWidth = textPaint.measureText(primaryText)
-        canvas.drawText("dibaca ca'nim!, aplikasi pelacak animanga berbasis MAL", textX + primaryWidth, textY, subPaint)
+        val primaryText = "CA'NIM"
+        val textY = rect.centerY() + 7f
+        canvas.drawText(primaryText, textX, textY, titlePaint)
+
+        val primaryWidth = titlePaint.measureText(primaryText)
+        val separator = "  |  "
+        val sepWidth = sloganPaint.measureText(separator)
+        canvas.drawText(separator, textX + primaryWidth, textY, sloganPaint)
+        canvas.drawText("dibaca cak nim! | Aplikasi Pelacak Animanga berbasis akun MAL", textX + primaryWidth + sepWidth, textY, sloganPaint)
     }
 
     private fun drawGlobalFooter(canvas: Canvas, rect: RectF) {
+        val linePaint = Paint().apply {
+            color = Color.argb(40, 56, 189, 248)
+            strokeWidth = 1.5f
+        }
+        canvas.drawLine(rect.left + 24f, rect.top, rect.right - 24f, rect.top, linePaint)
+
         val textPaint = Paint().apply {
             color = Color.rgb(148, 163, 184)
-            textSize = 24f
+            textSize = 22f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
             isAntiAlias = true
             textAlign = Paint.Align.CENTER
         }
-        val textY = rect.centerY() + 8f
-        canvas.drawText("Dapatkan ca'nim sekarang di (link github | https://canim-lp.vercel.app/)", rect.centerX(), textY, textPaint)
+        val textY = rect.centerY() + 7f
+        canvas.drawText("Dapatkan CA'NIM sekarang di https://canim-lp.vercel.app/", rect.centerX(), textY, textPaint)
     }
 
-    private fun drawBentoCard(canvas: Canvas, rect: RectF) {
-        // Outer Shell (Double-Bezel)
-        val outerPaint = Paint().apply {
-            color = Color.argb(10, 255, 255, 255)
-            style = Paint.Style.FILL
-            isAntiAlias = true
-        }
+    private fun drawBentoCard(canvas: Canvas, rect: RectF, cornerRadius: Float = 26f) {
+        // Outer Bezel Stroke
         val borderPaint = Paint().apply {
-            color = Color.argb(25, 255, 255, 255)
+            color = Color.argb(38, 56, 189, 248)
             style = Paint.Style.STROKE
             strokeWidth = 2f
             isAntiAlias = true
         }
-        canvas.drawRoundRect(rect, 32f, 32f, outerPaint)
-        canvas.drawRoundRect(rect, 32f, 32f, borderPaint)
-        
-        // Inner Core
-        val innerRect = RectF(rect.left + 4f, rect.top + 4f, rect.right - 4f, rect.bottom - 4f)
-        val innerPaint = Paint().apply {
-            color = Color.rgb(15, 23, 42)
+        // Inner Glass Fill
+        val fillPaint = Paint().apply {
+            color = Color.argb(230, 11, 19, 43)
             style = Paint.Style.FILL
             isAntiAlias = true
         }
-        canvas.drawRoundRect(innerRect, 28f, 28f, innerPaint)
+        canvas.drawRoundRect(rect, cornerRadius, cornerRadius, fillPaint)
+        canvas.drawRoundRect(rect, cornerRadius, cornerRadius, borderPaint)
     }
 
     private fun drawCenterCropBitmap(canvas: Canvas, bitmap: Bitmap?, rect: RectF, radius: Float) {
@@ -330,27 +347,29 @@ object StatsExporter {
         val path = Path().apply { addRoundRect(rect, radius, radius, Path.Direction.CW) }
         canvas.save()
         canvas.clipPath(path)
-        
+
         val scale: Float
-        var dx = 0f
-        var dy = 0f
+        val dx: Float
+        val dy: Float
         if (bitmap.width * rect.height() > rect.width() * bitmap.height) {
             scale = rect.height() / bitmap.height.toFloat()
             dx = (rect.width() - bitmap.width * scale) * 0.5f
+            dy = 0f
         } else {
             scale = rect.width() / bitmap.width.toFloat()
+            dx = 0f
             dy = (rect.height() - bitmap.height * scale) * 0.5f
         }
         val matrix = Matrix()
         matrix.setScale(scale, scale)
         matrix.postTranslate(rect.left + dx, rect.top + dy)
-        
+
         val paint = Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG)
         canvas.drawBitmap(bitmap, matrix, paint)
         canvas.restore()
     }
 
-    // --- VERTICAL STACK (9:16, 4:5, 3:4) ---
+    // --- VERTICAL LAYOUT (STORY 9:16, PORTRAIT 4:5, 3:4) ---
     private fun renderLayoutVertical(
         canvas: Canvas, width: Float, height: Float, stats: TrackerStats, malUser: MalUser,
         topAnime: List<UserMediaItem>, topManga: List<UserMediaItem>,
@@ -360,17 +379,13 @@ object StatsExporter {
         val gap = 16f
         val contentW = width - (margin * 2)
 
-        val headerH = 100f
-        val footerH = 60f
-        
-        // Dynamic calculation to ensure 0 empty space
-        val totalBodyH = height - (margin * 2) - headerH - footerH - (gap * 6)
-        
-        // Proportions for vertical layout
-        val profileH = totalBodyH * 0.15f
-        val statsH = totalBodyH * 0.20f
-        val pieH = totalBodyH * 0.20f
-        val mediaH = (totalBodyH - profileH - statsH - pieH) / 2f
+        val headerH = if (height > 1600f) 100f else 85f
+        val footerH = if (height > 1600f) 56f else 48f
+
+        // Calculate body space so Top 5 Anime & Manga dominate ~72% of the canvas
+        val totalBodyH = height - (margin * 2) - headerH - footerH - (gap * 3)
+        val summaryH = totalBodyH * 0.22f
+        val showcaseH = (totalBodyH - summaryH) / 2f
 
         var curY = margin
 
@@ -379,97 +394,77 @@ object StatsExporter {
         drawGlobalHeader(canvas, headerRect, logoBitmap)
         curY += headerH + gap
 
-        // Profile
-        val profileRect = RectF(margin, curY, margin + contentW, curY + profileH)
-        drawBentoCard(canvas, profileRect)
-        drawProfileContent(canvas, profileRect, malUser)
-        curY += profileH + gap
+        // Compact Profile & Stats Bar
+        val summaryRect = RectF(margin, curY, margin + contentW, curY + summaryH)
+        drawBentoCard(canvas, summaryRect)
+        drawCompactSummaryBar(canvas, summaryRect, malUser, stats, pieSlices)
+        curY += summaryH + gap
 
-        // Stats
-        val statsRect = RectF(margin, curY, margin + contentW, curY + statsH)
-        drawBentoCard(canvas, statsRect)
-        drawStatsContent(canvas, statsRect, stats)
-        curY += statsH + gap
-
-        // Pie
-        val pieRect = RectF(margin, curY, margin + contentW, curY + pieH)
-        drawBentoCard(canvas, pieRect)
-        drawPieChartContent(canvas, pieRect, pieSlices)
-        curY += pieH + gap
-
-        // Top Anime
-        val animeRect = RectF(margin, curY, margin + contentW, curY + mediaH)
+        // HERO 1: Top 5 Anime Showcase
+        val animeRect = RectF(margin, curY, margin + contentW, curY + showcaseH)
         drawBentoCard(canvas, animeRect)
-        drawMediaGridContent(canvas, animeRect, "TOP 5 ANIME", topAnime, animeBitmaps)
-        curY += mediaH + gap
+        drawHeroShowcaseRow(canvas, animeRect, "TOP 5 ANIME FAVORIT", Color.rgb(56, 189, 248), topAnime, animeBitmaps)
+        curY += showcaseH + gap
 
-        // Top Manga
-        val mangaRect = RectF(margin, curY, margin + contentW, curY + mediaH)
+        // HERO 2: Top 5 Manga Showcase
+        val mangaRect = RectF(margin, curY, margin + contentW, curY + showcaseH)
         drawBentoCard(canvas, mangaRect)
-        drawMediaGridContent(canvas, mangaRect, "TOP 5 MANGA", topManga, mangaBitmaps)
-        curY += mediaH + gap
+        drawHeroShowcaseRow(canvas, mangaRect, "TOP 5 MANGA FAVORIT", Color.rgb(129, 140, 248), topManga, mangaBitmaps)
+        curY += showcaseH + gap
 
         // Footer
         val footerRect = RectF(margin, curY, margin + contentW, curY + footerH)
         drawGlobalFooter(canvas, footerRect)
     }
 
-    // --- SQUARE (1:1) ---
+    // --- SQUARE LAYOUT (1:1) ---
     private fun renderLayoutSquare(
         canvas: Canvas, width: Float, height: Float, stats: TrackerStats, malUser: MalUser,
         topAnime: List<UserMediaItem>, topManga: List<UserMediaItem>,
         animeBitmaps: List<Bitmap?>, mangaBitmaps: List<Bitmap?>, pieSlices: List<CanvasPieSlice>, logoBitmap: Bitmap?
     ) {
-        val margin = 24f
-        val gap = 16f
+        val margin = 20f
+        val gap = 12f
         val contentW = width - (margin * 2)
-        val contentH = height - (margin * 2)
 
-        val headerH = 90f
-        val footerH = 60f
-        
-        val bodyH = contentH - headerH - footerH - (gap * 2)
-        val row1H = bodyH * 0.45f
-        val row2H = bodyH * 0.55f
-        val col1W = (contentW - gap) / 2f
-        val col2W = col1W
+        val headerH = 75f
+        val footerH = 42f
+        val totalBodyH = height - (margin * 2) - headerH - footerH - (gap * 3)
+
+        val summaryH = totalBodyH * 0.18f
+        val showcaseH = (totalBodyH - summaryH) / 2f
 
         var curY = margin
+
+        // Header
         val headerRect = RectF(margin, curY, margin + contentW, curY + headerH)
         drawGlobalHeader(canvas, headerRect, logoBitmap)
         curY += headerH + gap
 
-        // Row 1 Left (Profile + Stats)
-        val r1LeftRect = RectF(margin, curY, margin + col1W, curY + row1H)
-        drawBentoCard(canvas, r1LeftRect)
-        
-        val pRect = RectF(r1LeftRect.left, r1LeftRect.top, r1LeftRect.right, r1LeftRect.top + (row1H * 0.4f))
-        val sRect = RectF(r1LeftRect.left, r1LeftRect.top + (row1H * 0.4f), r1LeftRect.right, r1LeftRect.bottom)
-        drawProfileContent(canvas, pRect, malUser)
-        drawStatsContent(canvas, sRect, stats)
+        // Compact Summary
+        val summaryRect = RectF(margin, curY, margin + contentW, curY + summaryH)
+        drawBentoCard(canvas, summaryRect)
+        drawCompactSummaryBar(canvas, summaryRect, malUser, stats, pieSlices)
+        curY += summaryH + gap
 
-        // Row 1 Right (Pie)
-        val r1RightRect = RectF(margin + col1W + gap, curY, margin + contentW, curY + row1H)
-        drawBentoCard(canvas, r1RightRect)
-        drawPieChartContent(canvas, r1RightRect, pieSlices)
-        curY += row1H + gap
+        // HERO 1: Top 5 Anime
+        val animeRect = RectF(margin, curY, margin + contentW, curY + showcaseH)
+        drawBentoCard(canvas, animeRect)
+        drawHeroShowcaseRow(canvas, animeRect, "TOP 5 ANIME FAVORIT", Color.rgb(56, 189, 248), topAnime, animeBitmaps)
+        curY += showcaseH + gap
 
-        // Row 2 Left (Anime)
-        val r2LeftRect = RectF(margin, curY, margin + col1W, curY + row2H)
-        drawBentoCard(canvas, r2LeftRect)
-        drawMediaGridContent(canvas, r2LeftRect, "TOP 5 ANIME", topAnime, animeBitmaps)
+        // HERO 2: Top 5 Manga
+        val mangaRect = RectF(margin, curY, margin + contentW, curY + showcaseH)
+        drawBentoCard(canvas, mangaRect)
+        drawHeroShowcaseRow(canvas, mangaRect, "TOP 5 MANGA FAVORIT", Color.rgb(129, 140, 248), topManga, mangaBitmaps)
+        curY += showcaseH + gap
 
-        // Row 2 Right (Manga)
-        val r2RightRect = RectF(margin + col1W + gap, curY, margin + contentW, curY + row2H)
-        drawBentoCard(canvas, r2RightRect)
-        drawMediaGridContent(canvas, r2RightRect, "TOP 5 MANGA", topManga, mangaBitmaps)
-        curY += row2H + gap
-
+        // Footer
         val footerRect = RectF(margin, curY, margin + contentW, curY + footerH)
         drawGlobalFooter(canvas, footerRect)
     }
 
-    // --- LANDSCAPE (16:9) ---
+    // --- LANDSCAPE LAYOUT (16:9) ---
     private fun renderLayoutLandscape(
         canvas: Canvas, width: Float, height: Float, stats: TrackerStats, malUser: MalUser,
         topAnime: List<UserMediaItem>, topManga: List<UserMediaItem>,
@@ -480,12 +475,12 @@ object StatsExporter {
         val contentW = width - (margin * 2)
         val contentH = height - (margin * 2)
 
-        val headerH = 80f
-        val footerH = 50f
+        val headerH = 75f
+        val footerH = 45f
         val bodyH = contentH - headerH - footerH - (gap * 2)
-        
-        val col1W = contentW * 0.35f
-        val col2W = contentW * 0.65f - gap
+
+        val col1W = contentW * 0.28f
+        val col2W = contentW - col1W - gap
 
         var curY = margin
         val headerRect = RectF(margin, curY, margin + contentW, curY + headerH)
@@ -494,238 +489,377 @@ object StatsExporter {
 
         val bodyY = curY
 
-        // Col 1
-        val pHeight = bodyH * 0.25f
-        val sHeight = bodyH * 0.3f
-        val pieHeight = bodyH - pHeight - sHeight - (gap * 2)
-        
-        val pRect = RectF(margin, bodyY, margin + col1W, bodyY + pHeight)
-        drawBentoCard(canvas, pRect)
-        drawProfileContent(canvas, pRect, malUser)
+        // Col 1: Profile & Collection Stats Card
+        val sidebarRect = RectF(margin, bodyY, margin + col1W, bodyY + bodyH)
+        drawBentoCard(canvas, sidebarRect)
+        drawSidebarContent(canvas, sidebarRect, malUser, stats, pieSlices)
 
-        val sRect = RectF(margin, pRect.bottom + gap, margin + col1W, pRect.bottom + gap + sHeight)
-        drawBentoCard(canvas, sRect)
-        drawStatsContent(canvas, sRect, stats)
-
-        val pieRect = RectF(margin, sRect.bottom + gap, margin + col1W, sRect.bottom + gap + pieHeight)
-        drawBentoCard(canvas, pieRect)
-        drawPieChartContent(canvas, pieRect, pieSlices)
-
-        // Col 2
-        val mediaW = (col2W - gap) / 2f
-        val animeRect = RectF(margin + col1W + gap, bodyY, margin + col1W + gap + mediaW, bodyY + bodyH)
+        // Col 2: Top 5 Anime & Manga Hero Showcases
+        val showcaseH = (bodyH - gap) / 2f
+        val animeRect = RectF(margin + col1W + gap, bodyY, margin + contentW, bodyY + showcaseH)
         drawBentoCard(canvas, animeRect)
-        drawMediaGridContent(canvas, animeRect, "TOP 5 ANIME", topAnime, animeBitmaps)
+        drawHeroShowcaseRow(canvas, animeRect, "TOP 5 ANIME FAVORIT", Color.rgb(56, 189, 248), topAnime, animeBitmaps)
 
-        val mangaRect = RectF(animeRect.right + gap, bodyY, margin + contentW, bodyY + bodyH)
+        val mangaRect = RectF(margin + col1W + gap, bodyY + showcaseH + gap, margin + contentW, bodyY + bodyH)
         drawBentoCard(canvas, mangaRect)
-        drawMediaGridContent(canvas, mangaRect, "TOP 5 MANGA", topManga, mangaBitmaps)
+        drawHeroShowcaseRow(canvas, mangaRect, "TOP 5 MANGA FAVORIT", Color.rgb(129, 140, 248), topManga, mangaBitmaps)
 
         // Footer
         val footerRect = RectF(margin, bodyY + bodyH + gap, margin + contentW, height - margin)
         drawGlobalFooter(canvas, footerRect)
     }
 
-    // --- CONTENT DRAWERS ---
-    private fun drawProfileContent(canvas: Canvas, rect: RectF, malUser: MalUser) {
-        val titlePaint = Paint().apply {
-            color = Color.rgb(56, 189, 248)
-            textSize = 20f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-        val userPaint = Paint().apply {
-            color = Color.WHITE
-            textSize = 36f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-        val subPaint = Paint().apply {
-            color = Color.rgb(156, 163, 175)
-            textSize = 22f
-            isAntiAlias = true
-        }
-        
-        val padX = 32f
-        var currentY = rect.top + 40f
-        canvas.drawText("PROFIL MYANIMELIST", rect.left + padX, currentY, titlePaint)
-        
-        currentY += 50f
-        val username = if (malUser.username.isBlank()) "Tamu" else malUser.username
-        canvas.drawText("@$username", rect.left + padX, currentY, userPaint)
-        
-        currentY += 40f
-        val loc = if (!malUser.location.isNullOrBlank()) malUser.location else "Tidak ada lokasi"
-        canvas.drawText("📍 $loc", rect.left + padX, currentY, subPaint)
-    }
-
-    private fun drawStatsContent(canvas: Canvas, rect: RectF, stats: TrackerStats) {
-        val titlePaint = Paint().apply {
-            color = Color.rgb(56, 189, 248)
-            textSize = 20f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-        canvas.drawText("RINGKASAN KOLEKSI", rect.left + 32f, rect.top + 40f, titlePaint)
-
-        val labelPaint = Paint().apply { color = Color.rgb(156, 163, 175); textSize = 22f; isAntiAlias = true }
-        val valPaint = Paint().apply { color = Color.WHITE; textSize = 36f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); isAntiAlias = true }
-
-        val startX = rect.left + 32f
-        val col2X = rect.left + (rect.width() / 2f)
-        
-        // Dynamically space rows based on rect height
-        val availableH = rect.height() - 60f
-        val rowH = availableH / 2f
-        var startY = rect.top + 70f + (rowH * 0.3f)
-
-        fun drawStat(x: Float, y: Float, label: String, value: String) {
-            canvas.drawText(label, x, y, labelPaint)
-            canvas.drawText(value, x, y + 40f, valPaint)
-        }
-
-        drawStat(startX, startY, "Total Anime", "${stats.totalAnime}")
-        drawStat(col2X, startY, "Total Manga", "${stats.totalManga}")
-        startY += rowH
-        drawStat(startX, startY, "Hari Tonton", "${stats.daysWatched}")
-        drawStat(col2X, startY, "Bab Dibaca", "${stats.chaptersRead}")
-    }
-
-    private fun drawPieChartContent(canvas: Canvas, rect: RectF, slices: List<CanvasPieSlice>) {
-        val titlePaint = Paint().apply {
-            color = Color.rgb(56, 189, 248)
-            textSize = 20f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
-        }
-        canvas.drawText("DISTRIBUSI STATUS", rect.left + 32f, rect.top + 40f, titlePaint)
-
-        if (slices.isEmpty()) return
-        
-        val total = slices.sumOf { it.count }.toFloat()
-        var currentAngle = -90f
-        
-        // Maximize radius to fill available pie space
-        val radius = minOf(rect.width() * 0.5f, rect.height() - 60f) * 0.45f
-        
-        // Offset center slightly to the left if width allows it, so legend fits on right
-        val cx = if (rect.width() > rect.height()) rect.left + (rect.width() * 0.35f) else rect.left + (rect.width() * 0.5f)
-        val cy = if (rect.width() > rect.height()) rect.top + 50f + (rect.height() - 50f) / 2f else rect.top + 70f + radius
-        
-        val oval = RectF(cx - radius, cy - radius, cx + radius, cy + radius)
-        val piePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
-
-        for (slice in slices) {
-            val sweepAngle = (slice.count / total) * 360f
-            piePaint.color = slice.color
-            canvas.drawArc(oval, currentAngle, sweepAngle, true, piePaint)
-            currentAngle += sweepAngle
-        }
-
-        // Legend
-        val legendX = if (rect.width() > rect.height()) cx + radius + 40f else rect.left + 32f
-        var legendY = if (rect.width() > rect.height()) cy - radius + 30f else cy + radius + 40f
-        
-        val legendPaint = Paint().apply { color = Color.rgb(200, 200, 200); textSize = 20f; isAntiAlias = true }
-        
-        for (slice in slices) {
-            piePaint.color = slice.color
-            canvas.drawCircle(legendX, legendY - 6f, 10f, piePaint)
-            canvas.drawText("${slice.label}: ${slice.count}", legendX + 25f, legendY, legendPaint)
-            legendY += 35f
-        }
-    }
-
-    private fun drawMediaGridContent(
-        canvas: Canvas, rect: RectF, title: String, 
-        items: List<UserMediaItem>, bitmaps: List<Bitmap?>
+    // --- COMPACT SUMMARY BAR (FOR VERTICAL & SQUARE) ---
+    private fun drawCompactSummaryBar(
+        canvas: Canvas, rect: RectF, malUser: MalUser, stats: TrackerStats, slices: List<CanvasPieSlice>
     ) {
-        val titlePaint = Paint().apply {
+        val pad = 24f
+        val username = if (malUser.username.isBlank()) "Tamu" else malUser.username
+
+        // User Avatar & Name Section (Left 32%)
+        val userW = rect.width() * 0.32f
+        val avatarSize = minOf(rect.height() - (pad * 2f), 80f)
+        val avatarY = rect.centerY() - (avatarSize / 2f)
+
+        // Monogram Circle
+        val avatarPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(46, 81, 162) }
+        val cx = rect.left + pad + (avatarSize / 2f)
+        val cy = avatarY + (avatarSize / 2f)
+        canvas.drawCircle(cx, cy, avatarSize / 2f, avatarPaint)
+
+        val avatarBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.rgb(56, 189, 248)
-            textSize = 20f
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            isAntiAlias = true
+            style = Paint.Style.STROKE
+            strokeWidth = 2f
         }
-        canvas.drawText(title, rect.left + 32f, rect.top + 40f, titlePaint)
+        canvas.drawCircle(cx, cy, avatarSize / 2f, avatarBorderPaint)
 
-        if (items.isEmpty()) return
-
-        val padX = 24f
-        val gap = 16f
-        val startY = rect.top + 60f
-        val startX = rect.left + padX
-        val contentW = rect.width() - (padX * 2)
-        val contentH = rect.bottom - padX - startY
-
-        // Auto-arrange in columns or grid depending on width vs height
-        val isHorizontalFlow = contentW > contentH * 1.5f
-
-        if (isHorizontalFlow) {
-            // Layout horizontally (1 row, 5 cols)
-            val cardW = (contentW - gap * 4) / 5f
-            for (i in items.indices) {
-                if (i >= 5) break
-                val bmp = bitmaps.getOrNull(i)
-                val cardX = startX + (cardW + gap) * i
-                val cardRect = RectF(cardX, startY, cardX + cardW, startY + contentH)
-                drawCenterCropBitmap(canvas, bmp, cardRect, 16f)
-                drawRankBadge(canvas, cardRect, i + 1)
-            }
-        } else {
-            // Layout as a vertical list (5 rows, 1 col)
-            val cardH = (contentH - gap * 4) / 5f
-            for (i in items.indices) {
-                if (i >= 5) break
-                val bmp = bitmaps.getOrNull(i)
-                val cardY = startY + (cardH + gap) * i
-                
-                val imgW = cardH * 0.7f // Portrait ratio for image
-                val imgRect = RectF(startX, cardY, startX + imgW, cardY + cardH)
-                drawCenterCropBitmap(canvas, bmp, imgRect, 12f)
-                
-                drawRankBadge(canvas, imgRect, i + 1)
-                
-                val textX = imgRect.right + 16f
-                val titleMainPaint = Paint().apply { color = Color.WHITE; textSize = 24f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); isAntiAlias = true }
-                val scorePaint = Paint().apply { color = Color.rgb(250, 204, 21); textSize = 22f; isAntiAlias = true }
-                
-                var shortTitle = items[i].title
-                // Dynamically truncate string if too long
-                val maxTextW = contentW - imgW - 16f
-                if (titleMainPaint.measureText(shortTitle) > maxTextW) {
-                    while (shortTitle.length > 3 && titleMainPaint.measureText(shortTitle + "...") > maxTextW) {
-                        shortTitle = shortTitle.dropLast(1)
-                    }
-                    shortTitle += "..."
-                }
-                
-                canvas.drawText(shortTitle, textX, cardY + cardH * 0.45f, titleMainPaint)
-                canvas.drawText("⭐ ${items[i].score}", textX, cardY + cardH * 0.85f, scorePaint)
-            }
-        }
-    }
-
-    private fun drawRankBadge(canvas: Canvas, rect: RectF, rank: Int) {
-        val badgeRadius = 24f
-        val badgeX = rect.left + badgeRadius + 8f
-        val badgeY = rect.top + badgeRadius + 8f
-        
-        val badgePaint = Paint().apply {
-            color = Color.argb(220, 15, 23, 42)
-            style = Paint.Style.FILL
-            isAntiAlias = true
-        }
-        val textPaint = Paint().apply {
+        val initialPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
-            textSize = 24f
+            textSize = avatarSize * 0.45f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
-            isAntiAlias = true
         }
-        
-        canvas.drawCircle(badgeX, badgeY, badgeRadius, badgePaint)
-        // Center text vertically
-        val textY = badgeY - ((textPaint.descent() + textPaint.ascent()) / 2f)
-        canvas.drawText("#$rank", badgeX, textY, textPaint)
+        val initialText = username.take(1).uppercase()
+        val initY = cy - ((initialPaint.descent() + initialPaint.ascent()) / 2f)
+        canvas.drawText(initialText, cx, initY, initialPaint)
+
+        val nameX = rect.left + pad + avatarSize + 16f
+        val userPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = 26f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        val badgeSubPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(56, 189, 248)
+            textSize = 18f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+
+        var displayUser = "@$username"
+        if (userPaint.measureText(displayUser) > (userW - avatarSize - 20f)) {
+            displayUser = displayUser.take(10) + "..."
+        }
+        canvas.drawText(displayUser, nameX, rect.centerY() - 4f, userPaint)
+        canvas.drawText("TERHUBUNG MAL", nameX, rect.centerY() + 22f, badgeSubPaint)
+
+        // Divider
+        val divPaint = Paint().apply { color = Color.argb(40, 255, 255, 255); strokeWidth = 1.5f }
+        val div1X = rect.left + userW
+        canvas.drawLine(div1X, rect.top + 16f, div1X, rect.bottom - 16f, divPaint)
+
+        // 4 Stat Metric Columns (Right 68%)
+        val statW = (rect.width() - userW) / 4f
+        val statLabels = listOf("Anime", "Manga", "Hari Tonton", "Bab Dibaca")
+        val statValues = listOf("${stats.totalAnime}", "${stats.totalManga}", "${stats.daysWatched}", "${stats.chaptersRead}")
+
+        val valPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = 28f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textAlign = Paint.Align.CENTER
+        }
+        val lblPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(156, 163, 175)
+            textSize = 18f
+            textAlign = Paint.Align.CENTER
+        }
+
+        for (i in 0..3) {
+            val sCenterX = div1X + (statW * i) + (statW / 2f)
+            canvas.drawText(statValues[i], sCenterX, rect.centerY() - 4f, valPaint)
+            canvas.drawText(statLabels[i], sCenterX, rect.centerY() + 24f, lblPaint)
+
+            if (i < 3) {
+                val subDivX = div1X + (statW * (i + 1))
+                canvas.drawLine(subDivX, rect.centerY() - 20f, subDivX, rect.centerY() + 20f, divPaint)
+            }
+        }
+    }
+
+    // --- SIDEBAR CONTENT (FOR LANDSCAPE) ---
+    private fun drawSidebarContent(
+        canvas: Canvas, rect: RectF, malUser: MalUser, stats: TrackerStats, slices: List<CanvasPieSlice>
+    ) {
+        val pad = 24f
+        var curY = rect.top + 36f
+
+        val username = if (malUser.username.isBlank()) "Tamu" else malUser.username
+        val headerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(56, 189, 248)
+            textSize = 19f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        canvas.drawText("KOLEKSI MYANIMELIST", rect.left + pad, curY, headerPaint)
+        curY += 40f
+
+        val userPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = 32f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        canvas.drawText("@$username", rect.left + pad, curY, userPaint)
+        curY += 36f
+
+        val loc = if (!malUser.location.isNullOrBlank()) malUser.location else "Indonesia"
+        val locPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(156, 163, 175)
+            textSize = 20f
+        }
+        canvas.drawText("📍 $loc", rect.left + pad, curY, locPaint)
+        curY += 40f
+
+        val divPaint = Paint().apply { color = Color.argb(40, 255, 255, 255); strokeWidth = 1.5f }
+        canvas.drawLine(rect.left + pad, curY, rect.right - pad, curY, divPaint)
+        curY += 36f
+
+        // Stats Matrix (2x2 Grid)
+        val colW = (rect.width() - (pad * 2f)) / 2f
+        val lblPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(156, 163, 175); textSize = 19f }
+        val valPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; textSize = 32f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD) }
+
+        canvas.drawText("Total Anime", rect.left + pad, curY, lblPaint)
+        canvas.drawText("${stats.totalAnime}", rect.left + pad, curY + 36f, valPaint)
+
+        canvas.drawText("Total Manga", rect.left + pad + colW, curY, lblPaint)
+        canvas.drawText("${stats.totalManga}", rect.left + pad + colW, curY + 36f, valPaint)
+
+        curY += 85f
+        canvas.drawText("Hari Tonton", rect.left + pad, curY, lblPaint)
+        canvas.drawText("${stats.daysWatched}", rect.left + pad, curY + 36f, valPaint)
+
+        canvas.drawText("Bab Dibaca", rect.left + pad + colW, curY, lblPaint)
+        canvas.drawText("${stats.chaptersRead}", rect.left + pad + colW, curY + 36f, valPaint)
+
+        curY += 85f
+        canvas.drawLine(rect.left + pad, curY, rect.right - pad, curY, divPaint)
+        curY += 36f
+
+        // Mini Donut Chart
+        if (slices.isNotEmpty()) {
+            canvas.drawText("STATUS DISTRIBUSI", rect.left + pad, curY, headerPaint)
+            curY += 24f
+
+            val chartSize = minOf(rect.width() - (pad * 2f), rect.bottom - curY - 20f)
+            val radius = chartSize * 0.38f
+            val cx = rect.left + pad + radius + 10f
+            val cy = curY + radius + 15f
+            val oval = RectF(cx - radius, cy - radius, cx + radius, cy + radius)
+            val piePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 26f }
+
+            val total = slices.sumOf { it.count }.toFloat()
+            var startAngle = -90f
+            for (slice in slices) {
+                val sweep = (slice.count / total) * 360f
+                piePaint.color = slice.color
+                canvas.drawArc(oval, startAngle, sweep, false, piePaint)
+                startAngle += sweep
+            }
+
+            // Legend on right
+            val legendX = cx + radius + 32f
+            var legendY = cy - radius + 20f
+            val legPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(203, 213, 225); textSize = 18f }
+            val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+
+            for (slice in slices.take(4)) {
+                dotPaint.color = slice.color
+                canvas.drawCircle(legendX, legendY - 6f, 7f, dotPaint)
+                canvas.drawText("${slice.label}: ${slice.count}", legendX + 16f, legendY, legPaint)
+                legendY += 30f
+            }
+        }
+    }
+
+    // --- HERO SHOWCASE ROW (THE HERO COMPONENT) ---
+    private fun drawHeroShowcaseRow(
+        canvas: Canvas,
+        rect: RectF,
+        sectionTitle: String,
+        accentColor: Int,
+        items: List<UserMediaItem>,
+        bitmaps: List<Bitmap?>
+    ) {
+        val pad = 20f
+        val headerH = 46f
+        var curY = rect.top + pad
+
+        // 1. Sleek Section Chip Header
+        val chipPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(38, Color.red(accentColor), Color.green(accentColor), Color.blue(accentColor))
+            style = Paint.Style.FILL
+        }
+        val chipBorder = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(120, Color.red(accentColor), Color.green(accentColor), Color.blue(accentColor))
+            style = Paint.Style.STROKE
+            strokeWidth = 1.5f
+        }
+        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = accentColor
+            textSize = 21f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+
+        val textW = textPaint.measureText(sectionTitle)
+        val chipRect = RectF(rect.left + pad, curY, rect.left + pad + textW + 36f, curY + 38f)
+        canvas.drawRoundRect(chipRect, 19f, 19f, chipPaint)
+        canvas.drawRoundRect(chipRect, 19f, 19f, chipBorder)
+        canvas.drawText(sectionTitle, chipRect.left + 18f, chipRect.centerY() + 7f, textPaint)
+
+        curY += headerH
+
+        if (items.isEmpty()) {
+            val emptyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.rgb(100, 116, 139)
+                textSize = 22f
+                textAlign = Paint.Align.CENTER
+            }
+            canvas.drawText("Belum ada data media favorit", rect.centerX(), rect.centerY() + 10f, emptyPaint)
+            return
+        }
+
+        // 2. 5 Hero Cards in a Row (Maximizing Poster Space)
+        val gap = 14f
+        val totalAvailableW = rect.width() - (pad * 2f)
+        val cardW = (totalAvailableW - (gap * 4f)) / 5f
+        val cardH = rect.bottom - pad - curY
+
+        val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = 20f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        val scorePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(251, 191, 36) // Gold Amber
+            textSize = 20f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+
+        for (i in 0 until 5) {
+            val cardX = rect.left + pad + (i * (cardW + gap))
+            val cardRect = RectF(cardX, curY, cardX + cardW, curY + cardH)
+
+            // Card Base Fill
+            val cardBasePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.rgb(15, 23, 42)
+                style = Paint.Style.FILL
+            }
+            canvas.drawRoundRect(cardRect, 18f, 18f, cardBasePaint)
+
+            // Media Cover (CenterCrop with Matrix math to guarantee zero stretch)
+            val bmp = bitmaps.getOrNull(i)
+            drawCenterCropBitmap(canvas, bmp, cardRect, 18f)
+
+            // Cinematic Bottom Scrim Gradient
+            val scrimPaint = Paint().apply {
+                shader = LinearGradient(
+                    cardRect.left, cardRect.top + (cardH * 0.40f),
+                    cardRect.left, cardRect.bottom,
+                    intArrayOf(Color.TRANSPARENT, Color.argb(160, 4, 7, 15), Color.argb(245, 3, 6, 12)),
+                    floatArrayOf(0f, 0.45f, 1f),
+                    Shader.TileMode.CLAMP
+                )
+            }
+            canvas.drawRoundRect(cardRect, 18f, 18f, scrimPaint)
+
+            // Outer Card Border
+            val cardBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = if (i == 0) Color.argb(160, 245, 158, 11) else Color.argb(40, 255, 255, 255)
+                style = Paint.Style.STROKE
+                strokeWidth = if (i == 0) 2.5f else 1.5f
+            }
+            canvas.drawRoundRect(cardRect, 18f, 18f, cardBorderPaint)
+
+            // Rank Badge (#1 Gold, #2 Silver, #3 Bronze, #4-5 Dark Glass)
+            drawMedalRankBadge(canvas, cardRect, i + 1)
+
+            // Title & Score overlay at bottom of card
+            val item = items.getOrNull(i)
+            if (item != null) {
+                val textPad = 12f
+                val bottomY = cardRect.bottom - 14f
+
+                // Score Chip
+                val scoreText = "⭐ ${if (item.score > 0) item.score else "-"}"
+                canvas.drawText(scoreText, cardRect.left + textPad, bottomY, scorePaint)
+
+                // Title (Truncated if too long)
+                var titleText = item.title
+                val maxTitleW = cardW - (textPad * 2f)
+                if (titlePaint.measureText(titleText) > maxTitleW) {
+                    while (titleText.length > 3 && titlePaint.measureText(titleText + "...") > maxTitleW) {
+                        titleText = titleText.dropLast(1)
+                    }
+                    titleText += "..."
+                }
+                canvas.drawText(titleText, cardRect.left + textPad, bottomY - 26f, titlePaint)
+            }
+        }
+    }
+
+    private fun drawMedalRankBadge(canvas: Canvas, cardRect: RectF, rank: Int) {
+        val badgeW = 60f
+        val badgeH = 34f
+        val badgeX = cardRect.left + 10f
+        val badgeY = cardRect.top + 10f
+        val rect = RectF(badgeX, badgeY, badgeX + badgeW, badgeY + badgeH)
+
+        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+        val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = 1.5f }
+        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = 20f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textAlign = Paint.Align.CENTER
+        }
+
+        when (rank) {
+            1 -> {
+                bgPaint.color = Color.rgb(245, 158, 11) // Amber Gold
+                borderPaint.color = Color.rgb(253, 230, 138)
+                textPaint.color = Color.rgb(30, 20, 3)
+            }
+            2 -> {
+                bgPaint.color = Color.rgb(203, 213, 225) // Silver
+                borderPaint.color = Color.WHITE
+                textPaint.color = Color.rgb(15, 23, 42)
+            }
+            3 -> {
+                bgPaint.color = Color.rgb(217, 119, 6) // Bronze
+                borderPaint.color = Color.rgb(251, 191, 36)
+                textPaint.color = Color.WHITE
+            }
+            else -> {
+                bgPaint.color = Color.argb(215, 11, 19, 43)
+                borderPaint.color = Color.argb(80, 255, 255, 255)
+                textPaint.color = Color.WHITE
+            }
+        }
+
+        canvas.drawRoundRect(rect, 10f, 10f, bgPaint)
+        canvas.drawRoundRect(rect, 10f, 10f, borderPaint)
+
+        val label = if (rank == 1) "👑 #1" else "#$rank"
+        val textY = rect.centerY() - ((textPaint.descent() + textPaint.ascent()) / 2f)
+        canvas.drawText(label, rect.centerX(), textY, textPaint)
     }
 }
