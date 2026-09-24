@@ -1,192 +1,11 @@
-package com.canim.app.ui.screens
 
-import android.content.ContentValues
-import android.content.Context
-import android.content.Intent
-import android.graphics.*
-import android.graphics.drawable.BitmapDrawable
-import android.graphics.pdf.PdfDocument
-import android.net.Uri
-import android.os.Build
-import android.os.Environment
-import android.provider.MediaStore
-import androidx.core.content.FileProvider
-import coil.Coil
-import coil.request.ImageRequest
-import coil.request.SuccessResult
-import com.canim.app.R
-import com.canim.app.data.model.MalUser
-import com.canim.app.data.model.TrackerStats
-import com.canim.app.data.model.UserMediaItem
-import com.canim.app.util.AnimeFranchiseFilter
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileOutputStream
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
-
-enum class StatsExportFormat(val label: String, val extension: String, val mimeType: String) {
-    PDF("PDF Dokumen", "pdf", "application/pdf"),
-    JPG("Gambar JPG", "jpg", "image/jpeg"),
-    PNG("Gambar PNG", "png", "image/png")
-}
-
-enum class ExportAspectRatio(
-    val label: String,
-    val width: Int,
-    val height: Int,
-    val isLandscape: Boolean
-) {
-    STORY_9_16("9:16", 1080, 1920, false),
-    PORTRAIT_4_5("4:5", 1080, 1350, false),
-    PORTRAIT_3_4("3:4", 1080, 1440, false),
-    SQUARE_1_1("1:1", 1080, 1080, false),
-    LANDSCAPE_16_9("16:9", 1920, 1080, true)
-}
-
-private data class CanvasPieSlice(val label: String, val count: Int, val color: Int)
-
-object StatsExporter {
-
-    suspend fun exportAndShareStats(
-        context: Context,
-        stats: TrackerStats,
-        malUser: MalUser,
-        topAnime: List<UserMediaItem>,
-        topManga: List<UserMediaItem>,
-        format: StatsExportFormat,
-        aspectRatio: ExportAspectRatio = ExportAspectRatio.STORY_9_16
-    ): Result<Uri> = withContext(Dispatchers.IO) {
-        try {
-            val filteredTopAnime = topAnime.take(5)
-            val filteredTopManga = topManga.take(5)
-
-            val bitmap = renderStatsBitmap(context, stats, malUser, filteredTopAnime, filteredTopManga, aspectRatio)
-            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            val ratioTag = aspectRatio.name.lowercase()
-            val filename = "canim_stats_${malUser.username.ifBlank { "user" }}_${ratioTag}_$timeStamp.${format.extension}"
-
-            // 1. Save locally for FileProvider sharing
-            val statsDir = File(context.cacheDir, "stats").apply { mkdirs() }
-            val localFile = File(statsDir, filename)
-
-            FileOutputStream(localFile).use { fos ->
-                when (format) {
-                    StatsExportFormat.JPG -> bitmap.compress(Bitmap.CompressFormat.JPEG, 92, fos)
-                    StatsExportFormat.PNG -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)
-                    StatsExportFormat.PDF -> {
-                        val pdfDoc = PdfDocument()
-                        val pageInfo = PdfDocument.PageInfo.Builder(bitmap.width, bitmap.height, 1).create()
-                        val page = pdfDoc.startPage(pageInfo)
-                        page.canvas.drawBitmap(bitmap, 0f, 0f, null)
-                        pdfDoc.finishPage(page)
-                        pdfDoc.writeTo(fos)
-                        pdfDoc.close()
-                    }
-                }
-            }
-
-            // 2. Try saving to MediaStore (Gallery / Downloads) for permanent access
-            runCatching {
-                saveToMediaStore(context, localFile, filename, format)
-            }
-
-            // 3. Obtain shareable Uri via FileProvider
-            val contentUri = FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.fileprovider",
-                localFile
-            )
-
-            // 4. Trigger share intent
-            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                type = format.mimeType
-                putExtra(Intent.EXTRA_STREAM, contentUri)
-                putExtra(Intent.EXTRA_SUBJECT, "Statistik Anime & Manga CA'NIM - ${malUser.username}")
-                putExtra(
-                    Intent.EXTRA_TEXT,
-                    "Statistik MyAnimeList saya via CA'NIM: ${stats.totalAnime} Anime, ${stats.totalManga} Manga, ${stats.episodesWatched} Episode ditonton!"
-                )
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-
-            val chooser = Intent.createChooser(shareIntent, "Bagikan Statistik").apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(chooser)
-
-            Result.success(contentUri)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    private fun saveToMediaStore(
-        context: Context,
-        sourceFile: File,
-        filename: String,
-        format: StatsExportFormat
-    ) {
-        val resolver = context.contentResolver
-        val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
-            put(MediaStore.MediaColumns.MIME_TYPE, format.mimeType)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(MediaStore.MediaColumns.IS_PENDING, 1)
-                if (format == StatsExportFormat.PDF) {
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Canim")
-                } else {
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Canim")
-                }
-            }
-        }
-
-        val targetCollection = if (format == StatsExportFormat.PDF) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                MediaStore.Downloads.EXTERNAL_CONTENT_URI
-            } else {
-                MediaStore.Files.getContentUri("external")
-            }
-        } else {
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-        }
-
-        val uri = resolver.insert(targetCollection, contentValues) ?: return
-        resolver.openOutputStream(uri)?.use { os ->
-            sourceFile.inputStream().use { `is` -> `is`.copyTo(os) }
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            contentValues.clear()
-            contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
-            resolver.update(uri, contentValues, null, null)
-        }
-    }
-
-    private suspend fun loadBitmap(context: Context, url: String?): Bitmap? = withContext(Dispatchers.IO) {
-        if (url.isNullOrBlank()) return@withContext null
-        try {
-            val loader = Coil.imageLoader(context)
-            val request = ImageRequest.Builder(context)
-                .data(url)
-                .allowHardware(false)
-                .build()
-            val result = loader.execute(request)
-            if (result is SuccessResult) {
-                (result.drawable as? BitmapDrawable)?.bitmap
-            } else {
-                null
-            }
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    private suspend fun renderStatsBitmap(
+const fs = require('fs');
+const path = 'app/src/main/java/com/canim/app/ui/screens/StatsExporter.kt';
+const content = fs.readFileSync(path, 'utf8');
+const anchor = '    private suspend fun renderStatsBitmap(';
+const index = content.indexOf(anchor);
+const top = content.substring(0, index);
+fs.writeFileSync(path, top + `    private suspend fun renderStatsBitmap(
         context: Context,
         stats: TrackerStats,
         malUser: MalUser,
@@ -199,6 +18,7 @@ object StatsExporter {
         val bitmap = Bitmap.createBitmap(aspectRatio.width, aspectRatio.height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
 
+        // Preload cover bitmaps in parallel
         val animeCoversDeferred = withContext(Dispatchers.IO) {
             topAnime.take(5).map { item -> async { loadBitmap(context, item.imageUrl) } }
         }
@@ -208,7 +28,7 @@ object StatsExporter {
         val animeBitmaps = animeCoversDeferred.awaitAll()
         val mangaBitmaps = mangaCoversDeferred.awaitAll()
 
-        // Background Gradient
+        // Background Gradient - Ethereal Glass
         val bgPaint = Paint().apply {
             shader = LinearGradient(
                 0f, 0f, width, height,
@@ -255,15 +75,11 @@ object StatsExporter {
         var textX = rect.left + margin
 
         if (logoBitmap != null) {
-            val logoHeight = rect.height() - (margin * 1.5f)
+            val logoHeight = rect.height() - (margin * 2)
             val logoWidth = logoBitmap.width * (logoHeight / logoBitmap.height)
-            val logoRect = RectF(rect.left + margin, rect.top + margin * 0.75f, rect.left + margin + logoWidth, rect.bottom - margin * 0.75f)
+            val logoRect = RectF(rect.left + margin, rect.top + margin, rect.left + margin + logoWidth, rect.bottom - margin)
             canvas.drawBitmap(logoBitmap, null, logoRect, Paint(Paint.FILTER_BITMAP_FLAG))
-            textX = logoRect.right + 20f
-            
-            // Draw a subtle vertical divider
-            val divPaint = Paint().apply { color = Color.rgb(51, 65, 85); strokeWidth = 2f }
-            canvas.drawLine(textX - 10f, rect.top + margin, textX - 10f, rect.bottom - margin, divPaint)
+            textX = logoRect.right + 16f
         }
 
         val textPaint = Paint().apply {
@@ -274,13 +90,13 @@ object StatsExporter {
         }
         val subPaint = Paint().apply {
             color = Color.rgb(148, 163, 184)
-            textSize = 24f
+            textSize = 22f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
             isAntiAlias = true
         }
 
+        val textY = rect.centerY() - 4f
         val primaryText = "CA'NIM | "
-        val textY = rect.centerY() + 8f // adjust for text baseline
         canvas.drawText(primaryText, textX, textY, textPaint)
         
         val primaryWidth = textPaint.measureText(primaryText)
@@ -295,19 +111,18 @@ object StatsExporter {
             isAntiAlias = true
             textAlign = Paint.Align.CENTER
         }
-        val textY = rect.centerY() + 8f
-        canvas.drawText("Dapatkan ca'nim sekarang di (link github | https://canim-lp.vercel.app/)", rect.centerX(), textY, textPaint)
+        canvas.drawText("Dapatkan ca'nim sekarang di (link github | https://canim-lp.vercel.app/)", rect.centerX(), rect.centerY() + 8f, textPaint)
     }
 
     private fun drawBentoCard(canvas: Canvas, rect: RectF) {
-        // Outer Shell (Double-Bezel)
+        // Outer Shell
         val outerPaint = Paint().apply {
-            color = Color.argb(10, 255, 255, 255)
+            color = Color.argb(10, 255, 255, 255) // bg-white/5
             style = Paint.Style.FILL
             isAntiAlias = true
         }
         val borderPaint = Paint().apply {
-            color = Color.argb(25, 255, 255, 255)
+            color = Color.argb(25, 255, 255, 255) // border-white/10
             style = Paint.Style.STROKE
             strokeWidth = 2f
             isAntiAlias = true
@@ -318,7 +133,7 @@ object StatsExporter {
         // Inner Core
         val innerRect = RectF(rect.left + 4f, rect.top + 4f, rect.right - 4f, rect.bottom - 4f)
         val innerPaint = Paint().apply {
-            color = Color.rgb(15, 23, 42)
+            color = Color.rgb(15, 23, 42) // CardBg
             style = Paint.Style.FILL
             isAntiAlias = true
         }
@@ -361,16 +176,14 @@ object StatsExporter {
         val contentW = width - (margin * 2)
 
         val headerH = 100f
-        val footerH = 60f
+        val footerH = 80f
+        val profileH = 220f
+        val statsH = 260f
+        val pieH = 320f
         
-        // Dynamic calculation to ensure 0 empty space
-        val totalBodyH = height - (margin * 2) - headerH - footerH - (gap * 6)
-        
-        // Proportions for vertical layout
-        val profileH = totalBodyH * 0.15f
-        val statsH = totalBodyH * 0.20f
-        val pieH = totalBodyH * 0.20f
-        val mediaH = (totalBodyH - profileH - statsH - pieH) / 2f
+        // Dynamic media height based on remaining space
+        val remainingH = height - (margin * 2) - headerH - footerH - profileH - statsH - pieH - (gap * 6)
+        val mediaH = remainingH / 2f
 
         var curY = margin
 
@@ -425,7 +238,7 @@ object StatsExporter {
         val contentW = width - (margin * 2)
         val contentH = height - (margin * 2)
 
-        val headerH = 90f
+        val headerH = 100f
         val footerH = 60f
         
         val bodyH = contentH - headerH - footerH - (gap * 2)
@@ -434,6 +247,7 @@ object StatsExporter {
         val col1W = (contentW - gap) / 2f
         val col2W = col1W
 
+        // Header
         var curY = margin
         val headerRect = RectF(margin, curY, margin + contentW, curY + headerH)
         drawGlobalHeader(canvas, headerRect, logoBitmap)
@@ -442,7 +256,7 @@ object StatsExporter {
         // Row 1 Left (Profile + Stats)
         val r1LeftRect = RectF(margin, curY, margin + col1W, curY + row1H)
         drawBentoCard(canvas, r1LeftRect)
-        
+        // Split inner rect for profile and stats
         val pRect = RectF(r1LeftRect.left, r1LeftRect.top, r1LeftRect.right, r1LeftRect.top + (row1H * 0.4f))
         val sRect = RectF(r1LeftRect.left, r1LeftRect.top + (row1H * 0.4f), r1LeftRect.right, r1LeftRect.bottom)
         drawProfileContent(canvas, pRect, malUser)
@@ -465,6 +279,7 @@ object StatsExporter {
         drawMediaGridContent(canvas, r2RightRect, "TOP 5 MANGA", topManga, mangaBitmaps)
         curY += row2H + gap
 
+        // Footer
         val footerRect = RectF(margin, curY, margin + contentW, curY + footerH)
         drawGlobalFooter(canvas, footerRect)
     }
@@ -480,13 +295,15 @@ object StatsExporter {
         val contentW = width - (margin * 2)
         val contentH = height - (margin * 2)
 
-        val headerH = 80f
-        val footerH = 50f
+        val headerH = 100f
+        val footerH = 60f
+        
         val bodyH = contentH - headerH - footerH - (gap * 2)
         
         val col1W = contentW * 0.35f
         val col2W = contentW * 0.65f - gap
 
+        // Header
         var curY = margin
         val headerRect = RectF(margin, curY, margin + contentW, curY + headerH)
         drawGlobalHeader(canvas, headerRect, logoBitmap)
@@ -494,7 +311,7 @@ object StatsExporter {
 
         val bodyY = curY
 
-        // Col 1
+        // Col 1 (Profile, Stats, Pie)
         val pHeight = bodyH * 0.25f
         val sHeight = bodyH * 0.3f
         val pieHeight = bodyH - pHeight - sHeight - (gap * 2)
@@ -511,7 +328,7 @@ object StatsExporter {
         drawBentoCard(canvas, pieRect)
         drawPieChartContent(canvas, pieRect, pieSlices)
 
-        // Col 2
+        // Col 2 (Anime, Manga horizontally split)
         val mediaW = (col2W - gap) / 2f
         val animeRect = RectF(margin + col1W + gap, bodyY, margin + col1W + gap + mediaW, bodyY + bodyH)
         drawBentoCard(canvas, animeRect)
@@ -551,12 +368,11 @@ object StatsExporter {
         canvas.drawText("PROFIL MYANIMELIST", rect.left + padX, currentY, titlePaint)
         
         currentY += 50f
-        val username = if (malUser.username.isBlank()) "Tamu" else malUser.username
-        canvas.drawText("@$username", rect.left + padX, currentY, userPaint)
+        canvas.drawText("@\${malUser.username.ifBlank { "Tamu" }}", rect.left + padX, currentY, userPaint)
         
         currentY += 40f
-        val loc = if (!malUser.location.isNullOrBlank()) malUser.location else "Tidak ada lokasi"
-        canvas.drawText("📍 $loc", rect.left + padX, currentY, subPaint)
+        val loc = malUser.location?.takeIf { it.isNotBlank() } ?: "Tidak ada lokasi"
+        canvas.drawText("📍 \$loc", rect.left + padX, currentY, subPaint)
     }
 
     private fun drawStatsContent(canvas: Canvas, rect: RectF, stats: TrackerStats) {
@@ -568,27 +384,24 @@ object StatsExporter {
         }
         canvas.drawText("RINGKASAN KOLEKSI", rect.left + 32f, rect.top + 40f, titlePaint)
 
-        val labelPaint = Paint().apply { color = Color.rgb(156, 163, 175); textSize = 22f; isAntiAlias = true }
-        val valPaint = Paint().apply { color = Color.WHITE; textSize = 36f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); isAntiAlias = true }
+        val labelPaint = Paint().apply { color = Color.rgb(156, 163, 175); textSize = 20f; isAntiAlias = true }
+        val valPaint = Paint().apply { color = Color.WHITE; textSize = 32f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); isAntiAlias = true }
 
         val startX = rect.left + 32f
         val col2X = rect.left + (rect.width() / 2f)
-        
-        // Dynamically space rows based on rect height
-        val availableH = rect.height() - 60f
-        val rowH = availableH / 2f
-        var startY = rect.top + 70f + (rowH * 0.3f)
+        var startY = rect.top + 90f
+        val rowH = 75f
 
         fun drawStat(x: Float, y: Float, label: String, value: String) {
             canvas.drawText(label, x, y, labelPaint)
-            canvas.drawText(value, x, y + 40f, valPaint)
+            canvas.drawText(value, x, y + 36f, valPaint)
         }
 
-        drawStat(startX, startY, "Total Anime", "${stats.totalAnime}")
-        drawStat(col2X, startY, "Total Manga", "${stats.totalManga}")
-        startY += rowH
-        drawStat(startX, startY, "Hari Tonton", "${stats.daysWatched}")
-        drawStat(col2X, startY, "Bab Dibaca", "${stats.chaptersRead}")
+        drawStat(startX, startY, "Total Anime", "\${stats.totalAnime}")
+        drawStat(col2X, startY, "Total Manga", "\${stats.totalManga}")
+        startY += rowH + 20f
+        drawStat(startX, startY, "Hari Tonton", "\${stats.daysWatched}")
+        drawStat(col2X, startY, "Bab Dibaca", "\${stats.chaptersRead}")
     }
 
     private fun drawPieChartContent(canvas: Canvas, rect: RectF, slices: List<CanvasPieSlice>) {
@@ -605,12 +418,10 @@ object StatsExporter {
         val total = slices.sumOf { it.count }.toFloat()
         var currentAngle = -90f
         
-        // Maximize radius to fill available pie space
-        val radius = minOf(rect.width() * 0.5f, rect.height() - 60f) * 0.45f
-        
-        // Offset center slightly to the left if width allows it, so legend fits on right
-        val cx = if (rect.width() > rect.height()) rect.left + (rect.width() * 0.35f) else rect.left + (rect.width() * 0.5f)
-        val cy = if (rect.width() > rect.height()) rect.top + 50f + (rect.height() - 50f) / 2f else rect.top + 70f + radius
+        val radius = minOf(rect.width(), rect.height() - 60f) * 0.35f
+        // Offset center slightly to the left if width allows it
+        val cx = rect.left + (rect.width() * 0.35f)
+        val cy = rect.top + 50f + (rect.height() - 50f) / 2f
         
         val oval = RectF(cx - radius, cy - radius, cx + radius, cy + radius)
         val piePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
@@ -623,15 +434,15 @@ object StatsExporter {
         }
 
         // Legend
-        val legendX = if (rect.width() > rect.height()) cx + radius + 40f else rect.left + 32f
-        var legendY = if (rect.width() > rect.height()) cy - radius + 30f else cy + radius + 40f
-        
+        val legendX = cx + radius + 40f
+        var legendY = cy - radius + 20f
+        val legendTitlePaint = Paint().apply { color = Color.WHITE; textSize = 22f; isAntiAlias = true }
         val legendPaint = Paint().apply { color = Color.rgb(200, 200, 200); textSize = 20f; isAntiAlias = true }
         
         for (slice in slices) {
             piePaint.color = slice.color
             canvas.drawCircle(legendX, legendY - 6f, 10f, piePaint)
-            canvas.drawText("${slice.label}: ${slice.count}", legendX + 25f, legendY, legendPaint)
+            canvas.drawText("\${slice.label}: \${slice.count}", legendX + 25f, legendY, legendPaint)
             legendY += 35f
         }
     }
@@ -655,7 +466,7 @@ object StatsExporter {
         val startY = rect.top + 60f
         val startX = rect.left + padX
         val contentW = rect.width() - (padX * 2)
-        val contentH = rect.bottom - padX - startY
+        val contentH = rect.height() - 60f - padX
 
         // Auto-arrange in columns or grid depending on width vs height
         val isHorizontalFlow = contentW > contentH * 1.5f
@@ -665,10 +476,13 @@ object StatsExporter {
             val cardW = (contentW - gap * 4) / 5f
             for (i in items.indices) {
                 if (i >= 5) break
+                val item = items[i]
                 val bmp = bitmaps.getOrNull(i)
                 val cardX = startX + (cardW + gap) * i
                 val cardRect = RectF(cardX, startY, cardX + cardW, startY + contentH)
                 drawCenterCropBitmap(canvas, bmp, cardRect, 16f)
+                
+                // Add Rank Badge
                 drawRankBadge(canvas, cardRect, i + 1)
             }
         } else {
@@ -679,28 +493,24 @@ object StatsExporter {
                 val bmp = bitmaps.getOrNull(i)
                 val cardY = startY + (cardH + gap) * i
                 
+                // For vertical list, we split image and text
                 val imgW = cardH * 0.7f // Portrait ratio for image
                 val imgRect = RectF(startX, cardY, startX + imgW, cardY + cardH)
                 drawCenterCropBitmap(canvas, bmp, imgRect, 12f)
                 
                 drawRankBadge(canvas, imgRect, i + 1)
                 
+                // Text
                 val textX = imgRect.right + 16f
-                val titleMainPaint = Paint().apply { color = Color.WHITE; textSize = 24f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); isAntiAlias = true }
-                val scorePaint = Paint().apply { color = Color.rgb(250, 204, 21); textSize = 22f; isAntiAlias = true }
+                val titleMainPaint = Paint().apply { color = Color.WHITE; textSize = 22f; typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD); isAntiAlias = true }
+                val scorePaint = Paint().apply { color = Color.rgb(250, 204, 21); textSize = 20f; isAntiAlias = true }
                 
+                // Truncate title
                 var shortTitle = items[i].title
-                // Dynamically truncate string if too long
-                val maxTextW = contentW - imgW - 16f
-                if (titleMainPaint.measureText(shortTitle) > maxTextW) {
-                    while (shortTitle.length > 3 && titleMainPaint.measureText(shortTitle + "...") > maxTextW) {
-                        shortTitle = shortTitle.dropLast(1)
-                    }
-                    shortTitle += "..."
-                }
+                if (shortTitle.length > 25) shortTitle = shortTitle.take(23) + "..."
                 
                 canvas.drawText(shortTitle, textX, cardY + cardH * 0.45f, titleMainPaint)
-                canvas.drawText("⭐ ${items[i].score}", textX, cardY + cardH * 0.85f, scorePaint)
+                canvas.drawText("⭐ \${items[i].score}", textX, cardY + cardH * 0.8f, scorePaint)
             }
         }
     }
@@ -724,8 +534,8 @@ object StatsExporter {
         }
         
         canvas.drawCircle(badgeX, badgeY, badgeRadius, badgePaint)
-        // Center text vertically
-        val textY = badgeY - ((textPaint.descent() + textPaint.ascent()) / 2f)
-        canvas.drawText("#$rank", badgeX, textY, textPaint)
+        canvas.drawText("#\$rank", badgeX, badgeY + 8f, textPaint)
     }
 }
+`);
+console.log('Successfully rewrote StatsExporter.kt');

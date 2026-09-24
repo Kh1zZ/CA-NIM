@@ -5,6 +5,14 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.5.3] - 2026-09-24
+### Changed
+- **Stats Exporter Redesign**: Merombak total desain export statistik (Story, Portrait, Square, Landscape) dengan sistem layout *Seamless Bento Grid*.
+  - Mengimplementasikan teknik *Double-Bezel* berlatar *Ethereal Glass* untuk *high-end premium look*.
+  - Pemotongan cover anime/manga (No Stretch) menggunakan algoritma berbasis `Matrix`.
+  - Optimalisasi tata letak (Zero Empty Space) untuk memaksimalkan seluruh area kanvas pada setiap rasio gambar.
+  - Memperbarui Header (CA-NIM APK) dan Footer (link download Github) pada semua versi rasio hasil export.
+
 ## [v6.5.2] - 2026-09-24
 ### Fixed
 - **Edge-to-Edge UI Clipping**: Memperbaiki masalah elemen UI yang terpotong oleh *status bar* pada perangkat Android modern.

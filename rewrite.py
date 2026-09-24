@@ -1,192 +1,19 @@
-package com.canim.app.ui.screens
+import os
 
-import android.content.ContentValues
-import android.content.Context
-import android.content.Intent
-import android.graphics.*
-import android.graphics.drawable.BitmapDrawable
-import android.graphics.pdf.PdfDocument
-import android.net.Uri
-import android.os.Build
-import android.os.Environment
-import android.provider.MediaStore
-import androidx.core.content.FileProvider
-import coil.Coil
-import coil.request.ImageRequest
-import coil.request.SuccessResult
-import com.canim.app.R
-import com.canim.app.data.model.MalUser
-import com.canim.app.data.model.TrackerStats
-import com.canim.app.data.model.UserMediaItem
-import com.canim.app.util.AnimeFranchiseFilter
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileOutputStream
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+filepath = 'app/src/main/java/com/canim/app/ui/screens/StatsExporter.kt'
 
-enum class StatsExportFormat(val label: String, val extension: String, val mimeType: String) {
-    PDF("PDF Dokumen", "pdf", "application/pdf"),
-    JPG("Gambar JPG", "jpg", "image/jpeg"),
-    PNG("Gambar PNG", "png", "image/png")
-}
+with open(filepath, 'r', encoding='utf-8') as f:
+    content = f.read()
 
-enum class ExportAspectRatio(
-    val label: String,
-    val width: Int,
-    val height: Int,
-    val isLandscape: Boolean
-) {
-    STORY_9_16("9:16", 1080, 1920, false),
-    PORTRAIT_4_5("4:5", 1080, 1350, false),
-    PORTRAIT_3_4("3:4", 1080, 1440, false),
-    SQUARE_1_1("1:1", 1080, 1080, false),
-    LANDSCAPE_16_9("16:9", 1920, 1080, true)
-}
+anchor = '    private suspend fun renderStatsBitmap('
+idx = content.find(anchor)
+if idx == -1:
+    print('Anchor not found')
+    exit(1)
 
-private data class CanvasPieSlice(val label: String, val count: Int, val color: Int)
+top = content[:idx]
 
-object StatsExporter {
-
-    suspend fun exportAndShareStats(
-        context: Context,
-        stats: TrackerStats,
-        malUser: MalUser,
-        topAnime: List<UserMediaItem>,
-        topManga: List<UserMediaItem>,
-        format: StatsExportFormat,
-        aspectRatio: ExportAspectRatio = ExportAspectRatio.STORY_9_16
-    ): Result<Uri> = withContext(Dispatchers.IO) {
-        try {
-            val filteredTopAnime = topAnime.take(5)
-            val filteredTopManga = topManga.take(5)
-
-            val bitmap = renderStatsBitmap(context, stats, malUser, filteredTopAnime, filteredTopManga, aspectRatio)
-            val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
-            val ratioTag = aspectRatio.name.lowercase()
-            val filename = "canim_stats_${malUser.username.ifBlank { "user" }}_${ratioTag}_$timeStamp.${format.extension}"
-
-            // 1. Save locally for FileProvider sharing
-            val statsDir = File(context.cacheDir, "stats").apply { mkdirs() }
-            val localFile = File(statsDir, filename)
-
-            FileOutputStream(localFile).use { fos ->
-                when (format) {
-                    StatsExportFormat.JPG -> bitmap.compress(Bitmap.CompressFormat.JPEG, 92, fos)
-                    StatsExportFormat.PNG -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, fos)
-                    StatsExportFormat.PDF -> {
-                        val pdfDoc = PdfDocument()
-                        val pageInfo = PdfDocument.PageInfo.Builder(bitmap.width, bitmap.height, 1).create()
-                        val page = pdfDoc.startPage(pageInfo)
-                        page.canvas.drawBitmap(bitmap, 0f, 0f, null)
-                        pdfDoc.finishPage(page)
-                        pdfDoc.writeTo(fos)
-                        pdfDoc.close()
-                    }
-                }
-            }
-
-            // 2. Try saving to MediaStore (Gallery / Downloads) for permanent access
-            runCatching {
-                saveToMediaStore(context, localFile, filename, format)
-            }
-
-            // 3. Obtain shareable Uri via FileProvider
-            val contentUri = FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.fileprovider",
-                localFile
-            )
-
-            // 4. Trigger share intent
-            val shareIntent = Intent(Intent.ACTION_SEND).apply {
-                type = format.mimeType
-                putExtra(Intent.EXTRA_STREAM, contentUri)
-                putExtra(Intent.EXTRA_SUBJECT, "Statistik Anime & Manga CA'NIM - ${malUser.username}")
-                putExtra(
-                    Intent.EXTRA_TEXT,
-                    "Statistik MyAnimeList saya via CA'NIM: ${stats.totalAnime} Anime, ${stats.totalManga} Manga, ${stats.episodesWatched} Episode ditonton!"
-                )
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-
-            val chooser = Intent.createChooser(shareIntent, "Bagikan Statistik").apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            }
-            context.startActivity(chooser)
-
-            Result.success(contentUri)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    private fun saveToMediaStore(
-        context: Context,
-        sourceFile: File,
-        filename: String,
-        format: StatsExportFormat
-    ) {
-        val resolver = context.contentResolver
-        val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
-            put(MediaStore.MediaColumns.MIME_TYPE, format.mimeType)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(MediaStore.MediaColumns.IS_PENDING, 1)
-                if (format == StatsExportFormat.PDF) {
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS + "/Canim")
-                } else {
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/Canim")
-                }
-            }
-        }
-
-        val targetCollection = if (format == StatsExportFormat.PDF) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                MediaStore.Downloads.EXTERNAL_CONTENT_URI
-            } else {
-                MediaStore.Files.getContentUri("external")
-            }
-        } else {
-            MediaStore.Images.Media.EXTERNAL_CONTENT_URI
-        }
-
-        val uri = resolver.insert(targetCollection, contentValues) ?: return
-        resolver.openOutputStream(uri)?.use { os ->
-            sourceFile.inputStream().use { `is` -> `is`.copyTo(os) }
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            contentValues.clear()
-            contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
-            resolver.update(uri, contentValues, null, null)
-        }
-    }
-
-    private suspend fun loadBitmap(context: Context, url: String?): Bitmap? = withContext(Dispatchers.IO) {
-        if (url.isNullOrBlank()) return@withContext null
-        try {
-            val loader = Coil.imageLoader(context)
-            val request = ImageRequest.Builder(context)
-                .data(url)
-                .allowHardware(false)
-                .build()
-            val result = loader.execute(request)
-            if (result is SuccessResult) {
-                (result.drawable as? BitmapDrawable)?.bitmap
-            } else {
-                null
-            }
-        } catch (_: Exception) {
-            null
-        }
-    }
-
-    private suspend fun renderStatsBitmap(
+new_logic = """    private suspend fun renderStatsBitmap(
         context: Context,
         stats: TrackerStats,
         malUser: MalUser,
@@ -729,3 +556,9 @@ object StatsExporter {
         canvas.drawText("#$rank", badgeX, textY, textPaint)
     }
 }
+"""
+
+with open(filepath, 'w', encoding='utf-8') as f:
+    f.write(top + new_logic)
+
+print("Rewrite successful")
