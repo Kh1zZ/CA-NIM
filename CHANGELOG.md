@@ -5,6 +5,13 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.5.4] - 2026-09-24
+### Fixed
+- **Edge-to-Edge Notch Clipping**: Memperbaiki masalah elemen antarmuka layar utama (Dasbor, Library, dsb) yang menembus dan terpotong oleh poni (*notch* / *camera cutout*) dengan menambahkan pengaman `statusBarsPadding()` pada container utama. Fitur imersif layar penuh tetap dipertahankan pada layar yang membutuhkannya.
+
+### Changed
+- **Developer Policies**: Menambahkan aturan baru pada `AGENTS.md` mengenai keharusan penyusunan *implementation plan* dan persetujuan eksplisit dari *developer* sebelum modifikasi kode dilakukan.
+
 ## [v6.5.3] - 2026-09-24
 ### Changed
 - **Stats Exporter Redesign**: Merombak total desain export statistik (Story, Portrait, Square, Landscape) dengan sistem layout *Seamless Bento Grid*.
