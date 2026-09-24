@@ -927,6 +927,7 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier
                                 .align(Alignment.TopCenter)
                                 .fillMaxWidth()
+                                .statusBarsPadding()
                         ) {
                             RateLimitBanner(
                                 throttleState = globalState.throttleNotification,

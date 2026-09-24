@@ -146,7 +146,6 @@ fun FlashcardScreen(
                         }
                     }
                 },
-                windowInsets = WindowInsets(0.dp),
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = BlackBg)
             )
         }
