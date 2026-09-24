@@ -39,11 +39,13 @@ fun CanimPullToRefreshLayout(
         modifier = modifier.nestedScroll(state.nestedScrollConnection)
     ) {
         content()
-        PullToRefreshContainer(
-            state = state,
-            modifier = Modifier.align(Alignment.TopCenter),
-            containerColor = CardElevated,
-            contentColor = AccentBlue
-        )
+        if (state.isRefreshing || state.verticalOffset > 0f) {
+            PullToRefreshContainer(
+                state = state,
+                modifier = Modifier.align(Alignment.TopCenter),
+                containerColor = CardElevated,
+                contentColor = AccentBlue
+            )
+        }
     }
 }

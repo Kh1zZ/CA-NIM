@@ -5,6 +5,12 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.5.5] - 2026-09-24
+### Fixed
+- **Pull-To-Refresh Indicator Idle Bump**: Memperbaiki indikator refresh abu-abu yang menyembul (*peeking*) di bagian tengah atas pada kondisi diam di layar Dasbor, Library, Discover, dan Detail Screen dengan menambahkan pengecekan `state.isRefreshing || state.verticalOffset > 0f`.
+- **Main Menu Header Notch Insets**: Menghilangkan *double status bar padding* pada kontainer utama dan merapatkan `contentPadding` atas menjadi `6.dp` agar semua header menu utama duduk presisi dan rapi tepat di bawah poni (*notch*) perangkat.
+- **Media Detail Screen Header**: Menstandarisasi header detail anime/manga menggunakan arsitektur `Scaffold` + `TopAppBar` (seperti `FlashcardScreen`) berlatar `BlackBg` pekat yang menembus penuh ke area notch, lengkap dengan judul anime dan tombol aksi.
+
 ## [v6.5.4] - 2026-09-24
 ### Fixed
 - **Edge-to-Edge Notch Clipping**: Memperbaiki masalah elemen antarmuka layar utama (Dasbor, Library, dsb) yang menembus dan terpotong oleh poni (*notch* / *camera cutout*) dengan menambahkan pengaman `statusBarsPadding()` pada container utama. Fitur imersif layar penuh tetap dipertahankan pada layar yang membutuhkannya.

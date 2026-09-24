@@ -184,13 +184,59 @@ fun MediaDetailScreen(
     )
     val currentStatusOptions = if (isAnime) animeStatusOptions else mangaStatusOptions
 
-    Box(modifier = modifier.fillMaxSize().background(BlackBg)) {
-        val screenWidthDp = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
-        com.canim.app.ui.components.CanimPullToRefreshLayout(
-            isRefreshing = isLoadingExtendedDetail,
-            onRefresh = onRefresh,
-            modifier = Modifier.fillMaxSize()
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = BlackBg,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = title,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Kembali",
+                            tint = TextPrimary
+                        )
+                    }
+                },
+                actions = {
+                    if (userItem != null) {
+                        IconButton(onClick = { showDeleteDialog = true }) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "Hapus",
+                                tint = StatusDroppedColor
+                            )
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = BlackBg)
+            )
+        }
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .background(BlackBg)
         ) {
+            val screenWidthDp = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
+            com.canim.app.ui.components.CanimPullToRefreshLayout(
+                isRefreshing = isLoadingExtendedDetail,
+                onRefresh = onRefresh,
+                modifier = Modifier.fillMaxSize()
+            ) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
@@ -1398,89 +1444,33 @@ fun MediaDetailScreen(
         }
     }
 
-        // Top Gradient Scrim for Persistent Floating Action Buttons
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(90.dp)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            Color.Black.copy(alpha = 0.8f),
-                            Color.Transparent
-                        )
-                    )
-                )
-        )
-
-        // Pinned Top-Left Back FAB
-        IconButton(
-            onClick = onDismiss,
-            modifier = Modifier
-                .statusBarsPadding()
-                .padding(start = 16.dp, top = 8.dp)
-                .size(42.dp)
-                .clip(CircleShape)
-                .background(Color.Black.copy(alpha = 0.65f))
-                .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "Kembali",
-                tint = Color.White,
-                modifier = Modifier.size(20.dp)
+        if (userItem != null && showDeleteDialog) {
+            AlertDialog(
+                onDismissRequest = { showDeleteDialog = false },
+                title = { Text("Hapus dari Koleksi", color = TextPrimary, fontWeight = FontWeight.Bold) },
+                text = { Text("Apakah kamu yakin ingin menghapus \"$title\" dari koleksimu?", color = TextSecondary) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            showDeleteDialog = false
+                            if (isAnime) onDeleteAnime(userItem.id) else onDeleteManga(userItem.id)
+                            onDismiss()
+                        }
+                    ) {
+                        Text("Hapus", color = StatusDroppedColor, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteDialog = false }) {
+                        Text("Batal", color = TextSecondary)
+                    }
+                },
+                containerColor = CardBg,
+                shape = RoundedCornerShape(16.dp)
             )
         }
-
-        // Pinned Top-Right Delete FAB
-        if (userItem != null) {
-            var showDeleteDialog by remember { mutableStateOf(false) }
-            IconButton(
-                onClick = { showDeleteDialog = true },
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .statusBarsPadding()
-                    .padding(end = 16.dp, top = 8.dp)
-                    .size(42.dp)
-                    .clip(CircleShape)
-                    .background(Color.Black.copy(alpha = 0.65f))
-                    .border(1.dp, StatusDroppedColor.copy(alpha = 0.4f), CircleShape)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Delete,
-                    contentDescription = "Hapus",
-                    tint = StatusDroppedColor,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-
-            if (showDeleteDialog) {
-                AlertDialog(
-                    onDismissRequest = { showDeleteDialog = false },
-                    title = { Text("Hapus dari Koleksi", color = TextPrimary, fontWeight = FontWeight.Bold) },
-                    text = { Text("Apakah kamu yakin ingin menghapus \"$title\" dari koleksimu?", color = TextSecondary) },
-                    confirmButton = {
-                        TextButton(
-                            onClick = {
-                                showDeleteDialog = false
-                                if (isAnime) onDeleteAnime(userItem.id) else onDeleteManga(userItem.id)
-                                onDismiss()
-                            }
-                        ) {
-                            Text("Hapus", color = StatusDroppedColor, fontWeight = FontWeight.Bold)
-                        }
-                    },
-                    dismissButton = {
-                        TextButton(onClick = { showDeleteDialog = false }) {
-                            Text("Batal", color = TextSecondary)
-                        }
-                    },
-                    containerColor = CardBg,
-                    shape = RoundedCornerShape(16.dp)
-                )
-            }
-        }
     }
+}
 }
 
 @Composable

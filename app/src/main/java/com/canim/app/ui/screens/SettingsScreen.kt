@@ -72,7 +72,7 @@ fun SettingsScreen(
             .fillMaxSize()
             .background(BlackBg)
             .padding(horizontal = 12.dp),
-        contentPadding = PaddingValues(top = 12.dp, bottom = 24.dp),
+        contentPadding = PaddingValues(top = 6.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         item {
