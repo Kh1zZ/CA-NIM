@@ -383,6 +383,7 @@ class MainActivity : ComponentActivity() {
                                         modifier = Modifier
                                             .fillMaxSize()
                                             .padding(innerPadding)
+                                            .statusBarsPadding()
                                             .background(BlackBg)
                                     ) {
                         // Stable hoisted callbacks to ensure 100% skippable recomposition during scrolling
