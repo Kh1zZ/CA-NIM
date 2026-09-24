@@ -5,6 +5,12 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.5.2] - 2026-09-24
+### Fixed
+- **Edge-to-Edge UI Clipping**: Memperbaiki masalah elemen UI yang terpotong oleh *status bar* pada perangkat Android modern.
+  - Menambahkan pengaman `statusBarsPadding()` pada kontainer popup notifikasi global (seperti *Rate Limit* & *Library Syncing*).
+  - Menghapus *hardcoded window insets* pada `TopAppBar` di fitur Flashcard Gacha agar header menyesuaikan ukuran *safe area* secara otomatis.
+
 ## [v6.5.1] - 2026-09-24
 ### Optimized
 - **Background Notification Aggressiveness & Doze Bypass**:
