@@ -65,7 +65,7 @@ class MalSecureStorage(private val context: Context) {
                     putString(KEY_REFRESH_TOKEN, refreshToken)
                 }
                 putLong(KEY_EXPIRES_AT, expiresAt)
-            }.commit()
+            }.apply()
         } catch (e: Exception) {
             Log.e("MalSecureStorage", "Failed to save tokens: ${e.message}", e)
         }
@@ -98,7 +98,7 @@ class MalSecureStorage(private val context: Context) {
             prefs.edit()
                 .putString(KEY_PKCE_VERIFIER, verifier)
                 .putString(KEY_PKCE_STATE, state)
-                .commit()
+                .apply()
         } catch (e: Exception) {
             Log.e("MalSecureStorage", "Failed to save PKCE: ${e.message}", e)
         }
@@ -123,7 +123,7 @@ class MalSecureStorage(private val context: Context) {
             prefs.edit()
                 .remove(KEY_PKCE_VERIFIER)
                 .remove(KEY_PKCE_STATE)
-                .commit()
+                .apply()
         } catch (e: Exception) {
             Log.e("MalSecureStorage", "Failed to clear PKCE: ${e.message}", e)
         }
@@ -137,7 +137,7 @@ class MalSecureStorage(private val context: Context) {
                 .putString(KEY_USER_PICTURE, pictureUrl)
                 .putString(KEY_USER_LOCATION, location)
                 .putString(KEY_USER_GENDER, gender)
-                .commit()
+                .apply()
         } catch (e: Exception) {
             Log.e("MalSecureStorage", "Failed to save user profile: ${e.message}", e)
         }
@@ -165,7 +165,7 @@ class MalSecureStorage(private val context: Context) {
 
     fun setLastSynced(timestamp: Long = System.currentTimeMillis()) {
         try {
-            prefs.edit().putLong(KEY_LAST_SYNCED, timestamp).commit()
+            prefs.edit().putLong(KEY_LAST_SYNCED, timestamp).apply()
         } catch (e: Exception) {
             Log.e("MalSecureStorage", "Failed to set last synced: ${e.message}", e)
         }
@@ -179,7 +179,7 @@ class MalSecureStorage(private val context: Context) {
 
     fun clearAuth() {
         try {
-            prefs.edit().clear().commit()
+            prefs.edit().clear().apply()
         } catch (e: Exception) {
             Log.e("MalSecureStorage", "Failed to clear auth: ${e.message}", e)
         }

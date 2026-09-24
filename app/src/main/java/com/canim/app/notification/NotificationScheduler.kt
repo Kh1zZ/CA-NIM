@@ -17,7 +17,7 @@ import android.os.SystemClock
 object NotificationScheduler {
 
     private const val REQUEST_CODE_ALARM = 4001
-    private const val INTERVAL_MS = 30 * 60 * 1000L // 30 minutes
+    private const val INTERVAL_MS = 15 * 60 * 1000L // 15 minutes
 
     fun schedulePeriodicCheck(context: Context) {
         val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager ?: return
@@ -33,7 +33,7 @@ object NotificationScheduler {
 
         try {
             alarmManager.setInexactRepeating(
-                AlarmManager.ELAPSED_REALTIME,
+                AlarmManager.ELAPSED_REALTIME_WAKEUP,
                 SystemClock.elapsedRealtime() + INTERVAL_MS,
                 INTERVAL_MS,
                 pendingIntent
