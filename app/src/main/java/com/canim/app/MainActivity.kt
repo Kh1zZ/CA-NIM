@@ -807,7 +807,8 @@ class MainActivity : ComponentActivity() {
                                         },
                                         onDismiss = {
                                             globalViewModel.popScreen()
-                                        }
+                                        },
+                                        malUsername = globalState.malUser.username
                                     )
                                 }
                                 is ScreenRoute.StudioFilmography -> {

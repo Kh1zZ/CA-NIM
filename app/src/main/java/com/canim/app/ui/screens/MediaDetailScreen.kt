@@ -40,6 +40,7 @@ import com.canim.app.ui.viewmodel.library.LibraryUiState
 import com.canim.app.util.TextSanitizer
 import com.canim.app.util.MediaDisplayFormatter
 import com.canim.app.data.repository.StudioBioRegistry
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -64,8 +65,11 @@ fun MediaDetailScreen(
     onRankClick: ((MediaType) -> Unit)? = null,
     onRefresh: () -> Unit = {},
     onDismiss: () -> Unit,
+    malUsername: String = "",
     modifier: Modifier = Modifier
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val isAnime = type == MediaType.ANIME
     val isManga = !isAnime
     val themeAccent = if (isManga) MangaAccentDarkBlue else AccentBlue
@@ -141,7 +145,7 @@ fun MediaDetailScreen(
     val titleEnglish: String? = userItem?.metadata?.titleEnglish?.takeIf { it.isNotBlank() } ?: mediaItem?.titleEnglish?.takeIf { it.isNotBlank() } ?: airingItem?.titleEnglish?.takeIf { it.isNotBlank() } ?: extendedDetail?.titleEnglish
     val titleNative: String? = extendedDetail?.nativeTitle
     val imageUrl: String = userItem?.imageUrl?.takeIf { it.isNotBlank() } ?: mediaItem?.imageUrl?.takeIf { it.isNotBlank() } ?: airingItem?.imageUrl?.takeIf { it.isNotBlank() } ?: extendedDetail?.coverImage?.takeIf { it.isNotBlank() } ?: ""
-    val bannerUrl: String = imageUrl
+    val bannerUrl: String = extendedDetail?.bannerImage?.takeIf { it.isNotBlank() } ?: imageUrl
     val synopsis: String = userItem?.synopsis?.takeIf { it.isNotBlank() } ?: mediaItem?.synopsis?.takeIf { it.isNotBlank() } ?: extendedDetail?.synopsis ?: ""
     val cleanSynopsis: String = remember(synopsis) {
         TextSanitizer.sanitize(synopsis)
@@ -186,57 +190,13 @@ fun MediaDetailScreen(
 
     var showDeleteDialog by remember { mutableStateOf(false) }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = BlackBg,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = title,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Kembali",
-                            tint = TextPrimary
-                        )
-                    }
-                },
-                actions = {
-                    if (userItem != null) {
-                        IconButton(onClick = { showDeleteDialog = true }) {
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "Hapus",
-                                tint = StatusDroppedColor
-                            )
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = BlackBg)
-            )
-        }
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .background(BlackBg)
+    Box(modifier = modifier.fillMaxSize().background(BlackBg)) {
+        val screenWidthDp = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
+        com.canim.app.ui.components.CanimPullToRefreshLayout(
+            isRefreshing = isLoadingExtendedDetail,
+            onRefresh = onRefresh,
+            modifier = Modifier.fillMaxSize()
         ) {
-            val screenWidthDp = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
-            com.canim.app.ui.components.CanimPullToRefreshLayout(
-                isRefreshing = isLoadingExtendedDetail,
-                onRefresh = onRefresh,
-                modifier = Modifier.fillMaxSize()
-            ) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
@@ -1335,55 +1295,126 @@ fun MediaDetailScreen(
                         )
                     )
 
-                    // Save Button
-                    Button(
-                        onClick = {
-                            val finalProgress = if (trackingStatus == "completed" && maxProgress > 0 && trackingProgress < maxProgress) {
-                                maxProgress
-                            } else {
-                                trackingProgress
-                            }
-                            val tracking = MalTracking(
-                                status = trackingStatus,
-                                score = trackingScore,
-                                progress = finalProgress,
-                                comments = trackingNotes
-                            )
-                            val effectiveMalId = userItem?.malId ?: mediaItem?.malId ?: airingItem?.malId ?: extendedDetail?.malId
-                            val effectiveAniId = userItem?.anilistId ?: mediaItem?.anilistId ?: airingItem?.anilistId ?: extendedDetail?.anilistId
-                            val identity = userItem?.identity ?: mediaItem?.identity ?: MediaRef(anilistId = effectiveAniId, malId = effectiveMalId)
-                            val initialGenres = userItem?.metadata?.genres
-                                ?: mediaItem?.genres
-                                ?: airingItem?.genres
-                                ?: extendedDetail?.genres
-                                ?: emptyList()
-                            val targetMetadata = userItem?.metadata ?: MediaMetadata(
-                                title = title,
-                                titleEnglish = titleEnglish,
-                                titleNative = titleNative,
-                                imageUrl = imageUrl,
-                                type = type,
-                                totalEpisodes = totalEpisodes,
-                                totalChapters = totalChapters,
-                                status = userItem?.airingStatus ?: mediaItem?.status ?: extendedDetail?.airingStatus,
-                                studio = userItem?.studio ?: mediaItem?.studio ?: airingItem?.studio ?: extendedDetail?.studio,
-                                genres = initialGenres,
-                                synopsis = synopsis
-                            )
-                            val updatedUserItem = UserMediaItem(
-                                identity = identity,
-                                metadata = targetMetadata,
-                                tracking = tracking
-                            )
+                    // Action Buttons Row: Simpan ke Library (80%) + Export (20%)
+                    val effectiveMalId = userItem?.malId ?: mediaItem?.malId ?: airingItem?.malId ?: extendedDetail?.malId
+                    val effectiveAniId = userItem?.anilistId ?: mediaItem?.anilistId ?: airingItem?.anilistId ?: extendedDetail?.anilistId
+                    val identity = userItem?.identity ?: mediaItem?.identity ?: MediaRef(anilistId = effectiveAniId, malId = effectiveMalId)
+                    val initialGenres = userItem?.metadata?.genres
+                        ?: mediaItem?.genres
+                        ?: airingItem?.genres
+                        ?: extendedDetail?.genres
+                        ?: emptyList()
+                    val targetMetadata = userItem?.metadata ?: MediaMetadata(
+                        title = title,
+                        titleEnglish = titleEnglish,
+                        titleNative = titleNative,
+                        imageUrl = imageUrl,
+                        type = type,
+                        totalEpisodes = totalEpisodes,
+                        totalChapters = totalChapters,
+                        status = userItem?.airingStatus ?: mediaItem?.status ?: extendedDetail?.airingStatus,
+                        studio = userItem?.studio ?: mediaItem?.studio ?: airingItem?.studio ?: extendedDetail?.studio,
+                        genres = initialGenres,
+                        synopsis = synopsis
+                    )
 
-                            if (isAnime) onSaveAnime(updatedUserItem) else onSaveManga(updatedUserItem)
-                            showTrackingSheet = false
-                        },
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = themeAccent),
-                        shape = RoundedCornerShape(12.dp)
+                    var isExportingRating by remember { mutableStateOf(false) }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Simpan ke Library", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Button(
+                            onClick = {
+                                val finalProgress = if (trackingStatus == "completed" && maxProgress > 0 && trackingProgress < maxProgress) {
+                                    maxProgress
+                                } else {
+                                    trackingProgress
+                                }
+                                val tracking = MalTracking(
+                                    status = trackingStatus,
+                                    score = trackingScore,
+                                    progress = finalProgress,
+                                    comments = trackingNotes
+                                )
+                                val updatedUserItem = UserMediaItem(
+                                    identity = identity,
+                                    metadata = targetMetadata,
+                                    tracking = tracking
+                                )
+
+                                if (isAnime) onSaveAnime(updatedUserItem) else onSaveManga(updatedUserItem)
+                                showTrackingSheet = false
+                            },
+                            modifier = Modifier
+                                .weight(0.8f)
+                                .fillMaxHeight(),
+                            colors = ButtonDefaults.buttonColors(containerColor = themeAccent),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("Simpan ke Library", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                if (isExportingRating) return@OutlinedButton
+                                coroutineScope.launch {
+                                    isExportingRating = true
+                                    try {
+                                        MediaRatingCardExporter.exportAndShareRatingCard(
+                                            context = context,
+                                            data = MediaRatingExportData(
+                                                title = title,
+                                                titleEnglish = titleEnglish,
+                                                mediaType = type,
+                                                imageUrl = imageUrl,
+                                                malScore = extendedDetail?.malScore,
+                                                userScore = trackingScore,
+                                                status = trackingStatus,
+                                                progress = trackingProgress,
+                                                maxProgress = maxProgress,
+                                                genres = initialGenres,
+                                                studio = targetMetadata.studio,
+                                                malUsername = malUsername,
+                                                airingStatus = extendedDetail?.airingStatus ?: targetMetadata.status,
+                                                malId = effectiveMalId
+                                            )
+                                        )
+                                    } finally {
+                                        isExportingRating = false
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .weight(0.2f)
+                                .fillMaxHeight(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = CardBg,
+                                contentColor = TextPrimary
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderSubtle),
+                            contentPadding = PaddingValues(0.dp),
+                            enabled = !isExportingRating
+                        ) {
+                            if (isExportingRating) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    color = themeAccent,
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Default.Share,
+                                    contentDescription = "Bagikan Status Anime",
+                                    tint = TextPrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -1444,6 +1475,62 @@ fun MediaDetailScreen(
         }
     }
 
+        // Top Gradient Scrim for Persistent Floating Action Buttons
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(110.dp)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Black.copy(alpha = 0.75f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
+
+        // Pinned Top-Left Back Button
+        IconButton(
+            onClick = onDismiss,
+            modifier = Modifier
+                .statusBarsPadding()
+                .padding(start = 16.dp, top = 8.dp)
+                .size(42.dp)
+                .clip(CircleShape)
+                .background(Color.Black.copy(alpha = 0.65f))
+                .border(1.dp, Color.White.copy(alpha = 0.2f), CircleShape)
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Kembali",
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+
+        // Pinned Top-Right Delete Button
+        if (userItem != null) {
+            IconButton(
+                onClick = { showDeleteDialog = true },
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(end = 16.dp, top = 8.dp)
+                    .size(42.dp)
+                    .clip(CircleShape)
+                    .background(Color.Black.copy(alpha = 0.65f))
+                    .border(1.dp, StatusDroppedColor.copy(alpha = 0.4f), CircleShape)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Delete,
+                    contentDescription = "Hapus",
+                    tint = StatusDroppedColor,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
         if (userItem != null && showDeleteDialog) {
             AlertDialog(
                 onDismissRequest = { showDeleteDialog = false },
@@ -1470,7 +1557,6 @@ fun MediaDetailScreen(
             )
         }
     }
-}
 }
 
 @Composable

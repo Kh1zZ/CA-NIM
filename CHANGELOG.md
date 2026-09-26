@@ -5,6 +5,18 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.5.7] - 2026-09-27
+### Added
+- **Animanga Rating Card Exporter (4:5 1080p)**: Menambahkan fitur ekspor kartu status & ulasan anime/manga berasio 4:5 resolusi tinggi (1080x1350 px) dengan gaya *Minimalist UI / Utilitarian Bento*.
+  - Ekstraksi warna dominan poster secara dinamis (*Dynamic Dominant Color Extraction*) untuk mewarnai aksen kartu, border bento, progress bar, skor pribadi, dan ambient glow secara adaptif.
+  - Header 1 baris bersih: `<nama> MAL PERSONAL RATING CARD by CA'NIM`.
+  - Komposisi bento lengkap: Poster anime CenterCrop anti-stretch, judul lengkap multi-line via `StaticLayout`, studio, genre chips, skor komunitas MAL vs skor pribadi, progress episode/chapter dengan bar visual, serta metadata sinkronisasi MAL.
+  - Tombol aksi pada sliding card/tracking sheet dibagi proporsional ke samping: 80% "Simpan ke Library" dan 20% "Export/Share".
+  - Terintegrasi langsung dengan Android Native Share Sheet via FileProvider.
+
+### Fixed
+- **Media Detail Screen Header Restoration**: Mengembalikan header detail anime menjadi transparan penuh (*edge-to-edge* melewati status bar hingga ke notch), menghapus background solid dan teks judul di header atas, serta merestorasi *floating action buttons* (Back di kiri atas dan Delete di kanan atas) dengan nuansa semi-transparan dan *top gradient scrim*.
+
 ## [v6.5.6] - 2026-09-24
 ### Changed
 - **Stats Exporter Redesign (Hero Showcase Top 5)**: Merombak total visual hasil ekspor statistik pada kelima rasio (9:16, 4:5, 3:4, 1:1, 16:9).
