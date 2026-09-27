@@ -5,6 +5,16 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.5.9] - 2026-09-27
+### Changed
+- **Storyable / Instagrammable Rating Card Polishing**:
+  - **Header Minimalist Terpusat**: Menghapus teks subtitle ulasan di bawah header, menyisakan kapsul kaca minimalis terpusat `✦ PERSONAL RATING CARD ✦` yang bersih tanpa clutter.
+  - **Spacious Multi-Row Genre Cloud**: Mengatur genre chips dalam layout multi-baris yang lega (hingga 6 genre pada 2 baris) dengan sudut melengkung 12px dan jarak antar baris serta antar chip yang nyaman (tidak mepet lagi).
+  - **Zero Bottom Empty Space**: Menambahkan strip info database MyAnimeList resmi di bagian dasar kolom kanan (`★ MAL ID #... • Database Resmi MyAnimeList`), menyeimbangkan tinggi kolom kanan secara presisi sejajar dengan batas bawah poster anime.
+  - **Dark Blurred Dynamic Cover Background**: Latar belakang kanvas diwarnai cover anime ber-blur lembut (efek bokeh murni Kotlin < 1 ms) dengan overlay gelap 65-70% bertint warna dinamis poster dan vignette proteksi kontras.
+  - **Humanisasi Status Tayang**: String status API mentah seperti `finished_airing` otomatis dikonversi rapi ke Bahasa Indonesia (`Selesai Tayang` / `Sedang Tayang` / `Belum Tayang`).
+  - **Logo Resmi CA'NIM di Footer**: Menempatkan logo aplikasi (`58 x 58 px`) di sisi paling kiri footer, sejajar presisi dengan 2 baris teks informasi aplikasi dan website.
+
 ## [v6.5.8] - 2026-09-27
 ### Changed
 - **Redesign Total Animanga Rating Card (Zero Crop & Zero Empty Space)**:

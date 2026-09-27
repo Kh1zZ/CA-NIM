@@ -15,8 +15,8 @@ android {
         applicationId = "com.canim.app"
         minSdk = 24
         targetSdk = 34
-        versionCode = 65
-        versionName = "v6.5.8"
+        versionCode = 66
+        versionName = "v6.5.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
