@@ -5,6 +5,15 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.5.8] - 2026-09-27
+### Changed
+- **Redesign Total Animanga Rating Card (Zero Crop & Zero Empty Space)**:
+  - **Natural Poster Aspect Ratio (380 x 546 px)**: Mengubah dimensi poster anime ke rasio alami `1 : 1.43` (2:3) sehingga seluruh ilustrasi karakter, judul poster, dan detail visual tampil utuh tanpa terpotong (*zero awkward crop*).
+  - **Header Format Terbaru**: Mengubah teks header menjadi `<nama user> | MAL PERSONAL RATING CARD | CA'NIM` dalam 1 baris bersih dan elegan.
+  - **2x2 Bento Specs Mini-Grid**: Menambahkan kotak spesifikasi modular di kanan poster (Studio, Format & Tahun, Status Tayang, dan Total Episode/Bab) serta deretan chips genre padat untuk mengeliminasi ruang kosong.
+  - **High-Density Bento Matrix**: Memadatkan seluruh kanvas 1080x1350 px dengan kartu skor MAL vs skor pribadi, progress bar tebal dengan warna dominan dinamis poster, serta matriks sinkronisasi MAL dan status koleksi.
+  - **Dual-Ambient Glow**: Memperkaya kedalaman latar belakang *Midnight Obsidian* dengan dua gradien radial halus dari warna dominan poster anime.
+
 ## [v6.5.7] - 2026-09-27
 ### Added
 - **Animanga Rating Card Exporter (4:5 1080p)**: Menambahkan fitur ekspor kartu status & ulasan anime/manga berasio 4:5 resolusi tinggi (1080x1350 px) dengan gaya *Minimalist UI / Utilitarian Bento*.

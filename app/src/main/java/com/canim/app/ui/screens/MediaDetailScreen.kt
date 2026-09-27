@@ -1380,7 +1380,8 @@ fun MediaDetailScreen(
                                                 studio = targetMetadata.studio,
                                                 malUsername = malUsername,
                                                 airingStatus = extendedDetail?.airingStatus ?: targetMetadata.status,
-                                                malId = effectiveMalId
+                                                malId = effectiveMalId,
+                                                year = userItem?.metadata?.year ?: mediaItem?.year ?: extendedDetail?.startDate?.take(4)?.toIntOrNull()
                                             )
                                         )
                                     } finally {

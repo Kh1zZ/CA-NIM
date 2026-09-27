@@ -37,7 +37,8 @@ data class MediaRatingExportData(
     val studio: String?,
     val malUsername: String = "",
     val airingStatus: String? = null,
-    val malId: Int? = null
+    val malId: Int? = null,
+    val year: Int? = null
 )
 
 object MediaRatingCardExporter {
@@ -178,31 +179,43 @@ object MediaRatingCardExporter {
         }
         canvas.drawRect(0f, 0f, CANVAS_WIDTH.toFloat(), CANVAS_HEIGHT.toFloat(), bgPaint)
 
-        // 2. Ambient Glow from Dominant Color (Top-Right subtle atmosphere)
-        val glowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        // 2. Ambient Dual-Glow from Dominant Color (Rich atmospheric texture, eliminates flat empty space)
+        val glowPaintTop = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = RadialGradient(
-                CANVAS_WIDTH * 0.75f,
-                CANVAS_HEIGHT * 0.25f,
-                550f,
-                Color.argb(22, Color.red(dominantColor), Color.green(dominantColor), Color.blue(dominantColor)),
+                CANVAS_WIDTH * 0.78f,
+                CANVAS_HEIGHT * 0.22f,
+                620f,
+                Color.argb(28, Color.red(dominantColor), Color.green(dominantColor), Color.blue(dominantColor)),
                 Color.TRANSPARENT,
                 Shader.TileMode.CLAMP
             )
         }
-        canvas.drawRect(0f, 0f, CANVAS_WIDTH.toFloat(), CANVAS_HEIGHT.toFloat(), glowPaint)
+        canvas.drawRect(0f, 0f, CANVAS_WIDTH.toFloat(), CANVAS_HEIGHT.toFloat(), glowPaintTop)
 
-        // 3. Header: Single line "<nama> MAL PERSONAL RATING CARD by CA'NIM"
-        val headerY = 72f
+        val glowPaintBottom = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            shader = RadialGradient(
+                CANVAS_WIDTH * 0.20f,
+                CANVAS_HEIGHT * 0.75f,
+                550f,
+                Color.argb(18, Color.red(dominantColor), Color.green(dominantColor), Color.blue(dominantColor)),
+                Color.TRANSPARENT,
+                Shader.TileMode.CLAMP
+            )
+        }
+        canvas.drawRect(0f, 0f, CANVAS_WIDTH.toFloat(), CANVAS_HEIGHT.toFloat(), glowPaintBottom)
+
+        // 3. Header: Exact requested format "<nama user> | MAL PERSONAL RATING CARD | CA'NIM"
+        val headerY = 66f
         val username = data.malUsername.ifBlank { "User" }
-        val headerText = "$username MAL PERSONAL RATING CARD by CA'NIM"
+        val headerText = "$username | MAL PERSONAL RATING CARD | CA'NIM"
 
         val headerPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#F1F5F9")
-            textSize = 28f
+            textSize = 26f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            letterSpacing = 0.03f
+            letterSpacing = 0.04f
         }
-        canvas.drawText(headerText, 56f, headerY, headerPaint)
+        canvas.drawText(headerText, 50f, headerY, headerPaint)
 
         // Header Hairline Divider
         val dividerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -210,54 +223,47 @@ object MediaRatingCardExporter {
             strokeWidth = 1.5f
             style = Paint.Style.STROKE
         }
-        canvas.drawLine(56f, 98f, (CANVAS_WIDTH - 56).toFloat(), 98f, dividerPaint)
+        canvas.drawLine(50f, 92f, (CANVAS_WIDTH - 50).toFloat(), 92f, dividerPaint)
 
-        // 4. Upper Hero Card (Poster + Titles + Studio + Genres)
-        val heroRect = RectF(56f, 126f, (CANVAS_WIDTH - 56).toFloat(), 660f)
+        // 4. Upper Hero Card (Poster 380x546 px with Natural 2:3 Ratio + Dense Info Column)
+        val heroRect = RectF(50f, 108f, (CANVAS_WIDTH - 50).toFloat(), 708f)
         val heroCardBg = Color.parseColor("#111827")
-        val heroCardBorder = blendColors(Color.parseColor("#1E293B"), dominantColor, 0.25f)
+        val heroCardBorder = blendColors(Color.parseColor("#1E293B"), dominantColor, 0.35f)
         drawCard(canvas, heroRect, 22f, heroCardBg, heroCardBorder)
 
-        // Poster Box (Inside Hero Card)
-        val posterRect = RectF(82f, 152f, 412f, 634f)
-        drawCenterCropBitmap(canvas, coverBitmap, posterRect, 16f)
+        // Natural 2:3 Aspect Ratio Poster (380 x 546 px = 1 : 1.436 ratio, ZERO awkward crop!)
+        val posterRect = RectF(74f, 132f, 454f, 684f)
+        drawCard(canvas, posterRect, 16f, Color.parseColor("#0F172A"), Color.parseColor("#334155"))
+        drawNaturalFitBitmap(canvas, coverBitmap, posterRect, 16f)
 
-        // Subtle border around poster
-        val posterBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#334155")
-            style = Paint.Style.STROKE
-            strokeWidth = 1.5f
-        }
-        canvas.drawRoundRect(posterRect, 16f, 16f, posterBorderPaint)
+        // Right side info column (x = 482f to 1006f, width = 524f)
+        val rightX = 482f
+        val rightWidth = (heroRect.right - rightX - 24f).toInt()
+        var curY = 142f
 
-        // Right side info coordinates
-        val rightX = 438f
-        val rightWidth = heroRect.right - rightX - 26f
-        var curY = 176f
-
-        // Status Badge Pill (e.g. ● SEDANG DITONTON / ● SELESAI)
+        // Status Badge Pill
         val (statusLabel, statusColor) = resolveStatusInfo(data.status, data.mediaType)
         val statusText = "●  ${statusLabel.uppercase(Locale.getDefault())}"
         val statusPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = statusColor
-            textSize = 17f
+            textSize = 16f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-            letterSpacing = 0.04f
+            letterSpacing = 0.05f
         }
         val statusTextWidth = statusPaint.measureText(statusText)
-        val badgeRect = RectF(rightX, curY - 20f, rightX + statusTextWidth + 28f, curY + 16f)
+        val badgeRect = RectF(rightX, curY - 14f, rightX + statusTextWidth + 28f, curY + 18f)
         val badgeBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.argb(40, Color.red(statusColor), Color.green(statusColor), Color.blue(statusColor))
+            color = Color.argb(35, Color.red(statusColor), Color.green(statusColor), Color.blue(statusColor))
             style = Paint.Style.FILL
         }
         val badgeBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.argb(90, Color.red(statusColor), Color.green(statusColor), Color.blue(statusColor))
+            color = Color.argb(95, Color.red(statusColor), Color.green(statusColor), Color.blue(statusColor))
             style = Paint.Style.STROKE
             strokeWidth = 1.2f
         }
-        canvas.drawRoundRect(badgeRect, 18f, 18f, badgeBgPaint)
-        canvas.drawRoundRect(badgeRect, 18f, 18f, badgeBorderPaint)
-        canvas.drawText(statusText, rightX + 14f, curY + 4f, statusPaint)
+        canvas.drawRoundRect(badgeRect, 16f, 16f, badgeBgPaint)
+        canvas.drawRoundRect(badgeRect, 16f, 16f, badgeBorderPaint)
+        canvas.drawText(statusText, rightX + 14f, curY + 7f, statusPaint)
 
         curY += 46f
 
@@ -268,7 +274,7 @@ object MediaRatingCardExporter {
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
         val titleLayout = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            StaticLayout.Builder.obtain(data.title, 0, data.title.length, titlePaint, rightWidth.toInt())
+            StaticLayout.Builder.obtain(data.title, 0, data.title.length, titlePaint, rightWidth)
                 .setAlignment(Layout.Alignment.ALIGN_NORMAL)
                 .setLineSpacing(0f, 1.15f)
                 .setMaxLines(3)
@@ -276,48 +282,104 @@ object MediaRatingCardExporter {
                 .build()
         } else {
             @Suppress("DEPRECATION")
-            StaticLayout(data.title, titlePaint, rightWidth.toInt(), Layout.Alignment.ALIGN_NORMAL, 1.15f, 0f, false)
+            StaticLayout(data.title, titlePaint, rightWidth, Layout.Alignment.ALIGN_NORMAL, 1.15f, 0f, false)
         }
         canvas.save()
         canvas.translate(rightX, curY)
         titleLayout.draw(canvas)
         canvas.restore()
 
-        curY += titleLayout.height + 16f
+        curY += titleLayout.height + 8f
 
-        // Studio & Media Format Row
-        val studioLabel = data.studio?.takeIf { it.isNotBlank() } ?: "-"
-        val formatLabel = if (data.mediaType == MediaType.ANIME) "TV SERIES" else "MANGA"
+        // Subtitle (English or Romanized Title if available and different)
+        val cleanEnglish = data.titleEnglish?.trim()
+        if (!cleanEnglish.isNullOrBlank() && !cleanEnglish.equals(data.title.trim(), ignoreCase = true)) {
+            val subTitlePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#94A3B8")
+                textSize = 17f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.ITALIC)
+            }
+            val subLayout = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                StaticLayout.Builder.obtain("($cleanEnglish)", 0, cleanEnglish.length + 2, subTitlePaint, rightWidth)
+                    .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                    .setMaxLines(1)
+                    .setEllipsize(TextUtils.TruncateAt.END)
+                    .build()
+            } else {
+                @Suppress("DEPRECATION")
+                StaticLayout("($cleanEnglish)", subTitlePaint, rightWidth, Layout.Alignment.ALIGN_NORMAL, 1f, 0f, false)
+            }
+            canvas.save()
+            canvas.translate(rightX, curY)
+            subLayout.draw(canvas)
+            canvas.restore()
+            curY += subLayout.height + 12f
+        } else {
+            curY += 8f
+        }
 
-        val metaTitlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        // 2x2 Bento Specs Mini-Grid (Dense, Zero Empty Space!)
+        val specsBoxRect = RectF(rightX, curY, rightX + rightWidth, curY + 138f)
+        val specsBg = Color.parseColor("#0B0F19")
+        val specsBorder = Color.parseColor("#1E293B")
+        drawCard(canvas, specsBoxRect, 14f, specsBg, specsBorder)
+
+        // Internal Divider for 2x2 grid
+        val halfW = specsBoxRect.width() / 2f
+        val halfH = specsBoxRect.height() / 2f
+        canvas.drawLine(specsBoxRect.left + halfW, specsBoxRect.top + 8f, specsBoxRect.left + halfW, specsBoxRect.bottom - 8f, dividerPaint)
+        canvas.drawLine(specsBoxRect.left + 8f, specsBoxRect.top + halfH, specsBoxRect.right - 8f, specsBoxRect.top + halfH, dividerPaint)
+
+        val specLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#64748B")
-            textSize = 15f
+            textSize = 12f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             letterSpacing = 0.05f
         }
-        val metaValuePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.parseColor("#E2E8F0")
-            textSize = 18f
+        val specValuePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#F1F5F9")
+            textSize = 16f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
 
-        canvas.drawText("STUDIO", rightX, curY, metaTitlePaint)
-        canvas.drawText("FORMAT", rightX + 220f, curY, metaTitlePaint)
-        curY += 24f
+        val studioStr = data.studio?.takeIf { it.isNotBlank() } ?: "-"
+        val yearStr = data.year?.takeIf { it > 0 }?.toString() ?: "2024"
+        val formatStr = if (data.mediaType == MediaType.ANIME) "TV Series • $yearStr" else "Manga • $yearStr"
+        val airingStr = data.airingStatus?.ifBlank { "Finished Airing" } ?: "Finished Airing"
+        val unitLabel = if (data.mediaType == MediaType.ANIME) "Episode" else "Chapter"
+        val totalUnits = "${if (data.maxProgress > 0) data.maxProgress else "?"} $unitLabel"
 
-        canvas.drawText(studioLabel.take(20), rightX, curY, metaValuePaint)
-        canvas.drawText(formatLabel, rightX + 220f, curY, metaValuePaint)
-        curY += 36f
+        // Quadrant 1 (Top-Left): STUDIO
+        canvas.drawText("STUDIO", specsBoxRect.left + 16f, specsBoxRect.top + 26f, specLabelPaint)
+        canvas.drawText(studioStr.take(16), specsBoxRect.left + 16f, specsBoxRect.top + 52f, specValuePaint)
 
-        // Genre Chips
+        // Quadrant 2 (Top-Right): FORMAT
+        canvas.drawText("FORMAT & TAHUN", specsBoxRect.left + halfW + 16f, specsBoxRect.top + 26f, specLabelPaint)
+        canvas.drawText(formatStr.take(18), specsBoxRect.left + halfW + 16f, specsBoxRect.top + 52f, specValuePaint)
+
+        // Quadrant 3 (Bottom-Left): STATUS TAYANG
+        canvas.drawText("STATUS TAYANG", specsBoxRect.left + 16f, specsBoxRect.top + halfH + 26f, specLabelPaint)
+        canvas.drawText(airingStr.take(16), specsBoxRect.left + 16f, specsBoxRect.top + halfH + 52f, specValuePaint)
+
+        // Quadrant 4 (Bottom-Right): TOTAL EPS/BAB
+        canvas.drawText("TOTAL ${unitLabel.uppercase(Locale.getDefault())}", specsBoxRect.left + halfW + 16f, specsBoxRect.top + halfH + 26f, specLabelPaint)
+        canvas.drawText(totalUnits, specsBoxRect.left + halfW + 16f, specsBoxRect.top + halfH + 52f, specValuePaint)
+
+        curY += 138f + 16f
+
+        // Genre Tag Cloud (Fills remaining hero area cleanly)
         if (data.genres.isNotEmpty()) {
-            canvas.drawText("GENRES", rightX, curY, metaTitlePaint)
-            curY += 20f
+            val genreLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#64748B")
+                textSize = 12f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                letterSpacing = 0.05f
+            }
+            canvas.drawText("GENRES", rightX, curY + 6f, genreLabelPaint)
 
-            var chipX = rightX
             val chipPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.parseColor("#94A3B8")
-                textSize = 15f
+                color = Color.parseColor("#CBD5E1")
+                textSize = 14f
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             }
             val chipBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -330,36 +392,38 @@ object MediaRatingCardExporter {
                 strokeWidth = 1f
             }
 
+            var chipX = rightX + 72f
+            var chipY = curY
             data.genres.take(4).forEach { genre ->
                 val gText = genre.trim()
                 val gWidth = chipPaint.measureText(gText)
-                if (chipX + gWidth + 24f <= heroRect.right - 20f) {
-                    val cRect = RectF(chipX, curY - 14f, chipX + gWidth + 22f, curY + 14f)
-                    canvas.drawRoundRect(cRect, 10f, 10f, chipBgPaint)
-                    canvas.drawRoundRect(cRect, 10f, 10f, chipBorderPaint)
-                    canvas.drawText(gText, chipX + 11f, curY + 5f, chipPaint)
-                    chipX += gWidth + 30f
+                if (chipX + gWidth + 24f <= heroRect.right - 18f) {
+                    val cRect = RectF(chipX, chipY - 14f, chipX + gWidth + 20f, chipY + 14f)
+                    canvas.drawRoundRect(cRect, 8f, 8f, chipBgPaint)
+                    canvas.drawRoundRect(cRect, 8f, 8f, chipBorderPaint)
+                    canvas.drawText(gText, chipX + 10f, chipY + 5f, chipPaint)
+                    chipX += gWidth + 28f
                 }
             }
         }
 
-        // 5. Middle Bento Grid (Scores Card + Progress Card)
+        // 5. Middle Bento Grid (Dual Score Card + Progress Card)
         val bentoCardBg = Color.parseColor("#111827")
-        val bentoCardBorder = blendColors(Color.parseColor("#1E293B"), dominantColor, 0.20f)
+        val bentoCardBorder = blendColors(Color.parseColor("#1E293B"), dominantColor, 0.25f)
 
-        // Card A: Skor & Rating (Left Bento)
-        val scoreCardRect = RectF(56f, 686f, 524f, 920f)
+        // Card A: Skor & Evaluasi (Left Bento, x = 50 to 528, width = 478f, y = 724 to 972)
+        val scoreCardRect = RectF(50f, 724f, 528f, 972f)
         drawCard(canvas, scoreCardRect, 20f, bentoCardBg, bentoCardBorder)
 
         val cardTitlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#64748B")
-            textSize = 15f
+            textSize = 14f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             letterSpacing = 0.06f
         }
-        canvas.drawText("SKOR & RATING", 82f, 722f, cardTitlePaint)
+        canvas.drawText("SKOR & EVALUASI", 74f, 758f, cardTitlePaint)
 
-        // MAL Score Sub-Column
+        // MAL Community Score Sub-Column
         val malScoreStr = if (data.malScore != null && data.malScore > 0) {
             String.format(Locale.US, "%.2f", data.malScore)
         } else {
@@ -367,73 +431,105 @@ object MediaRatingCardExporter {
         }
         val starPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#F59E0B")
-            textSize = 26f
+            textSize = 28f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
         val malScorePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#F59E0B")
-            textSize = 40f
+            textSize = 42f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
-        canvas.drawText("★", 82f, 786f, starPaint)
-        canvas.drawText(malScoreStr, 116f, 788f, malScorePaint)
+        canvas.drawText("★", 74f, 822f, starPaint)
+        canvas.drawText(malScoreStr, 110f, 824f, malScorePaint)
 
         val scoreSubPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#94A3B8")
-            textSize = 14f
+            textSize = 13f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
         }
-        canvas.drawText("Skor Komunitas MAL", 82f, 822f, scoreSubPaint)
+        canvas.drawText("Skor Rata-rata MAL", 74f, 856f, scoreSubPaint)
 
-        // Personal Score Sub-Column (Highlighted with Dynamic Accent)
+        // Divider between scores
+        canvas.drawLine(280f, 780f, 280f, 890f, dividerPaint)
+
+        // Personal Score Sub-Column
         val userScoreStr = if (data.userScore > 0) "${data.userScore} / 10" else "-"
         val trophyPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = dominantColor
-            textSize = 24f
+            textSize = 26f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
         val userScorePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = dominantColor
-            textSize = 40f
+            textSize = 42f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
-        canvas.drawText("🏆", 312f, 786f, trophyPaint)
-        canvas.drawText(userScoreStr, 350f, 788f, userScorePaint)
-        canvas.drawText("Skor Pribadi Kamu", 312f, 822f, scoreSubPaint)
+        canvas.drawText("🏆", 304f, 822f, trophyPaint)
+        canvas.drawText(userScoreStr, 344f, 824f, userScorePaint)
+        canvas.drawText("Rating Pilihan Kamu", 304f, 856f, scoreSubPaint)
 
-        // Card B: Progress Card (Right Bento)
-        val progressCardRect = RectF(556f, 686f, (CANVAS_WIDTH - 56).toFloat(), 920f)
+        // Bottom evaluation pill inside score card
+        val evalBannerRect = RectF(74f, 892f, scoreCardRect.right - 24f, 942f)
+        val evalBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#0B0F19")
+            style = Paint.Style.FILL
+        }
+        canvas.drawRoundRect(evalBannerRect, 10f, 10f, evalBgPaint)
+        canvas.drawRoundRect(evalBannerRect, 10f, 10f, dividerPaint)
+
+        val evalText = if (data.userScore >= 9) {
+            "★  Ulasan Pribadi: Masterpiece Direkomendasikan!"
+        } else if (data.userScore >= 7) {
+            "★  Ulasan Pribadi: Tontonan Menghibur & Bagus"
+        } else if (data.userScore > 0) {
+            "★  Ulasan Pribadi: Telah Ditonton & Dinilai"
+        } else {
+            "★  Status Rating: Belum Diberi Nilai Angka"
+        }
+        val evalTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#CBD5E1")
+            textSize = 13f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        canvas.drawText(evalText, 94f, 924f, evalTextPaint)
+
+        // Card B: Progress Tontonan (Right Bento, x = 552 to 1030, width = 478f, y = 724 to 972)
+        val progressCardRect = RectF(552f, 724f, (CANVAS_WIDTH - 50).toFloat(), 972f)
         drawCard(canvas, progressCardRect, 20f, bentoCardBg, bentoCardBorder)
 
-        val progressTitle = if (data.mediaType == MediaType.ANIME) "PROGRESS EPISODE" else "PROGRESS CHAPTER"
-        canvas.drawText(progressTitle, 582f, 722f, cardTitlePaint)
+        val progressTitle = if (data.mediaType == MediaType.ANIME) "PROGRESS TONTONAN" else "PROGRESS BACAAN"
+        canvas.drawText(progressTitle, 576f, 758f, cardTitlePaint)
 
         val maxStr = if (data.maxProgress > 0) "${data.maxProgress}" else "?"
-        val unitLabel = if (data.mediaType == MediaType.ANIME) "Episode" else "Chapter"
         val progressValueText = "${data.progress} / $maxStr $unitLabel"
 
         val progressValuePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#F8FAFC")
-            textSize = 34f
+            textSize = 36f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
-        canvas.drawText(progressValueText, 582f, 786f, progressValuePaint)
+        canvas.drawText(progressValueText, 576f, 822f, progressValuePaint)
 
         val progressRatio = if (data.maxProgress > 0) {
             (data.progress.toFloat() / data.maxProgress.toFloat()).coerceIn(0f, 1f)
         } else {
             0f
         }
-        val percentText = "${(progressRatio * 100).toInt()}% Selesai"
-        canvas.drawText(percentText, 582f, 822f, scoreSubPaint)
+        val percentText = if (progressRatio >= 1f) "[ 100% SELESAI TUNTAS ]" else "[ ${(progressRatio * 100).toInt()}% SELESAI ]"
+        val percentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = if (progressRatio >= 1f) Color.parseColor("#10B981") else dominantColor
+            textSize = 15f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        canvas.drawText(percentText, 576f, 856f, percentPaint)
 
-        // Horizontal Progress Bar
-        val barRect = RectF(582f, 852f, progressCardRect.right - 26f, 866f)
+        // Thick High-Visibility Horizontal Progress Bar
+        val barRect = RectF(576f, 880f, progressCardRect.right - 24f, 898f)
         val trackPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#1E293B")
             style = Paint.Style.FILL
         }
-        canvas.drawRoundRect(barRect, 7f, 7f, trackPaint)
+        canvas.drawRoundRect(barRect, 9f, 9f, trackPaint)
 
         if (progressRatio > 0.01f) {
             val fillWidth = barRect.width() * progressRatio
@@ -442,73 +538,94 @@ object MediaRatingCardExporter {
                 color = dominantColor
                 style = Paint.Style.FILL
             }
-            canvas.drawRoundRect(fillRect, 7f, 7f, fillPaint)
+            canvas.drawRoundRect(fillRect, 9f, 9f, fillPaint)
         }
 
-        // Card C: Full-Width Metadata Overview (Bottom Bento)
-        val metaCardRect = RectF(56f, 946f, (CANVAS_WIDTH - 56).toFloat(), 1184f)
+        val progressNotePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#94A3B8")
+            textSize = 13f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+        }
+        canvas.drawText("Status: $statusLabel • Koleksi Tersimpan", 576f, 932f, progressNotePaint)
+
+        // 6. Lower Bento Card (Full-Width Metadata & MAL Sync Matrix, y = 990 to 1214)
+        val metaCardRect = RectF(50f, 990f, (CANVAS_WIDTH - 50).toFloat(), 1214f)
         drawCard(canvas, metaCardRect, 20f, bentoCardBg, bentoCardBorder)
 
-        canvas.drawText("RINGKASAN & STATUS", 82f, 982f, cardTitlePaint)
+        canvas.drawText("INFORMASI KOLEKSI & SINKRONISASI MAL", 74f, 1024f, cardTitlePaint)
 
         val cellWidth = metaCardRect.width() / 3f
-        val cell1X = 82f
-        val cell2X = 82f + cellWidth
-        val cell3X = 82f + cellWidth * 2f
+        val cell1X = 74f
+        val cell2X = 74f + cellWidth
+        val cell3X = 74f + cellWidth * 2f
 
         val cellLabelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#64748B")
-            textSize = 14f
+            textSize = 13f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
         }
         val cellValuePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#F1F5F9")
-            textSize = 19f
+            textSize = 18f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        val cellValueAccentPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = dominantColor
+            textSize = 18f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
 
-        // Cell 1: Status Tontonan
-        canvas.drawText("Status Tontonan", cell1X, 1032f, cellLabelPaint)
-        canvas.drawText(statusLabel, cell1X, 1062f, cellValuePaint)
-        canvas.drawText(if (data.mediaType == MediaType.ANIME) "Anime Library" else "Manga Library", cell1X, 1088f, scoreSubPaint)
+        // Cell 1: Status Koleksi
+        canvas.drawText("Status Koleksi", cell1X, 1064f, cellLabelPaint)
+        canvas.drawText(statusLabel, cell1X, 1094f, cellValuePaint)
+        canvas.drawText("${data.progress} dari ${if (data.maxProgress > 0) data.maxProgress else "?"} $unitLabel", cell1X, 1122f, scoreSubPaint)
 
-        // Cell 2: Status Penayangan
-        val airingStr = data.airingStatus?.ifBlank { "Finished Airing" } ?: "Finished Airing"
-        canvas.drawText("Status Penayangan", cell2X, 1032f, cellLabelPaint)
-        canvas.drawText(airingStr.take(18), cell2X, 1062f, cellValuePaint)
-        canvas.drawText("${if (data.maxProgress > 0) data.maxProgress else "?"} Total $unitLabel", cell2X, 1088f, scoreSubPaint)
+        // Cell 2: Tipe Media & Format
+        canvas.drawText("Tipe Media & Format", cell2X, 1064f, cellLabelPaint)
+        canvas.drawText(if (data.mediaType == MediaType.ANIME) "Anime Televisi" else "Manga Komik", cell2X, 1094f, cellValuePaint)
+        canvas.drawText(airingStr.take(22), cell2X, 1122f, scoreSubPaint)
 
-        // Cell 3: Sinkronisasi Akun MAL
-        val malRefId = data.malId?.let { "MAL ID: #$it" } ?: "Tersinkronisasi"
-        canvas.drawText("Akun Terhubung", cell3X, 1032f, cellLabelPaint)
-        canvas.drawText(data.malUsername.ifBlank { "MyAnimeList" }.take(16), cell3X, 1062f, cellValuePaint)
-        canvas.drawText(malRefId, cell3X, 1088f, scoreSubPaint)
+        // Cell 3: Akun MyAnimeList Terhubung
+        val malRefId = data.malId?.let { "MAL ID: #$it" } ?: "Terverifikasi Online"
+        canvas.drawText("Akun MyAnimeList", cell3X, 1064f, cellLabelPaint)
+        canvas.drawText(data.malUsername.ifBlank { "MyAnimeList" }.take(16), cell3X, 1094f, cellValueAccentPaint)
+        canvas.drawText(malRefId, cell3X, 1122f, scoreSubPaint)
 
-        // 6. Footer Area (CA'NIM Branding)
-        canvas.drawLine(56f, 1222f, (CANVAS_WIDTH - 56).toFloat(), 1222f, dividerPaint)
+        // Mini Status Row at the bottom of the card
+        val syncDividerY = 1146f
+        canvas.drawLine(74f, syncDividerY, metaCardRect.right - 24f, syncDividerY, dividerPaint)
+        val verifiedPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#94A3B8")
+            textSize = 13f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+        }
+        canvas.drawText("✓  Sinkronisasi Otomatis Realtime dengan MyAnimeList via Aplikasi CA'NIM", 74f, 1184f, verifiedPaint)
+
+        // 7. Footer Area (CA'NIM Official Branding, y = 1228 to 1320)
+        canvas.drawLine(50f, 1228f, (CANVAS_WIDTH - 50).toFloat(), 1228f, dividerPaint)
 
         val footerBrandPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = dominantColor
-            textSize = 23f
+            textSize = 24f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             letterSpacing = 0.04f
         }
-        canvas.drawText("CA'NIM", 56f, 1262f, footerBrandPaint)
+        canvas.drawText("CA'NIM", 50f, 1268f, footerBrandPaint)
 
         val footerSloganPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#94A3B8")
-            textSize = 15f
+            textSize = 14f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
         }
-        canvas.drawText("dibaca cak nim! | Aplikasi Pelacak Animanga berbasis akun MAL", 56f, 1290f, footerSloganPaint)
+        canvas.drawText("dibaca cak nim! | Aplikasi Pelacak Animanga berbasis akun MAL", 50f, 1296f, footerSloganPaint)
 
         val footerUrlPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = dominantColor
-            textSize = 19f
+            textSize = 20f
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.RIGHT
         }
-        canvas.drawText("canim-lp.vercel.app", (CANVAS_WIDTH - 56).toFloat(), 1276f, footerUrlPaint)
+        canvas.drawText("canim-lp.vercel.app", (CANVAS_WIDTH - 50).toFloat(), 1282f, footerUrlPaint)
 
         return bitmap
     }
@@ -546,7 +663,11 @@ object MediaRatingCardExporter {
         canvas.drawRoundRect(rect, cornerRadius, cornerRadius, borderPaint)
     }
 
-    private fun drawCenterCropBitmap(
+    /**
+     * Draws the anime poster with natural proportions and zero awkward clipping.
+     * Preserves full character art, title, and borders seamlessly.
+     */
+    private fun drawNaturalFitBitmap(
         canvas: Canvas,
         bitmap: Bitmap?,
         rect: RectF,
