@@ -1,6 +1,11 @@
 package com.canim.app.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import com.canim.app.ui.components.MediaRatingExportDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -156,6 +161,7 @@ fun MediaDetailScreen(
     val maxProgress = if (isAnime) totalEpisodes else totalChapters
 
     var showTrackingSheet by remember { mutableStateOf(false) }
+    var showExportDialog by remember { mutableStateOf(false) }
     var trackingStatus by remember { mutableStateOf(userItem?.status ?: if (isAnime) "watching" else "reading") }
     var trackingScore by remember { mutableIntStateOf(userItem?.score ?: 0) }
     var trackingProgress by remember { mutableIntStateOf(userItem?.progress ?: 0) }
@@ -1071,11 +1077,23 @@ fun MediaDetailScreen(
                 containerColor = CardElevated,
                 dragHandle = { BottomSheetDefaults.DragHandle(color = TextMuted) }
             ) {
+                val sheetDensity = LocalDensity.current
+                val isSheetImeVisible = WindowInsets.ime.getBottom(sheetDensity) > 0
+                val sheetKeyboardController = LocalSoftwareKeyboardController.current
+                val sheetFocusManager = LocalFocusManager.current
+
+                BackHandler(enabled = isSheetImeVisible) {
+                    sheetKeyboardController?.hide()
+                    sheetFocusManager.clearFocus()
+                }
+
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 10.dp)
-                        .padding(bottom = 30.dp),
+                        .padding(bottom = 30.dp)
+                        .imePadding()
+                        .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Text(
@@ -1318,8 +1336,6 @@ fun MediaDetailScreen(
                         synopsis = synopsis
                     )
 
-                    var isExportingRating by remember { mutableStateOf(false) }
-
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1360,34 +1376,7 @@ fun MediaDetailScreen(
 
                         OutlinedButton(
                             onClick = {
-                                if (isExportingRating) return@OutlinedButton
-                                coroutineScope.launch {
-                                    isExportingRating = true
-                                    try {
-                                        MediaRatingCardExporter.exportAndShareRatingCard(
-                                            context = context,
-                                            data = MediaRatingExportData(
-                                                title = title,
-                                                titleEnglish = titleEnglish,
-                                                mediaType = type,
-                                                imageUrl = imageUrl,
-                                                malScore = extendedDetail?.malScore,
-                                                userScore = trackingScore,
-                                                status = trackingStatus,
-                                                progress = trackingProgress,
-                                                maxProgress = maxProgress,
-                                                genres = initialGenres,
-                                                studio = targetMetadata.studio,
-                                                malUsername = malUsername,
-                                                airingStatus = extendedDetail?.airingStatus ?: targetMetadata.status,
-                                                malId = effectiveMalId,
-                                                year = userItem?.metadata?.year ?: mediaItem?.year ?: extendedDetail?.startDate?.take(4)?.toIntOrNull()
-                                            )
-                                        )
-                                    } finally {
-                                        isExportingRating = false
-                                    }
-                                }
+                                showExportDialog = true
                             },
                             modifier = Modifier
                                 .weight(0.2f)
@@ -1398,27 +1387,112 @@ fun MediaDetailScreen(
                                 contentColor = TextPrimary
                             ),
                             border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderSubtle),
-                            contentPadding = PaddingValues(0.dp),
-                            enabled = !isExportingRating
+                            contentPadding = PaddingValues(0.dp)
                         ) {
-                            if (isExportingRating) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(18.dp),
-                                    color = themeAccent,
-                                    strokeWidth = 2.dp
-                                )
-                            } else {
-                                Icon(
-                                    imageVector = Icons.Default.Share,
-                                    contentDescription = "Bagikan Status Anime",
-                                    tint = TextPrimary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = "Bagikan Status Anime",
+                                tint = TextPrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
                         }
                     }
                 }
             }
+        }
+
+        // Realtime Preview Export Rating Card Dialog
+        if (showExportDialog) {
+            val effectiveMalId = userItem?.malId ?: mediaItem?.malId ?: airingItem?.malId ?: extendedDetail?.malId
+            val effectiveAniId = userItem?.anilistId ?: mediaItem?.anilistId ?: airingItem?.anilistId ?: extendedDetail?.anilistId
+            val exportIdentity = userItem?.identity ?: mediaItem?.identity ?: MediaRef(anilistId = effectiveAniId, malId = effectiveMalId)
+            val initialGenres = userItem?.metadata?.genres
+                ?: mediaItem?.genres
+                ?: airingItem?.genres
+                ?: extendedDetail?.genres
+                ?: emptyList()
+            val exportMetadata = userItem?.metadata ?: MediaMetadata(
+                title = title,
+                titleEnglish = titleEnglish,
+                titleNative = titleNative,
+                imageUrl = imageUrl,
+                type = type,
+                totalEpisodes = totalEpisodes,
+                totalChapters = totalChapters,
+                status = userItem?.airingStatus ?: mediaItem?.status ?: extendedDetail?.airingStatus,
+                studio = userItem?.studio ?: mediaItem?.studio ?: airingItem?.studio ?: extendedDetail?.studio,
+                genres = initialGenres,
+                synopsis = synopsis
+            )
+
+            MediaRatingExportDialog(
+                data = MediaRatingExportData(
+                    title = title,
+                    titleEnglish = titleEnglish,
+                    mediaType = type,
+                    imageUrl = imageUrl,
+                    malScore = extendedDetail?.malScore,
+                    userScore = trackingScore,
+                    status = trackingStatus,
+                    progress = trackingProgress,
+                    maxProgress = maxProgress,
+                    genres = initialGenres,
+                    studio = exportMetadata.studio,
+                    malUsername = malUsername,
+                    airingStatus = extendedDetail?.airingStatus ?: exportMetadata.status,
+                    malId = effectiveMalId,
+                    year = userItem?.metadata?.year ?: mediaItem?.year ?: extendedDetail?.startDate?.take(4)?.toIntOrNull(),
+                    review = trackingNotes
+                ),
+                initialReview = trackingNotes,
+                onDismiss = { showExportDialog = false },
+                onShare = { updatedReview, chosenColor ->
+                    trackingNotes = updatedReview
+                    val finalProgress = if (trackingStatus == "completed" && maxProgress > 0 && trackingProgress < maxProgress) {
+                        maxProgress
+                    } else {
+                        trackingProgress
+                    }
+                    val tracking = MalTracking(
+                        status = trackingStatus,
+                        score = trackingScore,
+                        progress = finalProgress,
+                        comments = updatedReview
+                    )
+                    val updatedUserItem = UserMediaItem(
+                        identity = exportIdentity,
+                        metadata = exportMetadata,
+                        tracking = tracking
+                    )
+
+                    if (isAnime) onSaveAnime(updatedUserItem) else onSaveManga(updatedUserItem)
+
+                    coroutineScope.launch {
+                        MediaRatingCardExporter.exportAndShareRatingCard(
+                            context = context,
+                            data = MediaRatingExportData(
+                                title = title,
+                                titleEnglish = titleEnglish,
+                                mediaType = type,
+                                imageUrl = imageUrl,
+                                malScore = extendedDetail?.malScore,
+                                userScore = trackingScore,
+                                status = trackingStatus,
+                                progress = trackingProgress,
+                                maxProgress = maxProgress,
+                                genres = initialGenres,
+                                studio = exportMetadata.studio,
+                                malUsername = malUsername,
+                                airingStatus = extendedDetail?.airingStatus ?: exportMetadata.status,
+                                malId = effectiveMalId,
+                                year = userItem?.metadata?.year ?: mediaItem?.year ?: extendedDetail?.startDate?.take(4)?.toIntOrNull(),
+                                review = updatedReview,
+                                customAccentColor = chosenColor
+                            )
+                        )
+                    }
+                }
+            )
         }
 
         // Full Title & Synopsis Modal Bottom Sheet (Expand Icon Triggered)

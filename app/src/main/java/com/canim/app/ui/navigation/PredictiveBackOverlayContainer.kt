@@ -1,5 +1,6 @@
 package com.canim.app.ui.navigation
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -9,7 +10,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -23,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -107,8 +112,20 @@ fun PredictiveBackOverlayContainer(
         }
     }
 
-    // ── 1. Native Predictive Back Handler ─────────────────────────────────────
-    PredictiveBackHandler(enabled = screenStack.isNotEmpty()) { progressFlow ->
+    // ── 1. Keyboard & Predictive Back Handlers ────────────────────────────────
+    val density = LocalDensity.current
+    val isImeVisible = WindowInsets.ime.getBottom(density) > 0
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+
+    // Priority IME dismiss handler: when keyboard is open, back ALWAYS closes the keyboard first
+    BackHandler(enabled = screenStack.isNotEmpty() && isImeVisible) {
+        keyboardController?.hide()
+        focusManager.clearFocus()
+    }
+
+    // Predictive back handler: only enabled when keyboard is NOT visible
+    PredictiveBackHandler(enabled = screenStack.isNotEmpty() && !isImeVisible) { progressFlow ->
         try {
             isGestureActive = true
             progressFlow.collect { backEvent ->

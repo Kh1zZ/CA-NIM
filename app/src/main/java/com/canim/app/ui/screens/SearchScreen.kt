@@ -1,5 +1,6 @@
 package com.canim.app.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -29,7 +30,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -80,6 +83,14 @@ fun SearchScreen(
     var searchInput by remember { mutableStateOf(currentQuery) }
     var searchType by remember { mutableStateOf(currentType) }
     val focusManager = LocalFocusManager.current
+    val density = LocalDensity.current
+    val isImeVisible = WindowInsets.ime.getBottom(density) > 0
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    BackHandler(enabled = isImeVisible) {
+        keyboardController?.hide()
+        focusManager.clearFocus()
+    }
     var itemToAdd by remember { mutableStateOf<MediaItem?>(null) }
     var itemToEdit by remember { mutableStateOf<MediaItem?>(null) }
     var showFilterSheet by remember { mutableStateOf(false) }

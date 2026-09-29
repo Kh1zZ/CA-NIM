@@ -52,7 +52,9 @@ data class MediaRatingExportData(
     val malUsername: String = "",
     val airingStatus: String? = null,
     val malId: Int? = null,
-    val year: Int? = null
+    val year: Int? = null,
+    val review: String? = null,
+    val customAccentColor: Int? = null
 )
 
 object MediaRatingCardExporter {
@@ -77,13 +79,15 @@ object MediaRatingCardExporter {
         }
     }
 
+    suspend fun loadCoverBitmap(context: Context, url: String?): Bitmap? = loadBitmap(context, url)
+
     suspend fun exportAndShareRatingCard(
         context: Context,
         data: MediaRatingExportData
     ): Result<Uri> = withContext(Dispatchers.IO) {
         try {
             val coverBitmap = loadBitmap(context, data.imageUrl)
-            val dominantColor = coverBitmap?.let { extractDominantColor(it) } ?: 0xFF3B82F6.toInt()
+            val dominantColor = data.customAccentColor ?: (coverBitmap?.let { extractDominantColor(it) } ?: 0xFF3B82F6.toInt())
 
             val bitmap = renderRatingCardBitmap(context, data, coverBitmap, dominantColor)
 
@@ -150,7 +154,7 @@ object MediaRatingCardExporter {
      * Extracts a refined dominant/vibrant color from the bitmap for dark UI theme.
      * Takes < 1ms via 36x36 downsampling and HSV quantization.
      */
-    private fun extractDominantColor(bitmap: Bitmap): Int {
+    fun extractDominantColor(bitmap: Bitmap): Int {
         val scaled = Bitmap.createScaledBitmap(bitmap, 36, 36, false)
         val colorCounts = mutableMapOf<Int, Int>()
         var maxCount = 0
@@ -272,7 +276,7 @@ object MediaRatingCardExporter {
         return result
     }
 
-    private fun renderRatingCardBitmap(
+    fun renderRatingCardBitmap(
         context: Context,
         data: MediaRatingExportData,
         coverBitmap: Bitmap?,
@@ -648,7 +652,10 @@ object MediaRatingCardExporter {
         canvas.drawRoundRect(evalBannerRect, 12f, 12f, evalBgPaint)
         canvas.drawRoundRect(evalBannerRect, 12f, 12f, dividerPaint)
 
-        val evalText = if (data.userScore >= 9) {
+        val cleanReview = data.review?.trim()
+        val evalText = if (!cleanReview.isNullOrBlank()) {
+            "★  Ulasan: \"$cleanReview\""
+        } else if (data.userScore >= 9) {
             "★  Ulasan Pribadi: Masterpiece Direkomendasikan!"
         } else if (data.userScore >= 7) {
             "★  Ulasan Pribadi: Tontonan Menghibur & Bagus"
@@ -657,12 +664,14 @@ object MediaRatingCardExporter {
         } else {
             "★  Status Rating: Belum Diberi Nilai Angka"
         }
-        val evalTextPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        val evalTextPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#E2E8F0")
             textSize = 15f
             typeface = TYPEFACE_ROUNDED_BOLD
         }
-        canvas.drawText(evalText, 94f, 894f, evalTextPaint)
+        val maxEvalWidth = (evalBannerRect.width() - 36f).coerceAtLeast(100f)
+        val ellipsizedEval = TextUtils.ellipsize(evalText, evalTextPaint, maxEvalWidth, TextUtils.TruncateAt.END).toString()
+        canvas.drawText(ellipsizedEval, 94f, 894f, evalTextPaint)
 
         // Card B: Progress Tontonan (Right Bento, x = 552 to 1030, width = 478f, y = 694 to 938)
         val progressCardRect = RectF(552f, 694f, (CANVAS_WIDTH - 50).toFloat(), 938f)

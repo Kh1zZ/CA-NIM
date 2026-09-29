@@ -1,7 +1,11 @@
 package com.canim.app.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -66,6 +70,15 @@ fun LibraryScreen(
     val currentSortBy = libraryState.sortBy
 
     val isAnime = currentFilterType == MediaType.ANIME
+    val density = LocalDensity.current
+    val isImeVisible = WindowInsets.ime.getBottom(density) > 0
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val focusManager = LocalFocusManager.current
+
+    BackHandler(enabled = isImeVisible) {
+        keyboardController?.hide()
+        focusManager.clearFocus()
+    }
 
     // Optimized Filtering & Sorting with remember to avoid re-sorting on every frame (Task B2)
     val filteredAnime = remember(currentAnimeList, currentStatusFilter, currentSearchQuery, currentSortBy) {

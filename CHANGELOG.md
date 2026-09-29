@@ -5,6 +5,24 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.6.0] - 2026-09-29
+### Added
+- **Interactive Rating Card Export Dialog with Realtime Preview**:
+  - **Realtime 4:5 Live Preview**: Menampilkan visualisasi kartu ekspor rating secara langsung dan reaktif (< 10 ms render berkat *cached cover bitmap* di memori).
+  - **Warna Aksen Kustom & Slider Spektrum Hue (0°–360°)**: Dilengkapi tombol satu ketukan untuk warna dominan asli cover anime/manga, preset warna cepat (Cyber Blue, Emerald, Neon Purple, Amber Gold, Crimson Rose), serta slider gradien spektrum warna pelangi yang mulus.
+  - **Sinkronisasi Ulasan Singkat 2-Arah**: Menulis atau mengedit ulasan singkat langsung di dalam dialog ekspor dengan live character counter (maks 100 karakter). Ulasan langsung tampil pada kartu ekspor bento dan otomatis tersinkronisasi kembali ke catatan pribadi library.
+
+### Fixed
+- **Navigational Hardening (Keyboard Dismiss on Back Gesture)**:
+  - Memperbaiki masalah gestur atau tombol back yang menutup layar (*back screen*) alih-alih menutup keyboard terlebih dahulu.
+  - Mengisolasi `PredictiveBackHandler` di `PredictiveBackOverlayContainer` hanya saat keyboard tidak aktif (`!isImeVisible`), serta menambahkan prioritas `BackHandler` untuk menyembunyikan keyboard (`LocalSoftwareKeyboardController.hide()`) dan menghapus fokus (`LocalFocusManager.clearFocus()`).
+  - Mengaudit dan menerapkan proteksi serupa pada layar `MediaDetailScreen`, `SearchScreen`, dan `LibraryScreen`.
+- **Media Detail Tracking Sheet Layout Stability**:
+  - Menambahkan `.imePadding()` dan `.verticalScroll(rememberScrollState())` pada `ModalBottomSheet` pelacakan progres di `MediaDetailScreen`.
+  - Konten pelacakan dan input ulasan singkat kini sepenuhnya responsif, dapat digulir dengan mulus saat keyboard terbuka, tanpa elemen yang terpotong atau tumpang tindih.
+- **Export Rating Card User Review Integration**:
+  - Mengintegrasikan catatan ulasan aktual pengguna ke dalam banner evaluasi kartu ekspor resolusi tinggi 1080x1350 px (dengan *clean text truncation/ellipsizing*).
+
 ## [v6.5.9] - 2026-09-27
 ### Changed
 - **Storyable / Instagrammable Rating Card Polishing**:
