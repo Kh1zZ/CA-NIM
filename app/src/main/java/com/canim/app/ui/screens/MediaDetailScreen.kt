@@ -126,17 +126,7 @@ fun MediaDetailScreen(
         initialFirstVisibleItemScrollOffset = initialPos.second
     )
 
-    // Continuously persist scroll position to ViewModel in real-time as user scrolls
-    LaunchedEffect(listState, itemKey) {
-        androidx.compose.runtime.snapshotFlow {
-            Pair(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
-        }.collect { (index, offset) ->
-            if (index > 0 || offset > 0) {
-                onSaveScrollPosition?.invoke(itemKey, index, offset)
-            }
-        }
-    }
-
+    // Persist scroll position to ViewModel when leaving the screen
     DisposableEffect(itemKey) {
         onDispose {
             onSaveScrollPosition?.invoke(
