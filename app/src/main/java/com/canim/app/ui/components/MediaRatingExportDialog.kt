@@ -170,7 +170,7 @@ fun MediaRatingExportDialog(
                     .aspectRatio(4f / 5f)
                     .clip(RoundedCornerShape(16.dp))
                     .background(BlackBg)
-                    .border(1.5f, Color(selectedColorInt).copy(alpha = 0.5f), RoundedCornerShape(16.dp)),
+                    .border(1.5.dp, Color(selectedColorInt).copy(alpha = 0.5f), RoundedCornerShape(16.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 val currentPreview = previewBitmap
