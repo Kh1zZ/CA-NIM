@@ -280,10 +280,16 @@ object MediaRatingCardExporter {
         context: Context,
         data: MediaRatingExportData,
         coverBitmap: Bitmap?,
-        dominantColor: Int
+        dominantColor: Int,
+        previewScale: Float = 1.0f
     ): Bitmap {
-        val bitmap = Bitmap.createBitmap(CANVAS_WIDTH, CANVAS_HEIGHT, Bitmap.Config.ARGB_8888)
+        val targetWidth = if (previewScale < 1.0f) (CANVAS_WIDTH * previewScale).toInt().coerceAtLeast(100) else CANVAS_WIDTH
+        val targetHeight = if (previewScale < 1.0f) (CANVAS_HEIGHT * previewScale).toInt().coerceAtLeast(100) else CANVAS_HEIGHT
+        val bitmap = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
+        if (previewScale < 1.0f) {
+            canvas.scale(previewScale, previewScale)
+        }
 
         // 1. Midnight Obsidian Base Background
         val bgPaint = Paint().apply {
@@ -652,7 +658,8 @@ object MediaRatingCardExporter {
         canvas.drawRoundRect(evalBannerRect, 12f, 12f, evalBgPaint)
         canvas.drawRoundRect(evalBannerRect, 12f, 12f, dividerPaint)
 
-        val cleanReview = data.review?.trim()
+        val rawReview = data.review?.trim()
+        val cleanReview = rawReview?.replace(Regex("^(ulasan|review|catatan)\\s*:\\s*", RegexOption.IGNORE_CASE), "")?.trim()
         val evalText = if (!cleanReview.isNullOrBlank()) {
             "★  Ulasan: \"$cleanReview\""
         } else if (data.userScore >= 9) {

@@ -1376,6 +1376,7 @@ fun MediaDetailScreen(
 
                         OutlinedButton(
                             onClick = {
+                                showTrackingSheet = false
                                 showExportDialog = true
                             },
                             modifier = Modifier

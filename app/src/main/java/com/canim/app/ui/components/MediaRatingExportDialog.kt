@@ -6,11 +6,15 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
@@ -99,8 +103,10 @@ fun MediaRatingExportDialog(
 
     // 2. Realtime Preview Rendering on Background Dispatcher
     LaunchedEffect(reviewText, selectedColorInt, coverBitmap) {
+        if (previewBitmap != null) {
+            delay(350) // Debounce typing & slider scrubbing before mutating state or doing CPU/Memory work
+        }
         isGeneratingPreview = true
-        delay(60) // Small debounce for smooth typing & slider scrubbing
         val bmp = withContext(Dispatchers.Default) {
             val exportDataWithReview = data.copy(
                 review = reviewText.trim(),
@@ -110,7 +116,8 @@ fun MediaRatingExportDialog(
                 context = context,
                 data = exportDataWithReview,
                 coverBitmap = coverBitmap,
-                dominantColor = selectedColorInt
+                dominantColor = selectedColorInt,
+                previewScale = 0.5f // 540x675 lightweight preview for smooth 120fps UI
             )
         }
         previewBitmap = bmp
@@ -130,9 +137,15 @@ fun MediaRatingExportDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 6.dp)
-                .padding(bottom = 32.dp)
-                .imePadding()
-                .verticalScroll(rememberScrollState()),
+                .padding(bottom = 24.dp)
+                .verticalScroll(rememberScrollState())
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    focusManager.clearFocus()
+                    keyboardController?.hide()
+                },
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -225,6 +238,16 @@ fun MediaRatingExportDialog(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     maxLines = 2,
+                    keyboardOptions = KeyboardOptions(
+                        autoCorrect = false,
+                        imeAction = ImeAction.Done
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = {
+                            focusManager.clearFocus()
+                            keyboardController?.hide()
+                        }
+                    ),
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Color(selectedColorInt),

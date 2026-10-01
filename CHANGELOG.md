@@ -5,6 +5,21 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.6.1] - 2026-10-01
+### Fixed
+- **Export Rating Card Typing Stutter & Double Input Fix**:
+  - Mengatasi masalah desinkronisasi IME keyboard virtual (Gboard/Samsung Keyboard) yang menyebabkan teks/karakter terduplikasi otomatis saat mengetik ulasan manual.
+  - Memasang *pre-debounce* 350 ms pada `LaunchedEffect` sebelum mutasi state terjadi, sehingga UI thread berjalan mulus di 120 FPS tanpa alokasi memori berlebih saat pengguna aktif mengetik.
+  - Menambahkan `KeyboardOptions(autoCorrect = false, imeAction = ImeAction.Done)` dan `KeyboardActions(onDone = { focusManager.clearFocus() })` pada text field ulasan singkat.
+  - Membersihkan prefix ulasan/catatan berulang (*auto-strip redundant prefix*) pada banner evaluasi kartu rating.
+- **Eliminasi Stacked Bottom Sheet Conflict**:
+  - Menutup `showTrackingSheet` saat `MediaRatingExportDialog` dibuka untuk mencegah dua `ModalBottomSheet` bertumpuk di pohon Compose yang memicu perebutan fokus input dan inkonsistensi event gestur.
+- **Keyboard Stability & Inset Polishing**:
+  - Menghapus double padding pada Column dialog yang bertabrakan dengan `android:windowSoftInputMode="adjustResize"`.
+  - Menambahkan *tap-outside dismiss handler* pada area preview dialog ekspor sehingga menyentuh latar belakang otomatis menutup keyboard dan menghapus fokus.
+- **Lightweight Realtime Preview Rendering**:
+  - Mengoptimasi `renderRatingCardBitmap` dengan parameter `previewScale = 0.5f` (540 × 675 px) untuk live preview di dialog, menghemat 75% alokasi RAM per frame. Kartu ekspor resolusi tinggi 1080 × 1350 px tetap dirender penuh saat dibagikan.
+
 ## [v6.6.0] - 2026-09-29
 ### Added
 - **Interactive Rating Card Export Dialog with Realtime Preview**:
