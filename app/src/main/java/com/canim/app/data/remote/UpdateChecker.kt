@@ -56,8 +56,8 @@ object UpdateChecker {
      * Sanitizes an APK filename to prevent path traversal vulnerabilities.
      */
     fun sanitizeFileName(fileName: String): String {
-        val baseName = File(fileName).name
-        val safe = baseName.replace(Regex("[^a-zA-Z0-9._-]"), "")
+        val name = fileName.substringAfterLast("/").substringAfterLast("\\")
+        val safe = name.replace(Regex("[^a-zA-Z0-9._-]"), "")
         return if (safe.endsWith(".apk", ignoreCase = true) && safe.isNotBlank()) safe else "canim-update.apk"
     }
 

@@ -129,15 +129,6 @@ fun CastCrewProfileScreen(
                 initialFirstVisibleItemScrollOffset = initialPos.second
             )
 
-            LaunchedEffect(listState, scrollKey) {
-                snapshotFlow { Pair(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) }
-                    .collect { (index, offset) ->
-                        if (index > 0 || offset > 0) {
-                            onSaveScrollPosition?.invoke(scrollKey, index, offset)
-                        }
-                    }
-            }
-
             DisposableEffect(scrollKey) {
                 onDispose {
                     onSaveScrollPosition?.invoke(scrollKey, listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset)
