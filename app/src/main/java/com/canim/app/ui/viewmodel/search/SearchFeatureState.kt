@@ -15,7 +15,8 @@ data class SearchUiState(
     val page: Int = 1,
     val genres: List<String> = emptyList(),
     val year: Int? = null,
-    val format: String? = null
+    val format: String? = null,
+    val countryOfOrigin: String? = null
 )
 
 sealed interface SearchEvent {
@@ -30,7 +31,8 @@ sealed interface SearchEvent {
     data class FilterApplied(
         val genres: List<String>,
         val year: Int?,
-        val format: String?
+        val format: String?,
+        val countryOfOrigin: String? = null
     ) : SearchEvent
 
     object FilterReset : SearchEvent

@@ -50,6 +50,7 @@ data class LibraryEntry(
     val format: String? = null,
     val studio: String? = null,
     val anilistId: Int? = null,
+    val countryOfOrigin: String? = "JP",
 
     // Sync bookkeeping
     val localUpdatedAt: Long = System.currentTimeMillis(),
@@ -76,7 +77,8 @@ data class LibraryEntry(
                 season = season,
                 genres = parseJsonList(genresJson),
                 format = format,
-                studio = studio
+                studio = studio,
+                countryOfOrigin = countryOfOrigin ?: "JP"
             ),
             tracking = MalTracking(
                 status = status,

@@ -19,10 +19,21 @@ class SearchRepositoryImpl @Inject constructor(
     private val swrCoordinator: SwrCoordinator
 ) : SearchRepository {
 
-    override fun searchFilterKey(query: String, genres: List<String>?, year: Int?, format: String?, page: Int): String {
+    override fun searchFilterKey(
+        query: String,
+        genres: List<String>?,
+        year: Int?,
+        format: String?,
+        countryOfOrigin: String?,
+        page: Int
+    ): String {
         val trimmed = query.trim()
         val genresKey = if (genres.isNullOrEmpty()) "" else genres.sorted().joinToString(",")
-        val baseKey = "${trimmed}_${genresKey}_${year}_${format}"
+        val baseKey = if (countryOfOrigin.isNullOrBlank()) {
+            "${trimmed}_${genresKey}_${year}_${format}"
+        } else {
+            "${trimmed}_${genresKey}_${year}_${format}_$countryOfOrigin"
+        }
         return if (page <= 1) baseKey else "${baseKey}_p$page"
     }
 
@@ -41,12 +52,13 @@ class SearchRepositoryImpl @Inject constructor(
         genres: List<String>?,
         year: Int?,
         format: String?,
+        countryOfOrigin: String?,
         page: Int,
         forceRefresh: Boolean
     ): List<MediaItem> = withContext(Dispatchers.IO) {
         val trimmed = query.trim()
-        val filterKey = searchFilterKey(trimmed, genres, year, format, page)
-        if (trimmed.isEmpty() && genres.isNullOrEmpty() && year == null && format == null) return@withContext emptyList()
+        val filterKey = searchFilterKey(trimmed, genres, year, format, countryOfOrigin, page)
+        if (trimmed.isEmpty() && genres.isNullOrEmpty() && year == null && format == null && countryOfOrigin.isNullOrBlank()) return@withContext emptyList()
 
         if (!forceRefresh) {
             val swrHit = CacheManager.getSearchSwr(filterKey, "ANIME")
@@ -56,7 +68,7 @@ class SearchRepositoryImpl @Inject constructor(
                     swrCoordinator.launchSwrJob(cacheKey) {
                         runCatching {
                             val fresh = AniListClient.searchMedia(
-                                trimmed, MediaType.ANIME, genres, year, format, page = 1, forceRefresh = true
+                                trimmed, MediaType.ANIME, genres, year, format, countryOfOrigin, page = 1, forceRefresh = true
                             )
                             if (fresh.isNotEmpty()) {
                                 CacheManager.putSearch(filterKey, "ANIME", fresh)
@@ -75,7 +87,7 @@ class SearchRepositoryImpl @Inject constructor(
             var result = if (!ApiClient.aniListLimiter.isCooldownActive()) {
                 runCatching {
                     AniListClient.searchMedia(
-                        trimmed, MediaType.ANIME, genres, year, format, page = page, forceRefresh = forceRefresh
+                        trimmed, MediaType.ANIME, genres, year, format, countryOfOrigin, page = page, forceRefresh = forceRefresh
                     )
                 }.getOrDefault(emptyList())
             } else {
@@ -86,7 +98,8 @@ class SearchRepositoryImpl @Inject constructor(
             val pageSize = 30
             val offset = (page - 1) * pageSize
 
-            if (result.isEmpty()) {
+            // MAL fallback: MAL lacks explicit Donghua catalog, so skip MAL query when origin is CN
+            if (result.isEmpty() && countryOfOrigin != "CN") {
                 try {
                     val malItems = if (trimmed.isNotBlank()) {
                         val malResp = ApiClient.malApi.searchAnime(MalAuthManager.CLIENT_ID, trimmed, limit = pageSize, offset = offset)
@@ -117,7 +130,7 @@ class SearchRepositoryImpl @Inject constructor(
                 }
             }
 
-            if (result.isEmpty() && page == 1) {
+            if (result.isEmpty() && page == 1 && countryOfOrigin != "CN") {
                 val baseList = MediaMappingUtils.fallbackAnime()
                 var localMatches = baseList
                 if (trimmed.isNotBlank()) {
@@ -158,7 +171,7 @@ class SearchRepositoryImpl @Inject constructor(
         forceRefresh: Boolean
     ): List<MediaItem> = withContext(Dispatchers.IO) {
         val trimmed = query.trim()
-        val filterKey = searchFilterKey(trimmed, genres, year, format, page)
+        val filterKey = searchFilterKey(trimmed, genres, year, format, null, page)
         if (trimmed.isEmpty() && genres.isNullOrEmpty() && year == null && format == null) return@withContext emptyList()
 
         if (!forceRefresh) {

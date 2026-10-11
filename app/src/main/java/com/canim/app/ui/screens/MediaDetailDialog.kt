@@ -1,5 +1,6 @@
 package com.canim.app.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -327,6 +328,23 @@ fun MediaDetailDialog(
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Bold
                                 )
+                            }
+
+                            val isDonghua = extendedDetail?.isDonghua == true || userItem?.isDonghua == true || mediaItem?.isDonghua == true || airingItem?.isDonghua == true
+                            if (isDonghua) {
+                                Surface(
+                                    color = DonghuaAccentRed.copy(alpha = 0.2f),
+                                    shape = RoundedCornerShape(4.dp),
+                                    border = BorderStroke(0.5.dp, DonghuaAccentRed.copy(alpha = 0.5f))
+                                ) {
+                                    Text(
+                                        text = "🇨🇳 Donghua",
+                                        color = DonghuaAccentRed,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                    )
+                                }
                             }
 
                             if (score > 0) {

@@ -21,6 +21,10 @@ import androidx.compose.ui.unit.sp
 import com.canim.app.ui.theme.AccentBlue
 import com.canim.app.ui.theme.CardBg
 import com.canim.app.ui.theme.TextMuted
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 
 @Composable
 fun <T> SmoothSegmentedSelector(
@@ -71,11 +75,16 @@ fun <T> SmoothSegmentedSelector(
         ) {
             options.forEachIndexed { index, option ->
                 val isSelected = index == selectedIndex
+                val label = labelProvider(option)
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(cornerRadius - 2.dp))
+                        .semantics {
+                            role = Role.Tab
+                            this.selected = isSelected
+                        }
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
@@ -85,7 +94,7 @@ fun <T> SmoothSegmentedSelector(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = labelProvider(option),
+                        text = label,
                         fontSize = 13.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                         color = if (isSelected) Color.White else TextMuted

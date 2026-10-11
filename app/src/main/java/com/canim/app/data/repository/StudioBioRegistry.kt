@@ -281,6 +281,54 @@ object StudioBioRegistry {
             country = "Jepang",
             officialSite = "http://lidenfilms.jp/",
             bio = "Studio produktif anggota Ultra Super Pictures yang memproduksi Tokyo Revengers, Rurouni Kenshin (2023), Call of the Night, dan Yamada-kun and the Seven Witches."
+        ),
+        StudioBioInfo(
+            studioId = 6842,
+            name = "Bilibili",
+            foundedYear = 2009,
+            country = "China",
+            officialSite = "https://www.bilibili.com/",
+            bio = "Platform raksasa dan produser utama animasi donghua asal Tiongkok, mendanai dan merilis berbagai judul terkenal seperti Link Click (Shiguang Dailiren), Heaven Official's Blessing (Tian Guan Ci Fu), dan The Daily Life of the Immortal King."
+        ),
+        StudioBioInfo(
+            studioId = 6378,
+            name = "Tencent Animation",
+            foundedYear = 2012,
+            country = "China",
+            officialSite = "https://ac.qq.com/",
+            bio = "Divisi animasi dari konglomerat teknologi Tencent yang memproduksi donghua 3D dan 2D terpopuler, seperti Soul Land (Douluo Dalu), Battle Through the Heavens, The King's Avatar (Quan Zhi Gao Shou), dan Perfect World."
+        ),
+        StudioBioInfo(
+            studioId = 6006,
+            name = "Haoliners Animation League",
+            foundedYear = 2013,
+            country = "China",
+            officialSite = "http://www.haoliners.net/",
+            bio = "Studio pionir donghua 2D Tiongkok yang memproduksi serial populer seperti Link Click, Heaven Official's Blessing, Fox Spirit Matchmaker, dan Hitori no Shita: The Outcast."
+        ),
+        StudioBioInfo(
+            studioId = 6448,
+            name = "Sparkly Key Animation",
+            foundedYear = 2005,
+            country = "China",
+            officialSite = "http://www.sparklykey.com/",
+            bio = "Studio animasi 3D CGI terdepan di Tiongkok (juga dikenal sebagai Xuanji Technology), pencipta serial legendaris Soul Land (Douluo Dalu), Qin's Moon, dan Wu Geng Ji."
+        ),
+        StudioBioInfo(
+            studioId = 6449,
+            name = "Foch Film",
+            foundedYear = 2006,
+            country = "China",
+            officialSite = "http://www.fochfilm.com/",
+            bio = "Studio produksi animasi Tiongkok yang memproduksi donghua populer seperti Stellar Transformations (Xingchen Bian) dan Perfect World."
+        ),
+        StudioBioInfo(
+            studioId = 6240,
+            name = "B.CMAY PICTURES",
+            foundedYear = 2015,
+            country = "China",
+            officialSite = null,
+            bio = "Studio animasi 2D ternama di balik mahakarya Mo Dao Zu Shi (Grandmaster of Demonic Cultivation) dan musim awal The King's Avatar (Quan Zhi Gao Shou)."
         )
     ).associateBy { it.name.lowercase().trim() }
 
@@ -338,11 +386,16 @@ object StudioBioRegistry {
         }
 
         // 3. Fallback default
+        val isChinese = com.canim.app.data.resolver.OriginDetector.isChineseStudio(studioName)
         val fallback = StudioBioInfo(
             studioId = studioId,
             name = studioName,
-            country = "Jepang",
-            bio = "Studio animasi anime asal Jepang yang aktif memproduksi serial dan film animasi berkualitas untuk penonton di seluruh dunia."
+            country = if (isChinese) "China" else "Jepang",
+            bio = if (isChinese) {
+                "Studio animasi donghua asal Tiongkok yang memproduksi serial animasi berkualitas tinggi dengan visual dan cerita khas."
+            } else {
+                "Studio animasi anime asal Jepang yang aktif memproduksi serial dan film animasi berkualitas untuk penonton di seluruh dunia."
+            }
         )
         saveToPersistentCache(fallback)
         return fallback

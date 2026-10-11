@@ -333,7 +333,11 @@ fun StatsScreen(
                             title = "Total Judul",
                             value = "${libraryState.stats.totalAnime + libraryState.stats.totalManga}",
                             unit = "Judul",
-                            subtitle = "${libraryState.stats.totalAnime} Anime • ${libraryState.stats.totalManga} Manga",
+                            subtitle = if (libraryState.stats.donghuaCount > 0) {
+                                "${libraryState.stats.animeCount} JP • ${libraryState.stats.donghuaCount} CN • ${libraryState.stats.totalManga} Manga"
+                            } else {
+                                "${libraryState.stats.totalAnime} Anime • ${libraryState.stats.totalManga} Manga"
+                            },
                             icon = Icons.Default.LibraryBooks,
                             accentColor = Color(0xFFA855F7)
                         )
@@ -359,6 +363,123 @@ fun StatsScreen(
                     icon = Icons.Default.Tv,
                     accentColor = AccentBlue
                 )
+            }
+
+            // Origin Breakdown Card (JP vs CN)
+            if (libraryState.stats.totalAnime > 0) {
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = CardBg),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, CardBorderSubtle),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Public,
+                                        contentDescription = null,
+                                        tint = AccentBlue,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Text(
+                                        text = "Asal Negara Animasi",
+                                        color = TextPrimary,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Text(
+                                    text = "${libraryState.stats.totalAnime} Judul",
+                                    color = TextMuted,
+                                    fontSize = 11.sp
+                                )
+                            }
+
+                            // Horizontal proportion bar
+                            val totalAnime = maxOf(1, libraryState.stats.totalAnime)
+                            val jpFraction = (libraryState.stats.animeCount.toFloat() / totalAnime).coerceIn(0f, 1f)
+                            val cnFraction = (libraryState.stats.donghuaCount.toFloat() / totalAnime).coerceIn(0f, 1f)
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(CardElevated)
+                            ) {
+                                if (jpFraction > 0f) {
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(jpFraction)
+                                            .fillMaxHeight()
+                                            .background(AccentBlue)
+                                    )
+                                }
+                                if (cnFraction > 0f) {
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(cnFraction)
+                                            .fillMaxHeight()
+                                            .background(DonghuaAccentRed)
+                                    )
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(AccentBlue)
+                                    )
+                                    Text(
+                                        text = "🇯🇵 Anime Jepang: ${libraryState.stats.animeCount}",
+                                        color = TextSecondary,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(DonghuaAccentRed)
+                                    )
+                                    Text(
+                                        text = "🇨🇳 Donghua: ${libraryState.stats.donghuaCount}",
+                                        color = TextSecondary,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             // Pie Chart 2: Manga Distribution

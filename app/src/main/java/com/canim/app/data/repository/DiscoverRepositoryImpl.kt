@@ -34,7 +34,7 @@ class DiscoverRepositoryImpl @Inject constructor(
             category == DiscoverCategory.RECENTLY_DONE_MANGA ||
             category == DiscoverCategory.NEWLY_ADDED_MANGA
         ) MediaType.MANGA else MediaType.ANIME
-        return "${resolvedType.name.lowercase()}_${category.key}_${filter.genre}_${filter.format}_${filter.year}_${filter.season}_${filter.minScore}_${randomSort}_p$page"
+        return "${resolvedType.name.lowercase()}_${category.key}_${filter.genre}_${filter.format}_${filter.year}_${filter.season}_${filter.minScore}_${filter.countryOfOrigin}_${randomSort}_p$page"
     }
 
     override fun getCachedDiscover(categoryKey: String): List<MediaItem>? =
@@ -104,42 +104,46 @@ class DiscoverRepositoryImpl @Inject constructor(
         val limit = 25
         val offset = (page - 1) * limit
 
-        if (category == DiscoverCategory.TOP_ANIME) {
-            try {
-                val resp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "all", limit, offset)
-                if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
-                    val items = resp.body()!!.data.map { MediaMappingUtils.mapMalAnimeNodeToMediaItem(it.node) }
-                    CacheManager.putDiscover(cacheKey, items)
-                    return items
-                }
-            } catch (_: Exception) {}
-        } else if (category == DiscoverCategory.TOP_MANGA) {
-            try {
-                val resp = ApiClient.malApi.getMangaRanking(MalAuthManager.CLIENT_ID, "all", limit, offset)
-                if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
-                    val items = resp.body()!!.data.map { MediaMappingUtils.mapMalMangaNodeToMediaItem(it.node) }
-                    CacheManager.putDiscover(cacheKey, items)
-                    return items
-                }
-            } catch (_: Exception) {}
-        } else if (category == DiscoverCategory.CURRENT_SEASON) {
-            try {
-                val resp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "airing", limit, offset)
-                if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
-                    val items = resp.body()!!.data.map { MediaMappingUtils.mapMalAnimeNodeToMediaItem(it.node) }
-                    CacheManager.putDiscover(cacheKey, items)
-                    return items
-                }
-            } catch (_: Exception) {}
-        } else if (category == DiscoverCategory.NEXT_SEASON || category == DiscoverCategory.UPCOMING || category == DiscoverCategory.TBA) {
-            try {
-                val resp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "upcoming", limit, offset)
-                if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
-                    val items = resp.body()!!.data.map { MediaMappingUtils.mapMalAnimeNodeToMediaItem(it.node) }
-                    CacheManager.putDiscover(cacheKey, items)
-                    return items
-                }
-            } catch (_: Exception) {}
+        val isDonghua = filter.countryOfOrigin == "CN"
+
+        if (!isDonghua) {
+            if (category == DiscoverCategory.TOP_ANIME) {
+                try {
+                    val resp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "all", limit, offset)
+                    if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
+                        val items = resp.body()!!.data.map { MediaMappingUtils.mapMalAnimeNodeToMediaItem(it.node) }
+                        CacheManager.putDiscover(cacheKey, items)
+                        return items
+                    }
+                } catch (_: Exception) {}
+            } else if (category == DiscoverCategory.TOP_MANGA) {
+                try {
+                    val resp = ApiClient.malApi.getMangaRanking(MalAuthManager.CLIENT_ID, "all", limit, offset)
+                    if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
+                        val items = resp.body()!!.data.map { MediaMappingUtils.mapMalMangaNodeToMediaItem(it.node) }
+                        CacheManager.putDiscover(cacheKey, items)
+                        return items
+                    }
+                } catch (_: Exception) {}
+            } else if (category == DiscoverCategory.CURRENT_SEASON) {
+                try {
+                    val resp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "airing", limit, offset)
+                    if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
+                        val items = resp.body()!!.data.map { MediaMappingUtils.mapMalAnimeNodeToMediaItem(it.node) }
+                        CacheManager.putDiscover(cacheKey, items)
+                        return items
+                    }
+                } catch (_: Exception) {}
+            } else if (category == DiscoverCategory.NEXT_SEASON || category == DiscoverCategory.UPCOMING || category == DiscoverCategory.TBA) {
+                try {
+                    val resp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "upcoming", limit, offset)
+                    if (resp.isSuccessful && resp.body()?.data?.isNotEmpty() == true) {
+                        val items = resp.body()!!.data.map { MediaMappingUtils.mapMalAnimeNodeToMediaItem(it.node) }
+                        CacheManager.putDiscover(cacheKey, items)
+                        return items
+                    }
+                } catch (_: Exception) {}
+            }
         }
 
         // AniList query for Trending or fallback
@@ -160,6 +164,7 @@ class DiscoverRepositoryImpl @Inject constructor(
         val isFallback = (category != DiscoverCategory.TRENDING_NOW &&
             category != DiscoverCategory.RECENTLY_DONE_MANGA &&
             category != DiscoverCategory.NEWLY_ADDED_MANGA &&
+            !isDonghua &&
             results.isEmpty() && page == 1)
 
         if (isFallback) {

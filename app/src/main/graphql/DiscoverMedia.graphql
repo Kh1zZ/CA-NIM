@@ -2,6 +2,7 @@ query GetDiscoverMedia(
   $page: Int,
   $perPage: Int,
   $type: MediaType,
+  $countryOfOrigin: CountryCode,
   $status: MediaStatus,
   $seasonYear: Int,
   $season: MediaSeason,
@@ -13,6 +14,7 @@ query GetDiscoverMedia(
   Page(page: $page, perPage: $perPage) {
     media(
       type: $type,
+      countryOfOrigin: $countryOfOrigin,
       status: $status,
       seasonYear: $seasonYear,
       season: $season,
@@ -43,6 +45,7 @@ query GetDiscoverMedia(
       season
       format
       genres
+      countryOfOrigin
       studios(isMain: true) {
         nodes {
           name

@@ -86,7 +86,8 @@ class CalendarRepositoryImpl @Inject constructor() : CalendarRepository {
                     airingDay = day,
                     airingTimeFormatted = deriveAiringTime(media.malId ?: media.anilistId ?: index),
                     genres = media.genres,
-                    studio = media.studio
+                    studio = media.studio,
+                    countryOfOrigin = media.countryOfOrigin ?: "JP"
                 )
             }
         }
@@ -122,7 +123,8 @@ class CalendarRepositoryImpl @Inject constructor() : CalendarRepository {
                     airingDay = day,
                     airingTimeFormatted = deriveAiringTime(media.malId ?: index),
                     genres = media.genres,
-                    studio = media.studio
+                    studio = media.studio,
+                    countryOfOrigin = media.countryOfOrigin ?: "JP"
                 )
             }
         }
@@ -143,7 +145,8 @@ class CalendarRepositoryImpl @Inject constructor() : CalendarRepository {
                 airingDay = day,
                 airingTimeFormatted = "23:00",
                 genres = media.genres,
-                studio = media.studio
+                studio = media.studio,
+                countryOfOrigin = media.countryOfOrigin ?: "JP"
             )
         }
     }

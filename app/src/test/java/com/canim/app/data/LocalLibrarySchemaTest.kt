@@ -81,8 +81,17 @@ class LocalLibrarySchemaTest {
     }
 
     @Test
-    fun `database version is 1`() {
-        assertEquals(1, LocalDatabase.DATABASE_VERSION)
+    fun `database version is 2`() {
+        assertEquals(2, LocalDatabase.DATABASE_VERSION)
+    }
+
+    @Test
+    fun `country_of_origin column is present with default JP`() {
+        val entry = LibraryEntry(malId = 5555, mediaType = "ANIME", title = "Origin Test")
+        libraryDao.upsertEntry(entry)
+        val fetched = libraryDao.getAllEntries("ANIME")
+        assertEquals(1, fetched.size)
+        assertEquals("JP", fetched[0].countryOfOrigin)
     }
 
     @Test

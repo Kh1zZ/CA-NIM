@@ -22,6 +22,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -118,6 +122,10 @@ fun <T> SlidingPillSelector(
                             itemPositions[index] = Pair(xDp, widthDp)
                         }
                         .clip(RoundedCornerShape(cornerRadius - 2.dp))
+                        .semantics {
+                            role = Role.Tab
+                            this.selected = isSelected
+                        }
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null

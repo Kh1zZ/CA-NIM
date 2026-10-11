@@ -346,6 +346,7 @@ object AniListApolloClient {
         genres: List<String>? = null,
         year: Int? = null,
         format: String? = null,
+        countryOfOrigin: String? = null,
         page: Int = 1,
         perPage: Int = 30
     ): AniListResult<List<MediaItem>> = withContext(Dispatchers.IO) {
@@ -389,6 +390,12 @@ object AniListApolloClient {
                     null
                 }
 
+                val apolloCountryOfOrigin = if (!countryOfOrigin.isNullOrBlank()) {
+                    Optional.present(countryOfOrigin.trim().uppercase())
+                } else {
+                    Optional.absent()
+                }
+
                 val searchOpt = if (query.isNotBlank()) Optional.present(query.trim()) else Optional.Absent
                 val genresOpt = if (validGenres != null) Optional.present(validGenres) else Optional.Absent
                 val tagsOpt = if (validTags != null) Optional.present(validTags) else Optional.Absent
@@ -408,7 +415,8 @@ object AniListApolloClient {
                         seasonYear = seasonYearOpt,
                         startDateGreater = startDateGreaterOpt,
                         startDateLesser = startDateLesserOpt,
-                        format = formatOpt
+                        format = formatOpt,
+                        countryOfOrigin = apolloCountryOfOrigin
                     )
                 ).execute()
 
@@ -448,11 +456,12 @@ object AniListApolloClient {
         genres: List<String>? = null,
         year: Int? = null,
         format: String? = null,
+        countryOfOrigin: String? = null,
         page: Int = 1,
         perPage: Int = 30,
         forceRefresh: Boolean = false
     ): List<MediaItem> = withContext(Dispatchers.IO) {
-        val cacheKey = "${query}_${type.name}_${genres?.joinToString(",")}_${year}_${format}_p${page}"
+        val cacheKey = "${query}_${type.name}_${genres?.joinToString(",")}_${year}_${format}_${countryOfOrigin}_p${page}"
         if (!forceRefresh) {
             val cached = CacheManager.getSearch(cacheKey, type.name)
             if (cached != null) {
@@ -463,7 +472,7 @@ object AniListApolloClient {
         AniListMetrics.recordCacheMiss()
 
         AniListClient.deduplicateInFlight("search_${cacheKey}") {
-            val res = executeSearchMedia(query, type, genres, year, format, page, perPage)
+            val res = executeSearchMedia(query, type, genres, year, format, countryOfOrigin, page, perPage)
             if (res is AniListResult.Success) {
                 val items = res.data
                 if (items.isNotEmpty()) {
@@ -856,7 +865,7 @@ object AniListApolloClient {
             category == DiscoverCategory.RECENTLY_DONE_MANGA ||
             category == DiscoverCategory.NEWLY_ADDED_MANGA
         val typePrefix = if (isManga) "manga" else "anime"
-        val cacheKey = "${typePrefix}_${category.key}_${filter.genre}_${filter.format}_${filter.year}_${filter.season}_${filter.minScore}_${randomSort}_p$page"
+        val cacheKey = "${typePrefix}_${category.key}_${filter.genre}_${filter.format}_${filter.year}_${filter.season}_${filter.minScore}_${filter.countryOfOrigin}_${randomSort}_p$page"
         if (!forceRefresh) {
             val cached = CacheManager.getDiscover(cacheKey)
             if (cached != null) {
@@ -876,6 +885,7 @@ object AniListApolloClient {
         var apolloGenre: Optional<String> = Optional.absent()
         var apolloFormat: Optional<MediaFormat> = Optional.absent()
         var apolloMinScore: Optional<Int> = Optional.absent()
+        var apolloCountryOfOrigin: Optional<Any?> = Optional.absent()
 
         when (category) {
             DiscoverCategory.CURRENT_SEASON -> {
@@ -943,6 +953,9 @@ object AniListApolloClient {
         filter.format?.let {
             apolloFormat = Optional.present(MediaFormat.safeValueOf(it))
         }
+        filter.countryOfOrigin?.takeIf { it.isNotBlank() }?.let {
+            apolloCountryOfOrigin = Optional.present(it.trim().uppercase())
+        }
 
         val dedupeKey = "discover_${cacheKey}"
         AniListClient.deduplicateInFlight(dedupeKey) {
@@ -958,7 +971,8 @@ object AniListApolloClient {
                     genre = apolloGenre,
                     format = apolloFormat,
                     averageScore_greater = apolloMinScore,
-                    sort = apolloSort
+                    sort = apolloSort,
+                    countryOfOrigin = apolloCountryOfOrigin
                 )
                 val response = client.query(q).execute()
                 val mediaList = response.data?.Page?.media ?: emptyList()

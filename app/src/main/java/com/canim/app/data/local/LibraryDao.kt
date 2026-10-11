@@ -6,6 +6,7 @@ import android.util.Log
 import com.canim.app.data.local.LocalDatabase.Companion.COL_LIB_ANILIST_ID
 import com.canim.app.data.local.LocalDatabase.Companion.COL_LIB_AIRING_STATUS
 import com.canim.app.data.local.LocalDatabase.Companion.COL_LIB_COMMENTS
+import com.canim.app.data.local.LocalDatabase.Companion.COL_LIB_COUNTRY_OF_ORIGIN
 import com.canim.app.data.local.LocalDatabase.Companion.COL_LIB_FINISH_DATE
 import com.canim.app.data.local.LocalDatabase.Companion.COL_LIB_FORMAT
 import com.canim.app.data.local.LocalDatabase.Companion.COL_LIB_GENRES_JSON
@@ -274,6 +275,7 @@ class LibraryDao(private val db: LocalDatabase) {
         put(COL_LIB_FORMAT, format)
         put(COL_LIB_STUDIO, studio)
         put(COL_LIB_ANILIST_ID, anilistId)
+        put(COL_LIB_COUNTRY_OF_ORIGIN, countryOfOrigin ?: "JP")
         put(COL_LIB_LOCAL_UPDATED_AT, localUpdatedAt)
         put(COL_LIB_SYNCED_AT, syncedAt)
     }
@@ -315,6 +317,9 @@ class LibraryDao(private val db: LocalDatabase) {
         studio = getString(getColumnIndexOrThrow(COL_LIB_STUDIO)),
         anilistId = if (isNull(getColumnIndexOrThrow(COL_LIB_ANILIST_ID))) null
                     else getInt(getColumnIndexOrThrow(COL_LIB_ANILIST_ID)),
+        countryOfOrigin = getColumnIndex(COL_LIB_COUNTRY_OF_ORIGIN).let {
+            if (it >= 0 && !isNull(it)) getString(it) else "JP"
+        },
         localUpdatedAt = getLong(getColumnIndexOrThrow(COL_LIB_LOCAL_UPDATED_AT)),
         syncedAt = getLong(getColumnIndexOrThrow(COL_LIB_SYNCED_AT))
     )

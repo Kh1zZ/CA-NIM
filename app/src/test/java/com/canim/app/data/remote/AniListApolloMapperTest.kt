@@ -47,7 +47,8 @@ class AniListApolloMapperTest {
             chapters = null,
             volumes = null,
             genres = listOf("Adventure", "Drama", "Fantasy"),
-            studios = SearchMediaQuery.Studios(listOf(SearchMediaQuery.Node("Madhouse")))
+            studios = SearchMediaQuery.Studios(listOf(SearchMediaQuery.Node("Madhouse"))),
+            countryOfOrigin = "JP"
         )
 
         val item = AniListApolloMapper.toMediaItem(medium, MediaType.ANIME)
@@ -82,7 +83,8 @@ class AniListApolloMapperTest {
             chapters = 1100,
             volumes = 108,
             genres = null,
-            studios = null
+            studios = null,
+            countryOfOrigin = "JP"
         )
 
         val item = AniListApolloMapper.toMediaItem(releasingMedium, MediaType.MANGA)
@@ -114,7 +116,8 @@ class AniListApolloMapperTest {
             studios = null,
             characters = null,
             staff = null,
-            relations = null
+            relations = null,
+            countryOfOrigin = "JP"
         )
 
         val detail = AniListApolloMapper.toExtendedMediaDetail(fields, fallbackMalId = 999)
@@ -153,7 +156,8 @@ class AniListApolloMapperTest {
             studios = null,
             characters = null,
             staff = null,
-            relations = null
+            relations = null,
+            countryOfOrigin = "JP"
         )
 
         val detail = AniListApolloMapper.toExtendedMediaDetail(fields)
@@ -338,7 +342,8 @@ class AniListApolloMapperTest {
             chapters = null,
             volumes = null,
             genres = listOf("Action", "Adventure"),
-            studios = GetDiscoverMediaQuery.Studios(listOf(GetDiscoverMediaQuery.Node("Toei Animation")))
+            studios = GetDiscoverMediaQuery.Studios(listOf(GetDiscoverMediaQuery.Node("Toei Animation"))),
+            countryOfOrigin = "JP"
         )
 
         val item = AniListApolloMapper.toDiscoverMediaItem(medium, MediaType.ANIME)
@@ -347,6 +352,8 @@ class AniListApolloMapperTest {
         assertEquals("AIRING", item.status)
         assertEquals("Toei Animation", item.studio)
         assertEquals(8.8, item.score!!, 0.01)
+        assertFalse(item.isDonghua)
+        assertEquals("JP", item.countryOfOrigin)
     }
 
     @Test
@@ -366,7 +373,8 @@ class AniListApolloMapperTest {
             chapters = null,
             volumes = null,
             genres = listOf("Action", "Adventure"),
-            studios = GetMediaBatchByMalIdsQuery.Studios(listOf(GetMediaBatchByMalIdsQuery.Node("Bones")))
+            studios = GetMediaBatchByMalIdsQuery.Studios(listOf(GetMediaBatchByMalIdsQuery.Node("Bones"))),
+            countryOfOrigin = "JP"
         )
 
         val item = AniListApolloMapper.toBatchMediaItem(medium, MediaType.ANIME)
@@ -375,5 +383,33 @@ class AniListApolloMapperTest {
         assertEquals("FMAB", item.titleEnglish)
         assertEquals("AIRED", item.status)
         assertEquals(9.1, item.score!!, 0.01)
+        assertFalse(item.isDonghua)
+        assertEquals("JP", item.countryOfOrigin)
+    }
+
+    @Test
+    fun testToMediaItemDonghuaOrigin() {
+        val medium = SearchMediaQuery.Medium(
+            id = 99999,
+            idMal = null,
+            title = SearchMediaQuery.Title(romaji = "Mo Dao Zu Shi", english = "Grandmaster of Demonic Cultivation"),
+            coverImage = null,
+            averageScore = 85,
+            description = "Wei Wuxian...",
+            status = MediaStatus.FINISHED,
+            seasonYear = 2018,
+            season = MediaSeason.SUMMER,
+            format = MediaFormat.ONA,
+            episodes = 15,
+            chapters = null,
+            volumes = null,
+            genres = listOf("Action", "Fantasy"),
+            studios = SearchMediaQuery.Studios(listOf(SearchMediaQuery.Node("B.CMAY PICTURES"))),
+            countryOfOrigin = "CN"
+        )
+        val item = AniListApolloMapper.toMediaItem(medium, MediaType.ANIME)
+        assertTrue(item.isDonghua)
+        assertEquals("CN", item.countryOfOrigin)
+        assertEquals("🇨🇳 Donghua", item.originBadge)
     }
 }

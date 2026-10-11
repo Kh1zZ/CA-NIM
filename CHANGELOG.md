@@ -5,6 +5,29 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.7.0] - 2026-10-11
+### Added
+- **Universal Origin Separation (🇯🇵 Japanese Anime vs 🇨🇳 Chinese Donghua)**:
+  - **Arsitektur Data & Model Lengkap**: Menambahkan enum `CountryOrigin` dan `OriginFilter` serta field `countryOfOrigin: String? = "JP"`, properti `isDonghua`, dan `originBadge` ke `MediaMetadata`, `UserMediaItem`, `MediaItem`, `ExtendedMediaDetail`, `FilmographyItem`, `AiringAnimeItem`, `TrackerStats`, dan `DiscoverFilter`.
+  - **Sistem Deteksi Asal Cerdas (`OriginDetector`)**: Registry komprehensif 30+ studio animasi Tiongkok terkemuka (Bilibili, Tencent Animation, Haoliners, Sparkly Key/Xuanji, Foch Film, B.CMAY Pictures, dsb.) dengan pencocokan nama studio dan pemetaan kode negara `CN` vs `JP` secara otomatis.
+  - **AniList GraphQL Schema & Apollo Client Enhancements**:
+    - Menambahkan argumen `$countryOfOrigin: CountryCode` ke query `DiscoverMedia.graphql` dan `SearchMedia.graphql`.
+    - Menambahkan seleksi `countryOfOrigin` pada `MediaBatchByMalIds.graphql` dan `ExtendedMediaDetail.graphql`.
+    - Menghapus pembatasan bahasa suara `(language: JAPANESE)` pada query karakter dan pemeran agar pengisi suara asli Mandarin untuk Donghua dapat dimuat secara autentik.
+    - Menambahkan `countryOfOrigin` ke dalam kunci cache SWR (`searchFilterKey`, `discoverFilterKey`) untuk mengeliminasi tabrakan cache antar-negara.
+  - **Room Database Migration (Version 2)**: Menambahkan kolom `country_of_origin` (default `'JP'`) pada tabel `library_entries` dengan migrasi non-destruktif otomatis serta mapping kursor yang aman.
+  - **Isolasi Endpoint Ranking & Fallback MAL**: Mem-bypass pemanggilan ranking MAL dan fallback anime Jepang ketika filter Donghua (`CN`) aktif, mencegah polusi data anime ke dalam hasil Donghua.
+  - **UI/UX & Filter Komprehensif di Seluruh Layar**:
+    - **Pencarian (`SearchScreen`)**: Opsi filter asal negara ("Semua", "🇯🇵 Anime JP", "🇨🇳 Donghua"), chip aktif, dan badge Donghua pada kartu hasil.
+    - **Eksplorasi (`DiscoverScreen`)**: Toggle pemilih negara cepat dengan animasi smooth, serta badge penanda Donghua pada kartu katalog.
+    - **Koleksi Pribadi (`LibraryScreen`)**: Filter pil kategori asal negara untuk tab Anime, dan label Donghua pada kartu perpustakaan.
+    - **Detail Media (`MediaDetailScreen` & `MediaDetailDialog`)**: Origin badge pada header dan baris "Negara Asal" pada tabel spesifikasi.
+    - **Jadwal Tayang (`AiringCalendarScreen`)**: Badge Donghua pada kartu anime mingguan.
+    - **Statistik (`StatsScreen`)**: Pengelompokan proporsi koleksi `animeCount` (JP) vs `donghuaCount` (CN) pada metrik total judul serta bar distribusi visual asal negara.
+- **Material 3 & Impeccable A11y Polish**:
+  - Menambahkan semantik aksesibilitas `Role.Tab`, state `selected`, dan ripple feedback pada `SmoothSegmentedSelector` dan `SlidingPillSelector` untuk pembaca layar TalkBack.
+  - Token warna khusus Donghua (`DonghuaAccentRed`, `DonghuaAccentDarkRed`, `DonghuaBadgeBg`, `DonghuaCardBorder`).
+
 ## [v6.6.1] - 2026-10-01
 ### Fixed
 - **Export Rating Card Typing Stutter & Double Input Fix**:

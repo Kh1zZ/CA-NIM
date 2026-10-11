@@ -71,6 +71,7 @@ class SearchPaginationAndFilterTest {
                 genres: List<String>?,
                 year: Int?,
                 format: String?,
+                countryOfOrigin: String?,
                 page: Int,
                 forceRefresh: Boolean
             ): List<MediaItem> {
@@ -112,6 +113,7 @@ class SearchPaginationAndFilterTest {
                 genres: List<String>?,
                 year: Int?,
                 format: String?,
+                countryOfOrigin: String?,
                 page: Int,
                 forceRefresh: Boolean
             ): List<MediaItem> {

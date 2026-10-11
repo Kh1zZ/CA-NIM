@@ -20,9 +20,12 @@ data class AiringAnimeItem(
     val airingDay: DayOfWeek,
     val airingTimeFormatted: String?,
     val genres: List<String> = emptyList(),
-    val studio: String? = null
+    val studio: String? = null,
+    val countryOfOrigin: String? = "JP"
 ) {
     val scoreFormatted: String get() = if (score != null && score > 0) "%.1f".format(score) else ""
+    val isDonghua: Boolean get() = countryOfOrigin.equals("CN", ignoreCase = true)
+    val originBadge: String get() = if (isDonghua) "🇨🇳 Donghua" else "🇯🇵 Anime"
 }
 
 /**

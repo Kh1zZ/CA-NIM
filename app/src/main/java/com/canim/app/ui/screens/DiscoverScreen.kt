@@ -281,6 +281,58 @@ fun DiscoverScreen(
                 }
             }
 
+            // Origin Filter Chips (Anime JP vs Donghua CN)
+            if (discoverMediaType == MediaType.ANIME && currentSelectedCategory != DiscoverCategory.STUDIO) {
+                item {
+                    val currentOrigin = discoverState.filter.countryOfOrigin
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val originOptions = listOf(
+                            null to "Semua",
+                            "JP" to "🇯🇵 Anime JP",
+                            "CN" to "🇨🇳 Donghua"
+                        )
+                        originOptions.forEach { (code, label) ->
+                            val isSelected = currentOrigin == code
+                            Surface(
+                                onClick = {
+                                    if (currentOrigin != code) {
+                                        val newFilter = discoverState.filter.copy(countryOfOrigin = code)
+                                        onSelectCategory(currentSelectedCategory, newFilter, discoverMediaType)
+                                    }
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (isSelected) {
+                                    if (code == "CN") DonghuaAccentRed else AccentBlue
+                                } else CardBg,
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (isSelected) Color.Transparent else CardBorder
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(34.dp)
+                            ) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSelected) Color.White else TextSecondary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
         if (currentIsLoading) {
             item {
                 Box(
@@ -1135,6 +1187,22 @@ fun DiscoverItemCard(
                             fontSize = 10.sp,
                             fontWeight = FontWeight.SemiBold
                         )
+                    }
+
+                    if (item.isDonghua) {
+                        Surface(
+                            color = DonghuaAccentRed.copy(alpha = 0.18f),
+                            shape = RoundedCornerShape(4.dp),
+                            border = BorderStroke(0.5.dp, DonghuaAccentRed.copy(alpha = 0.5f))
+                        ) {
+                            Text(
+                                text = "🇨🇳 Donghua",
+                                color = DonghuaAccentRed,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
                     }
 
                     if (item.studio != null) {

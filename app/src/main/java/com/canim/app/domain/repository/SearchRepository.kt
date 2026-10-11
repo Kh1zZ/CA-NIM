@@ -8,6 +8,7 @@ interface SearchRepository {
         genres: List<String>? = null,
         year: Int? = null,
         format: String? = null,
+        countryOfOrigin: String? = null,
         page: Int = 1,
         forceRefresh: Boolean = false
     ): List<MediaItem>
@@ -26,6 +27,7 @@ interface SearchRepository {
         genres: List<String>? = null,
         year: Int? = null,
         format: String? = null,
+        countryOfOrigin: String? = null,
         page: Int = 1
     ): String
 

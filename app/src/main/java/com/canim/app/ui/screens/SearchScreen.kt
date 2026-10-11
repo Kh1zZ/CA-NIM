@@ -67,7 +67,7 @@ fun SearchScreen(
     onSelectItem: (Any, MediaType) -> Unit,
     onSaveAnime: (UserMediaItem) -> Unit = {},
     onSaveManga: (UserMediaItem) -> Unit = {},
-    onApplyFilters: (genres: List<String>, year: Int?, format: String?) -> Unit = { _, _, _ -> },
+    onApplyFilters: (genres: List<String>, year: Int?, format: String?, countryOfOrigin: String?) -> Unit = { _, _, _, _ -> },
     onResetFilters: () -> Unit = {},
     onLoadMore: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -79,9 +79,11 @@ fun SearchScreen(
     val currentGenres = searchState.genres
     val currentYear = searchState.year
     val currentFormat = searchState.format
+    val currentOrigin = searchState.countryOfOrigin
 
     var searchInput by remember { mutableStateOf(currentQuery) }
     var searchType by remember { mutableStateOf(currentType) }
+    var tempOrigin by remember(currentOrigin) { mutableStateOf<String?>(currentOrigin) }
     val focusManager = LocalFocusManager.current
     val density = LocalDensity.current
     val isImeVisible = WindowInsets.ime.getBottom(density) > 0
@@ -98,7 +100,7 @@ fun SearchScreen(
     var tempYear by remember(currentYear) { mutableStateOf(currentYear) }
     var typedYearText by remember(currentYear) { mutableStateOf(currentYear?.toString() ?: "") }
     var tempFormat by remember(currentFormat) { mutableStateOf(currentFormat) }
-    val hasActiveFilters = currentGenres.isNotEmpty() || currentYear != null || currentFormat != null
+    val hasActiveFilters = currentGenres.isNotEmpty() || currentYear != null || currentFormat != null || currentOrigin != null
 
     val allGenres = remember {
         listOf(
@@ -135,6 +137,7 @@ fun SearchScreen(
             tempYear = currentYear
             typedYearText = currentYear?.toString() ?: ""
             tempFormat = currentFormat
+            tempOrigin = currentOrigin
         }
     }
 
@@ -315,6 +318,7 @@ fun SearchScreen(
                         tempYear = currentYear
                         typedYearText = currentYear?.toString() ?: ""
                         tempFormat = currentFormat
+                        tempOrigin = currentOrigin
                         showFilterSheet = true
                     },
                     modifier = Modifier
@@ -383,6 +387,23 @@ fun SearchScreen(
                             ) {
                                 Icon(Icons.Default.Close, contentDescription = "Reset", tint = StatusDroppedColor, modifier = Modifier.size(12.dp))
                                 Text("Reset", color = StatusDroppedColor, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                    if (currentOrigin != null) {
+                        item {
+                            Surface(
+                                color = if (currentOrigin == "CN") DonghuaAccentRed.copy(alpha = 0.2f) else CardBg,
+                                shape = RoundedCornerShape(10.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, if (currentOrigin == "CN") DonghuaAccentRed else CardBorder)
+                            ) {
+                                Text(
+                                    text = if (currentOrigin == "CN") "🇨🇳 Donghua" else "🇯🇵 Anime JP",
+                                    color = if (currentOrigin == "CN") DonghuaAccentRed else TextSecondary,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
                             }
                         }
                     }
@@ -807,7 +828,7 @@ fun SearchScreen(
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold
                         )
-                        val activeFilterCount = tempGenres.size + (if (tempYear != null || typedYearText.isNotEmpty()) 1 else 0) + (if (tempFormat != null) 1 else 0)
+                        val activeFilterCount = tempGenres.size + (if (tempYear != null || typedYearText.isNotEmpty()) 1 else 0) + (if (tempFormat != null) 1 else 0) + (if (tempOrigin != null) 1 else 0)
                         if (activeFilterCount > 0) {
                             Surface(
                                 color = (if (searchType == MediaType.MANGA) MangaAccentDarkBlue else AccentBlue).copy(alpha = 0.2f),
@@ -823,13 +844,14 @@ fun SearchScreen(
                             }
                         }
                     }
-                    if (tempGenres.isNotEmpty() || tempYear != null || tempFormat != null || typedYearText.isNotEmpty()) {
+                    if (tempGenres.isNotEmpty() || tempYear != null || tempFormat != null || typedYearText.isNotEmpty() || tempOrigin != null) {
                         TextButton(
                             onClick = {
                                 tempGenres = emptySet()
                                 tempYear = null
                                 typedYearText = ""
                                 tempFormat = null
+                                tempOrigin = null
                                 onResetFilters()
                             },
                             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
@@ -852,6 +874,7 @@ fun SearchScreen(
                                 tempYear = null
                                 typedYearText = ""
                                 tempFormat = null
+                                tempOrigin = null
                                 onResetFilters()
                             }
                         },
@@ -904,6 +927,66 @@ fun SearchScreen(
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                         color = if (isSelected) Color.White else TextSecondary
                                     )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Origin Selector (Anime JP vs Donghua CN)
+                if (searchType == MediaType.ANIME) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = "Asal Negara", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            if (tempOrigin != null) {
+                                Text(
+                                    text = if (tempOrigin == "CN") "🇨🇳 Donghua" else "🇯🇵 Anime JP",
+                                    color = if (tempOrigin == "CN") DonghuaAccentRed else AccentBlueLight,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            val originOptions = listOf(
+                                null to "Semua",
+                                "JP" to "🇯🇵 Anime JP",
+                                "CN" to "🇨🇳 Donghua"
+                            )
+                            originOptions.forEach { (code, label) ->
+                                val isSelected = tempOrigin == code
+                                Surface(
+                                    onClick = { tempOrigin = code },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = if (isSelected) {
+                                        if (code == "CN") DonghuaAccentRed else AccentBlue
+                                    } else CardBg,
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        if (isSelected) Color.Transparent else CardBorder
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(30.dp)
+                                ) {
+                                    Box(
+                                        contentAlignment = Alignment.Center,
+                                        modifier = Modifier.fillMaxSize()
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) Color.White else TextSecondary
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1078,7 +1161,7 @@ fun SearchScreen(
                         if (searchType != currentType) {
                             onSearch(searchInput.trim(), searchType)
                         }
-                        onApplyFilters(tempGenres.toList(), finalYear, tempFormat)
+                        onApplyFilters(tempGenres.toList(), finalYear, tempFormat, tempOrigin)
                         showFilterSheet = false
                     },
                     modifier = Modifier.fillMaxWidth().height(42.dp),
@@ -1199,6 +1282,22 @@ fun SearchResultCard(
                             fontSize = 10.sp,
                             fontWeight = FontWeight.SemiBold
                         )
+                    }
+
+                    if (item.isDonghua) {
+                        Surface(
+                            color = DonghuaAccentRed.copy(alpha = 0.18f),
+                            shape = RoundedCornerShape(4.dp),
+                            border = androidx.compose.foundation.BorderStroke(0.5.dp, DonghuaAccentRed.copy(alpha = 0.5f))
+                        ) {
+                            Text(
+                                text = "🇨🇳 Donghua",
+                                color = DonghuaAccentRed,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
                     }
                 }
 

@@ -559,6 +559,23 @@ private fun AiringAnimeCard(
                         )
                     }
                 }
+
+                // Donghua Badge
+                if (item.isDonghua) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(DonghuaAccentRed.copy(alpha = 0.15f))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "🇨🇳 Donghua",
+                            color = DonghuaAccentRed,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
             }
 
             // Genres or Studio

@@ -360,6 +360,24 @@ fun MediaDetailScreen(
                                     )
                                 }
                             }
+
+                            val originBadge = extendedDetail?.originBadge ?: userItem?.originBadge ?: mediaItem?.originBadge
+                            if (!originBadge.isNullOrBlank()) {
+                                val isDonghuaOrigin = originBadge.contains("Donghua") || originBadge.contains("CN")
+                                Surface(
+                                    color = if (isDonghuaOrigin) DonghuaAccentRed.copy(alpha = 0.2f) else CardElevated,
+                                    shape = RoundedCornerShape(6.dp),
+                                    border = if (isDonghuaOrigin) androidx.compose.foundation.BorderStroke(1.dp, DonghuaAccentRed.copy(alpha = 0.5f)) else null
+                                ) {
+                                    Text(
+                                        text = originBadge,
+                                        color = if (isDonghuaOrigin) DonghuaAccentRed else TextSecondary,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -744,6 +762,22 @@ fun MediaDetailScreen(
                                     label = "Tanggal Selesai",
                                     value = endDate,
                                     icon = Icons.Default.EventAvailable
+                                )
+                                HorizontalDivider(color = DividerSubtle.copy(alpha = 0.5f), thickness = 0.5.dp)
+                            }
+
+                            val originCode = extendedDetail?.countryOfOrigin ?: userItem?.metadata?.countryOfOrigin ?: mediaItem?.countryOfOrigin
+                            val originLabel = when (originCode) {
+                                "CN" -> "China (Donghua)"
+                                "JP" -> "Jepang (Anime)"
+                                "KR" -> "Korea Selatan"
+                                else -> null
+                            }
+                            if (!originLabel.isNullOrBlank()) {
+                                DetailRowItem(
+                                    label = "Negara Asal",
+                                    value = originLabel,
+                                    icon = Icons.Default.Public
                                 )
                                 HorizontalDivider(color = DividerSubtle.copy(alpha = 0.5f), thickness = 0.5.dp)
                             }

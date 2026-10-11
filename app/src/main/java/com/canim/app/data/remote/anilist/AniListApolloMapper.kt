@@ -18,6 +18,7 @@ import com.canim.app.data.remote.anilist.graphql.SearchMediaQuery
 import com.canim.app.data.remote.anilist.graphql.fragment.ExtendedMediaDetailFields
 import com.canim.app.data.remote.anilist.graphql.type.MediaStatus
 import com.canim.app.data.remote.anilist.graphql.type.MediaType as ApolloMediaType
+import com.canim.app.data.resolver.OriginDetector
 import com.canim.app.util.TextSanitizer
 
 /**
@@ -68,6 +69,8 @@ object AniListApolloMapper {
         }
 
         val studioName = m.studios?.nodes?.firstOrNull()?.name
+        val rawOrigin = m.countryOfOrigin?.toString()
+        val resolvedOrigin = OriginDetector.detectOrigin(studioName, rawOrigin)
 
         return MediaItem(
             malId = m.idMal,
@@ -87,7 +90,8 @@ object AniListApolloMapper {
             genres = m.genres?.filterNotNull() ?: emptyList(),
             format = m.format?.rawValue,
             studio = studioName,
-            imageUrlHd = imgHd
+            imageUrlHd = imgHd,
+            countryOfOrigin = resolvedOrigin
         )
     }
 
@@ -122,6 +126,8 @@ object AniListApolloMapper {
         val studioNode = fields.studios?.nodes?.firstOrNull()
         val studioName = studioNode?.name
         val studioId = studioNode?.id
+        val rawOrigin = fields.countryOfOrigin?.toString()
+        val resolvedOrigin = OriginDetector.detectOrigin(studioName, rawOrigin)
 
         val recList = fields.recommendations?.nodes?.mapNotNull { node ->
             val rec = node?.mediaRecommendation ?: return@mapNotNull null
@@ -191,7 +197,8 @@ object AniListApolloMapper {
             rank = rankValue,
             watchers = fields.popularity,
             recommendations = recList,
-            isFromFallback = false
+            isFromFallback = false,
+            countryOfOrigin = resolvedOrigin
         )
     }
 
@@ -445,6 +452,8 @@ object AniListApolloMapper {
         val genresList = node.genres?.filterNotNull() ?: emptyList()
         val year = node.startDate?.year?.takeIf { it > 0 }
 
+        val resolvedOrigin = OriginDetector.detectOrigin(studioName, null)
+
         return MediaItem(
             malId = malId,
             anilistId = mId,
@@ -461,7 +470,8 @@ object AniListApolloMapper {
             year = year,
             studio = studioName,
             popularity = popularity,
-            imageUrlHd = coverHd
+            imageUrlHd = coverHd,
+            countryOfOrigin = resolvedOrigin
         )
     }
 
@@ -528,6 +538,8 @@ object AniListApolloMapper {
         }
 
         val studioName = m.studios?.nodes?.firstOrNull()?.name
+        val rawOrigin = m.countryOfOrigin?.toString()
+        val resolvedOrigin = OriginDetector.detectOrigin(studioName, rawOrigin)
 
         return MediaItem(
             malId = m.idMal,
@@ -547,7 +559,8 @@ object AniListApolloMapper {
             genres = m.genres?.filterNotNull() ?: emptyList(),
             format = m.format?.rawValue,
             studio = studioName,
-            imageUrlHd = imgHd
+            imageUrlHd = imgHd,
+            countryOfOrigin = resolvedOrigin
         )
     }
 
@@ -578,6 +591,8 @@ object AniListApolloMapper {
         }
 
         val studioName = m.studios?.nodes?.firstOrNull()?.name
+        val rawOrigin = m.countryOfOrigin?.toString()
+        val resolvedOrigin = OriginDetector.detectOrigin(studioName, rawOrigin)
 
         return MediaItem(
             malId = m.idMal,
@@ -597,7 +612,8 @@ object AniListApolloMapper {
             genres = m.genres?.filterNotNull() ?: emptyList(),
             format = m.format?.rawValue,
             studio = studioName,
-            imageUrlHd = imgHd
+            imageUrlHd = imgHd,
+            countryOfOrigin = resolvedOrigin
         )
     }
 }

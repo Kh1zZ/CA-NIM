@@ -40,3 +40,10 @@ val MangaAccentDarkBlue = Color(0xFF1D4ED8)   // Rich Deep Blue
 val MangaAccentDarker = Color(0xFF1E3A8A)     // Midnight Navy
 val MangaBadgeBg = Color(0xFF172554)          // Deepest Cyber Blue
 val MangaCardBorder = Color(0xFF1E40AF)       // Border Accent for Manga
+
+// Donghua Specific Palette: Crimson Rose & Deep Amber (khusus donghua)
+val DonghuaAccentRed = Color(0xFFF43F5E)      // Vibrant Rose Accent
+val DonghuaAccentDarkRed = Color(0xFFE11D48)  // Deep Crimson
+val DonghuaBadgeBg = Color(0xFF4C0519)        // Deep Crimson Background
+val DonghuaCardBorder = Color(0xFF9F1239)     // Border Accent for Donghua
+

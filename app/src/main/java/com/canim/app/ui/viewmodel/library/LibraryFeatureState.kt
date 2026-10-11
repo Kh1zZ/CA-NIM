@@ -15,6 +15,7 @@ data class LibraryUiState(
     val completedMangaMalIds: Set<Int> = emptySet(),
     val stats: TrackerStats = TrackerStats(),
     val filterType: MediaType = MediaType.ANIME,
+    val originFilter: com.canim.app.data.model.OriginFilter = com.canim.app.data.model.OriginFilter.ALL,
     val statusFilter: String? = "watching",
     val searchQuery: String = "",
     val sortBy: String = "updated",
@@ -23,6 +24,7 @@ data class LibraryUiState(
 
 sealed interface LibraryEvent {
     data class SetFilterType(val type: MediaType) : LibraryEvent
+    data class SetOriginFilter(val originFilter: com.canim.app.data.model.OriginFilter) : LibraryEvent
     data class SetStatusFilter(val status: String?) : LibraryEvent
     data class SetSearchQuery(val query: String) : LibraryEvent
     data class SetSortBy(val sort: String) : LibraryEvent

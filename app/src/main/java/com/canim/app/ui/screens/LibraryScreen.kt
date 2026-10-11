@@ -51,6 +51,7 @@ fun LibraryScreen(
     libraryState: LibraryUiState,
     onSelectMediaType: (MediaType) -> Unit,
     onSelectStatusFilter: (String?) -> Unit,
+    onSelectOriginFilter: (com.canim.app.data.model.OriginFilter) -> Unit = {},
     onSearchQueryChange: (String) -> Unit,
     onSelectSort: (String) -> Unit = {},
     onQuickAddAnime: (String) -> Unit,
@@ -63,6 +64,7 @@ fun LibraryScreen(
     modifier: Modifier = Modifier
 ) {
     val currentFilterType = libraryState.filterType
+    val currentOriginFilter = libraryState.originFilter
     val currentAnimeList = libraryState.animeList
     val currentMangaList = libraryState.mangaList
     val currentStatusFilter = libraryState.statusFilter
@@ -81,10 +83,15 @@ fun LibraryScreen(
     }
 
     // Optimized Filtering & Sorting with remember to avoid re-sorting on every frame (Task B2)
-    val filteredAnime = remember(currentAnimeList, currentStatusFilter, currentSearchQuery, currentSortBy) {
+    val filteredAnime = remember(currentAnimeList, currentStatusFilter, currentOriginFilter, currentSearchQuery, currentSortBy) {
         val filtered = currentAnimeList
             .filter { anime ->
                 (currentStatusFilter == null || anime.status == currentStatusFilter) &&
+                (when (currentOriginFilter) {
+                    com.canim.app.data.model.OriginFilter.ALL -> true
+                    com.canim.app.data.model.OriginFilter.JAPAN -> !anime.isDonghua
+                    com.canim.app.data.model.OriginFilter.CHINA -> anime.isDonghua
+                }) &&
                 (currentSearchQuery.isBlank() || anime.title.contains(currentSearchQuery, ignoreCase = true) || (anime.titleEnglish?.contains(currentSearchQuery, ignoreCase = true) == true))
             }
         when (currentSortBy) {
@@ -226,6 +233,29 @@ fun LibraryScreen(
                 highlightColor = if (isAnime) AccentBlue else MangaAccentDarkBlue,
                 modifier = Modifier.fillMaxWidth()
             )
+        }
+
+        // Origin Filter for Anime (Semua, 🇯🇵 Anime JP, 🇨🇳 Donghua)
+        if (isAnime) {
+            item {
+                val originOptions = listOf(
+                    com.canim.app.data.model.OriginFilter.ALL,
+                    com.canim.app.data.model.OriginFilter.JAPAN,
+                    com.canim.app.data.model.OriginFilter.CHINA
+                )
+                com.canim.app.ui.components.SlidingPillSelector(
+                    items = originOptions,
+                    selectedItem = libraryState.originFilter,
+                    onItemSelected = { onSelectOriginFilter(it) },
+                    labelProvider = { it.label },
+                    highlightColor = if (libraryState.originFilter == com.canim.app.data.model.OriginFilter.CHINA) DonghuaAccentRed else AccentBlue,
+                    cornerRadius = 14.dp,
+                    horizontalPadding = 12.dp,
+                    verticalPadding = 4.dp,
+                    fontSize = 11f,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
 
         // Sort By with Sliding Highlight
@@ -406,7 +436,27 @@ fun AnimeLibraryCard(
                     }
                 }
 
-                StatusPill(status = anime.status)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    StatusPill(status = anime.status)
+                    if (anime.isDonghua) {
+                        Surface(
+                            color = DonghuaAccentRed.copy(alpha = 0.18f),
+                            shape = RoundedCornerShape(4.dp),
+                            border = BorderStroke(0.5.dp, DonghuaAccentRed.copy(alpha = 0.5f))
+                        ) {
+                            Text(
+                                text = "🇨🇳 Donghua",
+                                color = DonghuaAccentRed,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+                }
 
                 // Sleek progress bar
                 Box(

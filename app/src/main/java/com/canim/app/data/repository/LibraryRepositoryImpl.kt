@@ -300,7 +300,8 @@ class LibraryRepositoryImpl(
                     studio = cachedMeta.studio ?: item.metadata.studio,
                     format = cachedMeta.format ?: item.metadata.format,
                     year = cachedMeta.year ?: item.metadata.year,
-                    season = cachedMeta.season ?: item.metadata.season
+                    season = cachedMeta.season ?: item.metadata.season,
+                    countryOfOrigin = cachedMeta.countryOfOrigin ?: item.metadata.countryOfOrigin
                 )
                 item.copy(
                     identity = MediaRef(anilistId = cachedMeta.anilistId ?: CacheManager.getAniListIdForMalId(mId, type), malId = mId),
@@ -320,7 +321,8 @@ class LibraryRepositoryImpl(
                         studio = localEntry.studio ?: item.metadata.studio,
                         format = localEntry.format ?: item.metadata.format,
                         year = (if (localEntry.year > 0) localEntry.year else null) ?: item.metadata.year,
-                        season = localEntry.season ?: item.metadata.season
+                        season = localEntry.season ?: item.metadata.season,
+                        countryOfOrigin = localEntry.countryOfOrigin ?: item.metadata.countryOfOrigin
                     )
                     item.copy(
                         identity = MediaRef(anilistId = localEntry.anilistId, malId = mId),
@@ -434,6 +436,7 @@ class LibraryRepositoryImpl(
                         genresJson = if (enrichedItem.metadata.genres.isNotEmpty()) gson.toJson(enrichedItem.metadata.genres) else existing.genresJson,
                         format = enrichedItem.metadata.format ?: existing.format,
                         studio = enrichedItem.metadata.studio ?: existing.studio,
+                        countryOfOrigin = enrichedItem.metadata.countryOfOrigin ?: existing.countryOfOrigin,
                         anilistId = enrichedItem.anilistId ?: existing.anilistId,
                         localUpdatedAt = now
                     )
@@ -487,6 +490,7 @@ class LibraryRepositoryImpl(
                     airingStatus = cachedDetail?.airingStatus,
                     genresJson = gson.toJson(cachedDetail?.genres ?: emptyList<String>()),
                     studio = cachedDetail?.studio,
+                    countryOfOrigin = cachedDetail?.countryOfOrigin ?: "JP",
                     anilistId = cachedDetail?.anilistId
                 )
             }
@@ -710,6 +714,7 @@ class LibraryRepositoryImpl(
                 serverEntry.format ?: existing.format
             },
             studio = serverEntry.studio ?: existing.studio,
+            countryOfOrigin = serverEntry.countryOfOrigin.takeIf { !it.isNullOrBlank() } ?: existing.countryOfOrigin,
             anilistId = serverEntry.anilistId ?: existing.anilistId
         )
     }
@@ -744,6 +749,7 @@ class LibraryRepositoryImpl(
             genresJson = gson.toJson(m.genres),
             format = m.format,
             studio = m.studio,
+            countryOfOrigin = m.countryOfOrigin ?: "JP",
             anilistId = anilistId,
             localUpdatedAt = t.updatedAt,
             syncedAt = 0L

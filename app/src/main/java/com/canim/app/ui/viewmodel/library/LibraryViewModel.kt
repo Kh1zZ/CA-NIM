@@ -126,9 +126,14 @@ class LibraryViewModel @Inject constructor(
             val mean = if (totalRated > 0) totalScore.toDouble() / totalRated else 0.0
             val daysWatched = (totalEp * 24.0) / (60.0 * 24.0)
 
+            val donghuaCount = animes.count { it.isDonghua }
+            val animeCount = animes.size - donghuaCount
+
             val stats = TrackerStats(
                 totalAnime = animes.size,
                 totalManga = mangas.size,
+                animeCount = animeCount,
+                donghuaCount = donghuaCount,
                 episodesWatched = totalEp,
                 chaptersRead = totalCh,
                 volumesRead = totalVol,
@@ -176,6 +181,9 @@ class LibraryViewModel @Inject constructor(
                     current.copy(filterType = event.type, statusFilter = newStatusFilter)
                 }
             }
+            is LibraryEvent.SetOriginFilter -> {
+                _libraryState.update { it.copy(originFilter = event.originFilter) }
+            }
             is LibraryEvent.SetStatusFilter -> {
                 _libraryState.update { it.copy(statusFilter = event.status) }
             }
@@ -208,6 +216,10 @@ class LibraryViewModel @Inject constructor(
 
     fun setLibraryFilterType(type: MediaType) {
         onLibraryEvent(LibraryEvent.SetFilterType(type))
+    }
+
+    fun setLibraryOriginFilter(origin: OriginFilter) {
+        onLibraryEvent(LibraryEvent.SetOriginFilter(origin))
     }
 
     fun setLibraryStatusFilter(status: String?) {

@@ -29,7 +29,7 @@ class LocalDatabase(context: Context) : SQLiteOpenHelper(
 
     companion object {
         const val DATABASE_NAME = "canim_library.db"
-        const val DATABASE_VERSION = 1
+        const val DATABASE_VERSION = 2
 
         // ── Table: library_entries ────────────────────────────────────────────
         const val TABLE_LIBRARY_ENTRIES = "library_entries"
@@ -60,6 +60,7 @@ class LocalDatabase(context: Context) : SQLiteOpenHelper(
         const val COL_LIB_FORMAT = "format"
         const val COL_LIB_STUDIO = "studio"
         const val COL_LIB_ANILIST_ID = "anilist_id"
+        const val COL_LIB_COUNTRY_OF_ORIGIN = "country_of_origin"
         const val COL_LIB_LOCAL_UPDATED_AT = "local_updated_at"
         const val COL_LIB_SYNCED_AT = "synced_at"
 
@@ -92,6 +93,7 @@ class LocalDatabase(context: Context) : SQLiteOpenHelper(
                 $COL_LIB_FORMAT TEXT,
                 $COL_LIB_STUDIO TEXT,
                 $COL_LIB_ANILIST_ID INTEGER,
+                $COL_LIB_COUNTRY_OF_ORIGIN TEXT DEFAULT 'JP',
                 $COL_LIB_LOCAL_UPDATED_AT INTEGER NOT NULL DEFAULT 0,
                 $COL_LIB_SYNCED_AT INTEGER NOT NULL DEFAULT 0,
                 PRIMARY KEY ($COL_LIB_MAL_ID, $COL_LIB_MEDIA_TYPE)
@@ -152,6 +154,7 @@ class LocalDatabase(context: Context) : SQLiteOpenHelper(
             COL_LIB_FORMAT to "TEXT",
             COL_LIB_STUDIO to "TEXT",
             COL_LIB_ANILIST_ID to "INTEGER",
+            COL_LIB_COUNTRY_OF_ORIGIN to "TEXT DEFAULT 'JP'",
             COL_LIB_LOCAL_UPDATED_AT to "INTEGER NOT NULL DEFAULT 0",
             COL_LIB_SYNCED_AT to "INTEGER NOT NULL DEFAULT 0"
         )

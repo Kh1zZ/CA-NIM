@@ -22,6 +22,7 @@ private data class SearchTrigger(
     val genres: List<String> = emptyList(),
     val year: Int? = null,
     val format: String? = null,
+    val countryOfOrigin: String? = null,
     val forceRefresh: Boolean = false,
     val triggerId: Long = 0L
 )
@@ -63,7 +64,8 @@ class SearchViewModel(
                         val genres = trigger.genres
                         val year = trigger.year
                         val format = trigger.format
-                        val hasFilters = genres.isNotEmpty() || year != null || !format.isNullOrBlank()
+                        val countryOfOrigin = trigger.countryOfOrigin
+                        val hasFilters = genres.isNotEmpty() || year != null || !format.isNullOrBlank() || !countryOfOrigin.isNullOrBlank()
                         if (trimmed.length < 2 && !hasFilters) {
                             emit(emptyList<MediaItem>())
                         } else {
@@ -74,6 +76,7 @@ class SearchViewModel(
                                 genres = genres,
                                 year = year,
                                 format = format,
+                                countryOfOrigin = countryOfOrigin,
                                 page = 1,
                                 forceRefresh = trigger.forceRefresh
                             )
@@ -104,7 +107,8 @@ class SearchViewModel(
                     val genres = currentSearchState.genres
                     val year = currentSearchState.year
                     val format = currentSearchState.format
-                    val filterKey = searchMediaUseCase.searchFilterKey(trimmed, genres, year, format, page = 1)
+                    val origin = currentSearchState.countryOfOrigin
+                    val filterKey = searchMediaUseCase.searchFilterKey(trimmed, genres, year, format, origin, page = 1)
                     if (searchMediaUseCase.matchesSearchKey(event.key, filterKey, type)) {
                         val fresh = searchMediaUseCase.getCachedSearch(filterKey, type)
                         if (fresh != null) {
@@ -123,6 +127,7 @@ class SearchViewModel(
                 val newGenres = if (typeChanged) emptyList() else _searchState.value.genres
                 val newYear = if (typeChanged) null else _searchState.value.year
                 val newFormat = if (typeChanged) null else _searchState.value.format
+                val newOrigin = if (typeChanged) null else _searchState.value.countryOfOrigin
 
                 _searchState.update { current ->
                     current.copy(
@@ -131,6 +136,7 @@ class SearchViewModel(
                         genres = newGenres,
                         year = newYear,
                         format = newFormat,
+                        countryOfOrigin = newOrigin,
                         page = 1
                     )
                 }
@@ -140,6 +146,7 @@ class SearchViewModel(
                     genres = newGenres,
                     year = newYear,
                     format = newFormat,
+                    countryOfOrigin = newOrigin,
                     forceRefresh = event.forceRefresh,
                     triggerId = ++triggerSequence
                 )
@@ -152,6 +159,7 @@ class SearchViewModel(
                             genres = emptyList(),
                             year = null,
                             format = null,
+                            countryOfOrigin = null,
                             page = 1
                         )
                     }
@@ -161,6 +169,7 @@ class SearchViewModel(
                         genres = emptyList(),
                         year = null,
                         format = null,
+                        countryOfOrigin = null,
                         triggerId = ++triggerSequence
                     )
                 }
@@ -171,6 +180,7 @@ class SearchViewModel(
                         genres = event.genres,
                         year = event.year,
                         format = event.format,
+                        countryOfOrigin = event.countryOfOrigin,
                         page = 1
                     )
                 }
@@ -180,6 +190,7 @@ class SearchViewModel(
                     genres = event.genres,
                     year = event.year,
                     format = event.format,
+                    countryOfOrigin = event.countryOfOrigin,
                     triggerId = ++triggerSequence
                 )
             }
@@ -189,6 +200,7 @@ class SearchViewModel(
                         genres = emptyList(),
                         year = null,
                         format = null,
+                        countryOfOrigin = null,
                         page = 1
                     )
                 }
@@ -198,6 +210,7 @@ class SearchViewModel(
                     genres = emptyList(),
                     year = null,
                     format = null,
+                    countryOfOrigin = null,
                     triggerId = ++triggerSequence
                 )
             }
@@ -210,6 +223,7 @@ class SearchViewModel(
                 val genres = current.genres
                 val year = current.year
                 val format = current.format
+                val origin = current.countryOfOrigin
 
                 _searchState.update { it.copy(isLoadingMore = true) }
 
@@ -221,6 +235,7 @@ class SearchViewModel(
                         genres = genres,
                         year = year,
                         format = format,
+                        countryOfOrigin = origin,
                         page = nextPage
                     )
                     _searchState.update { state ->
@@ -243,6 +258,7 @@ class SearchViewModel(
                     genres = s.genres,
                     year = s.year,
                     format = s.format,
+                    countryOfOrigin = s.countryOfOrigin,
                     forceRefresh = true,
                     triggerId = ++triggerSequence
                 )
@@ -270,8 +286,8 @@ class SearchViewModel(
         onSearchEvent(SearchEvent.LoadMore)
     }
 
-    fun applySearchFilters(genres: List<String>, year: Int?, format: String?) {
-        onSearchEvent(SearchEvent.FilterApplied(genres, year, format))
+    fun applySearchFilters(genres: List<String>, year: Int?, format: String?, countryOfOrigin: String? = null) {
+        onSearchEvent(SearchEvent.FilterApplied(genres, year, format, countryOfOrigin))
     }
 
     fun resetSearchFilters() {

@@ -498,6 +498,7 @@ class MainActivity : ComponentActivity() {
                                         libraryState = libraryState,
                                         onSelectMediaType = onSelectMediaType,
                                         onSelectStatusFilter = onSelectStatusFilter,
+                                        onSelectOriginFilter = { libraryViewModel.setLibraryOriginFilter(it) },
                                         onSelectSort = onSelectSort,
                                         onSearchQueryChange = onSearchQueryChange,
                                         onQuickAddAnime = onQuickAddEpisode,
@@ -528,8 +529,8 @@ class MainActivity : ComponentActivity() {
                                         onSaveManga = {
                                             libraryViewModel.saveManga(it)
                                         },
-                                        onApplyFilters = { genres, year, format ->
-                                            searchViewModel.applySearchFilters(genres, year, format)
+                                        onApplyFilters = { genres, year, format, countryOfOrigin ->
+                                            searchViewModel.applySearchFilters(genres, year, format, countryOfOrigin)
                                         },
                                         onResetFilters = {
                                             searchViewModel.resetSearchFilters()
@@ -893,8 +894,8 @@ class MainActivity : ComponentActivity() {
                                             },
                                             onSaveAnime = { libraryViewModel.saveAnime(it) },
                                             onSaveManga = { libraryViewModel.saveManga(it) },
-                                            onApplyFilters = { genres, year, format ->
-                                                searchViewModel.applySearchFilters(genres, year, format)
+                                            onApplyFilters = { genres, year, format, countryOfOrigin ->
+                                                searchViewModel.applySearchFilters(genres, year, format, countryOfOrigin)
                                             },
                                             onResetFilters = { searchViewModel.resetSearchFilters() }
                                         )
