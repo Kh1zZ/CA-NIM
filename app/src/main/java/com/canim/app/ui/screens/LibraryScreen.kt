@@ -89,8 +89,9 @@ fun LibraryScreen(
                 (currentStatusFilter == null || anime.status == currentStatusFilter) &&
                 (when (currentOriginFilter) {
                     com.canim.app.data.model.OriginFilter.ALL -> true
-                    com.canim.app.data.model.OriginFilter.JAPAN -> !anime.isDonghua
+                    com.canim.app.data.model.OriginFilter.JAPAN -> anime.isJapaneseAnime
                     com.canim.app.data.model.OriginFilter.CHINA -> anime.isDonghua
+                    com.canim.app.data.model.OriginFilter.KOREA -> anime.isAeni
                 }) &&
                 (currentSearchQuery.isBlank() || anime.title.contains(currentSearchQuery, ignoreCase = true) || (anime.titleEnglish?.contains(currentSearchQuery, ignoreCase = true) == true))
             }
@@ -241,14 +242,19 @@ fun LibraryScreen(
                 val originOptions = listOf(
                     com.canim.app.data.model.OriginFilter.ALL,
                     com.canim.app.data.model.OriginFilter.JAPAN,
-                    com.canim.app.data.model.OriginFilter.CHINA
+                    com.canim.app.data.model.OriginFilter.CHINA,
+                    com.canim.app.data.model.OriginFilter.KOREA
                 )
                 com.canim.app.ui.components.SlidingPillSelector(
                     items = originOptions,
                     selectedItem = libraryState.originFilter,
                     onItemSelected = { onSelectOriginFilter(it) },
                     labelProvider = { it.label },
-                    highlightColor = if (libraryState.originFilter == com.canim.app.data.model.OriginFilter.CHINA) DonghuaAccentRed else AccentBlue,
+                    highlightColor = when (libraryState.originFilter) {
+                        com.canim.app.data.model.OriginFilter.CHINA -> DonghuaAccentRed
+                        com.canim.app.data.model.OriginFilter.KOREA -> AeniAccentPurple
+                        else -> AccentBlue
+                    },
                     cornerRadius = 14.dp,
                     horizontalPadding = 12.dp,
                     verticalPadding = 4.dp,
@@ -450,6 +456,20 @@ fun AnimeLibraryCard(
                             Text(
                                 text = "🇨🇳 Donghua",
                                 color = DonghuaAccentRed,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    } else if (anime.isAeni) {
+                        Surface(
+                            color = AeniAccentPurple.copy(alpha = 0.18f),
+                            shape = RoundedCornerShape(4.dp),
+                            border = BorderStroke(0.5.dp, AeniAccentPurple.copy(alpha = 0.5f))
+                        ) {
+                            Text(
+                                text = "🇰🇷 Aeni",
+                                color = AeniAccentPurple,
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)

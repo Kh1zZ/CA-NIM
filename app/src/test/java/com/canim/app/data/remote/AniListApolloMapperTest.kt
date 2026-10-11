@@ -412,4 +412,32 @@ class AniListApolloMapperTest {
         assertEquals("CN", item.countryOfOrigin)
         assertEquals("🇨🇳 Donghua", item.originBadge)
     }
+
+    @Test
+    fun testToMediaItemAeniOrigin() {
+        val medium = SearchMediaQuery.Medium(
+            id = 88888,
+            idMal = null,
+            title = SearchMediaQuery.Title(romaji = "Solo Leveling ReAwakening", english = "Na Honjaman Level Up"),
+            coverImage = null,
+            averageScore = 88,
+            description = "Sung Jinwoo...",
+            status = MediaStatus.FINISHED,
+            seasonYear = 2024,
+            season = MediaSeason.WINTER,
+            format = MediaFormat.TV,
+            episodes = 12,
+            chapters = null,
+            volumes = null,
+            genres = listOf("Action", "Fantasy"),
+            studios = SearchMediaQuery.Studios(listOf(SearchMediaQuery.Node("Studio Mir"))),
+            countryOfOrigin = "KR"
+        )
+        val item = AniListApolloMapper.toMediaItem(medium, MediaType.ANIME)
+        assertTrue(item.isAeni)
+        assertFalse(item.isDonghua)
+        assertFalse(item.isJapaneseAnime)
+        assertEquals("KR", item.countryOfOrigin)
+        assertEquals("🇰🇷 Aeni", item.originBadge)
+    }
 }

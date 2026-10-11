@@ -59,5 +59,38 @@ class MediaMappingUtilsTest {
         assertEquals("MANGA", item.format)
         assertEquals(50, item.chapters)
         assertEquals(5, item.volumes)
+        assertEquals("JP", item.countryOfOrigin)
+    }
+
+    @Test
+    fun testMapMalMangaNodeToMediaItemManhwaOrigin() {
+        val node = MalMangaNode(
+            id = 121496,
+            title = "Solo Leveling",
+            mediaType = "manhwa",
+            numChapters = 200,
+            numVolumes = 14
+        )
+
+        val item = MediaMappingUtils.mapMalMangaNodeToMediaItem(node)
+        assertEquals("KR", item.countryOfOrigin)
+        assertEquals(true, item.isAeni)
+        assertEquals("🇰🇷 Aeni", item.originBadge)
+    }
+
+    @Test
+    fun testMapMalMangaNodeToMediaItemManhuaOrigin() {
+        val node = MalMangaNode(
+            id = 99998,
+            title = "Mo Dao Zu Shi Manhua",
+            mediaType = "manhua",
+            numChapters = 259,
+            numVolumes = 8
+        )
+
+        val item = MediaMappingUtils.mapMalMangaNodeToMediaItem(node)
+        assertEquals("CN", item.countryOfOrigin)
+        assertEquals(true, item.isDonghua)
+        assertEquals("🇨🇳 Donghua", item.originBadge)
     }
 }

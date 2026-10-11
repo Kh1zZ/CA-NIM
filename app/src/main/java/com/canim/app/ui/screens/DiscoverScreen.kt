@@ -146,6 +146,22 @@ fun DiscoverScreen(
         }
     }
 
+    val currentOrigin = discoverState.filter.countryOfOrigin
+    val displayedItems = remember(currentDiscoverItems, currentOrigin, discoverMediaType) {
+        if (discoverMediaType == MediaType.MANGA || currentOrigin.isNullOrBlank()) {
+            currentDiscoverItems
+        } else {
+            currentDiscoverItems.filter { item ->
+                when (currentOrigin) {
+                    "CN" -> item.isDonghua
+                    "KR" -> item.isAeni
+                    "JP" -> item.isJapaneseAnime
+                    else -> item.countryOfOrigin.equals(currentOrigin, ignoreCase = true)
+                }
+            }
+        }
+    }
+
     CanimPullToRefreshLayout(
         isRefreshing = currentIsLoading,
         onRefresh = onRefresh,
@@ -243,7 +259,7 @@ fun DiscoverScreen(
                                 if (isStudio) {
                                     showStudioPickerSheet = true
                                 } else if (!isSelected) {
-                                    val filter = if (discoverMediaType == MediaType.MANGA) DiscoverFilter(format = "MANGA") else DiscoverFilter()
+                                    val filter = if (discoverMediaType == MediaType.MANGA) DiscoverFilter(format = "MANGA") else DiscoverFilter(countryOfOrigin = discoverState.filter.countryOfOrigin)
                                     onSelectCategory(category, filter, discoverMediaType)
                                 }
                             },
@@ -281,22 +297,28 @@ fun DiscoverScreen(
                 }
             }
 
-            // Origin Filter Chips (Anime JP vs Donghua CN)
+            // Origin Filter Chips (Anime JP vs Donghua CN vs Aeni KR)
             if (discoverMediaType == MediaType.ANIME && currentSelectedCategory != DiscoverCategory.STUDIO) {
                 item {
                     val currentOrigin = discoverState.filter.countryOfOrigin
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         val originOptions = listOf(
                             null to "Semua",
-                            "JP" to "🇯🇵 Anime JP",
-                            "CN" to "🇨🇳 Donghua"
+                            "JP" to "🇯🇵 Anime",
+                            "CN" to "🇨🇳 Donghua",
+                            "KR" to "🇰🇷 Aeni"
                         )
                         originOptions.forEach { (code, label) ->
                             val isSelected = currentOrigin == code
+                            val activeBg = when (code) {
+                                "CN" -> DonghuaAccentRed
+                                "KR" -> AeniAccentPurple
+                                else -> AccentBlue
+                            }
                             Surface(
                                 onClick = {
                                     if (currentOrigin != code) {
@@ -305,9 +327,7 @@ fun DiscoverScreen(
                                     }
                                 },
                                 shape = RoundedCornerShape(10.dp),
-                                color = if (isSelected) {
-                                    if (code == "CN") DonghuaAccentRed else AccentBlue
-                                } else CardBg,
+                                color = if (isSelected) activeBg else CardBg,
                                 border = BorderStroke(
                                     1.dp,
                                     if (isSelected) Color.Transparent else CardBorder
@@ -322,9 +342,11 @@ fun DiscoverScreen(
                                 ) {
                                     Text(
                                         text = label,
-                                        fontSize = 12.sp,
+                                        fontSize = 11.5.sp,
                                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (isSelected) Color.White else TextSecondary
+                                        color = if (isSelected) Color.White else TextSecondary,
+                                        maxLines = 1,
+                                        softWrap = false
                                     )
                                 }
                             }
@@ -332,6 +354,7 @@ fun DiscoverScreen(
                     }
                 }
             }
+
 
         if (currentIsLoading) {
             item {
@@ -354,7 +377,7 @@ fun DiscoverScreen(
                     }
                 }
             }
-        } else if (currentDiscoverItems.isEmpty()) {
+        } else if (displayedItems.isEmpty()) {
             val isAniListExclusiveCategory = currentSelectedCategory == DiscoverCategory.TRENDING_NOW ||
                 currentSelectedCategory == DiscoverCategory.RECENTLY_DONE_MANGA ||
                 currentSelectedCategory == DiscoverCategory.NEWLY_ADDED_MANGA ||
@@ -458,7 +481,7 @@ fun DiscoverScreen(
         } else {
             val isTopRanking = currentSelectedCategory == DiscoverCategory.TOP_ANIME || currentSelectedCategory == DiscoverCategory.TOP_MANGA
             itemsIndexed(
-                currentDiscoverItems,
+                displayedItems,
                 key = { _, it -> "${it.type}_${it.malId}_${it.anilistId}" },
                 contentType = { _, _ -> "discover_item" }
             ) { index, media ->
@@ -1198,6 +1221,20 @@ fun DiscoverItemCard(
                             Text(
                                 text = "🇨🇳 Donghua",
                                 color = DonghuaAccentRed,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    } else if (item.isAeni) {
+                        Surface(
+                            color = AeniAccentPurple.copy(alpha = 0.18f),
+                            shape = RoundedCornerShape(4.dp),
+                            border = BorderStroke(0.5.dp, AeniAccentPurple.copy(alpha = 0.5f))
+                        ) {
+                            Text(
+                                text = "🇰🇷 Aeni",
+                                color = AeniAccentPurple,
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)

@@ -43,6 +43,34 @@ object OriginDetector {
         "fenz animation"
     )
 
+    private val KOREAN_STUDIOS = setOf(
+        "studio mir",
+        "dr movie",
+        "studio animal",
+        "studio gale",
+        "studio bazooka",
+        "studio ppuri",
+        "samg animation",
+        "samg entertainment",
+        "iconix",
+        "iconix entertainment",
+        "roi visual",
+        "tuban",
+        "studio w.baba",
+        "sunwoo entertainment",
+        "annggo studio",
+        "studio shelter",
+        "reddog culture house",
+        "cocktail media",
+        "maru animation",
+        "studio eeek",
+        "lemon rain",
+        "loco entertainment",
+        "dongwoo a&e",
+        "hanho heung-up",
+        "mico studio"
+    )
+
     /**
      * Checks if a studio name matches known Chinese Donghua animation studios.
      */
@@ -53,7 +81,16 @@ object OriginDetector {
     }
 
     /**
-     * Detects country of origin code ("CN", "JP", etc.).
+     * Checks if a studio name matches known South Korean Aeni animation studios.
+     */
+    fun isKoreanStudio(studioName: String?): Boolean {
+        if (studioName.isNullOrBlank()) return false
+        val normalized = studioName.lowercase(Locale.ROOT).trim()
+        return KOREAN_STUDIOS.any { normalized.contains(it) }
+    }
+
+    /**
+     * Detects country of origin code ("CN", "KR", "JP", etc.).
      */
     fun detectOrigin(
         studioName: String?,
@@ -65,6 +102,9 @@ object OriginDetector {
         }
         if (isChineseStudio(studioName)) {
             return "CN"
+        }
+        if (isKoreanStudio(studioName)) {
+            return "KR"
         }
         return defaultOrigin
     }

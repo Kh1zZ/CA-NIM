@@ -47,3 +47,10 @@ val DonghuaAccentDarkRed = Color(0xFFE11D48)  // Deep Crimson
 val DonghuaBadgeBg = Color(0xFF4C0519)        // Deep Crimson Background
 val DonghuaCardBorder = Color(0xFF9F1239)     // Border Accent for Donghua
 
+// Aeni Specific Palette: Royal Violet & Vivid Purple (khusus animasi Korea)
+val AeniAccentPurple = Color(0xFFA855F7)      // Vibrant Purple Accent
+val AeniAccentDarkPurple = Color(0xFF7E22CE)  // Deep Violet
+val AeniBadgeBg = Color(0xFF3B0764)           // Deepest Violet Background
+val AeniCardBorder = Color(0xFF9333EA)        // Border Accent for Aeni
+
+

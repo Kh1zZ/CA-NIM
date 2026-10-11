@@ -40,7 +40,11 @@ internal object MediaMappingUtils {
             season = null,
             genres = node.genres?.map { it.name } ?: emptyList(),
             format = formatStr,
-            studio = node.studios?.firstOrNull()?.name
+            studio = node.studios?.firstOrNull()?.name,
+            countryOfOrigin = com.canim.app.data.resolver.OriginDetector.detectOrigin(
+                studioName = node.studios?.firstOrNull()?.name,
+                explicitOrigin = null
+            )
         )
     }
 
@@ -53,6 +57,11 @@ internal object MediaMappingUtils {
             "manhua" -> "MANHUA"
             "manga" -> "MANGA"
             else -> node.mediaType?.uppercase() ?: "MANGA"
+        }
+        val mangaOrigin = when (node.mediaType?.lowercase()?.trim()) {
+            "manhwa" -> "KR"
+            "manhua" -> "CN"
+            else -> "JP"
         }
         return MediaItem(
             malId = node.id,
@@ -77,7 +86,8 @@ internal object MediaMappingUtils {
             season = null,
             genres = node.genres?.map { it.name } ?: emptyList(),
             format = formatStr,
-            studio = node.authors?.firstOrNull()?.name
+            studio = node.authors?.firstOrNull()?.name,
+            countryOfOrigin = mangaOrigin
         )
     }
 

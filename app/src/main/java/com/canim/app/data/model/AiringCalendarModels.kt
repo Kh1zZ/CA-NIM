@@ -25,7 +25,13 @@ data class AiringAnimeItem(
 ) {
     val scoreFormatted: String get() = if (score != null && score > 0) "%.1f".format(score) else ""
     val isDonghua: Boolean get() = countryOfOrigin.equals("CN", ignoreCase = true)
-    val originBadge: String get() = if (isDonghua) "🇨🇳 Donghua" else "🇯🇵 Anime"
+    val isAeni: Boolean get() = countryOfOrigin.equals("KR", ignoreCase = true)
+    val isJapaneseAnime: Boolean get() = countryOfOrigin.isNullOrBlank() || countryOfOrigin.equals("JP", ignoreCase = true)
+    val originBadge: String get() = when {
+        isDonghua -> "🇨🇳 Donghua"
+        isAeni -> "🇰🇷 Aeni"
+        else -> "🇯🇵 Anime"
+    }
 }
 
 /**

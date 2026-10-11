@@ -364,14 +364,30 @@ fun MediaDetailScreen(
                             val originBadge = extendedDetail?.originBadge ?: userItem?.originBadge ?: mediaItem?.originBadge
                             if (!originBadge.isNullOrBlank()) {
                                 val isDonghuaOrigin = originBadge.contains("Donghua") || originBadge.contains("CN")
+                                val isAeniOrigin = originBadge.contains("Aeni") || originBadge.contains("KR")
+                                val badgeColor = when {
+                                    isDonghuaOrigin -> DonghuaAccentRed
+                                    isAeniOrigin -> AeniAccentPurple
+                                    else -> TextSecondary
+                                }
+                                val badgeBgColor = when {
+                                    isDonghuaOrigin -> DonghuaAccentRed.copy(alpha = 0.2f)
+                                    isAeniOrigin -> AeniAccentPurple.copy(alpha = 0.2f)
+                                    else -> CardElevated
+                                }
+                                val badgeBorder = when {
+                                    isDonghuaOrigin -> androidx.compose.foundation.BorderStroke(1.dp, DonghuaAccentRed.copy(alpha = 0.5f))
+                                    isAeniOrigin -> androidx.compose.foundation.BorderStroke(1.dp, AeniAccentPurple.copy(alpha = 0.5f))
+                                    else -> null
+                                }
                                 Surface(
-                                    color = if (isDonghuaOrigin) DonghuaAccentRed.copy(alpha = 0.2f) else CardElevated,
+                                    color = badgeBgColor,
                                     shape = RoundedCornerShape(6.dp),
-                                    border = if (isDonghuaOrigin) androidx.compose.foundation.BorderStroke(1.dp, DonghuaAccentRed.copy(alpha = 0.5f)) else null
+                                    border = badgeBorder
                                 ) {
                                     Text(
                                         text = originBadge,
-                                        color = if (isDonghuaOrigin) DonghuaAccentRed else TextSecondary,
+                                        color = badgeColor,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
@@ -770,7 +786,7 @@ fun MediaDetailScreen(
                             val originLabel = when (originCode) {
                                 "CN" -> "China (Donghua)"
                                 "JP" -> "Jepang (Anime)"
-                                "KR" -> "Korea Selatan"
+                                "KR" -> "Korea Selatan (Aeni)"
                                 else -> null
                             }
                             if (!originLabel.isNullOrBlank()) {

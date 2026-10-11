@@ -5,7 +5,7 @@ import androidx.compose.runtime.Immutable
 enum class CountryOrigin(val code: String, val label: String, val badge: String, val flag: String, val spokenLabel: String) {
     JAPAN("JP", "Anime", "Anime", "🇯🇵", "Anime Asal Jepang"),
     CHINA("CN", "Donghua", "Donghua", "🇨🇳", "Donghua Asal China"),
-    KOREA("KR", "Aeni", "Aeni", "🇰🇷", "Animasi Asal Korea"),
+    KOREA("KR", "Aeni", "Aeni", "🇰🇷", "Aeni Asal Korea"),
     OTHER("OTHER", "Animasi", "Animasi", "🌐", "Animasi Internasional");
 
     val badgeWithFlag: String get() = "$flag $badge"
@@ -23,13 +23,15 @@ enum class CountryOrigin(val code: String, val label: String, val badge: String,
 enum class OriginFilter(val code: String?, val label: String, val flag: String, val spokenLabel: String) {
     ALL(null, "Semua", "", "Semua Animasi"),
     JAPAN("JP", "Anime", "🇯🇵", "Anime Jepang"),
-    CHINA("CN", "Donghua", "🇨🇳", "Donghua China");
+    CHINA("CN", "Donghua", "🇨🇳", "Donghua China"),
+    KOREA("KR", "Aeni", "🇰🇷", "Aeni Korea");
 
     val displayLabel: String get() = if (flag.isNotBlank()) "$flag $label" else label
 
     companion object {
         fun fromCode(code: String?): OriginFilter = when (code?.uppercase()?.trim()) {
             "CN" -> CHINA
+            "KR" -> KOREA
             "JP" -> JAPAN
             else -> ALL
         }
@@ -135,7 +137,13 @@ data class UserMediaItem(
     val isManga: Boolean get() = type == MediaType.MANGA
     val countryOfOrigin: String get() = metadata.countryOfOrigin ?: "JP"
     val isDonghua: Boolean get() = countryOfOrigin.equals("CN", ignoreCase = true)
-    val originBadge: String get() = if (isDonghua) "🇨🇳 Donghua" else "🇯🇵 Anime"
+    val isAeni: Boolean get() = countryOfOrigin.equals("KR", ignoreCase = true)
+    val isJapaneseAnime: Boolean get() = countryOfOrigin.isNullOrBlank() || countryOfOrigin.equals("JP", ignoreCase = true)
+    val originBadge: String get() = when {
+        isDonghua -> "🇨🇳 Donghua"
+        isAeni -> "🇰🇷 Aeni"
+        else -> "🇯🇵 Anime"
+    }
     val status: String get() = tracking.status
     val score: Int get() = tracking.score
     val scoreFormatted: String get() = if (score > 0) "★ $score" else ""
@@ -183,6 +191,8 @@ data class TrackerStats(
     // Detailed Donghua Breakdown
     val donghuaCount: Int = 0,
     val donghuaEpisodesWatched: Int = 0,
+    // Detailed Aeni Breakdown
+    val aeniCount: Int = 0,
     // Detailed Manga Breakdown
     val mangaReading: Int = 0,
     val mangaCompleted: Int = 0,
@@ -220,7 +230,13 @@ data class MediaItem(
     val id: String get() = malId?.let { "mal_$it" } ?: anilistId?.let { "ani_$it" } ?: title
     val identity: MediaRef get() = MediaRef(anilistId = anilistId, malId = malId)
     val isDonghua: Boolean get() = countryOfOrigin.equals("CN", ignoreCase = true)
-    val originBadge: String get() = if (isDonghua) "🇨🇳 Donghua" else "🇯🇵 Anime"
+    val isAeni: Boolean get() = countryOfOrigin.equals("KR", ignoreCase = true)
+    val isJapaneseAnime: Boolean get() = countryOfOrigin.isNullOrBlank() || countryOfOrigin.equals("JP", ignoreCase = true)
+    val originBadge: String get() = when {
+        isDonghua -> "🇨🇳 Donghua"
+        isAeni -> "🇰🇷 Aeni"
+        else -> "🇯🇵 Anime"
+    }
     val genresFormatted: String get() = if (genres.isNotEmpty()) genres.take(3).joinToString(" • ") else ""
     val scoreFormatted: String get() = if (score != null && score > 0) "%.1f".format(score) else ""
 }
@@ -265,7 +281,16 @@ data class FilmographyItem(
     val characterName: String? = null,
     val characterImage: String? = null,
     val countryOfOrigin: String? = "JP"
-)
+) {
+    val isDonghua: Boolean get() = countryOfOrigin?.equals("CN", ignoreCase = true) == true
+    val isAeni: Boolean get() = countryOfOrigin?.equals("KR", ignoreCase = true) == true
+    val isJapaneseAnime: Boolean get() = countryOfOrigin.isNullOrBlank() || countryOfOrigin?.equals("JP", ignoreCase = true) == true
+    val originBadge: String get() = when {
+        isDonghua -> "🇨🇳 Donghua"
+        isAeni -> "🇰🇷 Aeni"
+        else -> "🇯🇵 Anime"
+    }
+}
 
 @Immutable
 data class CastCrewProfile(
@@ -340,7 +365,13 @@ data class ExtendedMediaDetail(
     val countryOfOrigin: String? = "JP"
 ) {
     val isDonghua: Boolean get() = countryOfOrigin.equals("CN", ignoreCase = true)
-    val originBadge: String get() = if (isDonghua) "🇨🇳 Donghua" else "🇯🇵 Anime"
+    val isAeni: Boolean get() = countryOfOrigin.equals("KR", ignoreCase = true)
+    val isJapaneseAnime: Boolean get() = countryOfOrigin.isNullOrBlank() || countryOfOrigin.equals("JP", ignoreCase = true)
+    val originBadge: String get() = when {
+        isDonghua -> "🇨🇳 Donghua"
+        isAeni -> "🇰🇷 Aeni"
+        else -> "🇯🇵 Anime"
+    }
 }
 
 fun formatCompactNumber(value: Int): String {

@@ -105,8 +105,9 @@ class DiscoverRepositoryImpl @Inject constructor(
         val offset = (page - 1) * limit
 
         val isDonghua = filter.countryOfOrigin == "CN"
+        val hasCountryFilter = !filter.countryOfOrigin.isNullOrBlank()
 
-        if (!isDonghua) {
+        if (!hasCountryFilter) {
             if (category == DiscoverCategory.TOP_ANIME) {
                 try {
                     val resp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "all", limit, offset)
@@ -146,7 +147,7 @@ class DiscoverRepositoryImpl @Inject constructor(
             }
         }
 
-        // AniList query for Trending or fallback
+        // AniList query for Trending or country-filtered media
         var results = runCatching {
             AniListClient.getDiscoverMedia(
                 category = category,
@@ -158,13 +159,25 @@ class DiscoverRepositoryImpl @Inject constructor(
             )
         }.getOrDefault(emptyList())
 
+        // Enforce post-filtering guarantee to eliminate foreign origin leaks
+        if (hasCountryFilter) {
+            results = results.filter { item ->
+                when (filter.countryOfOrigin) {
+                    "CN" -> item.isDonghua
+                    "KR" -> item.isAeni
+                    "JP" -> item.isJapaneseAnime
+                    else -> item.countryOfOrigin.equals(filter.countryOfOrigin, ignoreCase = true)
+                }
+            }
+        }
+
         // NOTE: AniList is the sole source for TRENDING_NOW (Anime & Manga) as MAL does not provide a trending algorithm.
         // For Manga, MAL only provides TOP_MANGA; remaining categories (RECENTLY_DONE_MANGA, NEWLY_ADDED_MANGA) are AniList-exclusive.
 
         val isFallback = (category != DiscoverCategory.TRENDING_NOW &&
             category != DiscoverCategory.RECENTLY_DONE_MANGA &&
             category != DiscoverCategory.NEWLY_ADDED_MANGA &&
-            !isDonghua &&
+            !hasCountryFilter &&
             results.isEmpty() && page == 1)
 
         if (isFallback) {

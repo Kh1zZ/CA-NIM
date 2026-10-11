@@ -560,7 +560,7 @@ private fun AiringAnimeCard(
                     }
                 }
 
-                // Donghua Badge
+                // Donghua / Aeni Badge
                 if (item.isDonghua) {
                     Box(
                         modifier = Modifier
@@ -571,6 +571,20 @@ private fun AiringAnimeCard(
                         Text(
                             text = "🇨🇳 Donghua",
                             color = DonghuaAccentRed,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                } else if (item.isAeni) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(AeniAccentPurple.copy(alpha = 0.15f))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = "🇰🇷 Aeni",
+                            color = AeniAccentPurple,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
                         )

@@ -392,14 +392,19 @@ fun SearchScreen(
                     }
                     if (currentOrigin != null) {
                         item {
+                            val (badgeLabel, badgeColor) = when (currentOrigin) {
+                                "CN" -> "🇨🇳 Donghua" to DonghuaAccentRed
+                                "KR" -> "🇰🇷 Aeni" to AeniAccentPurple
+                                else -> "🇯🇵 Anime" to AccentBlue
+                            }
                             Surface(
-                                color = if (currentOrigin == "CN") DonghuaAccentRed.copy(alpha = 0.2f) else CardBg,
+                                color = badgeColor.copy(alpha = 0.2f),
                                 shape = RoundedCornerShape(10.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, if (currentOrigin == "CN") DonghuaAccentRed else CardBorder)
+                                border = androidx.compose.foundation.BorderStroke(1.dp, badgeColor.copy(alpha = 0.6f))
                             ) {
                                 Text(
-                                    text = if (currentOrigin == "CN") "🇨🇳 Donghua" else "🇯🇵 Anime JP",
-                                    color = if (currentOrigin == "CN") DonghuaAccentRed else TextSecondary,
+                                    text = badgeLabel,
+                                    color = badgeColor,
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
@@ -933,7 +938,7 @@ fun SearchScreen(
                     }
                 }
 
-                // Origin Selector (Anime JP vs Donghua CN)
+                // Origin Selector (Anime JP vs Donghua CN vs Aeni KR)
                 if (searchType == MediaType.ANIME) {
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Row(
@@ -943,9 +948,14 @@ fun SearchScreen(
                         ) {
                             Text(text = "Asal Negara", color = TextSecondary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             if (tempOrigin != null) {
+                                val (headerLabel, headerColor) = when (tempOrigin) {
+                                    "CN" -> "🇨🇳 Donghua" to DonghuaAccentRed
+                                    "KR" -> "🇰🇷 Aeni" to AeniAccentPurple
+                                    else -> "🇯🇵 Anime" to AccentBlueLight
+                                }
                                 Text(
-                                    text = if (tempOrigin == "CN") "🇨🇳 Donghua" else "🇯🇵 Anime JP",
-                                    color = if (tempOrigin == "CN") DonghuaAccentRed else AccentBlueLight,
+                                    text = headerLabel,
+                                    color = headerColor,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
@@ -957,17 +967,21 @@ fun SearchScreen(
                         ) {
                             val originOptions = listOf(
                                 null to "Semua",
-                                "JP" to "🇯🇵 Anime JP",
-                                "CN" to "🇨🇳 Donghua"
+                                "JP" to "🇯🇵 Anime",
+                                "CN" to "🇨🇳 Donghua",
+                                "KR" to "🇰🇷 Aeni"
                             )
                             originOptions.forEach { (code, label) ->
                                 val isSelected = tempOrigin == code
+                                val activeBg = when (code) {
+                                    "CN" -> DonghuaAccentRed
+                                    "KR" -> AeniAccentPurple
+                                    else -> AccentBlue
+                                }
                                 Surface(
                                     onClick = { tempOrigin = code },
                                     shape = RoundedCornerShape(8.dp),
-                                    color = if (isSelected) {
-                                        if (code == "CN") DonghuaAccentRed else AccentBlue
-                                    } else CardBg,
+                                    color = if (isSelected) activeBg else CardBg,
                                     border = androidx.compose.foundation.BorderStroke(
                                         1.dp,
                                         if (isSelected) Color.Transparent else CardBorder
@@ -982,9 +996,11 @@ fun SearchScreen(
                                     ) {
                                         Text(
                                             text = label,
-                                            fontSize = 11.sp,
+                                            fontSize = 10.5.sp,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) Color.White else TextSecondary
+                                            color = if (isSelected) Color.White else TextSecondary,
+                                            maxLines = 1,
+                                            softWrap = false
                                         )
                                     }
                                 }
@@ -1293,6 +1309,20 @@ fun SearchResultCard(
                             Text(
                                 text = "🇨🇳 Donghua",
                                 color = DonghuaAccentRed,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    } else if (item.isAeni) {
+                        Surface(
+                            color = AeniAccentPurple.copy(alpha = 0.18f),
+                            shape = RoundedCornerShape(4.dp),
+                            border = androidx.compose.foundation.BorderStroke(0.5.dp, AeniAccentPurple.copy(alpha = 0.5f))
+                        ) {
+                            Text(
+                                text = "🇰🇷 Aeni",
+                                color = AeniAccentPurple,
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)

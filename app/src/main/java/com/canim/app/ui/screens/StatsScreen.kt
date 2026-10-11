@@ -333,8 +333,8 @@ fun StatsScreen(
                             title = "Total Judul",
                             value = "${libraryState.stats.totalAnime + libraryState.stats.totalManga}",
                             unit = "Judul",
-                            subtitle = if (libraryState.stats.donghuaCount > 0) {
-                                "${libraryState.stats.animeCount} JP • ${libraryState.stats.donghuaCount} CN • ${libraryState.stats.totalManga} Manga"
+                            subtitle = if (libraryState.stats.donghuaCount > 0 || libraryState.stats.aeniCount > 0) {
+                                "${libraryState.stats.animeCount} JP • ${libraryState.stats.donghuaCount} CN • ${libraryState.stats.aeniCount} KR • ${libraryState.stats.totalManga} Manga"
                             } else {
                                 "${libraryState.stats.totalAnime} Anime • ${libraryState.stats.totalManga} Manga"
                             },
@@ -365,7 +365,7 @@ fun StatsScreen(
                 )
             }
 
-            // Origin Breakdown Card (JP vs CN)
+            // Origin Breakdown Card (JP vs CN vs KR)
             if (libraryState.stats.totalAnime > 0) {
                 item {
                     Card(
@@ -411,6 +411,7 @@ fun StatsScreen(
                             val totalAnime = maxOf(1, libraryState.stats.totalAnime)
                             val jpFraction = (libraryState.stats.animeCount.toFloat() / totalAnime).coerceIn(0f, 1f)
                             val cnFraction = (libraryState.stats.donghuaCount.toFloat() / totalAnime).coerceIn(0f, 1f)
+                            val krFraction = (libraryState.stats.aeniCount.toFloat() / totalAnime).coerceIn(0f, 1f)
 
                             Row(
                                 modifier = Modifier
@@ -435,15 +436,24 @@ fun StatsScreen(
                                             .background(DonghuaAccentRed)
                                     )
                                 }
+                                if (krFraction > 0f) {
+                                    Box(
+                                        modifier = Modifier
+                                            .weight(krFraction)
+                                            .fillMaxHeight()
+                                            .background(AeniAccentPurple)
+                                    )
+                                }
                             }
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
                                     Box(
                                         modifier = Modifier
@@ -452,16 +462,16 @@ fun StatsScreen(
                                             .background(AccentBlue)
                                     )
                                     Text(
-                                        text = "🇯🇵 Anime Jepang: ${libraryState.stats.animeCount}",
+                                        text = "🇯🇵 Anime: ${libraryState.stats.animeCount}",
                                         color = TextSecondary,
-                                        fontSize = 11.sp,
+                                        fontSize = 10.5.sp,
                                         fontWeight = FontWeight.Medium
                                     )
                                 }
 
                                 Row(
                                     verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
                                 ) {
                                     Box(
                                         modifier = Modifier
@@ -472,7 +482,25 @@ fun StatsScreen(
                                     Text(
                                         text = "🇨🇳 Donghua: ${libraryState.stats.donghuaCount}",
                                         color = TextSecondary,
-                                        fontSize = 11.sp,
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(AeniAccentPurple)
+                                    )
+                                    Text(
+                                        text = "🇰🇷 Aeni: ${libraryState.stats.aeniCount}",
+                                        color = TextSecondary,
+                                        fontSize = 10.5.sp,
                                         fontWeight = FontWeight.Medium
                                     )
                                 }

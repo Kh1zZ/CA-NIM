@@ -5,6 +5,23 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.7.1] - 2026-10-11
+### Added
+- **Triad Origin Differentiation (🇯🇵 Anime, 🇨🇳 Donghua, 🇰🇷 Aeni)**:
+  - **Dukungan Penuh Animasi Korea Selatan (Aeni - KR)**: Menambahkan `CountryOrigin.KOREA ("KR", "Aeni", "🇰🇷")` dan `OriginFilter.KOREA` di seluruh model domain dan data (`MediaModels`, `AiringCalendarModels`).
+  - **Palette Warna Eksklusif Aeni**: Token warna ungu elegan (`AeniAccentPurple`, `AeniAccentDarkPurple`, `AeniBadgeBg`, `AeniCardBorder`) untuk membedakan identitas visual animasi Korea dari Donghua (Merah) dan Anime Jepang (Biru/Default).
+  - **Ekspansi Registry Studio Korea (`OriginDetector`)**: Menambahkan pengenalan otomatis untuk 25+ studio animasi Korea Selatan ternama (Studio Mir, DR Movie, Studio Animal, Studio Gale, Studio Bazooka, Studio Ppuri, SAMG Entertainment, Iconix, ROI Visual, Tuban, dsb.).
+  - **Dukungan Manhwa di MAL Mapping**: Deteksi otomatis tipe manga `manhwa` ke negara asal Korea (`KR`) dan `manhua` ke China (`CN`).
+  - **Tri-Origin Analytics di Layar Statistik (`StatsScreen`)**: Menampilkan rincian metrik 3-asal (`${animeCount} JP • ${donghuaCount} CN • ${aeniCount} KR`), bar distribusi proporsi tiga warna, dan legend status interaktif.
+  - **Universal Badge & Filter Aeni**: Chip filter 4-pilihan ("Semua", "🇯🇵 Anime", "🇨🇳 Donghua", "🇰🇷 Aeni") serta badge visual di `DiscoverScreen`, `SearchScreen`, `LibraryScreen`, `MediaDetailScreen`, `MediaDetailDialog`, dan `AiringCalendarScreen`.
+
+### Fixed
+- **Discover Screen Country Filter Leaking & State Retention Fix**:
+  - Memperbaiki bug pada `DiscoverRepositoryImpl` di mana pemilihan filter Anime ("JP") masih menampilkan Donghua dan Aeni akibat pengecekan lama `!isDonghua` yang keliru melimpahkan query ke MAL Rankings tanpa filter negara.
+  - Mem-bypass pemanggilan MAL ranking saat filter asal negara apapun aktif (`!filter.countryOfOrigin.isNullOrBlank()`), sehingga query langsung ditujukan ke AniList GraphQL dengan parameter `countryOfOrigin` asli.
+  - Menerapkan *post-filtering guarantee* berlapis di repository dan defensif UI filtering di `DiscoverScreen` agar media yang tidak sesuai dengan filter negara terpilih tidak dapat lolos ke tampilan.
+  - Memperbaiki event klik kategori tab pada `DiscoverScreen` agar tetap mempertahankan filter `countryOfOrigin` aktif tanpa mereset ke `null`.
+
 ## [v6.7.0] - 2026-10-11
 ### Added
 - **Universal Origin Separation (🇯🇵 Japanese Anime vs 🇨🇳 Chinese Donghua)**:

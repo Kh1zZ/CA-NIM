@@ -331,6 +331,7 @@ fun MediaDetailDialog(
                             }
 
                             val isDonghua = extendedDetail?.isDonghua == true || userItem?.isDonghua == true || mediaItem?.isDonghua == true || airingItem?.isDonghua == true
+                            val isAeni = extendedDetail?.isAeni == true || userItem?.isAeni == true || mediaItem?.isAeni == true || airingItem?.isAeni == true
                             if (isDonghua) {
                                 Surface(
                                     color = DonghuaAccentRed.copy(alpha = 0.2f),
@@ -340,6 +341,20 @@ fun MediaDetailDialog(
                                     Text(
                                         text = "🇨🇳 Donghua",
                                         color = DonghuaAccentRed,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                                    )
+                                }
+                            } else if (isAeni) {
+                                Surface(
+                                    color = AeniAccentPurple.copy(alpha = 0.2f),
+                                    shape = RoundedCornerShape(4.dp),
+                                    border = BorderStroke(0.5.dp, AeniAccentPurple.copy(alpha = 0.5f))
+                                ) {
+                                    Text(
+                                        text = "🇰🇷 Aeni",
+                                        color = AeniAccentPurple,
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
                                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)

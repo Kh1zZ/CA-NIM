@@ -98,8 +98,8 @@ class SearchRepositoryImpl @Inject constructor(
             val pageSize = 30
             val offset = (page - 1) * pageSize
 
-            // MAL fallback: MAL lacks explicit Donghua catalog, so skip MAL query when origin is CN
-            if (result.isEmpty() && countryOfOrigin != "CN") {
+            // MAL fallback: MAL lacks explicit Donghua/Aeni catalog, so skip MAL query when origin is specified
+            if (result.isEmpty() && countryOfOrigin.isNullOrBlank()) {
                 try {
                     val malItems = if (trimmed.isNotBlank()) {
                         val malResp = ApiClient.malApi.searchAnime(MalAuthManager.CLIENT_ID, trimmed, limit = pageSize, offset = offset)
@@ -130,7 +130,7 @@ class SearchRepositoryImpl @Inject constructor(
                 }
             }
 
-            if (result.isEmpty() && page == 1 && countryOfOrigin != "CN") {
+            if (result.isEmpty() && page == 1 && countryOfOrigin.isNullOrBlank()) {
                 val baseList = MediaMappingUtils.fallbackAnime()
                 var localMatches = baseList
                 if (trimmed.isNotBlank()) {
@@ -152,6 +152,18 @@ class SearchRepositoryImpl @Inject constructor(
                 }
                 if (localMatches.isNotEmpty() && (!hasExplicitFilters || localMatches != baseList)) {
                     result = localMatches
+                }
+            }
+
+            // Post-filtering guarantee to eliminate foreign origin leaks
+            if (!countryOfOrigin.isNullOrBlank()) {
+                result = result.filter { item ->
+                    when (countryOfOrigin) {
+                        "CN" -> item.isDonghua
+                        "KR" -> item.isAeni
+                        "JP" -> item.isJapaneseAnime
+                        else -> item.countryOfOrigin.equals(countryOfOrigin, ignoreCase = true)
+                    }
                 }
             }
 

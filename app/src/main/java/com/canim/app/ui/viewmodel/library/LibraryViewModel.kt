@@ -127,13 +127,15 @@ class LibraryViewModel @Inject constructor(
             val daysWatched = (totalEp * 24.0) / (60.0 * 24.0)
 
             val donghuaCount = animes.count { it.isDonghua }
-            val animeCount = animes.size - donghuaCount
+            val aeniCount = animes.count { it.isAeni }
+            val animeCount = animes.count { it.isJapaneseAnime }
 
             val stats = TrackerStats(
                 totalAnime = animes.size,
                 totalManga = mangas.size,
                 animeCount = animeCount,
                 donghuaCount = donghuaCount,
+                aeniCount = aeniCount,
                 episodesWatched = totalEp,
                 chaptersRead = totalCh,
                 volumesRead = totalVol,
