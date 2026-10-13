@@ -326,10 +326,11 @@ fun MediaDetailScreen(
 
                         Spacer(modifier = Modifier.height(2.dp))
 
-                        // Type & Format Badge
-                        Row(
+                        // Type & Format Badge (FlowRow with Single-Line Badges to prevent vertical stretching)
+                        FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             Surface(
                                 color = if (isAnime) AccentBlue.copy(alpha = 0.2f) else MangaAccentDarkBlue.copy(alpha = 0.2f),
@@ -341,6 +342,8 @@ fun MediaDetailScreen(
                                     color = themeAccent,
                                     fontSize = 10.sp,
                                     fontWeight = FontWeight.Black,
+                                    maxLines = 1,
+                                    softWrap = false,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                 )
                             }
@@ -352,10 +355,12 @@ fun MediaDetailScreen(
                                     shape = RoundedCornerShape(6.dp)
                                 ) {
                                     Text(
-                                        text = MediaDisplayFormatter.formatFormat(fmt).uppercase(),
+                                        text = MediaDisplayFormatter.formatBadge(fmt).uppercase(),
                                         color = TextSecondary,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                     )
                                 }
@@ -390,6 +395,8 @@ fun MediaDetailScreen(
                                         color = badgeColor,
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false,
                                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                     )
                                 }

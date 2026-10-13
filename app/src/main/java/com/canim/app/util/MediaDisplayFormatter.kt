@@ -49,6 +49,31 @@ object MediaDisplayFormatter {
     }
 
     /**
+     * Compact format name for header badges and chips (e.g., "TV", "Movie", "ONA", "OVA").
+     */
+    fun formatBadge(rawFormat: String?): String {
+        if (rawFormat.isNullOrBlank()) return "Lainnya"
+        val normalized = rawFormat.lowercase().trim().replace(" ", "_")
+        return when (normalized) {
+            "tv" -> "TV"
+            "tv_short" -> "TV Short"
+            "movie" -> "Movie"
+            "special", "tv_special" -> "Spesial"
+            "ova" -> "OVA"
+            "ona" -> "ONA"
+            "music" -> "Musik"
+            "manga" -> "Manga"
+            "novel" -> "Novel"
+            "one_shot" -> "One-Shot"
+            "light_novel" -> "Light Novel"
+            "visual_novel" -> "Visual Novel"
+            "manhwa" -> "Manhwa"
+            "manhua" -> "Manhua"
+            else -> cleanRawSlug(rawFormat)
+        }
+    }
+
+    /**
      * Formats media source into Indonesian terminology without underscores.
      */
     fun formatSource(rawSource: String?): String {

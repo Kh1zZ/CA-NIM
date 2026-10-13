@@ -5,6 +5,14 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.7.2] - 2026-10-13
+### Fixed
+- **Media Detail Country Badge Vertical Stretch & Line-Wrap Fix**:
+  - Mengatasi masalah tampilan badge/tombol negara (`originBadge`: `🇯🇵 Anime`, `🇨🇳 Donghua`, `🇰🇷 Aeni`) yang meregang secara vertikal ke bawah pada `MediaDetailScreen`.
+  - Mengubah container badge header dari `Row` kaku menjadi `FlowRow` adaptif (`spacedBy(6.dp)` horizontal, `spacedBy(4.dp)` vertikal), sehingga saat ruang terbatas di samping poster, badge akan berpindah baris secara utuh dan mulus tanpa terpotong atau terdesak.
+  - Mengunci `maxLines = 1` dan `softWrap = false` pada seluruh komponen teks badge (`ANIME/MANGA`, Format, dan Asal Negara) di `MediaDetailScreen` dan `MediaDetailDialog` untuk mencegah teks terbelah dua baris di antara emoji bendera dan nama negara.
+  - Menambahkan metode pemformatan ringkas `MediaDisplayFormatter.formatBadge` untuk pill header (`MOVIE`, `TV`, `ONA`, `OVA`, `SPESIAL`) sehingga tidak menghabiskan ruang horizontal berlebih, dengan tetap mempertahankan deskripsi lengkap bahasa Indonesia pada tabel spesifikasi detail di bawahnya.
+
 ## [v6.7.1] - 2026-10-11
 ### Added
 - **Triad Origin Differentiation (🇯🇵 Anime, 🇨🇳 Donghua, 🇰🇷 Aeni)**:

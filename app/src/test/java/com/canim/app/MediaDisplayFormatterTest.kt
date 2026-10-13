@@ -34,6 +34,18 @@ class MediaDisplayFormatterTest {
     }
 
     @Test
+    fun testFormatBadge() {
+        assertEquals("TV", MediaDisplayFormatter.formatBadge("tv"))
+        assertEquals("Movie", MediaDisplayFormatter.formatBadge("movie"))
+        assertEquals("ONA", MediaDisplayFormatter.formatBadge("ona"))
+        assertEquals("OVA", MediaDisplayFormatter.formatBadge("ova"))
+        assertEquals("Spesial", MediaDisplayFormatter.formatBadge("special"))
+        assertEquals("TV Short", MediaDisplayFormatter.formatBadge("tv_short"))
+        assertEquals("Musik", MediaDisplayFormatter.formatBadge("music"))
+        assertEquals("Lainnya", MediaDisplayFormatter.formatBadge(null))
+    }
+
+    @Test
     fun testFormatSourceIndonesian() {
         assertEquals("Adaptasi Manga", MediaDisplayFormatter.formatSource("manga"))
         assertEquals("Light Novel", MediaDisplayFormatter.formatSource("light_novel"))

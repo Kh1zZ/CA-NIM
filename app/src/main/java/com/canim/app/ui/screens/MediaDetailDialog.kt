@@ -326,7 +326,9 @@ fun MediaDetailDialog(
                                     text = if (isAnime) "ANIME" else "MANGA",
                                     color = themeAccent,
                                     fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false
                                 )
                             }
 
@@ -343,6 +345,8 @@ fun MediaDetailDialog(
                                         color = DonghuaAccentRed,
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false,
                                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                                     )
                                 }
@@ -357,6 +361,8 @@ fun MediaDetailDialog(
                                         color = AeniAccentPurple,
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        softWrap = false,
                                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                                     )
                                 }
