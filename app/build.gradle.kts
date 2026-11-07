@@ -130,6 +130,9 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
 
+    // AndroidX WorkManager for background notifications & periodic checks
+    implementation(libs.androidx.work.runtime.ktx)
+
     // Unit & Robolectric testing
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.robolectric:robolectric:4.11.1")

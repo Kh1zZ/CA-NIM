@@ -56,4 +56,12 @@ class CanimNotificationManagerTest {
             message = "Test Message"
         )
     }
+
+    @Test
+    fun testNotificationSchedulerPeriodicCheckAndCancel() {
+        // Verify schedulePeriodicCheck, triggerImmediateCheck, and cancelPeriodicCheck execute safely
+        NotificationScheduler.schedulePeriodicCheck(context)
+        NotificationScheduler.triggerImmediateCheck(context)
+        NotificationScheduler.cancelPeriodicCheck(context)
+    }
 }
