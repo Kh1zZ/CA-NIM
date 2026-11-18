@@ -10,6 +10,8 @@ import com.canim.app.util.LogRedactor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import retrofit2.Response
 import java.security.MessageDigest
@@ -21,6 +23,7 @@ import com.canim.app.data.local.MalMutationExecutor
 open class MalAuthManager(
     private val secureStorage: MalSecureStorage
 ) : MalMutationExecutor {
+    private val tokenRefreshMutex = Mutex()
     companion object {
         const val CLIENT_ID = "a4f3b20e6eb04e9daac4d2ea9fb2a45a"
         const val REDIRECT_URI = "canim://oauth/callback"
@@ -162,6 +165,7 @@ open class MalAuthManager(
 
     /**
      * Obtains a valid access token, auto-refreshing if expired.
+     * Protected by [tokenRefreshMutex] so parallel callers share one refresh call.
      */
     suspend fun getValidAccessToken(): String? = withContext(Dispatchers.IO) {
         val currentToken = secureStorage.getAccessToken() ?: return@withContext null
@@ -169,42 +173,54 @@ open class MalAuthManager(
             return@withContext currentToken
         }
 
-        val refreshToken = secureStorage.getRefreshToken() ?: return@withContext currentToken
-        try {
-            val refreshResponse = ApiClient.malApi.refreshToken(
-                clientId = CLIENT_ID,
-                refreshToken = refreshToken,
-                grantType = "refresh_token"
-            )
-            secureStorage.saveTokens(
-                accessToken = refreshResponse.accessToken,
-                refreshToken = refreshResponse.refreshToken ?: refreshToken,
-                expiresInSeconds = refreshResponse.expiresIn
-            )
-            refreshResponse.accessToken
-        } catch (e: Exception) {
-            Log.e("MalAuthManager", "Gagal refresh token MAL: ${LogRedactor.redact(e.message)}")
-            currentToken
+        tokenRefreshMutex.withLock {
+            val latestToken = secureStorage.getAccessToken() ?: return@withLock null
+            if (!secureStorage.isTokenExpired()) {
+                return@withLock latestToken
+            }
+            val refreshToken = secureStorage.getRefreshToken() ?: return@withLock null
+            try {
+                val refreshResponse = ApiClient.malApi.refreshToken(
+                    clientId = CLIENT_ID,
+                    refreshToken = refreshToken,
+                    grantType = "refresh_token"
+                )
+                secureStorage.saveTokens(
+                    accessToken = refreshResponse.accessToken,
+                    refreshToken = refreshResponse.refreshToken ?: refreshToken,
+                    expiresInSeconds = refreshResponse.expiresIn
+                )
+                refreshResponse.accessToken
+            } catch (e: Exception) {
+                Log.e("MalAuthManager", "Gagal refresh token MAL: ${LogRedactor.redact(e.message)}")
+                null
+            }
         }
     }
 
-    private suspend fun refreshTokenForce(): String? = withContext(Dispatchers.IO) {
-        val refreshToken = secureStorage.getRefreshToken() ?: return@withContext null
-        try {
-            val refreshResponse = ApiClient.malApi.refreshToken(
-                clientId = CLIENT_ID,
-                refreshToken = refreshToken,
-                grantType = "refresh_token"
-            )
-            secureStorage.saveTokens(
-                accessToken = refreshResponse.accessToken,
-                refreshToken = refreshResponse.refreshToken ?: refreshToken,
-                expiresInSeconds = refreshResponse.expiresIn
-            )
-            refreshResponse.accessToken
-        } catch (e: Exception) {
-            Log.e("MalAuthManager", "Force refresh token MAL gagal: ${LogRedactor.redact(e.message)}")
-            null
+    private suspend fun refreshTokenForce(failedToken: String? = null): String? = withContext(Dispatchers.IO) {
+        tokenRefreshMutex.withLock {
+            val currentToken = secureStorage.getAccessToken()
+            if (failedToken != null && currentToken != null && currentToken != failedToken && !secureStorage.isTokenExpired()) {
+                return@withLock currentToken
+            }
+            val refreshToken = secureStorage.getRefreshToken() ?: return@withLock null
+            try {
+                val refreshResponse = ApiClient.malApi.refreshToken(
+                    clientId = CLIENT_ID,
+                    refreshToken = refreshToken,
+                    grantType = "refresh_token"
+                )
+                secureStorage.saveTokens(
+                    accessToken = refreshResponse.accessToken,
+                    refreshToken = refreshResponse.refreshToken ?: refreshToken,
+                    expiresInSeconds = refreshResponse.expiresIn
+                )
+                refreshResponse.accessToken
+            } catch (e: Exception) {
+                Log.e("MalAuthManager", "Force refresh token MAL gagal: ${LogRedactor.redact(e.message)}")
+                null
+            }
         }
     }
 
@@ -212,12 +228,26 @@ open class MalAuthManager(
         val token = getValidAccessToken() ?: throw IllegalStateException("Belum login ke MyAnimeList")
         var response = block("Bearer $token")
         if (response.code() == 401) {
-            val refreshed = refreshTokenForce()
+            val refreshed = refreshTokenForce(failedToken = token)
             if (refreshed != null) {
                 response = block("Bearer $refreshed")
             }
         }
         return response
+    }
+
+    private suspend fun <T> executeWith401Retry(block: suspend (authHeader: String) -> T): T {
+        val token = getValidAccessToken() ?: throw IllegalStateException("Belum login ke MyAnimeList")
+        return try {
+            block("Bearer $token")
+        } catch (e: retrofit2.HttpException) {
+            if (e.code() == 401) {
+                val refreshed = refreshTokenForce(failedToken = token) ?: throw e
+                block("Bearer $refreshed")
+            } else {
+                throw e
+            }
+        }
     }
 
     open fun getCurrentUser(): MalUser = secureStorage.getUser()
@@ -239,9 +269,6 @@ open class MalAuthManager(
             }
         }
 
-        val token = getValidAccessToken()
-            ?: return@withContext MalFetchResult.Failure(IllegalStateException("Belum login ke MyAnimeList"))
-
         val items = mutableListOf<UserMediaItem>()
         var offset = 0
         val pageSize = 500
@@ -250,11 +277,13 @@ open class MalAuthManager(
 
         while (hasMore) {
             try {
-                val response = ApiClient.malApi.getUserAnimeList(
-                    authHeader = "Bearer $token",
-                    limit = pageSize,
-                    offset = offset
-                )
+                val response = executeWith401Retry { authHeader ->
+                    ApiClient.malApi.getUserAnimeList(
+                        authHeader = authHeader,
+                        limit = pageSize,
+                        offset = offset
+                    )
+                }
                 val data = response.data
                 if (data.isEmpty()) {
                     hasMore = false
@@ -339,9 +368,6 @@ open class MalAuthManager(
             }
         }
 
-        val token = getValidAccessToken()
-            ?: return@withContext MalFetchResult.Failure(IllegalStateException("Belum login ke MyAnimeList"))
-
         val items = mutableListOf<UserMediaItem>()
         var offset = 0
         val pageSize = 500
@@ -350,11 +376,13 @@ open class MalAuthManager(
 
         while (hasMore) {
             try {
-                val response = ApiClient.malApi.getUserMangaList(
-                    authHeader = "Bearer $token",
-                    limit = pageSize,
-                    offset = offset
-                )
+                val response = executeWith401Retry { authHeader ->
+                    ApiClient.malApi.getUserMangaList(
+                        authHeader = authHeader,
+                        limit = pageSize,
+                        offset = offset
+                    )
+                }
                 val data = response.data
                 if (data.isEmpty()) {
                     hasMore = false

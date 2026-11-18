@@ -74,7 +74,6 @@ object ManagerModule {
             networkChecker = networkChecker,
             appScope = appScope
         )
-        syncEngine.start()
         return syncEngine
     }
 }

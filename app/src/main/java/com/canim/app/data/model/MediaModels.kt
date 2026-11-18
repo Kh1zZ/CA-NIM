@@ -225,7 +225,9 @@ data class MediaItem(
     val studio: String? = null,
     val popularity: Int? = null,
     val imageUrlHd: String? = null,
-    val countryOfOrigin: String? = "JP"
+    val countryOfOrigin: String? = "JP",
+    val nextAiringEpisode: Int? = null,
+    val nextAiringAtSeconds: Long? = null
 ) {
     val id: String get() = malId?.let { "mal_$it" } ?: anilistId?.let { "ani_$it" } ?: title
     val identity: MediaRef get() = MediaRef(anilistId = anilistId, malId = malId)

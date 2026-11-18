@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.canim.app.BuildConfig
+import com.canim.app.data.local.LibrarySyncEngine
 import com.canim.app.data.model.MalFetchResult
 import com.canim.app.domain.repository.LibraryRepository
 import com.canim.app.domain.usecase.CheckForUpdatesUseCase
@@ -32,6 +33,7 @@ class NotificationWorker(
     interface NotificationWorkerEntryPoint {
         fun airingAlertManager(): AiringAlertManager
         fun libraryRepository(): LibraryRepository
+        fun librarySyncEngine(): LibrarySyncEngine
         fun checkForUpdatesUseCase(): CheckForUpdatesUseCase
         fun notificationManager(): CanimNotificationManager
     }
@@ -43,9 +45,13 @@ class NotificationWorker(
                 NotificationWorkerEntryPoint::class.java
             )
             val libraryRepository = entryPoint.libraryRepository()
+            val librarySyncEngine = entryPoint.librarySyncEngine()
             val airingAlertManager = entryPoint.airingAlertManager()
             val checkForUpdatesUseCase = entryPoint.checkForUpdatesUseCase()
             val notificationManager = entryPoint.notificationManager()
+
+            // Flush any queued offline/widget mutations once during background wakeup
+            runCatching { librarySyncEngine.drainQueue() }
 
             // 1. Fetch library items (from Room local database or cache)
             val animeResult = libraryRepository.getUserAnimeList(forceRefresh = false)
@@ -56,11 +62,11 @@ class NotificationWorker(
             }
 
             if (animeList.isNotEmpty()) {
-                // 2. Airing alerts for watching anime
-                airingAlertManager.checkAndDispatchAiringAlerts(animeList, forceRefresh = false)
+                // 2. Airing alerts for watching anime (bypass stale caches)
+                airingAlertManager.checkAndDispatchAiringAlerts(animeList, forceRefresh = true)
 
-                // 3. Airing alerts for plan-to-watch anime
-                airingAlertManager.checkAndDispatchPlanToWatchAiringAlerts(animeList, forceRefresh = false)
+                // 3. Airing alerts for plan-to-watch anime (bypass stale caches)
+                airingAlertManager.checkAndDispatchPlanToWatchAiringAlerts(animeList, forceRefresh = true)
             }
 
             // 4. App update check (respects 24h throttling)

@@ -560,7 +560,9 @@ object AniListApolloMapper {
             format = m.format?.rawValue,
             studio = studioName,
             imageUrlHd = imgHd,
-            countryOfOrigin = resolvedOrigin
+            countryOfOrigin = resolvedOrigin,
+            nextAiringEpisode = m.nextAiringEpisode?.episode,
+            nextAiringAtSeconds = m.nextAiringEpisode?.airingAt?.toLong()
         )
     }
 
@@ -613,7 +615,9 @@ object AniListApolloMapper {
             format = m.format?.rawValue,
             studio = studioName,
             imageUrlHd = imgHd,
-            countryOfOrigin = resolvedOrigin
+            countryOfOrigin = resolvedOrigin,
+            nextAiringEpisode = m.nextAiringEpisode?.episode,
+            nextAiringAtSeconds = m.nextAiringEpisode?.airingAt?.toLong()
         )
     }
 }

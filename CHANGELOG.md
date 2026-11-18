@@ -5,6 +5,20 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.7.3] - 2026-11-18
+### Fixed
+- **Notifikasi Episode Baru & Jadwal Tayang Real AniList**:
+  - Mengambil field `nextAiringEpisode { episode airingAt timeUntilAiring }` pada `DiscoverMedia.graphql` dan `MediaBatchByMalIds.graphql` beserta mapper & model domain untuk menggantikan estimasi minggu kalender (`weekOfYear % 13`) dan hash jadwal sintetis di `CalendarRepositoryImpl`.
+  - Mengubah `CalendarRepositoryImpl.getWatchingAiringAnime` agar melakukan batch query langsung berdasarkan MAL ID `watching` & `plan_to_watch` pengguna (mencakup anime di luar top-50 musiman, format ONA, dan seri multi-cour).
+  - Menambahkan penjadwalan `OneTimeWorkRequest` dinamis (`NotificationScheduler.scheduleNextAiringCheck`) menuju `airingAt + 90 detik`, mem-bypass cache kalender stale di `NotificationWorker` (`forceRefresh = true`), memastikan notifikasi `plan_to_watch` hanya terpicu setelah Episode 1 tayang, serta mendelegasikan trigger `NotificationAlarmReceiver` ke `WorkManager` tanpa network call di `goAsync()`.
+  - Memperbaiki pembaruan suara channel notifikasi pada Android 8.0+ di `CanimNotificationManager` dengan rotasi versi channel saat pengguna mengganti nada notifikasi.
+- **Perbaikan Widget, Sinkronisasi State, Auth Concurrency, & Updater**:
+  - Menyimpan indeks prev/next dan meng-invalidate cache tracking memori saat quick increment `+1` di `WatchingWidgetActionReceiver`, serta membaca `LibraryDao` lokal pada startup `LibraryViewModel` agar progres dari widget langsung sinkron.
+  - Menggunakan singleton `Coil.imageLoader(ctx)` pada `TodayAiringRemoteViewsService` dan `WatchingProgressRemoteViewsService`.
+  - Menambahkan `Mutex` pada refresh token OAuth2 MAL dan retry HTTP 401 di `MalAuthManager` untuk mencegah race condition saat sync anime & manga paralel.
+  - Memulai polling `LibrarySyncEngine` dari `MainActivity.onCreate()` dan mem-flush antrean sekali saat wakeup `NotificationWorker`.
+  - Menjaga pengambilan `releaseNotes` & `apkSize` dari GitHub Releases API di `UpdateChecker` saat web-redirect mendeteksi versi baru.
+
 ## [v6.7.2] - 2026-10-13
 ### Fixed
 - **Media Detail Country Badge Vertical Stretch & Line-Wrap Fix**:

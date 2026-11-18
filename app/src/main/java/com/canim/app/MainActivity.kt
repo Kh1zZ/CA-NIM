@@ -86,6 +86,9 @@ class MainActivity : ComponentActivity() {
     @javax.inject.Inject
     lateinit var notificationManager: com.canim.app.notification.CanimNotificationManager
 
+    @javax.inject.Inject
+    lateinit var librarySyncEngine: com.canim.app.data.local.LibrarySyncEngine
+
     private var notificationSoundTitle by mutableStateOf("Default Sistem")
 
     private val ringtonePickerLauncher = registerForActivityResult(
@@ -133,6 +136,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        librarySyncEngine.start()
         updateSoundTitle()
 
         // Request notification permission on Android 13+ (API 33+)

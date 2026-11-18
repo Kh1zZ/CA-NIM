@@ -1003,7 +1003,8 @@ object AniListApolloClient {
 
     suspend fun getMediaBatchByMalIds(
         malIds: List<Int>,
-        type: MediaType
+        type: MediaType,
+        forceRefresh: Boolean = false
     ): Map<Int, MediaItem> = withContext(Dispatchers.IO) {
         if (malIds.isEmpty()) return@withContext emptyMap()
         val distinctIds = malIds.distinct().filter { it > 0 }
@@ -1013,11 +1014,11 @@ object AniListApolloClient {
         val missingIds = mutableListOf<Int>()
 
         for (id in distinctIds) {
-            val cached = CacheManager.getMetadata(id, type)
+            val cached = if (!forceRefresh) CacheManager.getMetadata(id, type) else null
             if (cached != null) {
                 AniListMetrics.recordCacheHit()
                 resultMap[id] = cached
-            } else if (CacheManager.isNegativeCached("resolve_mal_${id}_${type.name}")) {
+            } else if (!forceRefresh && CacheManager.isNegativeCached("resolve_mal_${id}_${type.name}")) {
                 AniListMetrics.recordCacheHit()
             } else {
                 AniListMetrics.recordCacheMiss()

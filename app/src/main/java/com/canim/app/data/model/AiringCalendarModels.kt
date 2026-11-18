@@ -21,7 +21,8 @@ data class AiringAnimeItem(
     val airingTimeFormatted: String?,
     val genres: List<String> = emptyList(),
     val studio: String? = null,
-    val countryOfOrigin: String? = "JP"
+    val countryOfOrigin: String? = "JP",
+    val nextAiringAtSeconds: Long? = null
 ) {
     val scoreFormatted: String get() = if (score != null && score > 0) "%.1f".format(score) else ""
     val isDonghua: Boolean get() = countryOfOrigin.equals("CN", ignoreCase = true)

@@ -23,6 +23,11 @@ query GetMediaBatchByMalIds($idMal_in: [Int], $type: MediaType) {
       format
       genres
       countryOfOrigin
+      nextAiringEpisode {
+        episode
+        airingAt
+        timeUntilAiring
+      }
       studios(isMain: true) {
         nodes {
           name

@@ -342,6 +342,11 @@ class AniListApolloMapperTest {
             chapters = null,
             volumes = null,
             genres = listOf("Action", "Adventure"),
+            nextAiringEpisode = GetDiscoverMediaQuery.NextAiringEpisode(
+                episode = 1100,
+                airingAt = 1_763_460_000,
+                timeUntilAiring = 3600
+            ),
             studios = GetDiscoverMediaQuery.Studios(listOf(GetDiscoverMediaQuery.Node("Toei Animation"))),
             countryOfOrigin = "JP"
         )
@@ -354,6 +359,8 @@ class AniListApolloMapperTest {
         assertEquals(8.8, item.score!!, 0.01)
         assertFalse(item.isDonghua)
         assertEquals("JP", item.countryOfOrigin)
+        assertEquals(1100, item.nextAiringEpisode)
+        assertEquals(1_763_460_000L, item.nextAiringAtSeconds)
     }
 
     @Test
@@ -373,6 +380,7 @@ class AniListApolloMapperTest {
             chapters = null,
             volumes = null,
             genres = listOf("Action", "Adventure"),
+            nextAiringEpisode = null,
             studios = GetMediaBatchByMalIdsQuery.Studios(listOf(GetMediaBatchByMalIdsQuery.Node("Bones"))),
             countryOfOrigin = "JP"
         )

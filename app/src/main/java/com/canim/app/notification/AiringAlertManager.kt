@@ -1,8 +1,11 @@
 package com.canim.app.notification
 
+import android.content.Context
 import com.canim.app.data.local.EpisodeNotificationTracker
+import com.canim.app.data.model.AiringAnimeItem
 import com.canim.app.data.model.UserMediaItem
 import com.canim.app.domain.repository.CalendarRepository
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -16,8 +19,14 @@ import javax.inject.Singleton
 class AiringAlertManager @Inject constructor(
     private val notificationManager: CanimNotificationManager,
     private val notificationTracker: EpisodeNotificationTracker,
-    private val calendarRepository: CalendarRepository
+    private val calendarRepository: CalendarRepository,
+    @ApplicationContext private val context: Context?
 ) {
+    constructor(
+        notificationManager: CanimNotificationManager,
+        notificationTracker: EpisodeNotificationTracker,
+        calendarRepository: CalendarRepository
+    ) : this(notificationManager, notificationTracker, calendarRepository, null)
     /**
      * Checks all currently watching anime in the user's library.
      * If an anime has a new episode aired and hasn't been notified yet, dispatches a notification.
@@ -32,6 +41,7 @@ class AiringAlertManager @Inject constructor(
 
         val watchingMalIds = watchingAnimeWithMalId.mapNotNull { it.malId }.toSet()
         val airingItems = calendarRepository.getWatchingAiringAnime(watchingMalIds, forceRefresh)
+        scheduleEarliestNextAiring(airingItems)
 
         var notifiedCount = 0
         for (airing in airingItems) {
@@ -70,10 +80,14 @@ class AiringAlertManager @Inject constructor(
 
         val planMalIds = planWithMalId.mapNotNull { it.malId }.toSet()
         val airingItems = calendarRepository.getWatchingAiringAnime(planMalIds, forceRefresh)
+        scheduleEarliestNextAiring(airingItems)
 
         var notifiedCount = 0
         for (airing in airingItems) {
             val malId = airing.malId ?: continue
+            // Only notify when actively airing this season and Episode 1 has actually aired
+            val currentEp = airing.currentAiringEpisode ?: continue
+            if (airing.nextAiringAtSeconds == null || currentEp < 1) continue
 
             if (notificationTracker.shouldNotifyAiringStarted(malId)) {
                 val animeTitle = airing.title.ifBlank {
@@ -88,5 +102,15 @@ class AiringAlertManager @Inject constructor(
             }
         }
         notifiedCount
+    }
+
+    private fun scheduleEarliestNextAiring(airingItems: List<AiringAnimeItem>) {
+        val ctx = context ?: return
+        val nowMs = System.currentTimeMillis()
+        val earliestMs = airingItems
+            .mapNotNull { it.nextAiringAtSeconds?.times(1000L) }
+            .filter { it > nowMs }
+            .minOrNull() ?: return
+        NotificationScheduler.scheduleNextAiringCheck(ctx, earliestMs)
     }
 }

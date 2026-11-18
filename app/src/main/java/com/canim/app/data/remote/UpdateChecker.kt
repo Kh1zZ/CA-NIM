@@ -112,7 +112,7 @@ object UpdateChecker {
 
         // 2. Try web redirect first (does not count toward GitHub API 60 req/hr limit)
         val webTag = resolveTagViaWebRedirect()
-        if (!webTag.isNullOrBlank()) {
+        val webFallbackInfo = if (!webTag.isNullOrBlank()) {
             val isNewer = compareSemver(current = currentVersion, latest = webTag) > 0
             val info = UpdateInfo(
                 isUpdateAvailable = isNewer,
@@ -125,10 +125,13 @@ object UpdateChecker {
                 apkName = "canim-universal-release-$webTag.apk",
                 apkSize = 0L
             )
-            cachedUpdateInfo = info
-            lastCheckTime = now
-            return@withContext Result.success(info)
-        }
+            if (!isNewer) {
+                cachedUpdateInfo = info
+                lastCheckTime = now
+                return@withContext Result.success(info)
+            }
+            info
+        } else null
 
         AppMetrics.recordRequest("github", "checkLatestRelease")
         val startNs = System.nanoTime()
@@ -165,7 +168,7 @@ object UpdateChecker {
                     return@withContext Result.success(cached.copy(isUpdateAvailable = isNewer, currentVersion = currentVersion))
                 }
 
-                val fallback = fetchFallbackFromLandingPage(currentVersion)
+                val fallback = fetchFallbackFromLandingPage(currentVersion) ?: webFallbackInfo
                 if (fallback != null) {
                     cachedUpdateInfo = fallback
                     lastCheckTime = now
@@ -182,7 +185,7 @@ object UpdateChecker {
                 if (responseCode in 500..599) {
                     AppMetrics.recordHttp5xx("github", "checkLatestRelease", responseCode)
                 }
-                val fallback = fetchFallbackFromLandingPage(currentVersion)
+                val fallback = fetchFallbackFromLandingPage(currentVersion) ?: webFallbackInfo
                 if (fallback != null) {
                     cachedUpdateInfo = fallback
                     lastCheckTime = now
@@ -252,7 +255,7 @@ object UpdateChecker {
             if (e is java.net.SocketTimeoutException) {
                 AppMetrics.recordTimeout("github", "checkLatestRelease")
             }
-            val fallback = fetchFallbackFromLandingPage(currentVersion)
+            val fallback = fetchFallbackFromLandingPage(currentVersion) ?: webFallbackInfo
             if (fallback != null) {
                 cachedUpdateInfo = fallback
                 lastCheckTime = now

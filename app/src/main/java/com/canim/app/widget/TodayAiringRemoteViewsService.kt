@@ -6,7 +6,7 @@ import android.graphics.Bitmap
 import android.view.View
 import android.widget.RemoteViews
 import android.widget.RemoteViewsService
-import coil.ImageLoader
+import coil.Coil
 import coil.request.ImageRequest
 import coil.request.SuccessResult
 import com.canim.app.R
@@ -97,7 +97,7 @@ class AiringRemoteViewsFactory(
 
     private fun loadSoftwareBitmap(ctx: Context, url: String): Bitmap? {
         return try {
-            val loader = ImageLoader(ctx)
+            val loader = Coil.imageLoader(ctx)
             val request = ImageRequest.Builder(ctx)
                 .data(url)
                 .size(64, 88)

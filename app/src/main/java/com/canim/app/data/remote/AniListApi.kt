@@ -182,8 +182,12 @@ object AniListClient {
     suspend fun resolveAniListId(aniListId: Int): AniListResult<Int> =
         com.canim.app.data.remote.anilist.AniListApolloClient.resolveAniListId(aniListId)
 
-    suspend fun getMediaBatchByMalIds(malIds: List<Int>, type: MediaType): Map<Int, MediaItem> =
-        com.canim.app.data.remote.anilist.AniListApolloClient.getMediaBatchByMalIds(malIds, type)
+    suspend fun getMediaBatchByMalIds(
+        malIds: List<Int>,
+        type: MediaType,
+        forceRefresh: Boolean = false
+    ): Map<Int, MediaItem> =
+        com.canim.app.data.remote.anilist.AniListApolloClient.getMediaBatchByMalIds(malIds, type, forceRefresh)
 
     /**
      * Search Anime or Manga using AniList GraphQL via Apollo.

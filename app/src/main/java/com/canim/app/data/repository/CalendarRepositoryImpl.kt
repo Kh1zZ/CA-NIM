@@ -4,6 +4,7 @@ import com.canim.app.data.cache.CacheManager
 import com.canim.app.data.model.AiringAnimeItem
 import com.canim.app.data.model.DiscoverCategory
 import com.canim.app.data.model.DiscoverFilter
+import com.canim.app.data.model.MediaItem
 import com.canim.app.data.model.MediaType
 import com.canim.app.data.remote.AniListClient
 import com.canim.app.data.remote.ApiClient
@@ -11,9 +12,8 @@ import com.canim.app.domain.repository.CalendarRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
-import java.time.LocalDate
+import java.time.Instant
 import java.time.ZoneId
-import java.util.Calendar
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -51,6 +51,27 @@ class CalendarRepositoryImpl @Inject constructor() : CalendarRepository {
         forceRefresh: Boolean
     ): List<AiringAnimeItem> = withContext(Dispatchers.IO) {
         if (watchingMalIds.isEmpty()) return@withContext emptyList()
+
+        // Prefer direct batch query by MAL IDs so shows outside top-50 seasonal TV
+        // (e.g., 2-cour continuing, ONA, or lower-popularity titles) are always covered.
+        val batchMap = runCatching {
+            AniListClient.getMediaBatchByMalIds(
+                malIds = watchingMalIds.toList(),
+                type = MediaType.ANIME,
+                forceRefresh = forceRefresh
+            )
+        }.getOrDefault(emptyMap())
+
+        if (batchMap.isNotEmpty()) {
+            return@withContext batchMap.values
+                .filter { media ->
+                    media.nextAiringEpisode != null ||
+                        media.status.equals("AIRING", ignoreCase = true) ||
+                        media.status.equals("AIRED", ignoreCase = true)
+                }
+                .mapIndexed { index, media -> toAiringAnimeItem(media, index) }
+        }
+
         val allCalendar = getAiringCalendar(forceRefresh)
         allCalendar.values.flatten().filter { item ->
             item.malId != null && item.malId in watchingMalIds
@@ -71,25 +92,7 @@ class CalendarRepositoryImpl @Inject constructor() : CalendarRepository {
         }.getOrNull()
 
         if (!aniListMedia.isNullOrEmpty()) {
-            return aniListMedia.mapIndexed { index, media ->
-                val day = deriveDayOfWeek(media.title, media.malId ?: media.anilistId ?: index)
-                AiringAnimeItem(
-                    id = media.id,
-                    malId = media.malId,
-                    anilistId = media.anilistId,
-                    title = media.title,
-                    titleEnglish = media.titleEnglish,
-                    imageUrl = media.imageUrl,
-                    score = media.score,
-                    episodes = media.episodes,
-                    currentAiringEpisode = estimateCurrentEpisode(media.episodes, media.year),
-                    airingDay = day,
-                    airingTimeFormatted = deriveAiringTime(media.malId ?: media.anilistId ?: index),
-                    genres = media.genres,
-                    studio = media.studio,
-                    countryOfOrigin = media.countryOfOrigin ?: "JP"
-                )
-            }
+            return aniListMedia.mapIndexed { index, media -> toAiringAnimeItem(media, index) }
         }
 
         // Step 2: Fallback to MAL API
@@ -108,47 +111,55 @@ class CalendarRepositoryImpl @Inject constructor() : CalendarRepository {
         }.getOrDefault(emptyList())
 
         if (malMedia.isNotEmpty()) {
-            return malMedia.mapIndexed { index, media ->
-                val day = deriveDayOfWeek(media.title, media.malId ?: index)
-                AiringAnimeItem(
-                    id = media.id,
-                    malId = media.malId,
-                    anilistId = media.anilistId,
-                    title = media.title,
-                    titleEnglish = media.titleEnglish,
-                    imageUrl = media.imageUrl,
-                    score = media.score,
-                    episodes = media.episodes,
-                    currentAiringEpisode = estimateCurrentEpisode(media.episodes, media.year),
-                    airingDay = day,
-                    airingTimeFormatted = deriveAiringTime(media.malId ?: index),
-                    genres = media.genres,
-                    studio = media.studio,
-                    countryOfOrigin = media.countryOfOrigin ?: "JP"
-                )
-            }
+            return malMedia.mapIndexed { index, media -> toAiringAnimeItem(media, index) }
         }
 
         // Step 3: Hardcoded emergency fallback anime list
         return MediaMappingUtils.fallbackAnime().mapIndexed { index, media ->
-            val day = deriveDayOfWeek(media.title, media.malId ?: index)
-            AiringAnimeItem(
-                id = media.id,
-                malId = media.malId,
-                anilistId = media.anilistId,
-                title = media.title,
-                titleEnglish = media.titleEnglish,
-                imageUrl = media.imageUrl,
-                score = media.score,
-                episodes = media.episodes,
-                currentAiringEpisode = 1,
-                airingDay = day,
-                airingTimeFormatted = "23:00",
-                genres = media.genres,
-                studio = media.studio,
-                countryOfOrigin = media.countryOfOrigin ?: "JP"
-            )
+            toAiringAnimeItem(media, index, defaultCurrentEp = 1, defaultTime = "23:00")
         }
+    }
+
+    internal fun toAiringAnimeItem(
+        media: MediaItem,
+        index: Int,
+        defaultCurrentEp: Int? = null,
+        defaultTime: String? = null
+    ): AiringAnimeItem {
+        val nextAtSec = media.nextAiringAtSeconds
+        val zonedAiring = nextAtSec?.let {
+            Instant.ofEpochSecond(it).atZone(ZoneId.systemDefault())
+        }
+        val day = zonedAiring?.dayOfWeek ?: deriveDayOfWeek(media.title, media.malId ?: media.anilistId ?: index)
+        val timeFormatted = zonedAiring?.let {
+            String.format(Locale.US, "%02d:%02d", it.hour, it.minute)
+        } ?: defaultTime ?: deriveAiringTime(media.malId ?: media.anilistId ?: index)
+
+        val currentEp = when {
+            media.nextAiringEpisode != null -> (media.nextAiringEpisode - 1).takeIf { it > 0 }
+            media.status.equals("AIRED", ignoreCase = true) ||
+                media.status.equals("FINISHED", ignoreCase = true) ||
+                media.status.equals("finished_airing", ignoreCase = true) -> media.episodes?.takeIf { it > 0 }
+            else -> defaultCurrentEp
+        }
+
+        return AiringAnimeItem(
+            id = media.id,
+            malId = media.malId,
+            anilistId = media.anilistId,
+            title = media.title,
+            titleEnglish = media.titleEnglish,
+            imageUrl = media.imageUrl,
+            score = media.score,
+            episodes = media.episodes,
+            currentAiringEpisode = currentEp,
+            airingDay = day,
+            airingTimeFormatted = timeFormatted,
+            genres = media.genres,
+            studio = media.studio,
+            countryOfOrigin = media.countryOfOrigin ?: "JP",
+            nextAiringAtSeconds = nextAtSec
+        )
     }
 
     private fun groupAnimeByDay(items: List<AiringAnimeItem>): Map<DayOfWeek, List<AiringAnimeItem>> {
@@ -177,12 +188,5 @@ class CalendarRepositoryImpl @Inject constructor() : CalendarRepository {
         val hour = 18 + (kotlin.math.abs(idSeed) % 6) // 18:00 to 23:00
         val minute = (kotlin.math.abs(idSeed * 7) % 4) * 15 // 00, 15, 30, 45
         return String.format(Locale.US, "%02d:%02d", hour, minute)
-    }
-
-    private fun estimateCurrentEpisode(totalEpisodes: Int?, year: Int?): Int {
-        val calendar = Calendar.getInstance()
-        val weekOfYear = calendar.get(Calendar.WEEK_OF_YEAR)
-        val seasonWeek = (weekOfYear % 13).coerceAtLeast(1)
-        return totalEpisodes?.let { seasonWeek.coerceAtMost(it) } ?: seasonWeek
     }
 }

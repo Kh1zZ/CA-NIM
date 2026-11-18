@@ -46,6 +46,11 @@ query GetDiscoverMedia(
       format
       genres
       countryOfOrigin
+      nextAiringEpisode {
+        episode
+        airingAt
+        timeUntilAiring
+      }
       studios(isMain: true) {
         nodes {
           name

@@ -193,4 +193,59 @@ class AiringCalendarTest {
         val secondDispatch = alertManager.checkAndDispatchAiringAlerts(watchingList)
         assertEquals(0, secondDispatch)
     }
+
+    @Test
+    fun testRealNextAiringEpisodeAndPlanToWatchGating() = runTest {
+        val airingEpochSec = 1_763_460_000L // fixed UTC timestamp
+        val expectedZoned = java.time.Instant.ofEpochSecond(airingEpochSec)
+            .atZone(java.time.ZoneId.systemDefault())
+        val expectedTime = String.format(java.util.Locale.US, "%02d:%02d", expectedZoned.hour, expectedZoned.minute)
+
+        val upcomingEp1 = MediaItem(
+            malId = 301,
+            anilistId = 1301,
+            title = "Not Yet Aired Ep 1",
+            imageUrl = "",
+            type = MediaType.ANIME,
+            episodes = 12,
+            status = "AIRING",
+            nextAiringEpisode = 1,
+            nextAiringAtSeconds = airingEpochSec
+        )
+        val airedEp1 = upcomingEp1.copy(
+            malId = 302,
+            anilistId = 1302,
+            title = "Already Aired Ep 1",
+            nextAiringEpisode = 2
+        )
+
+        val mappedUpcoming = calendarRepository.toAiringAnimeItem(upcomingEp1, 0)
+        assertNull("Ep 1 not aired yet should yield null currentAiringEpisode", mappedUpcoming.currentAiringEpisode)
+        assertEquals(expectedZoned.dayOfWeek, mappedUpcoming.airingDay)
+        assertEquals(expectedTime, mappedUpcoming.airingTimeFormatted)
+
+        val mappedAired = calendarRepository.toAiringAnimeItem(airedEp1, 1)
+        assertEquals(1, mappedAired.currentAiringEpisode)
+
+        val fakeRepo = object : CalendarRepository {
+            override suspend fun getAiringCalendar(forceRefresh: Boolean): Map<DayOfWeek, List<AiringAnimeItem>> = emptyMap()
+            override suspend fun getWatchingAiringAnime(watchingMalIds: Set<Int>, forceRefresh: Boolean): List<AiringAnimeItem> =
+                listOf(mappedUpcoming, mappedAired)
+        }
+
+        val alertManager = AiringAlertManager(
+            notificationManager = CanimNotificationManager(context),
+            notificationTracker = tracker,
+            calendarRepository = fakeRepo
+        )
+        val planList = listOf(
+            createUserWatchingItem(301, 0).let { it.copy(tracking = it.tracking.copy(status = "plan_to_watch")) },
+            createUserWatchingItem(302, 0).let { it.copy(tracking = it.tracking.copy(status = "plan_to_watch")) }
+        )
+
+        val dispatched = alertManager.checkAndDispatchPlanToWatchAiringAlerts(planList)
+        assertEquals(1, dispatched)
+        assertFalse(tracker.shouldNotifyAiringStarted(302))
+        assertTrue(tracker.shouldNotifyAiringStarted(301))
+    }
 }

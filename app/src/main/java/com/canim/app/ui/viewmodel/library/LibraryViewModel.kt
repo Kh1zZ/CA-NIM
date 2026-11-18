@@ -50,11 +50,25 @@ class LibraryViewModel @Inject constructor(
             _libraryState.update { it.copy(isLoading = true) }
             val isLoggedIn = getLibraryUseCase.isUserLoggedIn()
             if (isLoggedIn) {
-                // SWR: If cached items exist and synced within 30 minutes, skip network on startup unless forced
+                // SWR: If cached items exist and synced within 30 minutes, refresh from local Room DB
+                // (without hitting MAL network) so widget/background writes are reflected immediately.
                 val hasCachedData = _libraryState.value.animeList.isNotEmpty() || _libraryState.value.mangaList.isNotEmpty()
                 val lastSynced = getLibraryUseCase.getLastSyncedTime()
                 val isCacheFresh = (System.currentTimeMillis() - lastSynced) < 30 * 60 * 1000L
                 if (!forceRefresh && hasCachedData && isCacheFresh) {
+                    val localAnime = withContext(Dispatchers.IO) { getLibraryUseCase.getUserAnimeList(forceRefresh = false) }
+                    val localManga = withContext(Dispatchers.IO) { getLibraryUseCase.getUserMangaList(forceRefresh = false) }
+                    val animes = when (localAnime) {
+                        is MalFetchResult.Success -> localAnime.data
+                        is MalFetchResult.Partial -> localAnime.data
+                        else -> _libraryState.value.animeList
+                    }
+                    val mangas = when (localManga) {
+                        is MalFetchResult.Success -> localManga.data
+                        is MalFetchResult.Partial -> localManga.data
+                        else -> _libraryState.value.mangaList
+                    }
+                    updateLibraryData(animes, mangas)
                     _libraryState.update { it.copy(isLoading = false) }
                     return@launch
                 }

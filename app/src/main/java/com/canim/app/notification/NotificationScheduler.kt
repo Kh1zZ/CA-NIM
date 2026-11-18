@@ -23,9 +23,11 @@ object NotificationScheduler {
 
     const val WORK_NAME_PERIODIC = "canim_periodic_notification_check"
     const val WORK_NAME_IMMEDIATE = "canim_immediate_notification_check"
+    const val WORK_NAME_NEXT_AIRING = "canim_next_airing_notification_check"
     private const val REQUEST_CODE_ALARM = 4001
     private const val INTERVAL_MINUTES = 15L
     private const val FLEX_MINUTES = 5L
+    private const val AIRING_BUFFER_MS = 90_000L
 
     fun schedulePeriodicCheck(context: Context) {
         // 1. AndroidX WorkManager (Primary, resilient background scheduler)
@@ -69,6 +71,32 @@ object NotificationScheduler {
 
             WorkManager.getInstance(context).enqueueUniqueWork(
                 WORK_NAME_IMMEDIATE,
+                ExistingWorkPolicy.REPLACE,
+                workRequest
+            )
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * Schedules a single targeted one-time check shortly after the earliest upcoming
+     * anime episode airing timestamp so notifications fire promptly without waiting
+     * for the next periodic window.
+     */
+    fun scheduleNextAiringCheck(context: Context, nextAiringAtMs: Long) {
+        val delayMs = (nextAiringAtMs - System.currentTimeMillis()) + AIRING_BUFFER_MS
+        if (delayMs <= 0L) return
+        try {
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build()
+
+            val workRequest = OneTimeWorkRequestBuilder<NotificationWorker>()
+                .setInitialDelay(delayMs.coerceAtLeast(60_000L), TimeUnit.MILLISECONDS)
+                .setConstraints(constraints)
+                .build()
+
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                WORK_NAME_NEXT_AIRING,
                 ExistingWorkPolicy.REPLACE,
                 workRequest
             )

@@ -8,6 +8,7 @@ import android.widget.RemoteViews
 import com.canim.app.CanimApplication
 import com.canim.app.MainActivity
 import com.canim.app.R
+import com.canim.app.data.cache.CacheManager
 import com.canim.app.data.local.LibraryDao
 import com.canim.app.data.local.LocalDatabase
 import com.canim.app.data.local.MalSecureStorage
@@ -63,6 +64,7 @@ class WatchingWidgetActionReceiver : BroadcastReceiver() {
                             } else {
                                 (currentIndex + 1) % watchingItems.size
                             }
+                            prefs.edit().putInt("watching_index_$appWidgetId", newIndex).apply()
                             val appWidgetManager = AppWidgetManager.getInstance(context)
                             WatchingProgressWidgetProvider.renderWidgets(context, appWidgetManager, intArrayOf(appWidgetId))
                         }
@@ -111,6 +113,7 @@ class WatchingWidgetActionReceiver : BroadcastReceiver() {
                                     status = PendingMutation.STATUS_PENDING
                                 )
                                 dao.upsertWithMutation(updatedEntry, pendingMutation, mutationDao)
+                                CacheManager.invalidateTracking()
 
                                 // Update widgets immediately on home screen
                                 WidgetUpdateHelper.updateWatchingWidgets(context)

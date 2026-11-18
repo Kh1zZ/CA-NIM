@@ -36,6 +36,7 @@ class CanimNotificationManager @Inject constructor(
     companion object {
         const val PREFS_NAME = "canim_notification_prefs"
         const val KEY_NOTIFICATION_SOUND_URI = "notif_sound_uri"
+        private const val KEY_CHANNEL_VERSION = "notif_channel_version"
 
         const val CHANNEL_ID_UPDATES = "canim_app_updates"
         const val CHANNEL_NAME_UPDATES = "Pembaruan Aplikasi"
@@ -68,9 +69,30 @@ class CanimNotificationManager @Inject constructor(
         }
     }
 
+    private fun channelIdFor(baseId: String, version: Int): String =
+        if (version <= 0) baseId else "${baseId}_v$version"
+
+    private fun currentChannelVersion(): Int =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getInt(KEY_CHANNEL_VERSION, 0)
+
+    private fun activeUpdatesChannelId(): String = channelIdFor(CHANNEL_ID_UPDATES, currentChannelVersion())
+
+    private fun activeAiringChannelId(): String = channelIdFor(CHANNEL_ID_AIRING, currentChannelVersion())
+
     fun setNotificationSoundUri(uri: Uri?) {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putString(KEY_NOTIFICATION_SOUND_URI, uri?.toString()).apply()
+        val oldVersion = prefs.getInt(KEY_CHANNEL_VERSION, 0)
+        val newVersion = oldVersion + 1
+        prefs.edit()
+            .putString(KEY_NOTIFICATION_SOUND_URI, uri?.toString())
+            .putInt(KEY_CHANNEL_VERSION, newVersion)
+            .apply()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            nm?.deleteNotificationChannel(channelIdFor(CHANNEL_ID_UPDATES, oldVersion))
+            nm?.deleteNotificationChannel(channelIdFor(CHANNEL_ID_AIRING, oldVersion))
+        }
         initChannels()
     }
 
@@ -90,7 +112,7 @@ class CanimNotificationManager @Inject constructor(
 
             // Channel 1: App Updates
             val updateChannel = NotificationChannel(
-                CHANNEL_ID_UPDATES,
+                activeUpdatesChannelId(),
                 CHANNEL_NAME_UPDATES,
                 NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
@@ -102,7 +124,7 @@ class CanimNotificationManager @Inject constructor(
 
             // Channel 2: Airing Alerts
             val airingChannel = NotificationChannel(
-                CHANNEL_ID_AIRING,
+                activeAiringChannelId(),
                 CHANNEL_NAME_AIRING,
                 NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
@@ -154,7 +176,7 @@ class CanimNotificationManager @Inject constructor(
         val title = "Pembaruan Aplikasi Tersedia"
         val message = "CA\'NIM $latestVersion sudah tersedia. Ketuk untuk melihat detail dan memperbarui."
 
-        val builder = NotificationCompat.Builder(context, CHANNEL_ID_UPDATES)
+        val builder = NotificationCompat.Builder(context, activeUpdatesChannelId())
             .setSmallIcon(R.drawable.ic_app_icon)
             .setContentTitle(title)
             .setContentText(message)
@@ -195,7 +217,7 @@ class CanimNotificationManager @Inject constructor(
 
         val notificationId = 50000 + (malId % 10000)
 
-        val builder = NotificationCompat.Builder(context, CHANNEL_ID_AIRING)
+        val builder = NotificationCompat.Builder(context, activeAiringChannelId())
             .setSmallIcon(R.drawable.ic_app_icon)
             .setContentTitle(title)
             .setContentText(message)
@@ -234,7 +256,7 @@ class CanimNotificationManager @Inject constructor(
 
         val notificationId = 60000 + (malId % 10000)
 
-        val builder = NotificationCompat.Builder(context, CHANNEL_ID_AIRING)
+        val builder = NotificationCompat.Builder(context, activeAiringChannelId())
             .setSmallIcon(R.drawable.ic_app_icon)
             .setContentTitle(title)
             .setContentText(message)
