@@ -106,8 +106,14 @@ class DiscoverRepositoryImpl @Inject constructor(
 
         val isDonghua = filter.countryOfOrigin == "CN"
         val hasCountryFilter = !filter.countryOfOrigin.isNullOrBlank()
+        val hasAdvancedFilters = !filter.genre.isNullOrBlank() ||
+            filter.year != null ||
+            !filter.season.isNullOrBlank() ||
+            !filter.format.isNullOrBlank() ||
+            filter.minScore != null ||
+            !randomSort.isNullOrBlank()
 
-        if (!hasCountryFilter) {
+        if (!hasCountryFilter && !hasAdvancedFilters) {
             if (category == DiscoverCategory.TOP_ANIME) {
                 try {
                     val resp = ApiClient.malApi.getAnimeRanking(MalAuthManager.CLIENT_ID, "all", limit, offset)

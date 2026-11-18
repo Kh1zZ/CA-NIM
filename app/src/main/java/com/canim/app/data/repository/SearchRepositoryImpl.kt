@@ -130,6 +130,7 @@ class SearchRepositoryImpl @Inject constructor(
                 }
             }
 
+            var usedLocalFallback = false
             if (result.isEmpty() && page == 1 && countryOfOrigin.isNullOrBlank()) {
                 val baseList = MediaMappingUtils.fallbackAnime()
                 var localMatches = baseList
@@ -152,6 +153,7 @@ class SearchRepositoryImpl @Inject constructor(
                 }
                 if (localMatches.isNotEmpty() && (!hasExplicitFilters || localMatches != baseList)) {
                     result = localMatches
+                    usedLocalFallback = true
                 }
             }
 
@@ -167,7 +169,7 @@ class SearchRepositoryImpl @Inject constructor(
                 }
             }
 
-            if (result.isNotEmpty()) {
+            if (result.isNotEmpty() && !usedLocalFallback) {
                 CacheManager.putSearch(filterKey, "ANIME", result)
             }
             result
@@ -253,6 +255,7 @@ class SearchRepositoryImpl @Inject constructor(
                 }
             }
 
+            var usedLocalFallback = false
             if (result.isEmpty() && page == 1) {
                 val baseList = MediaMappingUtils.fallbackManga()
                 var localMatches = baseList
@@ -275,10 +278,11 @@ class SearchRepositoryImpl @Inject constructor(
                 }
                 if (localMatches.isNotEmpty() && (!hasExplicitFilters || localMatches != baseList)) {
                     result = localMatches
+                    usedLocalFallback = true
                 }
             }
 
-            if (result.isNotEmpty()) {
+            if (result.isNotEmpty() && !usedLocalFallback) {
                 CacheManager.putSearch(filterKey, "MANGA", result)
             }
             result

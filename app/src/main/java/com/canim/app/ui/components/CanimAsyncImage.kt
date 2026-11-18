@@ -23,9 +23,30 @@ fun CanimAsyncImage(
     contentScale: ContentScale = ContentScale.Crop,
     colorFilter: ColorFilter? = null,
     onState: ((AsyncImagePainter.State) -> Unit)? = null
-){
-    var isLoading by remember { mutableStateOf(true) }
+) {
+    var isLoading by remember(model) { mutableStateOf(true) }
 
+    Box(modifier = modifier) {
+        if (isLoading) {
+            ShimmerPlaceholder(modifier = Modifier.matchParentSize())
+        }
+
+        AsyncImage(
+            model = model,
+            contentDescription = contentDescription,
+            modifier = Modifier.matchParentSize(),
+            contentScale = contentScale,
+            colorFilter = colorFilter,
+            onState = { state ->
+                isLoading = state is AsyncImagePainter.State.Loading
+                onState?.invoke(state)
+            }
+        )
+    }
+}
+
+@Composable
+private fun ShimmerPlaceholder(modifier: Modifier = Modifier) {
     val transition = rememberInfiniteTransition(label = "shimmer_transition")
     val translateAnim by transition.animateFloat(
         initialValue = -300f,
@@ -49,25 +70,5 @@ fun CanimAsyncImage(
         end = Offset(translateAnim + 250f, translateAnim + 250f)
     )
 
-    Box(modifier = modifier) {
-        if (isLoading) {
-            Box(
-                modifier = Modifier
-                    .matchParentSize()
-                    .background(shimmerBrush)
-            )
-        }
-
-        AsyncImage(
-            model = model,
-            contentDescription = contentDescription,
-            modifier = Modifier.matchParentSize(),
-            contentScale = contentScale,
-            colorFilter = colorFilter,
-            onState = { state ->
-                isLoading = state is AsyncImagePainter.State.Loading
-                onState?.invoke(state)
-            }
-        )
-    }
+    Box(modifier = modifier.background(shimmerBrush))
 }

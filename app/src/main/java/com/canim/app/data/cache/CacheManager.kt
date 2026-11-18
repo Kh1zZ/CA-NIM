@@ -96,6 +96,14 @@ object CacheManager {
         }
     }
 
+    fun detailKey(anilistId: Int?, malId: Int?, type: MediaType?): String {
+        return if (anilistId == null && malId != null && type == MediaType.MANGA) {
+            "detail_manga_mal_${malId}"
+        } else {
+            detailKey(anilistId, malId)
+        }
+    }
+
     fun malFallbackKey(malId: Int, type: String): String = "mal_fallback_${malId}_${type.uppercase()}"
 
     fun searchKey(query: String, type: String): String = "search_${type.uppercase()}_${query.trim().lowercase()}"
@@ -400,6 +408,14 @@ object CacheManager {
         }
     }
 
+    fun clearTrackingDisk(context: Context) {
+        invalidateTracking()
+        try {
+            File(context.filesDir, "cached_tracking_anime.json").delete()
+            File(context.filesDir, "cached_tracking_manga.json").delete()
+        } catch (_: Exception) {}
+    }
+
     fun updateSingleTrackingItem(item: UserMediaItem) {
         val typeStr = item.type.name
         val current = trackingCache[typeStr]?.data?.toMutableList() ?: return
@@ -546,13 +562,22 @@ object CacheManager {
         if (anilistId != null && malId != null) {
             keysToRemove.add(detailKey(anilistId, malId))
         }
-        if (anilistId != null) {
-            keysToRemove.add(detailKey(anilistId, null))
-            detailCache.keys.filter { it.contains("ani_$anilistId") }.forEach { keysToRemove.add(it) }
+        synchronized(detailCache) {
+            if (anilistId != null) {
+                keysToRemove.add(detailKey(anilistId, null))
+                detailCache.keys.filter {
+                    it == "detail_ani_$anilistId" || it.startsWith("detail_ani_${anilistId}_")
+                }.forEach { keysToRemove.add(it) }
+            }
+            if (malId != null) {
+                keysToRemove.add(detailKey(null, malId))
+                keysToRemove.add(detailKey(null, malId, MediaType.MANGA))
+                detailCache.keys.filter {
+                    it == "detail_mal_$malId" || it == "detail_manga_mal_$malId" || it.endsWith("_mal_$malId")
+                }.forEach { keysToRemove.add(it) }
+            }
         }
         if (malId != null) {
-            keysToRemove.add(detailKey(null, malId))
-            detailCache.keys.filter { it.contains("mal_$malId") }.forEach { keysToRemove.add(it) }
             malFallbackCache.remove(malFallbackKey(malId, "ANIME"))
             malFallbackCache.remove(malFallbackKey(malId, "MANGA"))
         }

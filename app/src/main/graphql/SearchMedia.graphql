@@ -22,7 +22,8 @@ query SearchMedia(
       startDate_greater: $startDateGreater,
       startDate_lesser: $startDateLesser,
       format: $format,
-      sort: [POPULARITY_DESC]
+      sort: [POPULARITY_DESC],
+      isAdult: false
     ) {
       id
       idMal

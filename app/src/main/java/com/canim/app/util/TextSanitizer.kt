@@ -9,8 +9,8 @@ object TextSanitizer {
         if (text.isNullOrBlank()) return ""
 
         var cleaned = text
-            // Replace HTML line breaks with real newlines
-            .replace(Regex("""(?i)<br\s*/?>"""), "\n")
+            // Preserve HTML line breaks across Html.fromHtml whitespace collapsing
+            .replace(Regex("""(?i)<br\s*/?>"""), "[[BR]]")
             // Remove AniList spoiler tags: ~!spoiler content!~ -> spoiler content
             .replace(Regex("""~!([\s\S]*?)!~"""), "$1")
             // Strip markdown bold: __text__ or **text**
@@ -27,6 +27,7 @@ object TextSanitizer {
             .replace(Regex("""\\([()\[\]{}*~_`#+\-.!])"""), "$1")
             // Strip remaining HTML tags
             .replace(Regex("""(?i)</?[a-z0-9]+[^>]*>"""), "")
+            .replace("\n", "[[BR]]")
 
         // Decode HTML entities
         cleaned = try {
@@ -40,8 +41,11 @@ object TextSanitizer {
             decodeManualEntities(cleaned)
         }
 
-        // Clean up redundant line breaks (max 2 consecutive newlines)
-        return cleaned.replace(Regex("\n{3,}"), "\n\n").trim()
+        // Restore preserved line breaks and collapse excessive blank lines
+        return cleaned
+            .replace("[[BR]]", "\n")
+            .replace(Regex("\n{3,}"), "\n\n")
+            .trim()
     }
 
     fun decodeManualEntities(input: String): String {

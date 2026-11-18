@@ -927,7 +927,7 @@ fun WatchingCard(
                 onClick = { onQuickAdd(anime.id) },
                 enabled = canIncrementAnime,
                 modifier = Modifier
-                    .size(28.dp)
+                    .size(40.dp)
                     .testTag("quick_add_${anime.id}"),
                 colors = IconButtonDefaults.filledIconButtonColors(
                     containerColor = AccentBlue,
@@ -1058,7 +1058,7 @@ fun ReadingCard(
                 onClick = { onQuickAdd(manga.id) },
                 enabled = canIncrementManga,
                 modifier = Modifier
-                    .size(28.dp)
+                    .size(40.dp)
                     .testTag("quick_add_${manga.id}"),
                 colors = IconButtonDefaults.filledIconButtonColors(
                     containerColor = MangaAccentDarkBlue,

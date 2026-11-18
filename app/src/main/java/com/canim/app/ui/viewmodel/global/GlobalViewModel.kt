@@ -291,7 +291,6 @@ class GlobalViewModel @Inject constructor(
     }
 
     fun logoutMal(onLogout: (() -> Unit)? = null) {
-        logoutMalUseCase()
         _globalState.update {
             it.copy(
                 malUser = MalUser(),
@@ -300,6 +299,9 @@ class GlobalViewModel @Inject constructor(
         }
         showSnackbar("Akun MyAnimeList telah logout.")
         onLogout?.invoke()
+        viewModelScope.launch(Dispatchers.IO) {
+            logoutMalUseCase()
+        }
     }
 
     fun syncWithMal(onSuccess: (() -> Unit)? = null) {

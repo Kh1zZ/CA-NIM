@@ -480,8 +480,9 @@ fun DiscoverScreen(
             }
         } else {
             val isTopRanking = currentSelectedCategory == DiscoverCategory.TOP_ANIME || currentSelectedCategory == DiscoverCategory.TOP_MANGA
+            val uniqueDisplayed = displayedItems.distinctBy { "${it.type}_${it.malId}_${it.anilistId}" }
             itemsIndexed(
-                displayedItems,
+                uniqueDisplayed,
                 key = { _, it -> "${it.type}_${it.malId}_${it.anilistId}" },
                 contentType = { _, _ -> "discover_item" }
             ) { index, media ->

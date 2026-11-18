@@ -18,6 +18,7 @@ class GachaCreditManager(context: Context) {
         private const val KEY_CREDITS = "gacha_credits"
         private const val KEY_LAST_RESET_WEEK = "last_reset_week"
         private const val KEY_HIGHEST_PROGRESS_PREFIX = "highest_prog_"
+        private const val KEY_ADDED_BONUS_PREFIX = "added_bonus_"
 
         const val BASE_WEEKLY_CREDITS = 5
         const val CREDIT_PER_EPISODE = 1
@@ -153,8 +154,15 @@ class GachaCreditManager(context: Context) {
         val awarded = if (currentProgress > 0) {
             recordProgressAndAwardCredits(mediaId, currentProgress)
         } else {
-            addCredit(1)
-            1
+            val sanitized = mediaId.replace(":", "_").replace("/", "_")
+            val addedKey = KEY_ADDED_BONUS_PREFIX + sanitized
+            if (mediaId.isNotBlank() && !prefs.getBoolean(addedKey, false)) {
+                prefs.edit().putBoolean(addedKey, true).apply()
+                addCredit(1)
+                1
+            } else {
+                0
+            }
         }
         _creditsFlow.value = getCredits()
         return awarded

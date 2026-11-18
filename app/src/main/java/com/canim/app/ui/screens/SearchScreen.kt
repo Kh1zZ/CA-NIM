@@ -225,11 +225,11 @@ fun SearchScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Compact Search Input Box (Height: 44.dp)
+                // Accessible Search Input Box (minHeight: 48.dp)
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .height(44.dp)
+                        .defaultMinSize(minHeight = 48.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(CardBg)
                         .border(
@@ -237,7 +237,7 @@ fun SearchScreen(
                             color = if (isSearchFocused) activeColor else CardBorder,
                             shape = RoundedCornerShape(12.dp)
                         )
-                        .padding(horizontal = 12.dp),
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
                     contentAlignment = Alignment.CenterStart
                 ) {
                     Row(
@@ -291,8 +291,8 @@ fun SearchScreen(
                         if (searchInput.isNotEmpty()) {
                             Box(
                                 modifier = Modifier
-                                    .size(24.dp)
-                                    .clip(RoundedCornerShape(6.dp))
+                                    .size(40.dp)
+                                    .clip(RoundedCornerShape(8.dp))
                                     .clickable {
                                         searchInput = ""
                                         onSearch("", searchType)
@@ -310,7 +310,7 @@ fun SearchScreen(
                     }
                 }
 
-                // Filter Button (Height/Size: 44.dp)
+                // Filter Button (Touch target: 48.dp)
                 IconButton(
                     onClick = {
                         searchType = currentType
@@ -322,7 +322,7 @@ fun SearchScreen(
                         showFilterSheet = true
                     },
                     modifier = Modifier
-                        .size(44.dp)
+                        .size(48.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .background(if (hasActiveFilters) activeColor else CardBg)
                         .border(
@@ -553,9 +553,10 @@ fun SearchScreen(
 
         // Search Results List (Task 2.5: Clicking Card opens Detail Dialog)
         if (!currentIsSearching && currentResults.isNotEmpty()) {
+            val uniqueResults = currentResults.distinctBy { "${it.type}_${it.malId}_${it.anilistId}" }
             item {
                 Text(
-                    text = "Hasil Pencarian (${currentResults.size}) - Ketuk judul untuk detail lengkap",
+                    text = "Hasil Pencarian (${uniqueResults.size}) - Ketuk judul untuk detail lengkap",
                     color = TextSecondary,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
@@ -563,7 +564,7 @@ fun SearchScreen(
             }
 
             items(
-                currentResults,
+                uniqueResults,
                 key = { "${it.type}_${it.malId}_${it.anilistId}" },
                 contentType = { "search_card" }
             ) { item ->

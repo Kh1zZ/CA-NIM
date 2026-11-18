@@ -189,15 +189,61 @@ open class PendingMutationDao(private val db: LocalDatabase) {
      * Transitions a mutation from IN_FLIGHT → PENDING and increments [COL_MUT_ATTEMPTS].
      * Called when a sync attempt fails transiently (network error, non-auth failure).
      */
-    fun incrementAttemptsAndRequeue(id: Long) {
+    fun incrementAttemptsAndRequeue(id: Long) = requeueMutation(id, incrementAttempts = true)
+
+    /**
+     * Transitions a mutation from IN_FLIGHT → PENDING without burning retry budget
+     * (used for offline IOExceptions and HTTP 429 rate limits).
+     */
+    fun requeueWithoutIncrement(id: Long) = requeueMutation(id, incrementAttempts = false)
+
+    private fun requeueMutation(id: Long, incrementAttempts: Boolean) {
         try {
-            // Use raw SQL to safely increment attempts atomically
-            db.writableDatabase.execSQL(
-                "UPDATE $TABLE_PENDING_MUTATIONS SET $COL_MUT_ATTEMPTS = $COL_MUT_ATTEMPTS + 1, $COL_MUT_STATUS = ? WHERE $COL_MUT_ID = ?",
-                arrayOf(STATUS_PENDING, id)
-            )
+            val wdb = db.writableDatabase
+            wdb.beginTransaction()
+            try {
+                // If a newer PENDING mutation was enqueued for the same (malId, mediaType) while this one
+                // was IN_FLIGHT, discard this stale row so FIFO never sends outdated state ahead of it.
+                val cursor = wdb.query(
+                    TABLE_PENDING_MUTATIONS,
+                    arrayOf(COL_MUT_MAL_ID, COL_MUT_MEDIA_TYPE),
+                    "$COL_MUT_ID = ?",
+                    arrayOf(id.toString()),
+                    null, null, null, "1"
+                )
+                val target = cursor.use {
+                    if (it.moveToFirst()) Pair(it.getInt(0), it.getString(1)) else null
+                }
+                val hasNewerPending = if (target != null) {
+                    val c2 = wdb.query(
+                        TABLE_PENDING_MUTATIONS,
+                        arrayOf(COL_MUT_ID),
+                        "$COL_MUT_MAL_ID = ? AND $COL_MUT_MEDIA_TYPE = ? AND $COL_MUT_STATUS = ? AND $COL_MUT_ID != ?",
+                        arrayOf(target.first.toString(), target.second, STATUS_PENDING, id.toString()),
+                        null, null, null, "1"
+                    )
+                    c2.use { it.moveToFirst() }
+                } else false
+
+                if (hasNewerPending) {
+                    wdb.delete(TABLE_PENDING_MUTATIONS, "$COL_MUT_ID = ?", arrayOf(id.toString()))
+                } else if (incrementAttempts) {
+                    wdb.execSQL(
+                        "UPDATE $TABLE_PENDING_MUTATIONS SET $COL_MUT_ATTEMPTS = $COL_MUT_ATTEMPTS + 1, $COL_MUT_STATUS = ? WHERE $COL_MUT_ID = ?",
+                        arrayOf(STATUS_PENDING, id)
+                    )
+                } else {
+                    wdb.execSQL(
+                        "UPDATE $TABLE_PENDING_MUTATIONS SET $COL_MUT_STATUS = ? WHERE $COL_MUT_ID = ?",
+                        arrayOf(STATUS_PENDING, id)
+                    )
+                }
+                wdb.setTransactionSuccessful()
+            } finally {
+                wdb.endTransaction()
+            }
         } catch (e: Exception) {
-            Log.e("PendingMutationDao", "incrementAttemptsAndRequeue failed for id=$id: ${e.message}", e)
+            Log.e("PendingMutationDao", "requeueMutation failed for id=$id: ${e.message}", e)
         }
     }
 

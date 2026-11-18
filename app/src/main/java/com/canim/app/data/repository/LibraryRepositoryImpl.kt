@@ -81,7 +81,9 @@ class LibraryRepositoryImpl(
         }
 
         if (dao != null && forceRefresh) {
-            return@withContext safeReconcileAnime()
+            return@withContext safeReconcileMedia("ANIME", MediaType.ANIME) {
+                malAuthManager.fetchUserAnimeList(forceRefresh = true)
+            }
         }
 
         val result = malAuthManager.fetchUserAnimeList(forceRefresh = forceRefresh)
@@ -108,16 +110,20 @@ class LibraryRepositoryImpl(
         }
     }
 
-    private suspend fun safeReconcileAnime(): MalFetchResult<List<UserMediaItem>> {
+    private suspend fun safeReconcileMedia(
+        mediaTypeStr: String,
+        mediaType: MediaType,
+        fetchServer: suspend () -> MalFetchResult<List<UserMediaItem>>
+    ): MalFetchResult<List<UserMediaItem>> {
         val dao = libraryDao ?: return MalFetchResult.Failure(Exception("LibraryDao not wired"))
         val mutDao = pendingMutationDao
 
         try {
-            mutDao?.resetFailedPermanentlyToPending("ANIME")
+            mutDao?.resetFailedPermanentlyToPending(mediaTypeStr)
             syncEngine?.drainQueue()
         } catch (_: Exception) {}
 
-        val result = malAuthManager.fetchUserAnimeList(forceRefresh = true)
+        val result = fetchServer()
         if (result is MalFetchResult.Failure) return result
 
         val serverItems = when (result) {
@@ -126,34 +132,37 @@ class LibraryRepositoryImpl(
             else -> emptyList()
         }
 
-        val activePendingMalIds = mutDao?.getActiveMalIds("ANIME") ?: emptySet()
-        val enrichedServer = enrichWithAniListMetadata(serverItems, MediaType.ANIME)
+        val activePendingMalIds = mutDao?.getActiveMalIds(mediaTypeStr) ?: emptySet()
+        val enrichedServer = enrichWithAniListMetadata(serverItems, mediaType)
 
         enrichedServer.forEach { serverItem ->
             val malId = serverItem.malId ?: return@forEach
             if (malId !in activePendingMalIds) {
-                val existing = dao.getEntry(malId, "ANIME")
+                val existing = dao.getEntry(malId, mediaTypeStr)
                 val entryToSave = if (existing != null) {
-                    mergeServerWithExisting(serverItem.toLibraryEntry("ANIME"), existing)
+                    mergeServerWithExisting(serverItem.toLibraryEntry(mediaTypeStr), existing)
                 } else {
-                    serverItem.toLibraryEntry("ANIME")
+                    serverItem.toLibraryEntry(mediaTypeStr)
                 }
                 dao.upsertEntry(entryToSave)
             }
         }
 
-        val serverMalIds = enrichedServer.mapNotNull { it.malId }.toSet()
-        val localMalIds = dao.getAllMalIds("ANIME")
-        (localMalIds - serverMalIds).forEach { orphanId ->
-            if (orphanId !in activePendingMalIds) {
-                dao.deleteEntry(orphanId, "ANIME")
+        // Only prune missing entries on a complete fetch; a Partial page failure must NOT delete unreached pages.
+        if (result is MalFetchResult.Success) {
+            val serverMalIds = enrichedServer.mapNotNull { it.malId }.toSet()
+            val localMalIds = dao.getAllMalIds(mediaTypeStr)
+            (localMalIds - serverMalIds).forEach { orphanId ->
+                if (orphanId !in activePendingMalIds) {
+                    dao.deleteEntry(orphanId, mediaTypeStr)
+                }
             }
         }
 
-        val finalItems = dao.getAllEntries("ANIME").map { it.toUserMediaItem { json -> parseJsonList(json) } }
-        CacheManager.putTracking("ANIME", finalItems)
+        val finalItems = dao.getAllEntries(mediaTypeStr).map { it.toUserMediaItem { json -> parseJsonList(json) } }
+        CacheManager.putTracking(mediaTypeStr, finalItems)
         context?.let {
-            CacheManager.saveTrackingToDisk(it, "ANIME", finalItems)
+            CacheManager.saveTrackingToDisk(it, mediaTypeStr, finalItems)
         }
         mutDao?.clearSucceeded()
 
@@ -176,7 +185,9 @@ class LibraryRepositoryImpl(
         }
 
         if (dao != null && forceRefresh) {
-            return@withContext safeReconcileManga()
+            return@withContext safeReconcileMedia("MANGA", MediaType.MANGA) {
+                malAuthManager.fetchUserMangaList(forceRefresh = true)
+            }
         }
 
         val result = malAuthManager.fetchUserMangaList(forceRefresh = forceRefresh)
@@ -200,61 +211,6 @@ class LibraryRepositoryImpl(
                 }
                 MalFetchResult.Partial(enriched, result.fetchedItems, result.error)
             }
-        }
-    }
-
-    private suspend fun safeReconcileManga(): MalFetchResult<List<UserMediaItem>> {
-        val dao = libraryDao ?: return MalFetchResult.Failure(Exception("LibraryDao not wired"))
-        val mutDao = pendingMutationDao
-
-        try {
-            mutDao?.resetFailedPermanentlyToPending("MANGA")
-            syncEngine?.drainQueue()
-        } catch (_: Exception) {}
-
-        val result = malAuthManager.fetchUserMangaList(forceRefresh = true)
-        if (result is MalFetchResult.Failure) return result
-
-        val serverItems = when (result) {
-            is MalFetchResult.Success -> result.data
-            is MalFetchResult.Partial -> result.data
-            else -> emptyList()
-        }
-
-        val activePendingMalIds = mutDao?.getActiveMalIds("MANGA") ?: emptySet()
-        val enrichedServer = enrichWithAniListMetadata(serverItems, MediaType.MANGA)
-
-        enrichedServer.forEach { serverItem ->
-            val malId = serverItem.malId ?: return@forEach
-            if (malId !in activePendingMalIds) {
-                val existing = dao.getEntry(malId, "MANGA")
-                val entryToSave = if (existing != null) {
-                    mergeServerWithExisting(serverItem.toLibraryEntry("MANGA"), existing)
-                } else {
-                    serverItem.toLibraryEntry("MANGA")
-                }
-                dao.upsertEntry(entryToSave)
-            }
-        }
-        val serverMalIds = enrichedServer.mapNotNull { it.malId }.toSet()
-        val localMalIds = dao.getAllMalIds("MANGA")
-        (localMalIds - serverMalIds).forEach { orphanId ->
-            if (orphanId !in activePendingMalIds) {
-                dao.deleteEntry(orphanId, "MANGA")
-            }
-        }
-
-        val finalItems = dao.getAllEntries("MANGA").map { it.toUserMediaItem { json -> parseJsonList(json) } }
-        CacheManager.putTracking("MANGA", finalItems)
-        context?.let {
-            CacheManager.saveTrackingToDisk(it, "MANGA", finalItems)
-        }
-        mutDao?.clearSucceeded()
-
-        return when (result) {
-            is MalFetchResult.Success -> MalFetchResult.Success(finalItems, finalItems.size)
-            is MalFetchResult.Partial -> MalFetchResult.Partial(finalItems, finalItems.size, result.error)
-            else -> MalFetchResult.Success(finalItems, finalItems.size)
         }
     }
 
@@ -462,8 +418,10 @@ class LibraryRepositoryImpl(
         }
 
         if (enrichedItem.isAnime) {
+            if (malId <= 0) return@withContext Result.failure(IllegalStateException("MAL ID tidak ditemukan untuk \"${item.title}\""))
             malAuthManager.updateAnimeTracking(malId, enrichedItem.tracking)
         } else {
+            if (malId <= 0) return@withContext Result.failure(IllegalStateException("MAL ID tidak ditemukan untuk \"${item.title}\""))
             malAuthManager.updateMangaTracking(malId, enrichedItem.tracking)
         }
     }

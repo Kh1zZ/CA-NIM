@@ -515,7 +515,7 @@ fun AnimeLibraryCard(
                     onClick = { onQuickDecrement(anime.id) },
                     enabled = anime.progress > 0,
                     modifier = Modifier
-                        .size(30.dp)
+                        .size(40.dp)
                         .testTag("anime_decrement_btn_${anime.id}"),
                     colors = IconButtonDefaults.filledIconButtonColors(
                         containerColor = CardElevated,
@@ -538,7 +538,7 @@ fun AnimeLibraryCard(
                     onClick = { onQuickAdd(anime.id) },
                     enabled = canIncrementAnime,
                     modifier = Modifier
-                        .size(30.dp)
+                        .size(40.dp)
                         .testTag("anime_increment_btn_${anime.id}"),
                     colors = IconButtonDefaults.filledIconButtonColors(
                         containerColor = CardElevated,
@@ -658,7 +658,7 @@ fun MangaLibraryCard(
                     onClick = { onQuickDecrement(manga.id) },
                     enabled = manga.progressChapters > 0,
                     modifier = Modifier
-                        .size(30.dp)
+                        .size(40.dp)
                         .testTag("manga_decrement_btn_${manga.id}"),
                     colors = IconButtonDefaults.filledIconButtonColors(
                         containerColor = CardElevated,
@@ -681,7 +681,7 @@ fun MangaLibraryCard(
                     onClick = { onQuickAdd(manga.id) },
                     enabled = canIncrementManga,
                     modifier = Modifier
-                        .size(30.dp)
+                        .size(40.dp)
                         .testTag("manga_increment_btn_${manga.id}"),
                     colors = IconButtonDefaults.filledIconButtonColors(
                         containerColor = CardElevated,

@@ -20,8 +20,47 @@ class MalSecureStorage(private val context: Context) {
             }
             createEncryptedPrefs(context)
         } catch (e2: Exception) {
-            Log.e("MalSecureStorage", "Recovery failed, falling back to private SharedPreferences", e2)
-            context.getSharedPreferences(PREFS_FILENAME_FALLBACK, Context.MODE_PRIVATE)
+            Log.e("MalSecureStorage", "Encrypted storage recovery failed; using volatile in-memory storage (never plaintext disk)", e2)
+            InMemorySharedPreferences()
+        }
+    }
+
+    /**
+     * Volatile in-memory SharedPreferences fallback so OAuth tokens are never
+     * persisted as plaintext on disk if Android Keystore fails.
+     */
+    private class InMemorySharedPreferences : SharedPreferences {
+        private val map = java.util.concurrent.ConcurrentHashMap<String, Any>()
+        private val listeners = java.util.concurrent.CopyOnWriteArraySet<SharedPreferences.OnSharedPreferenceChangeListener>()
+
+        override fun getAll(): MutableMap<String, *> = HashMap(map)
+        override fun getString(key: String?, defValue: String?): String? = (key?.let { map[it] } as? String) ?: defValue
+        @Suppress("UNCHECKED_CAST")
+        override fun getStringSet(key: String?, defValues: MutableSet<String>?): MutableSet<String>? = (key?.let { map[it] } as? Set<String>)?.toMutableSet() ?: defValues
+        override fun getInt(key: String?, defValue: Int): Int = (key?.let { map[it] } as? Int) ?: defValue
+        override fun getLong(key: String?, defValue: Long): Long = (key?.let { map[it] } as? Long) ?: defValue
+        override fun getFloat(key: String?, defValue: Float): Float = (key?.let { map[it] } as? Float) ?: defValue
+        override fun getBoolean(key: String?, defValue: Boolean): Boolean = (key?.let { map[it] } as? Boolean) ?: defValue
+        override fun contains(key: String?): Boolean = key != null && map.containsKey(key)
+        override fun registerOnSharedPreferenceChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener?) { listener?.let { listeners.add(it) } }
+        override fun unregisterOnSharedPreferenceChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener?) { listener?.let { listeners.remove(it) } }
+        override fun edit(): SharedPreferences.Editor = object : SharedPreferences.Editor {
+            private val pending = HashMap<String, Any?>()
+            private var clearRequested = false
+            override fun putString(key: String?, value: String?) = apply { if (key != null) pending[key] = value }
+            override fun putStringSet(key: String?, values: MutableSet<String>?) = apply { if (key != null) pending[key] = values?.toSet() }
+            override fun putInt(key: String?, value: Int) = apply { if (key != null) pending[key] = value }
+            override fun putLong(key: String?, value: Long) = apply { if (key != null) pending[key] = value }
+            override fun putFloat(key: String?, value: Float) = apply { if (key != null) pending[key] = value }
+            override fun putBoolean(key: String?, value: Boolean) = apply { if (key != null) pending[key] = value }
+            override fun remove(key: String?) = apply { if (key != null) pending[key] = null }
+            override fun clear() = apply { clearRequested = true }
+            override fun commit(): Boolean { apply(); return true }
+            override fun apply() {
+                if (clearRequested) map.clear()
+                pending.forEach { (k, v) -> if (v == null) map.remove(k) else map[k] = v }
+                pending.keys.forEach { k -> listeners.forEach { it.onSharedPreferenceChanged(this@InMemorySharedPreferences, k) } }
+            }
         }
     }
 

@@ -717,60 +717,68 @@ object AniListApolloClient {
         val dedupeKey = "studio_${studioId}_${search}_${page}_${sort.name}_main_$isMain"
         AniListClient.deduplicateInFlight(dedupeKey) {
             AniListMetrics.recordRequest()
-            try {
-                val query = GetStudioFilmographyQuery(
-                    id = if (studioId != null) Optional.present(studioId) else Optional.absent(),
-                    search = if (!search.isNullOrBlank()) Optional.present(search) else Optional.absent(),
-                    page = Optional.present(page),
-                    perPage = Optional.present(perPage),
-                    sort = Optional.present(apolloSort),
-                    isMain = Optional.present(isMain)
-                )
-                val response = client.query(query).execute()
-                val studioObj = response.data?.Studio ?: return@deduplicateInFlight null
-
-                val resolvedId = studioObj.id
-                val resolvedName = studioObj.name
-                val isAnimationStudio = studioObj.isAnimationStudio
-                val siteUrl = studioObj.siteUrl?.takeIf { it.isNotBlank() }
-                val favourites = studioObj.favourites?.takeIf { it > 0 }
-
-                val pageInfo = studioObj.media?.pageInfo
-                val hasNextPage = pageInfo?.hasNextPage ?: false
-                val currentPage = pageInfo?.currentPage ?: page
-                val total = pageInfo?.total ?: 0
-
-                val seenIds = mutableSetOf<Int>()
-                val items = (studioObj.media?.nodes ?: emptyList())
-                    .filterNotNull()
-                    .mapNotNull { node ->
-                        if (!seenIds.add(node.id)) null
-                        else {
-                            if (node.idMal != null && node.idMal > 0) {
-                                val mType = if (node.type?.rawValue == "MANGA") MediaType.MANGA else MediaType.ANIME
-                                CacheManager.putIdMapping(malId = node.idMal, aniListId = node.id, type = mType)
-                            }
-                            AniListApolloMapper.toStudioFilmographyItem(node, resolvedName)
-                        }
+            val res = withAniListPolicy(operationName = "studioFilmography") { isFinalAttempt ->
+                ApolloErrorMapper.safeApolloCall(recordMetrics = isFinalAttempt) {
+                    val query = GetStudioFilmographyQuery(
+                        id = if (studioId != null) Optional.present(studioId) else Optional.absent(),
+                        search = if (!search.isNullOrBlank()) Optional.present(search) else Optional.absent(),
+                        page = Optional.present(page),
+                        perPage = Optional.present(perPage),
+                        sort = Optional.present(apolloSort),
+                        isMain = Optional.present(isMain)
+                    )
+                    val response = client.query(query).execute()
+                    response.exception?.let { throw it }
+                    if (response.hasErrors()) {
+                        val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
+                        if (errorResult != null) return@safeApolloCall errorResult
                     }
+                    val studioObj = response.data?.Studio ?: return@safeApolloCall AniListResult.NotFound
 
-                val result = StudioFilmographyPage(
-                    studioId = resolvedId,
-                    studioName = resolvedName,
-                    items = items,
-                    hasNextPage = hasNextPage,
-                    currentPage = currentPage,
-                    total = total,
-                    siteUrl = siteUrl,
-                    favourites = favourites,
-                    isAnimationStudio = isAnimationStudio
-                )
-                CacheManager.putStudioFilmography(resolvedId, page, result, sort)
-                result
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                ApolloErrorMapper.toAniListResult(e)
+                    val resolvedId = studioObj.id
+                    val resolvedName = studioObj.name
+                    val isAnimationStudio = studioObj.isAnimationStudio
+                    val siteUrl = studioObj.siteUrl?.takeIf { it.isNotBlank() }
+                    val favourites = studioObj.favourites?.takeIf { it > 0 }
+
+                    val pageInfo = studioObj.media?.pageInfo
+                    val hasNextPage = pageInfo?.hasNextPage ?: false
+                    val currentPage = pageInfo?.currentPage ?: page
+                    val total = pageInfo?.total ?: 0
+
+                    val seenIds = mutableSetOf<Int>()
+                    val items = (studioObj.media?.nodes ?: emptyList())
+                        .filterNotNull()
+                        .mapNotNull { node ->
+                            if (!seenIds.add(node.id)) null
+                            else {
+                                if (node.idMal != null && node.idMal > 0) {
+                                    val mType = if (node.type?.rawValue == "MANGA") MediaType.MANGA else MediaType.ANIME
+                                    CacheManager.putIdMapping(malId = node.idMal, aniListId = node.id, type = mType)
+                                }
+                                AniListApolloMapper.toStudioFilmographyItem(node, resolvedName)
+                            }
+                        }
+
+                    AniListResult.Success(
+                        StudioFilmographyPage(
+                            studioId = resolvedId,
+                            studioName = resolvedName,
+                            items = items,
+                            hasNextPage = hasNextPage,
+                            currentPage = currentPage,
+                            total = total,
+                            siteUrl = siteUrl,
+                            favourites = favourites,
+                            isAnimationStudio = isAnimationStudio
+                        )
+                    )
+                }
+            }
+            if (res is AniListResult.Success) {
+                CacheManager.putStudioFilmography(res.data.studioId, page, res.data, sort)
+                res.data
+            } else {
                 null
             }
         }
@@ -790,48 +798,51 @@ object AniListApolloClient {
         val dedupeKey = "search_studio_${query.trim().lowercase()}_${page}"
         AniListClient.deduplicateInFlight(dedupeKey) {
             AniListMetrics.recordRequest()
-            try {
-                val q = SearchStudiosQuery(
-                    search = Optional.present(query.trim()),
-                    page = Optional.present(page),
-                    perPage = Optional.present(perPage)
-                )
-                val response = client.query(q).execute()
-                val studios = response.data?.Page?.studios ?: return@deduplicateInFlight emptyList()
-
-                val results = mutableListOf<StudioBioInfo>()
-                for (s in studios) {
-                    if (s == null) continue
-                    val sId = s.id.takeIf { it > 0 } ?: continue
-                    val sName = s.name.takeIf { it.isNotBlank() } ?: continue
-                    val favs = s.favourites?.takeIf { it > 0 }
-                    val siteUrl = s.siteUrl?.takeIf { it.isNotBlank() }
-
-                    // Top popular anime cover image
-                    val topCover = s.media?.nodes
-                        ?.firstOrNull()
-                        ?.coverImage
-                        ?.let { img ->
-                            img.large?.takeIf { it.isNotBlank() }
-                                ?: img.extraLarge?.takeIf { it.isNotBlank() }
-                        }
-
-                    val info = StudioBioInfo(
-                        studioId = sId,
-                        name = sName,
-                        coverUrl = topCover,
-                        favourites = favs,
-                        officialSite = siteUrl
+            val res = withAniListPolicy(operationName = "searchStudios") { isFinalAttempt ->
+                ApolloErrorMapper.safeApolloCall(recordMetrics = isFinalAttempt) {
+                    val q = SearchStudiosQuery(
+                        search = Optional.present(query.trim()),
+                        page = Optional.present(page),
+                        perPage = Optional.present(perPage)
                     )
-                    results.add(info)
+                    val response = client.query(q).execute()
+                    response.exception?.let { throw it }
+                    if (response.hasErrors()) {
+                        val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
+                        if (errorResult != null) return@safeApolloCall errorResult
+                    }
+                    val studios = response.data?.Page?.studios ?: return@safeApolloCall AniListResult.Success(emptyList())
+
+                    val results = mutableListOf<StudioBioInfo>()
+                    for (s in studios) {
+                        if (s == null) continue
+                        val sId = s.id.takeIf { it > 0 } ?: continue
+                        val sName = s.name.takeIf { it.isNotBlank() } ?: continue
+                        val favs = s.favourites?.takeIf { it > 0 }
+                        val siteUrl = s.siteUrl?.takeIf { it.isNotBlank() }
+
+                        val topCover = s.media?.nodes
+                            ?.firstOrNull()
+                            ?.coverImage
+                            ?.let { img ->
+                                img.large?.takeIf { it.isNotBlank() }
+                                    ?: img.extraLarge?.takeIf { it.isNotBlank() }
+                            }
+
+                        results.add(
+                            StudioBioInfo(
+                                studioId = sId,
+                                name = sName,
+                                coverUrl = topCover,
+                                favourites = favs,
+                                officialSite = siteUrl
+                            )
+                        )
+                    }
+                    AniListResult.Success(results)
                 }
-                results
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                ApolloErrorMapper.toAniListResult(e)
-                emptyList()
             }
+            res.getOrNull() ?: emptyList()
         }
     }
 
@@ -953,6 +964,9 @@ object AniListApolloClient {
         filter.format?.let {
             apolloFormat = Optional.present(MediaFormat.safeValueOf(it))
         }
+        filter.status?.takeIf { it.isNotBlank() }?.let {
+            apolloStatus = Optional.present(MediaStatus.safeValueOf(it.uppercase()))
+        }
         filter.countryOfOrigin?.takeIf { it.isNotBlank() }?.let {
             apolloCountryOfOrigin = Optional.present(it.trim().uppercase())
         }
@@ -960,40 +974,44 @@ object AniListApolloClient {
         val dedupeKey = "discover_${cacheKey}"
         AniListClient.deduplicateInFlight(dedupeKey) {
             AniListMetrics.recordRequest()
-            try {
-                val q = GetDiscoverMediaQuery(
-                    page = Optional.present(page),
-                    perPage = Optional.present(perPage),
-                    type = Optional.present(apolloType),
-                    status = apolloStatus,
-                    seasonYear = apolloSeasonYear,
-                    season = apolloSeason,
-                    genre = apolloGenre,
-                    format = apolloFormat,
-                    averageScore_greater = apolloMinScore,
-                    sort = apolloSort,
-                    countryOfOrigin = apolloCountryOfOrigin
-                )
-                val response = client.query(q).execute()
-                val mediaList = response.data?.Page?.media ?: emptyList()
-                val items = mediaList.filterNotNull().map { m ->
-                    if (m.idMal != null) {
-                        CacheManager.putIdMapping(malId = m.idMal, aniListId = m.id, type = fallbackType)
+            val res = withAniListPolicy(operationName = "getDiscoverMedia") { isFinalAttempt ->
+                ApolloErrorMapper.safeApolloCall(recordMetrics = isFinalAttempt) {
+                    val q = GetDiscoverMediaQuery(
+                        page = Optional.present(page),
+                        perPage = Optional.present(perPage),
+                        type = Optional.present(apolloType),
+                        status = apolloStatus,
+                        seasonYear = apolloSeasonYear,
+                        season = apolloSeason,
+                        genre = apolloGenre,
+                        format = apolloFormat,
+                        averageScore_greater = apolloMinScore,
+                        sort = apolloSort,
+                        countryOfOrigin = apolloCountryOfOrigin
+                    )
+                    val response = client.query(q).execute()
+                    response.exception?.let { throw it }
+                    if (response.hasErrors()) {
+                        val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
+                        if (errorResult != null) return@safeApolloCall errorResult
                     }
-                    val item = AniListApolloMapper.toDiscoverMediaItem(m, fallbackType)
-                    if (m.idMal != null) {
-                        CacheManager.putMetadata(m.idMal, fallbackType, item)
+                    val mediaList = response.data?.Page?.media ?: emptyList()
+                    val items = mediaList.filterNotNull().map { m ->
+                        if (m.idMal != null) {
+                            CacheManager.putIdMapping(malId = m.idMal, aniListId = m.id, type = fallbackType)
+                        }
+                        val item = AniListApolloMapper.toDiscoverMediaItem(m, fallbackType)
+                        if (m.idMal != null) {
+                            CacheManager.putMetadata(m.idMal, fallbackType, item)
+                        }
+                        item
                     }
-                    item
+                    AniListResult.Success(items)
                 }
-                if (items.isNotEmpty()) CacheManager.putDiscover(cacheKey, items)
-                items
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Throwable) {
-                ApolloErrorMapper.toAniListResult(e)
-                emptyList()
             }
+            val items = res.getOrNull() ?: emptyList()
+            if (items.isNotEmpty()) CacheManager.putDiscover(cacheKey, items)
+            items
         }
     }
 
@@ -1033,43 +1051,46 @@ object AniListApolloClient {
         val apolloType: ApolloMediaType = if (type == MediaType.ANIME) ApolloMediaType.ANIME else ApolloMediaType.MANGA
 
         for (chunk in missingIds.chunked(50)) {
-            // Apply rate limiter backpressure so multi-chunk batch queries don't burst AniList
-            ApiClient.aniListLimiter.acquire()
-
             val dedupeKey = "batch_${chunk.sorted().hashCode()}_${type.name}"
             val chunkMap = AniListClient.deduplicateInFlight(dedupeKey) {
                 AniListMetrics.recordRequest()
-                try {
-                    val q = GetMediaBatchByMalIdsQuery(
-                        idMal_in = Optional.present(chunk),
-                        type = Optional.present(apolloType)
-                    )
-                    val response = client.query(q).execute()
-                    val mediaList = response.data?.Page?.media ?: emptyList()
-                    val chunkResult = mutableMapOf<Int, MediaItem>()
-                    val foundMalIds = mutableSetOf<Int>()
-                    for (m in mediaList.filterNotNull()) {
-                        if (m.idMal != null) {
-                            foundMalIds.add(m.idMal)
-                            CacheManager.putIdMapping(malId = m.idMal, aniListId = m.id, type = type)
+                val res = withAniListPolicy(operationName = "getMediaBatchByMalIds") { isFinalAttempt ->
+                    ApolloErrorMapper.safeApolloCall(recordMetrics = isFinalAttempt) {
+                        val q = GetMediaBatchByMalIdsQuery(
+                            idMal_in = Optional.present(chunk),
+                            type = Optional.present(apolloType)
+                        )
+                        val response = client.query(q).execute()
+                        response.exception?.let { throw it }
+                        if (response.hasErrors()) {
+                            val errorResult = ApolloErrorMapper.handleGraphQLErrors(response.errors)
+                            if (errorResult != null) return@safeApolloCall errorResult
                         }
-                        val item = AniListApolloMapper.toBatchMediaItem(m, type)
-                        m.idMal?.let { malId ->
-                            chunkResult[malId] = item
-                            CacheManager.putMetadata(malId, type, item)
+                        val pageMedia = response.data?.Page?.media
+                            ?: return@safeApolloCall AniListResult.Success(emptyMap<Int, MediaItem>())
+
+                        val chunkResult = mutableMapOf<Int, MediaItem>()
+                        val foundMalIds = mutableSetOf<Int>()
+                        for (m in pageMedia.filterNotNull()) {
+                            if (m.idMal != null) {
+                                foundMalIds.add(m.idMal)
+                                CacheManager.putIdMapping(malId = m.idMal, aniListId = m.id, type = type)
+                            }
+                            val item = AniListApolloMapper.toBatchMediaItem(m, type)
+                            m.idMal?.let { malId ->
+                                chunkResult[malId] = item
+                                CacheManager.putMetadata(malId, type, item)
+                            }
                         }
+                        // Only negative-cache missing IDs after a verified error-free GraphQL response
+                        val missingInBatch = chunk.toSet() - foundMalIds
+                        for (missingId in missingInBatch) {
+                            CacheManager.putNegativeCache("resolve_mal_${missingId}_${type.name}")
+                        }
+                        AniListResult.Success(chunkResult.toMap())
                     }
-                    val missingInBatch = chunk.toSet() - foundMalIds
-                    for (missingId in missingInBatch) {
-                        CacheManager.putNegativeCache("resolve_mal_${missingId}_${type.name}")
-                    }
-                    chunkResult
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Throwable) {
-                    ApolloErrorMapper.toAniListResult(e)
-                    mutableMapOf()
                 }
+                res.getOrNull() ?: emptyMap()
             }
             resultMap.putAll(chunkMap)
         }

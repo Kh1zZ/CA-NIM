@@ -30,11 +30,16 @@ class TodayAiringWidgetProvider : AppWidgetProvider() {
                 val prefs = context.getSharedPreferences("widget_prefs", Context.MODE_PRIVATE)
                 prefs.edit().putInt("airing_offset_$appWidgetId", offset).apply()
 
+                val pendingResult = goAsync()
                 val appWidgetManager = AppWidgetManager.getInstance(context)
                 val appScope = (context.applicationContext as? CanimApplication)?.appScope
                     ?: kotlinx.coroutines.CoroutineScope(Dispatchers.IO)
                 appScope.launch(Dispatchers.IO) {
-                    renderWidgets(context, appWidgetManager, intArrayOf(appWidgetId))
+                    try {
+                        renderWidgets(context, appWidgetManager, intArrayOf(appWidgetId))
+                    } finally {
+                        pendingResult.finish()
+                    }
                 }
             }
         }
@@ -45,10 +50,15 @@ class TodayAiringWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
+        val pendingResult = goAsync()
         val appScope = (context.applicationContext as? CanimApplication)?.appScope
             ?: kotlinx.coroutines.CoroutineScope(Dispatchers.IO)
         appScope.launch(Dispatchers.IO) {
-            renderWidgets(context, appWidgetManager, appWidgetIds)
+            try {
+                renderWidgets(context, appWidgetManager, appWidgetIds)
+            } finally {
+                pendingResult.finish()
+            }
         }
     }
 

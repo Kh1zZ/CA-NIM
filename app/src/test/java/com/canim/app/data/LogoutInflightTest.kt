@@ -1,12 +1,27 @@
 package com.canim.app.data
 
+import android.net.Uri
+import com.canim.app.data.cache.CacheManager
 import com.canim.app.data.local.FakeNetworkChecker
 import com.canim.app.data.local.LibraryDao
 import com.canim.app.data.local.LibraryEntry
 import com.canim.app.data.local.LibrarySyncEngine
 import com.canim.app.data.local.LocalDatabase
+import com.canim.app.data.local.MalSecureStorage
 import com.canim.app.data.local.PendingMutation
 import com.canim.app.data.local.PendingMutationDao
+import com.canim.app.data.remote.ApiClient
+import com.canim.app.data.remote.MalApiService
+import com.canim.app.data.repository.AuthRepositoryImpl
+import com.canim.app.data.repository.MalAuthManager
+import kotlinx.coroutines.runBlocking
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Response
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.ResponseBody.Companion.toResponseBody
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
@@ -175,5 +190,53 @@ class LogoutInflightTest {
         engine.onLogout()
         engine.onLogout()
         assertTrue(engine.isLoggedOut)
+    }
+
+    @Test
+    fun `authRepository handleMalOAuthCallback unlocks syncEngine after logoutMal`() = runBlocking {
+        val context = RuntimeEnvironment.getApplication()
+        val malAuth = MalAuthManager(MalSecureStorage(context))
+        val authRepo = AuthRepositoryImpl(malAuth, engine, null)
+
+        val jsonType = "application/json; charset=utf-8".toMediaType()
+        val mockClient = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val req = chain.request()
+                val bodyJson = if (req.url.toString().contains("oauth2/token")) {
+                    """{"token_type":"Bearer","expires_in":3600,"access_token":"tok","refresh_token":"ref"}"""
+                } else {
+                    """{"id":42,"name":"canim_user","picture":null}"""
+                }
+                Response.Builder()
+                    .request(req)
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body(bodyJson.toResponseBody(jsonType))
+                    .build()
+            }
+            .build()
+        val fakeService = Retrofit.Builder()
+            .baseUrl("https://api.myanimelist.net/v2/")
+            .client(mockClient)
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(MalApiService::class.java)
+
+        ApiClient.setMalApiForTesting(fakeService)
+        try {
+            authRepo.logoutMal()
+            assertTrue("Engine should be locked right after logoutMal", engine.isLoggedOut)
+
+            val state = Uri.parse(authRepo.buildMalAuthorizeUrl()).getQueryParameter("state")
+            val result = authRepo.handleMalOAuthCallback("auth_code", state)
+
+            assertTrue("OAuth callback should succeed", result.isSuccess)
+            assertFalse("Engine should be unlocked after handleMalOAuthCallback", engine.isLoggedOut)
+        } finally {
+            ApiClient.setMalApiForTesting(null)
+            malAuth.logout()
+            CacheManager.invalidateTracking()
+        }
     }
 }

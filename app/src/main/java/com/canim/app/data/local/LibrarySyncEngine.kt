@@ -245,12 +245,16 @@ class LibrarySyncEngine(
             }
 
             if (result.isSuccess) {
-                pendingMutationDao.markSucceeded(mutId)
-                libraryDao.markSynced(malId, mediaType)
+                if (!isLoggedOut) {
+                    pendingMutationDao.markSucceeded(mutId)
+                    libraryDao.markSynced(malId, mediaType)
+                }
                 Log.d(TAG, "sendMutation: SUCCESS id=$mutId malId=$malId type=${mutation.mutationType}")
                 true
             } else {
-                handleSendFailure(mutation, result.exceptionOrNull())
+                if (!isLoggedOut) {
+                    handleSendFailure(mutation, result.exceptionOrNull())
+                }
                 false
             }
         } catch (e: CancellationException) {
@@ -261,26 +265,43 @@ class LibrarySyncEngine(
             }
             throw e  // Always re-throw CancellationException
         } catch (e: Exception) {
-            handleSendFailure(mutation, e)
+            if (!isLoggedOut) {
+                handleSendFailure(mutation, e)
+            }
             false
         }
     }
 
     /**
      * Handles a failed send attempt:
-     * - If [mutation.attempts] + 1 < [maxAttempts]: requeue (PENDING) with incremented counter.
-     * - Otherwise: mark FAILED_PERMANENTLY.
+     * - Offline / IOException / HTTP 429 rate limits stay PENDING without burning retry budget.
+     * - Permanent 4xx client errors (400/403/404/422) fail immediately to stop hopeless retries.
+     * - Other errors retry up to [maxAttempts] before FAILED_PERMANENTLY; HTTP 5xx metric is recorded only for 5xx.
      */
     private fun handleSendFailure(mutation: PendingMutation, cause: Throwable?) {
+        val msg = cause?.message.orEmpty()
+        val isTransientNetworkOrRateLimit = cause is java.io.IOException ||
+            msg.contains("HTTP 429")
+        if (isTransientNetworkOrRateLimit) {
+            AppMetrics.recordRetry("local_sync", mutation.mutationType)
+            pendingMutationDao.requeueWithoutIncrement(mutation.id)
+            Log.w(TAG, "sendMutation: TRANSIENT id=${mutation.id} malId=${mutation.malId}: $msg")
+            return
+        }
+
+        val httpCode = Regex("""HTTP\s+(\d{3})""").find(msg)?.groupValues?.getOrNull(1)?.toIntOrNull()
+        val isPermanentClientError = httpCode != null && httpCode in listOf(400, 403, 404, 422)
         val newAttempts = mutation.attempts + 1
-        if (newAttempts < maxAttempts) {
+        if (!isPermanentClientError && newAttempts < maxAttempts) {
             AppMetrics.recordRetry("local_sync", mutation.mutationType)
             pendingMutationDao.incrementAttemptsAndRequeue(mutation.id)
-            Log.w(TAG, "sendMutation: FAILURE id=${mutation.id} malId=${mutation.malId} attempts=$newAttempts/${maxAttempts}: ${cause?.message}")
+            Log.w(TAG, "sendMutation: FAILURE id=${mutation.id} malId=${mutation.malId} attempts=$newAttempts/${maxAttempts}: $msg")
         } else {
-            AppMetrics.recordHttp5xx("local_sync", mutation.mutationType, 500)
+            if (httpCode != null && httpCode in 500..599) {
+                AppMetrics.recordHttp5xx("local_sync", mutation.mutationType, httpCode)
+            }
             pendingMutationDao.markFailedPermanently(mutation.id)
-            Log.e(TAG, "sendMutation: FAILED_PERMANENTLY id=${mutation.id} malId=${mutation.malId} after $newAttempts attempts: ${cause?.message}")
+            Log.e(TAG, "sendMutation: FAILED_PERMANENTLY id=${mutation.id} malId=${mutation.malId} after $newAttempts attempts: $msg")
         }
     }
 

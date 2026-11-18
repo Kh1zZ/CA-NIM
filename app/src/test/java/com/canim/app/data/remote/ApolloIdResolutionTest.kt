@@ -453,4 +453,26 @@ class ApolloIdResolutionTest {
         assertEquals(1, CacheManager.getMalIdForAniListId(1, MediaType.ANIME))
         assertEquals(1, CacheManager.getMalIdForAniListId(30001, MediaType.MANGA))
     }
+
+    // 16. Batch lookup must not populate negative cache on HTTP 429 rate limit
+    @Test
+    fun test16_BatchResolveHttp429DoesNotNegativeCache() = runBlocking {
+        mockInterceptor.handler = { req, _ ->
+            Response.Builder()
+                .request(req)
+                .protocol(Protocol.HTTP_1_1)
+                .code(429)
+                .header("Retry-After", "60")
+                .message("Too Many Requests")
+                .body("Rate limit exceeded".toResponseBody("text/plain".toMediaType()))
+                .build()
+        }
+
+        val resultMap = AniListApolloClient.getMediaBatchByMalIds(listOf(52991), MediaType.ANIME, forceRefresh = true)
+        assertTrue(resultMap.isEmpty())
+        assertFalse(
+            "Batch HTTP 429 must NOT populate negative cache",
+            CacheManager.isNegativeCached("resolve_mal_52991_ANIME")
+        )
+    }
 }

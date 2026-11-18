@@ -5,6 +5,23 @@ All notable changes to CA'NIM will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versions follow strictly sequential Semantic Versioning without jumping (e.g. v6.2.4 -> v6.2.5).
 
+## [v6.7.4] - 2026-11-19
+### Fixed
+- **Audit Kritis Data Integrity, Auth, & Ketahanan Jaringan (Batch 1)**:
+  - Menjaga entri library lokal saat fetch MAL hanya berhasil sebagian (`MalFetchResult.Partial`) di `LibraryRepositoryImpl.safeReconcileMedia` (hanya melakukan orphan pruning pada `MalFetchResult.Success`), serta memvalidasi `malId > 0` di `saveUserMediaItem` agar ID yang belum teresolusi tidak mengirim request dengan ID `0`.
+  - Membuka kembali kunci sinkronisasi dan menjadwalkan notifikasi saat login OAuth MAL berhasil di `AuthRepositoryImpl`, membersihkan cache tracking disk (`CacheManager.clearTrackingDisk`), membatalkan worker notifikasi, memperbarui widget saat logout, dan memindahkan `logoutMalUseCase()` ke `Dispatchers.IO` di `GlobalViewModel`.
+  - Mengarahkan `fetchStudioFilmography`, `searchStudios`, `getDiscoverMedia`, dan `getMediaBatchByMalIds` di `AniListApolloClient` melalui `withAniListPolicy` dengan pengecekan `response.exception` & `hasErrors()`, mencegah penulisan negative cache pada error jaringan/429/GraphQL, serta meneruskan filter status di `getDiscoverMedia`.
+  - Mengaktifkan `coreLibraryDesugaring` (`desugar_jdk_libs:2.1.2`) di konfigurasi Gradle untuk dukungan penuh API `java.time.*` pada `minSdk = 24`.
+- **Reliabilitas Sync Queue, Isolasi Cache, Notifikasi, & Widget (Batch 2)**:
+  - Memisahkan tag jadwal next-airing untuk watching dan plan-to-watch (`WORK_NAME_NEXT_AIRING_WATCHING` / `WORK_NAME_NEXT_AIRING_PLAN`), serta mengecualikan anime selesai (`nextAiringAtSeconds == null`) dari pemicuan alert episode baru di `AiringAlertManager`.
+  - Memperketat `LibrarySyncEngine` dan `PendingMutationDao` agar `IOException` dan `HTTP 429` kembali ke antrean `PENDING` tanpa memakan kuota `maxAttempts` (`requeueWithoutIncrement`), error klien permanen (`400/403/404/422`) langsung gagal permanen, metrik 5xx hanya dicatat untuk status `500..599`, dan baris `IN_FLIGHT` usang dihapus jika mutasi `PENDING` lebih baru sudah masuk.
+  - Mengisolasi kunci negative cache `MediaResolver` (`neg_mal_manga_$malId`), menambahkan isolasi tipe media 3-argumen pada `CacheManager.detailKey` (serta sinkronisasi pembacaan `detailCache.keys`), mempertahankan `countryOfOrigin` & field detail MAL saat SWR refresh di `DetailRepositoryImpl`, memperbaiki parameter `type = item.type` di `CastCrewProfileScreen`, memperketat shortcut ranking MAL di `DiscoverRepositoryImpl`, dan mencegah hasil fallback lokal masuk ke cache pencarian di `SearchRepositoryImpl`.
+  - Menghubungkan `WatchingWidgetActionReceiver` ke `LibraryRepository` melalui Hilt `@EntryPoint`, mengamankan `goAsync()` pada broadcast widget, menghapus suffix zona waktu hardcoded `"WIB"` di `TodayAiringRemoteViewsService`, dan menunda deep-link cold start widget/notifikasi di `MainActivity` hingga data library selesai dimuat.
+- **Keamanan, Kualitas UI/Aksesibilitas, & CI Gate (Batch 3)**:
+  - Menonaktifkan ekspor publik `NotificationAlarmReceiver` di `AndroidManifest.xml`, mengganti fallback plaintext disk di `MalSecureStorage` dengan `InMemorySharedPreferences` volatile, membatasi bonus gacha `onAnimeAdded` sekali per `mediaId` di `GachaCreditManager`, menambahkan filter `isAdult: false` pada `SearchMedia.graphql`, dan mempertahankan jeda baris `<br>`/`\n` di `TextSanitizer`.
+  - Menambahkan verifikasi `./gradlew testDebugUnitTest` di workflow rilis `.github/workflows/release.yml`.
+  - Menyempurnakan UI & aksesibilitas: mencegah shimmer `rememberInfiniteTransition` aktif ketika tidak loading di `CanimAsyncImage`, memfilter duplikasi key item di `SearchScreen` & `DiscoverScreen`, menambahkan scroll vertikal pada `AdaptiveNavigationRail`, menghapus API `statusBarColor`/`navigationBarColor` deprecated di `Theme.kt`, mengkonfigurasi `SystemBarStyle.dark` di `MainActivity.enableEdgeToEdge`, serta memperbesar touch target tombol interaktif menjadi `>= 40dp` (`LibraryScreen`, `DashboardScreen`, banner `MainActivity`, `item_widget_watching.xml`).
+
 ## [v6.7.3] - 2026-11-18
 ### Fixed
 - **Notifikasi Episode Baru & Jadwal Tayang Real AniList**:

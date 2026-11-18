@@ -674,7 +674,7 @@ open class MalAuthManager(
      * Fallback full metadata retrieval from MyAnimeList when AniList returns null or incomplete info.
      */
     suspend fun getExtendedDetailFallback(malId: Int, type: MediaType): ExtendedMediaDetail? = withContext(Dispatchers.IO) {
-        val cacheKey = CacheManager.detailKey(null, malId)
+        val cacheKey = CacheManager.detailKey(null, malId, type)
         val cached = CacheManager.getDetail(cacheKey)
             ?: (CacheManager.getAniListIdForMalId(malId, type)?.let { aniId -> CacheManager.getDetail(CacheManager.detailKey(aniId, malId)) })
         if (cached != null) return@withContext cached

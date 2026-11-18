@@ -28,11 +28,11 @@ class DetailRepositoryImpl @Inject constructor(
     ): ExtendedMediaDetail? {
         val resolvedAniListId = aniListId ?: (malId?.let { CacheManager.getAniListIdForMalId(it, type) })
         val resolvedMalId = malId ?: (resolvedAniListId?.let { CacheManager.getMalIdForAniListId(it, type) })
-        val primaryCacheKey = CacheManager.detailKey(resolvedAniListId, resolvedMalId)
+        val primaryCacheKey = CacheManager.detailKey(resolvedAniListId, resolvedMalId, type)
 
         return CacheManager.getDetail(primaryCacheKey)
             ?: (resolvedAniListId?.let { CacheManager.getDetail(CacheManager.detailKey(it, null)) })
-            ?: (resolvedMalId?.let { CacheManager.getDetail(CacheManager.detailKey(null, it)) })
+            ?: (resolvedMalId?.let { CacheManager.getDetail(CacheManager.detailKey(null, it, type)) })
     }
 
     override suspend fun getMalExtendedDetailFallback(malId: Int, type: MediaType): ExtendedMediaDetail? =
@@ -46,12 +46,12 @@ class DetailRepositoryImpl @Inject constructor(
     ): ExtendedMediaDetail? = withContext(Dispatchers.IO) {
         val resolvedAniListId = aniListId ?: (malId?.let { CacheManager.getAniListIdForMalId(it, type) })
         val resolvedMalId = malId ?: (resolvedAniListId?.let { CacheManager.getMalIdForAniListId(it, type) })
-        val primaryCacheKey = CacheManager.detailKey(resolvedAniListId, resolvedMalId)
+        val primaryCacheKey = CacheManager.detailKey(resolvedAniListId, resolvedMalId, type)
 
         if (!forceRefresh) {
             val swrHit = CacheManager.getDetailSwr(primaryCacheKey)
                 ?: (resolvedAniListId?.let { CacheManager.getDetailSwr(CacheManager.detailKey(it, null)) })
-                ?: (resolvedMalId?.let { CacheManager.getDetailSwr(CacheManager.detailKey(null, it)) })
+                ?: (resolvedMalId?.let { CacheManager.getDetailSwr(CacheManager.detailKey(null, it, type)) })
             if (swrHit != null && (swrHit.data.malScore != null || resolvedMalId == null) && (!swrHit.data.isFromFallback || swrHit.data.cast.isNotEmpty())) {
                 val isEffectivelyStale = swrHit.isStale || swrHit.data.isFromFallback
                 if (isEffectivelyStale) {
@@ -59,14 +59,24 @@ class DetailRepositoryImpl @Inject constructor(
                     val capMalId = resolvedMalId
                     val capType = type
                     val capPrimaryKey = primaryCacheKey
+                    val prev = swrHit.data
                     swrCoordinator.launchSwrJob(capPrimaryKey) {
                         runCatching {
                             val fresh = AniListClient.getExtendedDetails(capAniId, capMalId, capType, forceRefresh = true)
                             if (fresh != null && !fresh.isFromFallback && fresh.cast.isNotEmpty()) {
-                                CacheManager.putDetail(capPrimaryKey, fresh)
-                                capAniId?.let { CacheManager.putDetail(CacheManager.detailKey(it, null), fresh) }
-                                capMalId?.let { CacheManager.putDetail(CacheManager.detailKey(null, it), fresh) }
-                                if (fresh != swrHit.data) {
+                                val enrichedFresh = fresh.copy(
+                                    malScore = prev.malScore ?: fresh.malScore,
+                                    malRank = prev.malRank ?: fresh.malRank,
+                                    malPopularity = prev.malPopularity ?: fresh.malPopularity,
+                                    malMembers = prev.malMembers ?: fresh.malMembers,
+                                    relations = if (prev.relations.isNotEmpty()) prev.relations else fresh.relations,
+                                    recommendations = if (prev.recommendations.isNotEmpty()) prev.recommendations else fresh.recommendations,
+                                    countryOfOrigin = prev.countryOfOrigin ?: fresh.countryOfOrigin
+                                )
+                                CacheManager.putDetail(capPrimaryKey, enrichedFresh)
+                                capAniId?.let { CacheManager.putDetail(CacheManager.detailKey(it, null), enrichedFresh) }
+                                capMalId?.let { CacheManager.putDetail(CacheManager.detailKey(null, it, capType), enrichedFresh) }
+                                if (enrichedFresh != prev) {
                                     swrCoordinator.emitRefreshEvent(capPrimaryKey, CacheRefreshType.DETAIL)
                                 }
                             }
@@ -137,7 +147,8 @@ class DetailRepositoryImpl @Inject constructor(
                         format = aniDetail.format ?: malExt.format,
                         episodes = aniDetail.episodes ?: malExt.episodes,
                         chapters = aniDetail.chapters ?: malExt.chapters,
-                        volumes = aniDetail.volumes ?: malExt.volumes
+                        volumes = aniDetail.volumes ?: malExt.volumes,
+                        countryOfOrigin = malExt.countryOfOrigin ?: aniDetail.countryOfOrigin
                     )
                 } else if (malExt != null) {
                     malExt
@@ -158,7 +169,7 @@ class DetailRepositoryImpl @Inject constructor(
                             CacheManager.putDetail(CacheManager.detailKey(effectiveAni, null), merged)
                         }
                         if (effectiveMal != null) {
-                            CacheManager.putDetail(CacheManager.detailKey(null, effectiveMal), merged)
+                            CacheManager.putDetail(CacheManager.detailKey(null, effectiveMal, type), merged)
                         }
                     }
                 }
@@ -192,6 +203,7 @@ class DetailRepositoryImpl @Inject constructor(
         (aniId != null && eventKey == CacheManager.detailKey(aniId, malId))
             || (aniId != null && eventKey == CacheManager.detailKey(aniId, null))
             || (malId != null && eventKey == CacheManager.detailKey(null, malId))
-            || (aniId != null && eventKey.contains("ani_$aniId"))
-            || (malId != null && eventKey.contains("mal_$malId"))
+            || (malId != null && eventKey == CacheManager.detailKey(null, malId, MediaType.MANGA))
+            || (aniId != null && (eventKey == "detail_ani_$aniId" || eventKey.startsWith("detail_ani_${aniId}_")))
+            || (malId != null && (eventKey == "detail_mal_$malId" || eventKey == "detail_manga_mal_$malId" || eventKey.endsWith("_mal_$malId")))
 }

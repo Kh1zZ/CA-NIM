@@ -23,7 +23,8 @@ object NotificationScheduler {
 
     const val WORK_NAME_PERIODIC = "canim_periodic_notification_check"
     const val WORK_NAME_IMMEDIATE = "canim_immediate_notification_check"
-    const val WORK_NAME_NEXT_AIRING = "canim_next_airing_notification_check"
+    const val WORK_NAME_NEXT_AIRING_WATCHING = "canim_next_airing_watching_check"
+    const val WORK_NAME_NEXT_AIRING_PLAN = "canim_next_airing_plan_check"
     private const val REQUEST_CODE_ALARM = 4001
     private const val INTERVAL_MINUTES = 15L
     private const val FLEX_MINUTES = 5L
@@ -82,7 +83,11 @@ object NotificationScheduler {
      * anime episode airing timestamp so notifications fire promptly without waiting
      * for the next periodic window.
      */
-    fun scheduleNextAiringCheck(context: Context, nextAiringAtMs: Long) {
+    fun scheduleNextAiringCheck(
+        context: Context,
+        nextAiringAtMs: Long,
+        workName: String = WORK_NAME_NEXT_AIRING_WATCHING
+    ) {
         val delayMs = (nextAiringAtMs - System.currentTimeMillis()) + AIRING_BUFFER_MS
         if (delayMs <= 0L) return
         try {
@@ -96,7 +101,7 @@ object NotificationScheduler {
                 .build()
 
             WorkManager.getInstance(context).enqueueUniqueWork(
-                WORK_NAME_NEXT_AIRING,
+                workName,
                 ExistingWorkPolicy.REPLACE,
                 workRequest
             )
@@ -105,7 +110,10 @@ object NotificationScheduler {
 
     fun cancelPeriodicCheck(context: Context) {
         try {
-            WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME_PERIODIC)
+            val wm = WorkManager.getInstance(context)
+            wm.cancelUniqueWork(WORK_NAME_PERIODIC)
+            wm.cancelUniqueWork(WORK_NAME_NEXT_AIRING_WATCHING)
+            wm.cancelUniqueWork(WORK_NAME_NEXT_AIRING_PLAN)
         } catch (_: Exception) {}
         cancelLegacyAlarm(context)
     }

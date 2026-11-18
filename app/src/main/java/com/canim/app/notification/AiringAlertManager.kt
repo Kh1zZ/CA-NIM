@@ -41,11 +41,13 @@ class AiringAlertManager @Inject constructor(
 
         val watchingMalIds = watchingAnimeWithMalId.mapNotNull { it.malId }.toSet()
         val airingItems = calendarRepository.getWatchingAiringAnime(watchingMalIds, forceRefresh)
-        scheduleEarliestNextAiring(airingItems)
+        scheduleEarliestNextAiring(airingItems, NotificationScheduler.WORK_NAME_NEXT_AIRING_WATCHING)
 
         var notifiedCount = 0
         for (airing in airingItems) {
             val malId = airing.malId ?: continue
+            // Only notify for currently airing shows (not finished/AIRED catalog titles)
+            if (airing.nextAiringAtSeconds == null) continue
             val currentEp = airing.currentAiringEpisode ?: continue
 
             // Only notify if current episode is greater than user's watched progress
@@ -80,7 +82,7 @@ class AiringAlertManager @Inject constructor(
 
         val planMalIds = planWithMalId.mapNotNull { it.malId }.toSet()
         val airingItems = calendarRepository.getWatchingAiringAnime(planMalIds, forceRefresh)
-        scheduleEarliestNextAiring(airingItems)
+        scheduleEarliestNextAiring(airingItems, NotificationScheduler.WORK_NAME_NEXT_AIRING_PLAN)
 
         var notifiedCount = 0
         for (airing in airingItems) {
@@ -104,13 +106,13 @@ class AiringAlertManager @Inject constructor(
         notifiedCount
     }
 
-    private fun scheduleEarliestNextAiring(airingItems: List<AiringAnimeItem>) {
+    private fun scheduleEarliestNextAiring(airingItems: List<AiringAnimeItem>, workName: String) {
         val ctx = context ?: return
         val nowMs = System.currentTimeMillis()
         val earliestMs = airingItems
             .mapNotNull { it.nextAiringAtSeconds?.times(1000L) }
             .filter { it > nowMs }
             .minOrNull() ?: return
-        NotificationScheduler.scheduleNextAiringCheck(ctx, earliestMs)
+        NotificationScheduler.scheduleNextAiringCheck(ctx, earliestMs, workName)
     }
 }

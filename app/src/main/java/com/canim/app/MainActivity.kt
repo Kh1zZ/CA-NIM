@@ -7,6 +7,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.animation.*
@@ -90,6 +91,8 @@ class MainActivity : ComponentActivity() {
     lateinit var librarySyncEngine: com.canim.app.data.local.LibrarySyncEngine
 
     private var notificationSoundTitle by mutableStateOf("Default Sistem")
+    private var pendingOpenAnimeMalId by mutableStateOf<Int?>(null)
+    private var pendingFallbackToCalendar by mutableStateOf(false)
 
     private val ringtonePickerLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
@@ -135,7 +138,10 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        )
         librarySyncEngine.start()
         updateSoundTitle()
 
@@ -170,6 +176,24 @@ class MainActivity : ComponentActivity() {
                 val calendarState by calendarViewModel.calendarState.collectAsState()
                 val context = LocalContext.current
                 val snackbarHostState = remember { SnackbarHostState() }
+
+                // Open deferred deep link detail once animeList finishes loading on cold start
+                LaunchedEffect(libraryState.animeList, libraryState.isLoading, pendingOpenAnimeMalId) {
+                    val targetMalId = pendingOpenAnimeMalId ?: return@LaunchedEffect
+                    val match = libraryState.animeList.firstOrNull { it.malId == targetMalId }
+                    if (match != null) {
+                        pendingOpenAnimeMalId = null
+                        pendingFallbackToCalendar = false
+                        globalViewModel.openDetail(match, MediaType.ANIME)
+                        detailViewModel.openDetail(match, MediaType.ANIME)
+                    } else if (!libraryState.isLoading && libraryState.animeList.isNotEmpty()) {
+                        pendingOpenAnimeMalId = null
+                        if (pendingFallbackToCalendar) {
+                            pendingFallbackToCalendar = false
+                            globalViewModel.openAiringCalendar()
+                        }
+                    }
+                }
 
                 // Periodic or on-load airing episode alert check for watching anime
                 val watchingAnime = remember(libraryState.animeList) {
@@ -1055,7 +1079,7 @@ class MainActivity : ComponentActivity() {
 
                                         IconButton(
                                             onClick = { globalViewModel.dismissColdStartOutageBanner() },
-                                            modifier = Modifier.size(28.dp)
+                                            modifier = Modifier.size(48.dp)
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.Close,
@@ -1099,7 +1123,8 @@ class MainActivity : ComponentActivity() {
                 globalViewModel.openDetail(matchingAnime, com.canim.app.data.model.MediaType.ANIME)
                 detailViewModel.openDetail(matchingAnime, com.canim.app.data.model.MediaType.ANIME)
             } else {
-                globalViewModel.openAiringCalendar()
+                pendingOpenAnimeMalId = airingMalId
+                pendingFallbackToCalendar = true
             }
         }
         if (intent?.getBooleanExtra("extra_open_airing_calendar", false) == true) {
@@ -1115,6 +1140,9 @@ class MainActivity : ComponentActivity() {
             if (matchingAnime != null) {
                 globalViewModel.openDetail(matchingAnime, com.canim.app.data.model.MediaType.ANIME)
                 detailViewModel.openDetail(matchingAnime, com.canim.app.data.model.MediaType.ANIME)
+            } else {
+                pendingOpenAnimeMalId = widgetMalId
+                pendingFallbackToCalendar = false
             }
         }
     }

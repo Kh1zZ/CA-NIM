@@ -370,7 +370,7 @@ fun CastCrewProfileScreen(
                                     title = item.title,
                                     titleEnglish = item.title,
                                     imageUrl = item.imageUrl ?: "",
-                                    type = if (item.format == "MANGA") MediaType.MANGA else MediaType.ANIME,
+                                    type = item.type,
                                     score = 0.0,
                                     synopsis = "",
                                     year = item.year,

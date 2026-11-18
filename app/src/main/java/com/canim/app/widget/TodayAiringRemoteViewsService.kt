@@ -61,7 +61,7 @@ class AiringRemoteViewsFactory(
 
         rv.setTextViewText(R.id.item_airing_title, item.title)
 
-        val timeText = if (!item.airingTimeFormatted.isNullOrBlank()) "${item.airingTimeFormatted} WIB" else "WIB --:--"
+        val timeText = item.airingTimeFormatted?.takeIf { it.isNotBlank() } ?: "--:--"
         val epText = if (item.episodes != null && item.episodes > 0) " • Eps ${item.episodes}" else ""
         rv.setTextViewText(R.id.item_airing_time, "$timeText$epText")
 

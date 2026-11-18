@@ -27,8 +27,8 @@ object MediaResolver {
         val cached = CacheManager.getAniListIdForMalId(malId, type)
         if (cached != null) return@withContext cached
 
-        // 2. Check negative cache
-        val negativeKey = "neg_mal_$malId"
+        // 2. Check negative cache (namespace Anime and Manga separately to avoid ID collision)
+        val negativeKey = if (type == MediaType.MANGA) "neg_mal_manga_$malId" else "neg_mal_$malId"
         if (CacheManager.isNegativeCached(negativeKey)) return@withContext null
 
         // 3. Query AniList

@@ -22,10 +22,15 @@ class WatchingProgressWidgetProvider : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
+        val pendingResult = goAsync()
         val appScope = (context.applicationContext as? CanimApplication)?.appScope
             ?: kotlinx.coroutines.CoroutineScope(Dispatchers.IO)
         appScope.launch(Dispatchers.IO) {
-            renderWidgets(context, appWidgetManager, appWidgetIds)
+            try {
+                renderWidgets(context, appWidgetManager, appWidgetIds)
+            } finally {
+                pendingResult.finish()
+            }
         }
     }
 

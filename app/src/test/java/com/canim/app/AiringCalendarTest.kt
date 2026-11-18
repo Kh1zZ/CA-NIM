@@ -36,7 +36,8 @@ class AiringCalendarTest {
         malId: Int,
         title: String,
         day: DayOfWeek,
-        currentEp: Int
+        currentEp: Int,
+        nextAiringAtSeconds: Long? = 1_763_460_000L
     ): AiringAnimeItem {
         return AiringAnimeItem(
             id = "mal_$malId",
@@ -49,7 +50,8 @@ class AiringCalendarTest {
             episodes = 24,
             currentAiringEpisode = currentEp,
             airingDay = day,
-            airingTimeFormatted = "23:00"
+            airingTimeFormatted = "23:00",
+            nextAiringAtSeconds = nextAiringAtSeconds
         )
     }
 
@@ -247,5 +249,36 @@ class AiringCalendarTest {
         assertEquals(1, dispatched)
         assertFalse(tracker.shouldNotifyAiringStarted(302))
         assertTrue(tracker.shouldNotifyAiringStarted(301))
+    }
+
+    @Test
+    fun testAiringAlertManagerIgnoresFinishedAnimeWithoutNextAiring() = runTest {
+        val fakeRepo = object : CalendarRepository {
+            override suspend fun getAiringCalendar(forceRefresh: Boolean): Map<DayOfWeek, List<AiringAnimeItem>> = emptyMap()
+            override suspend fun getWatchingAiringAnime(
+                watchingMalIds: Set<Int>,
+                forceRefresh: Boolean
+            ): List<AiringAnimeItem> {
+                return listOf(
+                    createAiringItem(401, "Finished Show", DayOfWeek.MONDAY, currentEp = 12, nextAiringAtSeconds = null),
+                    createAiringItem(402, "Airing Show", DayOfWeek.MONDAY, currentEp = 5, nextAiringAtSeconds = 1_763_460_000L)
+                )
+            }
+        }
+
+        val alertManager = AiringAlertManager(
+            notificationManager = CanimNotificationManager(context),
+            notificationTracker = tracker,
+            calendarRepository = fakeRepo
+        )
+        val watchingList = listOf(
+            createUserWatchingItem(401, progress = 0),
+            createUserWatchingItem(402, progress = 3)
+        )
+
+        val dispatched = alertManager.checkAndDispatchAiringAlerts(watchingList)
+        assertEquals(1, dispatched)
+        assertEquals(0, tracker.getLastNotifiedEpisode(401))
+        assertEquals(5, tracker.getLastNotifiedEpisode(402))
     }
 }

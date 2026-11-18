@@ -202,4 +202,27 @@ class SyncQueueRetryTest {
         val activeIds = mutationDao.getActiveMalIds("ANIME")
         assertTrue(8 in activeIds)
     }
+
+    @Test
+    fun `transient IOException and HTTP 429 stay PENDING without burning attempts, while HTTP 404 fails permanently`() = runTest {
+        mutationDao.enqueueMutation(animeUpdate(malId = 9))
+        fakeMal.updateResult = Result.failure(java.io.IOException("Offline socket timeout"))
+
+        repeat(4) { engine.drainQueue() }
+        var pending = mutationDao.getPendingMutations()
+        assertEquals(1, pending.size)
+        assertEquals(STATUS_PENDING, pending[0].status)
+        assertEquals("IOException must not burn retry attempts", 0, pending[0].attempts)
+
+        fakeMal.updateResult = Result.failure(Exception("HTTP 429 Too Many Requests"))
+        engine.drainQueue()
+        pending = mutationDao.getPendingMutations()
+        assertEquals(1, pending.size)
+        assertEquals(STATUS_PENDING, pending[0].status)
+        assertEquals("HTTP 429 must not burn retry attempts", 0, pending[0].attempts)
+
+        fakeMal.updateResult = Result.failure(Exception("HTTP 404 Not Found"))
+        engine.drainQueue()
+        assertTrue("HTTP 404 must fail immediately without retries", mutationDao.getPendingMutations().isEmpty())
+    }
 }
